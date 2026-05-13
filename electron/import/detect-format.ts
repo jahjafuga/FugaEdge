@@ -1,0 +1,61 @@
+import Papa from 'papaparse'
+
+export type CsvFormat = 'executions' | 'daily-summary' | 'unknown'
+
+// Sniffs the first row(s) to decide which DAS Trader export this is.
+// We parse via PapaParse so quoted multi-line cells (which DAS uses for the
+// daily-summary's "Bought\nShares" style headers) don't get cut off mid-row.
+export function detectFormat(csvText: string): CsvFormat {
+  const stripped = csvText.replace(/^[﻿￾​]+/, '')
+
+  const sniff = Papa.parse<string[]>(stripped, {
+    header: false,
+    skipEmptyLines: true,
+    delimiter: ',',
+    preview: 2,
+  })
+
+  const rows = sniff.data
+  if (rows.length === 0) return 'unknown'
+  const row1 = rows[0]
+  if (!row1 || row1.length === 0) return 'unknown'
+
+  const first = (row1[0] || '').trim().toLowerCase()
+
+  // Executions file (Trades.csv) — first column is TradeID.
+  if (first === 'tradeid') return 'executions'
+
+  // Daily summary — first column is Symbol. Verify with fee/aggregate markers
+  // in either row 1 (single-line or embedded-newline headers) or row 2
+  // (continuation row when headers physically span two lines).
+  if (first === 'symbol') {
+    const joined1 = row1
+      .join(' ')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+    const joined2 = rows[1]
+      ? rows[1].join(' ').toLowerCase().replace(/\s+/g, ' ')
+      : ''
+    const combined = `${joined1} ${joined2}`
+    if (
+      combined.includes('htb') ||
+      combined.includes('day-trade') ||
+      combined.includes('finra') ||
+      combined.includes(' ecn ')
+    ) {
+      return 'daily-summary'
+    }
+    // "Symbol" as the first column is distinctive enough — fall through as
+    // daily-summary even without the fee markers (e.g. exports that strip
+    // them).
+    return 'daily-summary'
+  }
+
+  // Older / variant exports that don't start with TradeID/Symbol — fall back
+  // to the substring sniff on the joined first row.
+  const joined1 = row1.join(' ').toLowerCase()
+  if (joined1.includes('tradeid') && joined1.includes('b/s')) return 'executions'
+  if (joined1.includes('htb') || joined1.includes('day-trade')) return 'daily-summary'
+
+  return 'unknown'
+}

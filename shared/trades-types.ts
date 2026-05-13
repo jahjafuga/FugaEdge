@@ -1,0 +1,120 @@
+import type { RoundTripExecution } from './import-types'
+
+export interface TradeNote {
+  text: string
+}
+
+export type EntryTimeframe = '10s' | '1m' | '5m'
+
+export interface TradeListRow {
+  id: number
+  date: string
+  symbol: string
+  side: 'long' | 'short'
+  open_time: string
+  close_time: string | null
+  is_open: boolean
+  shares_bought: number
+  avg_buy_price: number
+  shares_sold: number
+  avg_sell_price: number
+  gross_pnl: number
+  total_fees: number
+  net_pnl: number
+  executions: RoundTripExecution[]
+  note: TradeNote | null
+  entry_timeframe: EntryTimeframe | null
+  entry_ema9_distance_pct: number | null
+  playbook_id: number | null
+  playbook_name: string | null
+  confidence: number | null
+  mistakes: string[]
+  /** Legacy: $ amount the trader was willing to lose on the trade. Kept for
+   *  back-compat. R-multiple falls back to net_pnl / planned_risk when
+   *  planned_stop_loss_price is unset. */
+  planned_risk: number | null
+  /** Pre-trade stop loss PRICE (e.g. 10.20). When set, risk_per_share =
+   *  |avg_entry - planned_stop_loss_price|, total_risk = risk_per_share ×
+   *  shares, and R-multiple = net_pnl / total_risk. */
+  planned_stop_loss_price: number | null
+  /** Derived: |avg_entry - planned_stop_loss_price|. Null when stop price
+   *  is unset. */
+  risk_per_share: number | null
+  /** Derived: risk_per_share × shares. Falls back to planned_risk when
+   *  stop price is unset. */
+  total_risk: number | null
+  /** Computed: net_pnl / total_risk. Falls back to net_pnl / planned_risk
+   *  when stop price is unset. Null when neither path yields a value. */
+  r_multiple: number | null
+  /** Tradable share float at the time of the trade. Auto-populated from
+   *  market_data.float on import; user-editable in the detail modal. Null
+   *  when neither cached market data nor a user override exists. */
+  float_shares: number | null
+  /** Catalyst type for the trade (News / Earnings / Halt Resume / etc.).
+   *  Free-form text so the dropdown can grow without a schema change. */
+  catalyst_type: string | null
+  /** Integer days since the catalyst event. 0 = same-day, 1 = day-2
+   *  continuation, etc. Null when not applicable. */
+  days_since_catalyst: number | null
+  /** Number of screenshot attachments — drives the badge on the expand-row
+   *  Screenshots button so the user knows the trade has visuals without
+   *  opening the modal. */
+  attachment_count: number
+}
+
+export interface UpdateTimeframeInput {
+  trade_id: number
+  timeframe: EntryTimeframe | null
+}
+
+export interface UpdateConfidenceInput {
+  trade_id: number
+  confidence: number | null  // 1..5 or null
+}
+
+export interface UpdateMistakesInput {
+  trade_id: number
+  mistakes: string[]
+}
+
+export interface UpdatePlannedRiskInput {
+  trade_id: number
+  planned_risk: number | null
+}
+
+export interface UpdatePlannedStopLossInput {
+  trade_id: number
+  /** Stop price in dollars; null clears. */
+  planned_stop_loss_price: number | null
+}
+
+export interface UpdateFloatInput {
+  trade_id: number
+  float_shares: number | null
+}
+
+export interface UpdateCatalystInput {
+  trade_id: number
+  catalyst_type: string | null
+  days_since_catalyst: number | null
+}
+
+/** Canonical catalyst options for the trade detail modal's dropdown.
+ *  Stored as raw text; the dropdown picks from this list but custom
+ *  values are tolerated by the DB column. */
+export const CATALYST_TYPES = [
+  'News',
+  'Earnings',
+  'Reverse Split',
+  'Continuation',
+  'Halt Resume',
+  'FDA/Clinical',
+  'Offering',
+  'Other',
+] as const
+export type CatalystType = (typeof CATALYST_TYPES)[number]
+
+export interface UpdateNoteInput {
+  trade_id: number
+  text: string
+}

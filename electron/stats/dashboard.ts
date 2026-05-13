@@ -1,0 +1,321 @@
+import { openDatabase } from '../db/database'
+import type {
+  DailyPnlPoint,
+  DashboardData,
+  DashboardSettings,
+  LatestSession,
+  MonthCalendar,
+  OverviewStats,
+  SessionTrade,
+  TimeRange,
+} from '@shared/dashboard-types'
+
+function pad(n: number): string {
+  return n < 10 ? `0${n}` : String(n)
+}
+
+function ym(date: Date): { year: number; month: number; prefix: string } {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  return { year, month, prefix: `${year}-${pad(month)}` }
+}
+
+// Converts '7d' / '30d' / etc. into an inclusive lower-bound date string.
+// 'all' returns null (no filter).
+function rangeStart(range: TimeRange, now: Date): string | null {
+  if (range === 'all') return null
+  const days = Number.parseInt(range, 10)
+  if (!Number.isFinite(days) || days <= 0) return null
+  const d = new Date(now)
+  d.setHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - (days - 1))
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function readOverview(
+  db: ReturnType<typeof openDatabase>,
+  start: string | null,
+): OverviewStats {
+  const where = start ? 'WHERE date >= ?' : ''
+  const params = start ? [start] : []
+
+  const totals = db
+    .prepare(`
+      SELECT
+        COALESCE(SUM(net_pnl), 0)    AS net_pnl,
+        COALESCE(SUM(gross_pnl), 0)  AS gross_pnl,
+        COALESCE(SUM(total_fees), 0) AS total_fees,
+        COUNT(*)                      AS trade_count,
+        COALESCE(SUM(CASE WHEN net_pnl = 0 THEN 1 ELSE 0 END), 0) AS scratches
+      FROM trades ${where}
+    `)
+    .get(...params) as {
+      net_pnl: number; gross_pnl: number; total_fees: number; trade_count: number; scratches: number
+    }
+
+  const winnersWhere = start
+    ? 'WHERE net_pnl > 0 AND date >= ?'
+    : 'WHERE net_pnl > 0'
+  const losersWhere = start
+    ? 'WHERE net_pnl < 0 AND date >= ?'
+    : 'WHERE net_pnl < 0'
+
+  const winners = db
+    .prepare(`
+      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MAX(net_pnl) AS max
+      FROM trades ${winnersWhere}
+    `)
+    .get(...params) as { n: number; sum: number; max: number | null }
+
+  const losers = db
+    .prepare(`
+      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MIN(net_pnl) AS min
+      FROM trades ${losersWhere}
+    `)
+    .get(...params) as { n: number; sum: number; min: number | null }
+
+  const decided = winners.n + losers.n
+  const win_rate = decided > 0 ? winners.n / decided : null
+  const profit_factor =
+    losers.n > 0 ? winners.sum / Math.abs(losers.sum) : null
+  const avg_winner = winners.n > 0 ? winners.sum / winners.n : null
+  const avg_loser = losers.n > 0 ? losers.sum / losers.n : null
+  const largest_winner = winners.n > 0 ? (winners.max ?? null) : null
+  const largest_loser = losers.n > 0 ? (losers.min ?? null) : null
+
+  return {
+    net_pnl: totals.net_pnl,
+    gross_pnl: totals.gross_pnl,
+    total_fees: totals.total_fees,
+    trade_count: totals.trade_count,
+    winners: winners.n,
+    losers: losers.n,
+    scratches: totals.scratches,
+    win_rate,
+    profit_factor,
+    avg_winner,
+    avg_loser,
+    largest_winner,
+    largest_loser,
+  }
+}
+
+interface DailyRowDb {
+  date: string
+  net_pnl: number
+  trade_count: number
+}
+
+function readDailySeries(
+  db: ReturnType<typeof openDatabase>,
+  start: string | null,
+): DailyPnlPoint[] {
+  const rows = (
+    start
+      ? db
+          .prepare(`
+            SELECT date, total_pnl AS net_pnl, trade_count
+            FROM daily_summary
+            WHERE date >= ?
+            ORDER BY date ASC
+          `)
+          .all(start)
+      : db
+          .prepare(`
+            SELECT date, total_pnl AS net_pnl, trade_count
+            FROM daily_summary
+            ORDER BY date ASC
+          `)
+          .all()
+  ) as DailyRowDb[]
+
+  return rows.map((r) => ({
+    date: r.date,
+    net_pnl: r.net_pnl,
+    trade_count: r.trade_count,
+    avg_trade_pnl: r.trade_count > 0 ? r.net_pnl / r.trade_count : 0,
+  }))
+}
+
+function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
+  const row = db
+    .prepare('SELECT MAX(date) AS date FROM trades')
+    .get() as { date: string | null }
+  const date = row?.date ?? ''
+  if (!date) {
+    return {
+      date: '',
+      net_pnl: 0,
+      total_fees: 0,
+      trade_count: 0,
+      winners: 0,
+      losers: 0,
+      trades: [],
+    }
+  }
+  const summary = db
+    .prepare(`
+      SELECT total_pnl AS net_pnl, total_fees, trade_count, winners, losers
+      FROM daily_summary WHERE date = ?
+    `)
+    .get(date) as
+      | { net_pnl: number; total_fees: number; trade_count: number; winners: number; losers: number }
+      | undefined
+  const trades = db
+    .prepare(`
+      SELECT t.id, t.symbol, t.side, t.shares_bought, t.avg_buy_price,
+             t.shares_sold, t.avg_sell_price, t.total_fees, t.net_pnl,
+             p.name AS playbook_name, t.confidence
+      FROM trades t
+      LEFT JOIN playbooks p ON p.id = t.playbook_id
+      WHERE t.date = ? ORDER BY t.net_pnl DESC
+    `)
+    .all(date) as SessionTrade[]
+  return {
+    date,
+    net_pnl: summary?.net_pnl ?? 0,
+    total_fees: summary?.total_fees ?? 0,
+    trade_count: summary?.trade_count ?? trades.length,
+    winners: summary?.winners ?? 0,
+    losers: summary?.losers ?? 0,
+    trades,
+  }
+}
+
+function readMonth(
+  db: ReturnType<typeof openDatabase>,
+  year: number,
+  month: number,
+): MonthCalendar {
+  const prefix = `${year}-${pad(month)}`
+  const rows = db
+    .prepare(`
+      SELECT date, total_pnl AS net_pnl, trade_count
+      FROM daily_summary
+      WHERE date LIKE ?
+      ORDER BY date ASC
+    `)
+    .all(`${prefix}-%`) as DailyRowDb[]
+  const days: DailyPnlPoint[] = rows.map((r) => ({
+    date: r.date,
+    net_pnl: r.net_pnl,
+    trade_count: r.trade_count,
+    avg_trade_pnl: r.trade_count > 0 ? r.net_pnl / r.trade_count : 0,
+  }))
+  return { year, month, days }
+}
+
+// Consecutive market days (Mon–Fri) up to and including the most recent
+// reference date where the user either traded or wrote a journal entry.
+//
+// Walks backwards day-by-day from `now`. Weekends are skipped (markets
+// closed) — they don't extend the streak but also don't break it. The first
+// market day with neither trade nor journal content breaks the chain.
+function readDisciplineStreak(
+  db: ReturnType<typeof openDatabase>,
+  now: Date,
+): number {
+  const tradedDays = new Set(
+    (db.prepare('SELECT DISTINCT date FROM trades').all() as { date: string }[])
+      .map((r) => r.date),
+  )
+  const journalDays = new Set(
+    (
+      db
+        .prepare(`
+          SELECT date FROM journal
+          WHERE (premarket_notes IS NOT NULL AND TRIM(premarket_notes) != '')
+             OR (postsession_notes IS NOT NULL AND TRIM(postsession_notes) != '')
+             OR emotion_rating IS NOT NULL
+             OR (rules_followed IS NOT NULL AND rules_followed != '' AND rules_followed != '[]')
+             OR (rule_violations IS NOT NULL AND rule_violations != '' AND rule_violations != '[]')
+             OR (day_tags IS NOT NULL AND day_tags != '' AND day_tags != '[]')
+        `)
+        .all() as { date: string }[]
+    ).map((r) => r.date),
+  )
+  if (tradedDays.size === 0 && journalDays.size === 0) return 0
+
+  const showedUp = (d: string) => tradedDays.has(d) || journalDays.has(d)
+  const ymd = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const isMarketDay = (d: Date) => {
+    const dow = d.getDay()
+    return dow >= 1 && dow <= 5
+  }
+
+  // If today hasn't happened yet (no trades, no journal), don't break the
+  // streak — start counting from the most recent market day that DID get
+  // activity. This avoids the "I haven't logged premarket today, my 12-day
+  // streak just zeroed" footgun.
+  const cursor = new Date(now)
+  cursor.setHours(0, 0, 0, 0)
+  while (isMarketDay(cursor) && !showedUp(ymd(cursor))) {
+    cursor.setDate(cursor.getDate() - 1)
+    if (cursor.getFullYear() < 1990) return 0 // safety bound
+  }
+
+  let streak = 0
+  while (true) {
+    if (isMarketDay(cursor)) {
+      if (showedUp(ymd(cursor))) {
+        streak++
+      } else {
+        break
+      }
+    }
+    cursor.setDate(cursor.getDate() - 1)
+    if (cursor.getFullYear() < 1990) break // safety bound
+  }
+  return streak
+}
+
+function readSettings(db: ReturnType<typeof openDatabase>): DashboardSettings {
+  const rows = db
+    .prepare('SELECT key, value FROM settings WHERE key IN (?, ?)')
+    .all('max_daily_loss', 'account_size') as { key: string; value: string }[]
+  const map: Record<string, string> = {}
+  for (const r of rows) map[r.key] = r.value
+  return {
+    max_daily_loss: Number.parseFloat(map.max_daily_loss ?? '500') || 0,
+    account_size: Number.parseFloat(map.account_size ?? '25000') || 0,
+  }
+}
+
+export function getDashboardData(
+  range: TimeRange = '30d',
+  now: Date = new Date(),
+): DashboardData {
+  const db = openDatabase()
+  const start = rangeStart(range, now)
+
+  // `empty` reflects whether the user has ANY trades — not whether the
+  // current range happens to be empty. Otherwise switching to 7d on a fresh
+  // install would show the "Go import" CTA instead of the no-data state for
+  // the chosen range.
+  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades').get() as {
+    n: number
+  }
+  const empty = totalRows.n === 0
+
+  const overview = readOverview(db, start)
+  const daily = readDailySeries(db, start)
+  const latest = readLatestSession(db)
+  const target = latest.date ? new Date(`${latest.date}T00:00:00`) : now
+  const { year, month } = ym(target)
+  const monthData = readMonth(db, year, month)
+  const settings = readSettings(db)
+  const discipline_streak = readDisciplineStreak(db, now)
+
+  return {
+    range,
+    range_start: start,
+    overview,
+    daily,
+    latest,
+    month: monthData,
+    settings,
+    discipline_streak,
+    empty,
+  }
+}

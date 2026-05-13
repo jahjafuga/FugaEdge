@@ -1,0 +1,308 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+@import '@fontsource/jetbrains-mono/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ──────────────────────────────────────────────────────────────────────
+   THEME TOKENS — single source of truth.
+
+   Color values are stored as R G B triples (space-separated, no commas,
+   no hash) so Tailwind can compose them with alpha modifiers via the
+   `rgb(var(--token) / <alpha-value>)` syntax in tailwind.config.ts.
+
+   Dark mode is the default. `:root.light` overrides for light mode.
+   Accent colors (gold/win/loss/info/warning/danger) are defined ONLY in
+   :root so they stay identical across themes.
+   ────────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    /* Motion tokens — theme-independent */
+    --motion-fast: 150ms;
+    --motion-base: 200ms;
+    --motion-slow: 280ms;
+    --ease-out-soft: cubic-bezier(0.2, 0, 0, 1);
+    --ease-out-deep: cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* DARK MODE (default) — surface stack */
+    --bg-0: 13 15 20;          /* #0d0f14  app background */
+    --bg-1: 17 20 27;          /* #11141b  sidebar / topbar */
+    --bg-2: 22 26 35;          /* #161a23  cards / tiles */
+    --bg-3: 28 34 48;          /* #1c2230  elevated cards / modal surface */
+    --bg-4: 35 42 59;          /* #232a3b  tooltips / popovers / hovered rows */
+    --bg-inset: 10 12 17;      /* #0a0c11  chart canvas / inset */
+    /* Table header — slightly lighter than card surfaces in dark mode so
+       sticky headers separate cleanly. Same hex as bg-1 here; the light
+       override gives it its own off-white. */
+    --bg-header: 17 20 27;     /* #11141b  matches --bg-1 in dark mode */
+
+    /* Borders */
+    --border-default: 42 49 66;  /* #2a3142  inputs at rest */
+    --border-subtle: 30 35 48;   /* #1e2330  card outlines / table row sep */
+    --border-strong: 58 67 88;   /* #3a4358  focus ring base */
+
+    /* Text */
+    --fg-primary: 243 245 250;   /* #f3f5fa  headlines / KPIs */
+    --fg-secondary: 201 207 219; /* #c9cfdb  body / table cells */
+    --fg-tertiary: 138 148 168;  /* #8a94a8  labels / captions */
+    --fg-muted: 93 102 120;      /* #5d6678  disabled / axis ticks */
+
+    /* Brand accent — backgrounds + borders stay identical in both themes
+       so saturated gold accent UI reads consistently. */
+    --gold: 212 175 55;          /* #d4af37 */
+    --gold-hover: 228 194 82;    /* #e4c252 */
+    --gold-dim: 167 137 44;      /* #a7892c */
+    /* Gold used as TEXT color — themed. On light backgrounds the bright
+       --gold reads as low-contrast (~2.6:1), so light mode shifts text-gold
+       to a darker brass for ~3.9:1. Backgrounds still use --gold. */
+    --gold-text: 212 175 55;     /* matches --gold in dark mode */
+
+    /* Semantic P&L — backgrounds + borders stay constant so win/loss
+       chips and badges read consistently in both themes. */
+    --win: 52 211 153;           /* #34d399 */
+    --loss: 248 113 113;         /* #f87171 */
+    /* Win used as TEXT color (e.g. "+$17.69" P&L numbers). On light bg,
+       the neon #34d399 is too low-contrast / unserious — light mode
+       darkens to green-700 for readable, professional financial numerics. */
+    --win-text: 52 211 153;      /* matches --win in dark mode */
+
+    /* System */
+    --neutral: 148 163 184;      /* #94a3b8 */
+    --info: 96 165 250;          /* #60a5fa */
+    --warning: 251 191 36;       /* #fbbf24 */
+    --danger: 239 68 68;         /* #ef4444 */
+
+    /* Skeleton shimmer base colour — themed (dark vs light needs different) */
+    --skeleton-base: 28 34 48;   /* bg-3 in dark mode */
+    --skeleton-band: 255 255 255; /* white at low opacity in dark mode */
+
+    /* Shadows — themed. Dark mode keeps the dark-rim inset style; light
+       mode uses a soft drop shadow to lift cards off the page (without
+       the rim, since white-on-white inset is invisible). */
+    --shadow-sm: 0 1px 0 rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    /* Sidebar shadow — dark mode keeps it off; light mode adds a soft
+       right-edge shadow so the sidebar boundary reads on the lighter
+       page surface. */
+    --shadow-sidebar: none;
+
+    color-scheme: dark;
+  }
+
+  /* ── LIGHT MODE overrides ────────────────────────────────────────────
+     Surfaces invert (dark → light); text inverts (light → dark); borders
+     get muted; accent colors do NOT change. */
+  :root.light {
+    /* App background — soft grey, NOT white. Pulls cards forward via
+       contrast against the page surface. */
+    --bg-0: 240 242 245;         /* #f0f2f5 */
+    --bg-1: 255 255 255;         /* #ffffff  sidebar, topbar */
+    --bg-2: 255 255 255;         /* #ffffff  cards on light bg */
+    --bg-3: 240 241 244;         /* #f0f1f4  elevated panels */
+    --bg-4: 234 236 240;         /* #eaecf0  popovers / hovered rows */
+    --bg-inset: 248 249 250;     /* #f8f9fa  inset surfaces */
+    /* Table header — slightly off-white so headers separate from card
+       body cleanly. Used via the `bg-header` Tailwind utility. */
+    --bg-header: 248 249 251;    /* #f8f9fb */
+
+    /* Borders — unified at #e2e6ed for card/sidebar/separator. The
+       difference between subtle and default in light mode is small enough
+       that they should match for visual coherence. */
+    --border-default: 226 230 237;  /* #e2e6ed */
+    --border-subtle:  226 230 237;  /* #e2e6ed */
+    --border-strong:  209 213 219;  /* #d1d5db */
+
+    --fg-primary: 13 15 20;       /* #0d0f14 */
+    --fg-secondary: 74 77 94;     /* #4a4d5e */
+    /* Labels (NET P&L, GROSS P&L, table headers) — darker than the prior
+       #8b8fa8 so they read as "clearly secondary, not faint". This is
+       Tailwind slate-500. */
+    --fg-tertiary: 107 114 128;   /* #6b7280 */
+    --fg-muted: 156 163 175;      /* #9ca3af  slate-400 */
+
+    --skeleton-base: 234 236 240; /* light gray for skeleton */
+    --skeleton-band: 0 0 0;       /* dark at low opacity for shimmer */
+
+    /* Darker gold for text-on-white contrast — accent BACKGROUNDS stay at
+       the original --gold value, only text-gold uses this. */
+    --gold-text: 184 150 46;     /* #b8962e — ~3.9:1 on #ffffff */
+    /* Unified light-mode win green — applied to BOTH backgrounds (--win)
+       and text (--win-text) so the entire green system uses a single hue
+       in light mode. Tailwind green-600. Charts, P&L numbers, win badges,
+       table tints all resolve to this same value. */
+    --win: 22 163 74;            /* #16a34a — green-600 */
+    --win-text: 22 163 74;       /* #16a34a — matches --win for unified palette */
+
+    /* Light-mode shadows: layered drop. The 1px-3px near-cast handles edge
+       definition; the 4px-12px wider cast gives depth without grey-bloom.
+       Combined they read as a crisp lifted card against the #f0f2f5 page. */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.12);
+    --shadow-lg: 0 16px 48px rgba(0,0,0,0.18);
+    /* Sidebar gets a tiny shadow to its right edge so the boundary with
+       the page bg is unmistakable. Dark mode leaves this unset (resolves
+       to 'none'). */
+    --shadow-sidebar: 2px 0 8px rgba(0,0,0,0.05);
+
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    color: rgb(var(--fg-primary));
+  }
+
+  body {
+    background: rgb(var(--bg-0));
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    transition: background-color var(--motion-base) var(--ease-out-soft),
+                color var(--motion-base) var(--ease-out-soft);
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  .font-mono {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* Scrollbar polish — themed via vars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--border-subtle));
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--border-default));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Sidebar — hide scrollbar chrome but keep scroll behaviour; right-edge
+     shadow is themed via --shadow-sidebar (none in dark, soft drop in light). */
+  .sidebar-aside {
+    box-shadow: var(--shadow-sidebar);
+  }
+  .sidebar-aside,
+  .sidebar-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .sidebar-aside::-webkit-scrollbar,
+  .sidebar-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Linear-style nav row — text + icon, 36px tall, gold left-bar on active. */
+  .nav-row {
+    @apply relative flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-fg-tertiary;
+    transition: color var(--motion-fast) var(--ease-out-soft),
+                background-color var(--motion-fast) var(--ease-out-soft);
+  }
+  .nav-row:hover {
+    @apply bg-bg-2 text-fg-secondary;
+  }
+  .nav-row.is-active {
+    @apply bg-bg-2 text-fg-primary;
+  }
+  .nav-row.is-active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 h-5 w-[2px] rounded-r bg-gold;
+    transform: translateY(-50%);
+  }
+  .nav-row svg {
+    @apply shrink-0;
+  }
+
+  /* Focus ring — gold @ 30% opacity, works in both themes */
+  .focus-ring:focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  [role='button']:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(var(--gold) / 0.30);
+    border-radius: 8px;
+  }
+
+  .tnum {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* Skeleton shimmer — themed via vars so light mode reads correctly */
+  .skeleton {
+    background:
+      linear-gradient(
+        90deg,
+        rgb(var(--skeleton-band) / 0) 0%,
+        rgb(var(--skeleton-band) / 0.04) 50%,
+        rgb(var(--skeleton-band) / 0) 100%
+      ),
+      rgb(var(--skeleton-base));
+    background-size: 200% 100%, auto;
+    background-repeat: no-repeat, no-repeat;
+    background-position: -200% 0, 0 0;
+    animation: shimmer 1.2s ease-in-out infinite;
+    border-radius: 8px;
+  }
+
+  /* Empty-state dotted backdrop — gold dots, works in both themes */
+  .empty-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgb(var(--gold) / 0.06) 1px, transparent 0);
+    background-size: 20px 20px;
+  }
+
+  /* Legacy gold accent line for un-migrated cards */
+  .card-accent {
+    @apply relative;
+  }
+  .card-accent::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgb(var(--gold) / 0.22) 50%,
+      transparent 100%
+    );
+    pointer-events: none;
+  }
+}

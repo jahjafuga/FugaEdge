@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: electron:; connect-src 'self' ws: http: https:;"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="FugaEdge — Made for momentum day-traders" />
+    <link rel="icon" type="image/png" href="/fugaedge-icon.png" />
+    <title>FugaEdge</title>
+    <script>
+      // Theme bootstrap — runs synchronously before React mounts so the
+      // correct theme class is on <html> before first paint. Without this,
+      // a user with light-mode preference would see a flash of dark mode
+      // until the React effect runs. Reads localStorage["fugaedge-theme"]
+      // (values: 'dark' | 'light' | 'system'); defaults to 'system'.
+      (function () {
+        try {
+          var stored = localStorage.getItem('fugaedge-theme')
+          var mode = stored === 'light' || stored === 'dark' ? stored : 'system'
+          var resolved = mode === 'system'
+            ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            : mode
+          if (resolved === 'light') document.documentElement.classList.add('light')
+        } catch (e) {
+          /* localStorage may be blocked — fall through to dark default */
+        }
+      })()
+    </script>
+  </head>
+  <body class="antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

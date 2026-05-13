@@ -1,0 +1,95 @@
+{
+  "name": "fugaedge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FugaEdge — Made for momentum day-traders",
+  "author": "FugaEdge",
+  "copyright": "Copyright © 2026 FugaEdge",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "tsc --noEmit && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "rebuild:sqlite": "cd node_modules/better-sqlite3 && prebuild-install --runtime electron --target 33.4.11 --arch x64 --platform win32",
+    "postinstall": "npm run rebuild:sqlite",
+    "pack": "npm run build && electron-builder --dir",
+    "package": "npm run build && electron-builder",
+    "package:win": "npm run build && electron-builder --win",
+    "release": "npm run build && electron-builder --publish always"
+  },
+  "dependencies": {
+    "@tanstack/react-table": "^8.20.5",
+    "@tanstack/react-virtual": "^3.13.24",
+    "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.8.3",
+    "lightweight-charts": "^5.2.0",
+    "lucide-react": "^1.14.0",
+    "papaparse": "^5.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.27.0",
+    "recharts": "^2.13.0"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.1.0",
+    "@fontsource/jetbrains-mono": "^5.1.1",
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.7.5",
+    "@types/papaparse": "^5.3.14",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.0.2",
+    "electron-builder": "^25.0.5",
+    "electron-vite": "^2.3.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9"
+  },
+  "build": {
+    "appId": "com.fugaedge.app",
+    "productName": "FugaEdge",
+    "copyright": "Copyright © 2026 FugaEdge",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "public/fugaedge-icon.png",
+        "to": "fugaedge-icon.png"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png",
+      "artifactName": "FugaEdge-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "FugaEdge"
+    },
+    "mac": {
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "icon": "build/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "jahjafuga",
+      "repo": "FugaEdge"
+    }
+  }
+}

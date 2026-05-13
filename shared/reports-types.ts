@@ -1,0 +1,132 @@
+export interface BucketStats {
+  key: string
+  /** Optional stable sort/display order — lower comes first. */
+  order: number
+  trade_count: number
+  net_pnl: number
+  total_fees: number
+  winners: number
+  losers: number
+  win_rate: number | null
+  avg_winner: number | null
+  avg_loser: number | null
+  largest_winner: number | null
+  largest_loser: number | null
+  profit_factor: number | null
+}
+
+export interface FullStats {
+  // P&L totals
+  total_net_pnl: number
+  total_gross_pnl: number
+  total_fees: number
+  total_commissions: number | null // null — DAS Trades.csv has no commission column
+
+  // P&L averages
+  avg_trade_pnl: number | null
+  avg_daily_pnl: number | null     // sum(net_pnl) / distinct trade days
+  avg_winner: number | null        // mean of winning trades
+  avg_loser: number | null         // mean of losing trades (negative)
+  avg_per_share_pnl: number | null // total_net / total_shares_traded
+  std_dev_pnl: number | null       // sample std dev across trades (null when N < 2)
+  profit_factor: number | null
+
+  // Volume
+  total_shares_traded: number      // sum of (shares_bought + shares_sold)
+  avg_daily_volume: number | null  // total_shares / trading_days
+
+  // Counts
+  trade_count: number
+  winners: number
+  losers: number
+  scratches: number                // |net_pnl| <= $2
+  scratch_pct: number | null       // scratches / trade_count
+  trading_days: number
+
+  // Hold time (seconds)
+  avg_hold_seconds: number | null
+  avg_hold_seconds_winners: number | null
+  avg_hold_seconds_losers: number | null
+  avg_hold_seconds_scratches: number | null
+
+  // Streaks
+  max_consecutive_wins: number
+  max_consecutive_losses: number
+
+  // System quality
+  kelly_pct: number | null         // (W - L/R) × 100; null if undefined
+  sqn: number | null               // (avg / sd) × sqrt(N); null if undefined
+  k_ratio: number | null           // Kestner-style slope/SE/√N over daily equity
+  random_chance_pct: number | null // 1 / (1 + SQN² × 0.1); 0..1
+
+  // Excursion — averages computed from intraday_bars (entry-to-exit window).
+  // Null when no trades have populated mae/mfe yet.
+  //   *_dollars: $/share averaged across trades
+  //   *_pct:     |MAE or MFE| / entry × 100, averaged across trades
+  avg_mae: number | null          // $/share — legacy field, mirrors avg_mae_dollars
+  avg_mfe: number | null
+  avg_mae_dollars: number | null
+  avg_mfe_dollars: number | null
+  avg_mae_pct: number | null
+  avg_mfe_pct: number | null
+  /** Trades that have populated mae/mfe values — used to label coverage. */
+  excursion_coverage: number
+}
+
+export interface DayBreakdown {
+  date: string
+  trade_count: number
+  winners: number
+  losers: number
+  scratches: number
+  gross_pnl: number
+  total_fees: number
+  net_pnl: number
+}
+
+export interface DrawdownEquityPoint {
+  date: string
+  cumulative: number
+  in_drawdown: boolean
+}
+
+export interface DrawdownInfo {
+  amount: number
+  percent: number | null
+  peak_date: string
+  peak_value: number
+  trough_date: string
+  trough_value: number
+  recovered: boolean
+  recovery_date: string | null
+  longest_period_days: number
+  current_drawdown: number
+  equity: DrawdownEquityPoint[]
+}
+
+export type VolumeAnalysisStatus = 'unavailable' | 'ready'
+
+export interface VolumeAnalysis {
+  status: VolumeAnalysisStatus
+  /** Surfaces in the UI when status === 'unavailable'. */
+  reason?: string
+  byFloat: BucketStats[]
+  byRvol: BucketStats[]
+  /** Total trades the analysis was computed over. */
+  trades_analyzed: number
+  /** Trades that were skipped because no float / RVOL data was available. */
+  trades_missing_data: number
+}
+
+export interface ReportsData {
+  byPriceRange: BucketStats[]
+  byDayOfWeek: BucketStats[]
+  byHour: BucketStats[]
+  bySymbol: BucketStats[]
+  byShareSize: BucketStats[]
+  fullStats: FullStats
+  volumeAnalysis: VolumeAnalysis
+  winLossDays: DayBreakdown[]      // ordered by date ASC
+  drawdown: DrawdownInfo | null
+  trade_count: number
+}

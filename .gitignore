@@ -1,0 +1,32 @@
+node_modules
+out
+release
+dist
+dist-electron
+.DS_Store
+*.log
+
+# Environment + secrets — never commit
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+credentials.json
+secrets.json
+
+# Build tooling cache
+.vite
+
+# IDE
+.vscode
+.idea
+
+# Claude Code per-user local config (holds approved-command history)
+.claude/settings.local.json
+
+# Local SQLite files (the real DB lives in app userData, not the repo)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm

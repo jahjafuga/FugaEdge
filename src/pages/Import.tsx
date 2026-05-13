@@ -1,0 +1,252 @@
+import { useCallback, useState } from 'react'
+import { AlertCircle } from 'lucide-react'
+import PageShell from '@/components/layout/PageShell'
+import DropZone from '@/components/import/DropZone'
+import ImportSummary from '@/components/import/ImportSummary'
+import PreviewTable from '@/components/import/PreviewTable'
+import FeesPreviewTable from '@/components/import/FeesPreviewTable'
+import { ipc } from '@/lib/ipc'
+import { int } from '@/lib/format'
+import type { PreviewResult, CommitResult } from '@shared/import-types'
+
+type Phase =
+  | { kind: 'idle' }
+  | { kind: 'parsing'; filenames: string[] }
+  | { kind: 'preview'; data: PreviewResult; dateOverride: string }
+  | { kind: 'committing' }
+  | { kind: 'done'; result: CommitResult }
+  | { kind: 'error'; message: string }
+
+export default function Import() {
+  const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
+
+  const handleFiles = useCallback(
+    async (files: { name: string; text: string }[]) => {
+      setPhase({ kind: 'parsing', filenames: files.map((f) => f.name) })
+      try {
+        const data = await ipc.importPreview(
+          files.map((f) => ({ filename: f.name, text: f.text })),
+        )
+        // Seed date override with the inferred range start, or today.
+        const seed =
+          data.dateRange?.from ?? new Date().toISOString().slice(0, 10)
+        setPhase({ kind: 'preview', data, dateOverride: seed })
+      } catch (e) {
+        setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
+      }
+    },
+    [],
+  )
+
+  const reset = useCallback(() => setPhase({ kind: 'idle' }), [])
+
+  const commit = useCallback(async () => {
+    if (phase.kind !== 'preview') return
+    setPhase({ kind: 'committing' })
+    try {
+      const result = await ipc.importCommit({
+        trips: phase.data.trips,
+        fees: phase.data.fees,
+        feeDateOverride: phase.dateOverride,
+      })
+      setPhase({ kind: 'done', result })
+    } catch (e) {
+      setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
+    }
+  }, [phase])
+
+  return (
+    <PageShell
+      title="Import"
+      subtitle="Drop the DAS Trades.csv (execution file) and/or the daily summary CSV. Imports always append; nothing is overwritten."
+    >
+      {phase.kind === 'idle' && <DropZone onFiles={handleFiles} />}
+
+      {phase.kind === 'parsing' && (
+        <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+          Parsing{' '}
+          <span className="font-mono text-text">
+            {phase.filenames.join(', ')}
+          </span>
+          …
+        </div>
+      )}
+
+      {phase.kind === 'preview' && (
+        <PreviewPanel
+          data={phase.data}
+          dateOverride={phase.dateOverride}
+          onDateChange={(d) => setPhase({ ...phase, dateOverride: d })}
+          onCancel={reset}
+          onConfirm={commit}
+        />
+      )}
+
+      {phase.kind === 'committing' && (
+        <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+          Saving to database…
+        </div>
+      )}
+
+      {phase.kind === 'done' && (
+        <div className="space-y-4">
+          <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
+            <div className="text-[10px] uppercase tracking-widest text-win">
+              Import complete
+            </div>
+            <div className="mt-2 text-base text-text">
+              Saved{' '}
+              <span className="font-mono text-win">{int(phase.result.insertedTrips)}</span>{' '}
+              round trip{phase.result.insertedTrips === 1 ? '' : 's'} and{' '}
+              <span className="font-mono text-gold">
+                {int(phase.result.insertedFees + phase.result.replacedFees)}
+              </span>{' '}
+              fee row{phase.result.insertedFees + phase.result.replacedFees === 1 ? '' : 's'}{' '}
+              across{' '}
+              <span className="font-mono">{phase.result.affectedDates.length}</span>{' '}
+              date{phase.result.affectedDates.length === 1 ? '' : 's'}.
+              {phase.result.skippedTrips > 0 && (
+                <>
+                  {' '}
+                  <span className="text-subtle">
+                    Skipped {int(phase.result.skippedTrips)} duplicate
+                    {phase.result.skippedTrips === 1 ? '' : 's'}.
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={reset}
+            className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
+          >
+            Import another
+          </button>
+        </div>
+      )}
+
+      {phase.kind === 'error' && (
+        <div className="space-y-4">
+          <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
+            <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
+            <div>
+              <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+                Import failed
+              </div>
+              <div className="mt-1">{phase.message}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={reset}
+            className="inline-flex h-8 cursor-pointer items-center rounded-md border border-border-subtle bg-bg-2 px-3 text-sm text-fg-secondary transition-colors duration-150 hover:border-border hover:text-fg-primary"
+          >
+            Start over
+          </button>
+        </div>
+      )}
+    </PageShell>
+  )
+}
+
+function PreviewPanel({
+  data,
+  dateOverride,
+  onDateChange,
+  onCancel,
+  onConfirm,
+}: {
+  data: PreviewResult
+  dateOverride: string
+  onDateChange: (d: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const hasUsableContent =
+    data.summary.newTrips > 0 || data.summary.newFeeRows > 0 || data.summary.replaceFeeRows > 0
+  const blockingNeedsDate = data.needsDate && !dateOverride
+
+  return (
+    <div className="space-y-5">
+      <ImportSummary files={data.files} dateRange={data.dateRange} summary={data.summary} />
+
+      {data.needsDate && (
+        <div className="flex items-end gap-4 rounded-md border border-gold/40 bg-gold/[0.05] p-4">
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-widest text-gold">
+              Date required
+            </div>
+            <div className="mt-1 text-sm text-text">
+              A daily summary file in this batch has no date in its filename. Pick the
+              trade date so fees can be matched to the right round trips.
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-widest text-muted">
+              Trade date
+            </div>
+            <input
+              type="date"
+              value={dateOverride}
+              onChange={(e) => onDateChange(e.target.value)}
+              className="mt-1 rounded border border-border bg-bg px-2 py-1 font-mono text-sm text-text outline-none focus:border-gold"
+            />
+          </div>
+        </div>
+      )}
+
+      {data.warnings.length > 0 && (
+        <div className="rounded-md border border-gold/40 bg-gold/[0.06] p-3 text-xs text-gold-100">
+          <div className="mb-1 font-semibold uppercase tracking-widest text-gold">
+            Warnings
+          </div>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {data.warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.trips.length > 0 && <PreviewTable trips={data.trips} />}
+      {data.fees.length > 0 && (
+        <FeesPreviewTable fees={data.fees} dateOverride={dateOverride} />
+      )}
+
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border bg-transparent px-4 py-2 text-sm text-subtle transition-colors duration-150 hover:border-muted hover:text-text"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={!hasUsableContent || blockingNeedsDate}
+          className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {!hasUsableContent
+            ? 'Nothing new to import'
+            : blockingNeedsDate
+              ? 'Pick a date to continue'
+              : confirmLabel(data)}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function confirmLabel(d: PreviewResult): string {
+  const parts: string[] = []
+  if (d.summary.newTrips > 0) {
+    parts.push(`${d.summary.newTrips} round trip${d.summary.newTrips === 1 ? '' : 's'}`)
+  }
+  const feeCount = d.summary.newFeeRows + d.summary.replaceFeeRows
+  if (feeCount > 0) {
+    parts.push(`${feeCount} fee row${feeCount === 1 ? '' : 's'}`)
+  }
+  return `Import ${parts.join(' + ')}`
+}
