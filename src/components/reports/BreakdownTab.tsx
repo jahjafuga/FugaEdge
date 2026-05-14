@@ -48,6 +48,20 @@ export default function BreakdownTab({ data }: BreakdownTabProps) {
       </CollapsibleCard>
 
       <CollapsibleCard
+        title="By region"
+        subtitle="Bucketed by trading region. Unknown trades grouped at the bottom."
+      >
+        <ReportBucketTable keyHeader="Region" buckets={data.byRegion} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="By country"
+        subtitle="Top countries by trade count. Hides countries with fewer than 3 trades."
+      >
+        <ReportBucketTable keyHeader="Country" buckets={data.byCountry} />
+      </CollapsibleCard>
+
+      <CollapsibleCard
         title="By symbol"
         subtitle="Top 25 tickers by trade count."
       >

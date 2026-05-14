@@ -124,6 +124,8 @@ export interface ReportsData {
   byHour: BucketStats[]
   bySymbol: BucketStats[]
   byShareSize: BucketStats[]
+  byRegion: BucketStats[]
+  byCountry: BucketStats[]
   fullStats: FullStats
   volumeAnalysis: VolumeAnalysis
   winLossDays: DayBreakdown[]      // ordered by date ASC

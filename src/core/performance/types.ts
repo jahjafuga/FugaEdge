@@ -183,6 +183,8 @@ export type BreakdownDimension =
   | 'sentiment'
   | 'dow'
   | 'hour'
+  | 'region'
+  | 'country'
 
 export interface BreakdownComparison {
   dimension: BreakdownDimension

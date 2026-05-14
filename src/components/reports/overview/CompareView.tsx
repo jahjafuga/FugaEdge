@@ -36,6 +36,7 @@ import {
   daysBetween,
   rangeForPreset,
   rangeForSameMonthLastYear,
+  type BreakdownDimension,
   type ComparisonInsight,
   type ComparisonResult,
   type DateRange,
@@ -203,6 +204,22 @@ export default function CompareView({
               sentimentByDate={sentimentByDate}
               dimension="hour"
               title="By Hour"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
+              dimension="region"
+              title="By Region"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
+              dimension="country"
+              title="By Country"
             />
           </div>
 
@@ -760,7 +777,7 @@ function BreakdownComparisonCard({
   rangeA: DateRange
   rangeB: DateRange
   sentimentByDate: Map<string, number | null>
-  dimension: 'catalyst' | 'playbook' | 'sentiment' | 'dow' | 'hour'
+  dimension: BreakdownDimension
   title: string
 }) {
   const [open, setOpen] = useState(false)
