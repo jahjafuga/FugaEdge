@@ -97,8 +97,8 @@ export default function TradesTable({
     const countryColumn = col.accessor('country', {
       id: 'country',
       header: 'Country',
-      size: 80,
-      minSize: 70,
+      size: 90,
+      minSize: 80,
       cell: ({ row }) => {
         const iso = row.original.country
         const name = row.original.country_name
@@ -110,7 +110,7 @@ export default function TradesTable({
             className="inline-flex items-center justify-center"
             title={name || iso}
           >
-            <Flag iso={iso} size={22} title={name || iso} />
+            <Flag iso={iso} size={28} title={name || iso} />
           </span>
         )
       },
