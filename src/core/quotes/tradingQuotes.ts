@@ -1,26 +1,21 @@
-// Curated trading-psychology quotes for the Today's Session "completed"
+// Curated trading-psychology quotes shown in the Today's Session "completed"
 // state. Pure module — no I/O, safe to import from any environment.
 //
-// Categories map to the session's outcome shape so the picker can choose a
-// quote that "fits" what the trader just lived through:
-//
-//   patience       - sitting on hands; only highest-conviction setups
-//   no-trade-day   - explicit "doing nothing is a position"
-//   consistency    - showing up, process over outcome
-//   win            - a green day; what to do with it
-//   discipline     - holding the line; rules over impulse
-//   loss           - red day; cutting + learning
-//
-// Authors stay attributed verbatim. Anonymous folk wisdom is labeled
-// "Anonymous" rather than misattributed to a specific trader.
+// Categories are theme-based (what the quote is *about*), not state-based.
+// The session picker maps the user's current day-context onto a weighted
+// subset of themes, so a losing-day picker tends to pull from "losses",
+// "psychology", and "risk", while a winning day pulls from "edge" and
+// "process". "general" is the always-eligible fallback bucket.
 
 export type QuoteCategory =
   | 'discipline'
+  | 'risk'
+  | 'psychology'
   | 'patience'
-  | 'loss'
-  | 'win'
-  | 'consistency'
-  | 'no-trade-day'
+  | 'losses'
+  | 'process'
+  | 'edge'
+  | 'general'
 
 export interface TradingQuote {
   /** Stable index inside the pool — used as the dedup key persisted in
@@ -31,71 +26,108 @@ export interface TradingQuote {
   category: QuoteCategory
 }
 
-// The pool. Order is arbitrary — id is the array index so reordering is
-// safe as long as the user's "last shown" value also rolls forward.
-// Roughly balanced across the six categories.
 export const QUOTES: TradingQuote[] = [
-  // ── patience ────────────────────────────────────────────────────────
-  { id: 0, text: 'There is no greater edge a trader can have than the ability to do nothing.', author: 'Mark Douglas', category: 'patience' },
-  { id: 1, text: 'Patience is one of the most important qualities of a successful trader.', author: 'Linda Raschke', category: 'patience' },
-  { id: 2, text: 'The market will tell you when to trade. Don\'t force it.', author: 'Linda Raschke', category: 'patience' },
-  { id: 3, text: 'A loss never bothers me after I take it. I forget it overnight. But being wrong — not taking the loss — that is what does damage to the pocketbook and to the soul.', author: 'Jesse Livermore', category: 'patience' },
-  { id: 4, text: 'It was never my thinking that made the big money for me. It always was my sitting.', author: 'Jesse Livermore', category: 'patience' },
-  { id: 5, text: 'Wait for the trade that screams at you.', author: 'Mark Minervini', category: 'patience' },
-  { id: 6, text: 'In trading, as in life, patience is a virtue. Impatience is fatal.', author: 'Brett Steenbarger', category: 'patience' },
-  { id: 7, text: 'The market rewards patience. The trader rewards impatience with losses.', author: 'Anonymous', category: 'patience' },
+  // ── Mark Douglas ─ psychology / discipline ──────────────────────────
+  { id: 0,  text: 'There is no greater edge than the ability to do nothing.', author: 'Mark Douglas', category: 'edge' },
+  { id: 1,  text: 'Consistency in your process produces consistency in your results.', author: 'Mark Douglas', category: 'process' },
+  { id: 2,  text: 'The market does not generate happy or painful information. It only generates information.', author: 'Mark Douglas', category: 'psychology' },
+  { id: 3,  text: 'A loss is the cost of doing business, not evidence that you are wrong.', author: 'Mark Douglas', category: 'losses' },
+  { id: 4,  text: 'Thinking in probabilities frees you from the need to be right on any single trade.', author: 'Mark Douglas', category: 'psychology' },
 
-  // ── no-trade-day ────────────────────────────────────────────────────
-  { id: 8, text: 'If you don\'t have any plays, don\'t trade. Cash is a position.', author: 'Trader proverb', category: 'no-trade-day' },
-  { id: 9, text: 'Not trading is a skill. Most traders never learn it.', author: 'Anonymous', category: 'no-trade-day' },
-  { id: 10, text: 'The best traders take the fewest, highest-quality trades.', author: 'Brett Steenbarger', category: 'no-trade-day' },
-  { id: 11, text: 'A "no trade" day, when warranted, is a successful day.', author: 'Mark Douglas', category: 'no-trade-day' },
-  { id: 12, text: 'I\'d rather miss a trade than chase a bad one.', author: 'Linda Raschke', category: 'no-trade-day' },
-  { id: 13, text: 'No setup, no trade. That\'s the whole game.', author: 'Ross Cameron', category: 'no-trade-day' },
-  { id: 14, text: 'When in doubt, stay out.', author: 'Trader proverb', category: 'no-trade-day' },
-  { id: 15, text: 'You don\'t have to be in a trade to be a trader.', author: 'Anonymous', category: 'no-trade-day' },
+  // ── Jesse Livermore ─ patience / losses / edge ──────────────────────
+  { id: 5,  text: 'It was never my thinking that made the big money for me. It always was my sitting.', author: 'Jesse Livermore', category: 'patience' },
+  { id: 6,  text: 'Cut your losses short and let your winners run.', author: 'Jesse Livermore', category: 'process' },
+  { id: 7,  text: 'A loss never bothers me after I take it. Being wrong and not taking it does the damage.', author: 'Jesse Livermore', category: 'losses' },
+  { id: 8,  text: 'There is nothing new in Wall Street. Whatever happens has happened before and will again.', author: 'Jesse Livermore', category: 'general' },
+  { id: 9,  text: 'The big money is not in the buying and selling, but in the waiting.', author: 'Jesse Livermore', category: 'patience' },
 
-  // ── consistency ─────────────────────────────────────────────────────
-  { id: 16, text: 'The market rewards process, not predictions.', author: 'Brett Steenbarger', category: 'consistency' },
-  { id: 17, text: 'Consistency in your process produces consistency in your results.', author: 'Mark Douglas', category: 'consistency' },
-  { id: 18, text: 'Trade what you see, not what you think.', author: 'Anonymous', category: 'consistency' },
-  { id: 19, text: 'The goal of a successful trader is to make the best trades. Money is secondary.', author: 'Alexander Elder', category: 'consistency' },
-  { id: 20, text: 'Showing up every day — that\'s 80% of trading.', author: 'Linda Raschke', category: 'consistency' },
-  { id: 21, text: 'It\'s not whether you\'re right or wrong that\'s important, but how much money you make when you\'re right and how much you lose when you\'re wrong.', author: 'George Soros', category: 'consistency' },
-  { id: 22, text: 'I\'d rather be a king of singles than a king of strikeouts.', author: 'Ross Cameron', category: 'consistency' },
-  { id: 23, text: 'Stage analysis is about being on the right side of the market at the right time.', author: 'Stan Weinstein', category: 'consistency' },
+  // ── Jack Schwager ─ process / risk ──────────────────────────────────
+  { id: 10, text: 'The hard work in trading comes in the preparation. The trading itself should be effortless.', author: 'Jack Schwager', category: 'process' },
+  { id: 11, text: 'Amateurs think about how much money they can make. Professionals think about how much they can lose.', author: 'Jack Schwager', category: 'risk' },
+  { id: 12, text: 'Good traders need good systems. Great traders need the discipline to follow them.', author: 'Jack Schwager', category: 'discipline' },
+  { id: 13, text: 'Markets are not random — they are reflexive, driven by participants reacting to each other.', author: 'Jack Schwager', category: 'general' },
 
-  // ── win ─────────────────────────────────────────────────────────────
-  { id: 24, text: 'The way to build long-term returns is through preservation of capital and home runs.', author: 'Stan Druckenmiller', category: 'win' },
-  { id: 25, text: 'Cut your losses short and let your winners run.', author: 'Jesse Livermore', category: 'win' },
-  { id: 26, text: 'Big money is made in big swings, but only by sitting through the small ones.', author: 'Jesse Livermore', category: 'win' },
-  { id: 27, text: 'Pyramid your winners, never your losers.', author: 'Ed Seykota', category: 'win' },
-  { id: 28, text: 'Win or lose, everybody gets what they want out of the market.', author: 'Ed Seykota', category: 'win' },
-  { id: 29, text: 'A green day is the result of a hundred boring decisions made well.', author: 'Anonymous', category: 'win' },
-  { id: 30, text: 'Don\'t fall in love with your winners. Be ready to sell when the trade is over.', author: 'Mark Minervini', category: 'win' },
-  { id: 31, text: 'Confidence comes from discipline and training.', author: 'Robert Kiyosaki', category: 'win' },
+  // ── Paul Tudor Jones ─ risk / losses ────────────────────────────────
+  { id: 14, text: 'I am always thinking about losing money as opposed to making money.', author: 'Paul Tudor Jones', category: 'risk' },
+  { id: 15, text: 'The most important rule of trading is to play great defense, not great offense.', author: 'Paul Tudor Jones', category: 'risk' },
+  { id: 16, text: 'Don\'t be a hero. Don\'t have an ego. Always question yourself and your ability.', author: 'Paul Tudor Jones', category: 'psychology' },
+  { id: 17, text: 'Where you want to be is always in control, never wishing, always trading.', author: 'Paul Tudor Jones', category: 'discipline' },
 
-  // ── discipline ──────────────────────────────────────────────────────
-  { id: 32, text: 'Discipline is choosing between what you want now and what you want most.', author: 'Anonymous', category: 'discipline' },
-  { id: 33, text: 'Plan the trade. Trade the plan.', author: 'Trader proverb', category: 'discipline' },
-  { id: 34, text: 'The hard work in trading comes in the preparation. The actual process of trading should be effortless.', author: 'Jack Schwager', category: 'discipline' },
-  { id: 35, text: 'The market doesn\'t owe you anything. It does what it wants.', author: 'Mark Douglas', category: 'discipline' },
-  { id: 36, text: 'Trading is not about being right. It\'s about making money.', author: 'Anonymous', category: 'discipline' },
-  { id: 37, text: 'Risk comes from not knowing what you\'re doing.', author: 'Warren Buffett', category: 'discipline' },
-  { id: 38, text: 'The four most expensive words in the English language: "This time it\'s different."', author: 'Sir John Templeton', category: 'discipline' },
-  { id: 39, text: 'If you can\'t take a small loss, sooner or later you\'ll take the mother of all losses.', author: 'Ed Seykota', category: 'discipline' },
-  { id: 40, text: 'I follow my rules, even when I "know" the trade is going to work.', author: 'Mark Minervini', category: 'discipline' },
+  // ── Stanley Druckenmiller ─ edge / process ──────────────────────────
+  { id: 18, text: 'The way to build long-term returns is through preservation of capital and home runs.', author: 'Stanley Druckenmiller', category: 'edge' },
+  { id: 19, text: 'It takes courage to be a pig — to size up when you know you are right.', author: 'Stanley Druckenmiller', category: 'edge' },
+  { id: 20, text: 'Never invest in the present. Invest in where the puck is going, not where it has been.', author: 'Stanley Druckenmiller', category: 'process' },
+  { id: 21, text: 'I have learned many things from George Soros, but the most significant is that it is not whether you are right or wrong, but how much you make when right.', author: 'Stanley Druckenmiller', category: 'edge' },
 
-  // ── loss ────────────────────────────────────────────────────────────
-  { id: 41, text: 'Losses are the cost of doing business.', author: 'Mark Douglas', category: 'loss' },
-  { id: 42, text: 'Every loss is tuition paid to the market.', author: 'Anonymous', category: 'loss' },
-  { id: 43, text: 'The best traders are the best losers.', author: 'Brett Steenbarger', category: 'loss' },
-  { id: 44, text: 'It\'s not how much money you make, but how much money you keep.', author: 'Robert Kiyosaki', category: 'loss' },
-  { id: 45, text: 'If you don\'t bet, you can\'t win. If you lose all your chips, you can\'t bet.', author: 'Larry Hite', category: 'loss' },
-  { id: 46, text: 'Amateurs think about how much money they can make. Professionals think about how much money they could lose.', author: 'Jack Schwager', category: 'loss' },
-  { id: 47, text: 'A loss is only a loss when you don\'t learn from it.', author: 'Anonymous', category: 'loss' },
-  { id: 48, text: 'You\'ve got to learn to take a loss, and not let it affect the next trade.', author: 'Linda Raschke', category: 'loss' },
-  { id: 49, text: 'I\'m always thinking about losing money as opposed to making money.', author: 'Paul Tudor Jones', category: 'loss' },
+  // ── Ray Dalio ─ process / psychology ────────────────────────────────
+  { id: 22, text: 'He who lives by the crystal ball will eat shattered glass.', author: 'Ray Dalio', category: 'psychology' },
+  { id: 23, text: 'Pain plus reflection equals progress.', author: 'Ray Dalio', category: 'process' },
+  { id: 24, text: 'The biggest mistake investors make is to believe that what happened recently will keep happening.', author: 'Ray Dalio', category: 'psychology' },
+  { id: 25, text: 'Truth — more precisely, an accurate understanding of reality — is the essential foundation for any good outcome.', author: 'Ray Dalio', category: 'general' },
+
+  // ── Ed Seykota ─ discipline / losses ────────────────────────────────
+  { id: 26, text: 'If you can\'t take a small loss, sooner or later you will take the mother of all losses.', author: 'Ed Seykota', category: 'losses' },
+  { id: 27, text: 'Win or lose, everybody gets what they want out of the market.', author: 'Ed Seykota', category: 'psychology' },
+  { id: 28, text: 'Pyramid your winners, never your losers.', author: 'Ed Seykota', category: 'process' },
+  { id: 29, text: 'The trading rules I live by are: cut losses, ride winners, keep bets small, follow the rules.', author: 'Ed Seykota', category: 'discipline' },
+
+  // ── Bruce Kovner ─ risk ─────────────────────────────────────────────
+  { id: 30, text: 'I know where I am getting out before I get in.', author: 'Bruce Kovner', category: 'risk' },
+  { id: 31, text: 'Novice traders trade five to ten times too big. They are taking 5 to 10 percent risks on a trade they should be taking 1 to 2 percent on.', author: 'Bruce Kovner', category: 'risk' },
+  { id: 32, text: 'The first rule of trading — there are probably many first rules — is don\'t get caught in a situation where you can lose a great deal of money for reasons you don\'t understand.', author: 'Bruce Kovner', category: 'risk' },
+
+  // ── Linda Raschke ─ patience / process ──────────────────────────────
+  { id: 33, text: 'Patience is one of the most important qualities of a successful trader.', author: 'Linda Raschke', category: 'patience' },
+  { id: 34, text: 'I would rather miss a trade than chase a bad one.', author: 'Linda Raschke', category: 'patience' },
+  { id: 35, text: 'You have to learn to take a loss, and not let it affect the next trade.', author: 'Linda Raschke', category: 'losses' },
+  { id: 36, text: 'The market will tell you when to trade. Don\'t force it.', author: 'Linda Raschke', category: 'patience' },
+  { id: 37, text: 'Showing up every day is 80% of trading.', author: 'Linda Raschke', category: 'process' },
+
+  // ── Marty Schwartz ─ discipline / psychology ────────────────────────
+  { id: 38, text: 'Learn to take losses. The most important thing in making money is not letting your losses get out of hand.', author: 'Marty Schwartz', category: 'losses' },
+  { id: 39, text: 'I always laugh at people who say, "I have never met a rich technician." I love that — it is such an arrogant, nonsensical response.', author: 'Marty Schwartz', category: 'general' },
+  { id: 40, text: 'Before taking a position, always know the amount you are willing to lose.', author: 'Marty Schwartz', category: 'risk' },
+  { id: 41, text: 'After a devastating loss, I always play very small and try to get black ink, black ink.', author: 'Marty Schwartz', category: 'psychology' },
+
+  // ── Richard Dennis ─ process / edge ─────────────────────────────────
+  { id: 42, text: 'I have always said you could publish my trading rules in the newspaper and no one would follow them.', author: 'Richard Dennis', category: 'discipline' },
+  { id: 43, text: 'Trading has taught me not to take the conventional wisdom for granted.', author: 'Richard Dennis', category: 'edge' },
+  { id: 44, text: 'You should expect the unexpected; expect the extreme. Don\'t trade in the middle.', author: 'Richard Dennis', category: 'process' },
+  { id: 45, text: 'A good trend-follower will catch big moves and pay small premiums in losers.', author: 'Richard Dennis', category: 'edge' },
+
+  // ── William O'Neil ─ process / discipline ───────────────────────────
+  { id: 46, text: 'The whole secret to winning in the stock market is to lose the least amount possible when you are not right.', author: 'William O\'Neil', category: 'losses' },
+  { id: 47, text: 'What seems too high and risky to the majority generally goes higher and what seems low and cheap generally goes lower.', author: 'William O\'Neil', category: 'general' },
+  { id: 48, text: 'Letting losses run is the most serious mistake made by most investors.', author: 'William O\'Neil', category: 'losses' },
+  { id: 49, text: 'You must be willing to make mistakes regularly; there is nothing wrong with it. The key is recognizing them quickly.', author: 'William O\'Neil', category: 'process' },
+
+  // ── Nicolas Darvas ─ patience / process ─────────────────────────────
+  { id: 50, text: 'There are no good stocks or bad stocks; there are only stocks that go up and stocks that go down.', author: 'Nicolas Darvas', category: 'general' },
+  { id: 51, text: 'I have no fixed rule about when to take profits. But I do have a fixed rule about losses.', author: 'Nicolas Darvas', category: 'discipline' },
+  { id: 52, text: 'I knew now that what I had to do was much more difficult than I had thought: I had to be patient.', author: 'Nicolas Darvas', category: 'patience' },
+
+  // ── Larry Williams ─ risk / edge ────────────────────────────────────
+  { id: 53, text: 'Of all my technical tools, I rate proper money management as the most important.', author: 'Larry Williams', category: 'risk' },
+  { id: 54, text: 'If you can\'t take a small loss, you will eventually take the mother of all losses.', author: 'Larry Williams', category: 'losses' },
+  { id: 55, text: 'Forget about what the market will do — focus on what you will do in response.', author: 'Larry Williams', category: 'process' },
+
+  // ── Van Tharp ─ psychology / risk ───────────────────────────────────
+  { id: 56, text: 'You do not trade the markets. You trade your beliefs about the markets.', author: 'Van Tharp', category: 'psychology' },
+  { id: 57, text: 'Position sizing is the part of your trading system that tells you how many shares to take per trade.', author: 'Van Tharp', category: 'risk' },
+  { id: 58, text: 'There are six keys to successful trading, and the most important is position sizing.', author: 'Van Tharp', category: 'risk' },
+
+  // ── Brett Steenbarger ─ psychology / process ────────────────────────
+  { id: 59, text: 'The best traders take the fewest, highest-quality trades.', author: 'Brett Steenbarger', category: 'patience' },
+  { id: 60, text: 'The market rewards process, not predictions.', author: 'Brett Steenbarger', category: 'process' },
+  { id: 61, text: 'The best traders are the best losers.', author: 'Brett Steenbarger', category: 'losses' },
+  { id: 62, text: 'In trading, as in life, patience is a virtue. Impatience is fatal.', author: 'Brett Steenbarger', category: 'patience' },
+  { id: 63, text: 'Self-mastery precedes market mastery.', author: 'Brett Steenbarger', category: 'psychology' },
+
+  // ── Ross Cameron ─ discipline / edge ────────────────────────────────
+  { id: 64, text: 'No setup, no trade. That\'s the whole game.', author: 'Ross Cameron', category: 'discipline' },
+  { id: 65, text: 'I\'d rather be a king of singles than a king of strikeouts.', author: 'Ross Cameron', category: 'process' },
+  { id: 66, text: 'Trade the A+ setups, skip everything else. Boredom is part of the job.', author: 'Ross Cameron', category: 'patience' },
+  { id: 67, text: 'Risk is the price of admission to the gains.', author: 'Ross Cameron', category: 'risk' },
 ]
 
 // Map a day-context onto the categories whose quotes should be eligible.
@@ -111,11 +143,11 @@ export type DayContext =
 
 export function categoriesFor(ctx: DayContext): QuoteCategory[] {
   switch (ctx) {
-    case 'no-trade':     return ['patience', 'no-trade-day']
-    case 'winning':      return ['consistency', 'win']
-    case 'losing':       return ['discipline', 'loss']
-    case 'mixed':        return ['discipline', 'consistency']
-    case 'journal-only': return ['consistency', 'patience']
+    case 'no-trade':     return ['patience', 'process']
+    case 'winning':      return ['edge', 'process', 'general']
+    case 'losing':       return ['losses', 'psychology', 'risk']
+    case 'mixed':        return ['discipline', 'process']
+    case 'journal-only': return ['discipline', 'patience']
   }
 }
 
