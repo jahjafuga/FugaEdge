@@ -100,7 +100,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
 export function getRegionForCountry(iso: string | null | undefined): Region {
   if (!iso) return 'Unknown'
   const code = iso.toUpperCase()
-  if (REGION_MAP[code]) return REGION_MAP[code]
+  if (code in REGION_MAP) return REGION_MAP[code]
   // Any well-formed ISO-looking code we don't recognize falls in 'Other'.
   if (/^[A-Z]{2}$/.test(code)) return 'Other'
   return 'Unknown'

@@ -39,6 +39,12 @@ describe('regions', () => {
     expect(getRegionForCountry('ZZ')).toBe('Other')
   })
 
+  it('getRegionForCountry treats malformed codes as Unknown', () => {
+    expect(getRegionForCountry('z')).toBe('Unknown')   // single char
+    expect(getRegionForCountry('Z1')).toBe('Unknown')  // digit
+    expect(getRegionForCountry('zz')).toBe('Other')    // lowercase valid → normalized
+  })
+
   it('getCountryName handles known and unknown codes', () => {
     expect(getCountryName('US')).toBe('United States')
     expect(getCountryName('CN')).toBe('China')
