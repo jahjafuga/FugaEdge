@@ -16,7 +16,6 @@ class MemoryStorage {
 }
 
 beforeEach(() => {
-  // @ts-expect-error — node env: install a minimal localStorage for the test
   globalThis.localStorage = new MemoryStorage()
 })
 
