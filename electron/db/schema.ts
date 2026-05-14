@@ -5,7 +5,7 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-export const SCHEMA_VERSION = '15'
+export const SCHEMA_VERSION = '16'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
