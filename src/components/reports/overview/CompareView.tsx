@@ -29,6 +29,12 @@ import Card from '@/components/ui/Card'
 import { duration, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { flagEmoji } from '@/core/country/flag'
+import {
+  COUNTRY_NAMES,
+  REGION_REPRESENTATIVE_COUNTRY,
+  type Region,
+} from '@/core/country/regions'
 import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
@@ -794,19 +800,41 @@ function BreakdownComparisonCard({
   // Drop rows that have no trades AND no P&L in either period — they'd
   // otherwise render as a label with two empty placeholders, eating
   // horizontal space for nothing.
-  const data = useMemo(
-    () =>
-      breakdown.rows
-        .filter((r) => r.tradesA > 0 || r.tradesB > 0)
-        .map((r) => ({
-          key: r.key,
-          A: r.netPnLA,
-          B: r.netPnLB,
-          tradesA: r.tradesA,
-          tradesB: r.tradesB,
-        })),
-    [breakdown],
-  )
+  //
+  // For region/country dimensions we transform the displayed key into a
+  // flag-prefixed label ("🇨🇳 China") so the X-axis matches the static
+  // breakdown tables. Other dimensions pass through unchanged.
+  const data = useMemo(() => {
+    const decorate = (rawKey: string): string => {
+      if (dimension === 'country') {
+        const flag = flagEmoji(rawKey)
+        const name = COUNTRY_NAMES[rawKey] ?? rawKey
+        return flag ? `${flag} ${name}` : name
+      }
+      if (dimension === 'region') {
+        const iso = REGION_REPRESENTATIVE_COUNTRY[rawKey as Region] ?? null
+        const flag = iso ? flagEmoji(iso) : ''
+        return flag ? `${flag} ${rawKey}` : rawKey
+      }
+      return rawKey
+    }
+    return breakdown.rows
+      .filter((r) => r.tradesA > 0 || r.tradesB > 0)
+      .map((r) => ({
+        key: decorate(r.key),
+        A: r.netPnLA,
+        B: r.netPnLB,
+        tradesA: r.tradesA,
+        tradesB: r.tradesB,
+      }))
+  }, [breakdown, dimension])
+
+  const emptyText =
+    dimension === 'country'
+      ? 'Add country to 3+ trades to see breakdown.'
+      : dimension === 'region'
+        ? 'Add country to trades to see region breakdown.'
+        : 'No data for this dimension in either period.'
 
   return (
     <div className="flex h-full flex-col rounded-md border border-border-subtle bg-bg-2 shadow-sm">
@@ -828,7 +856,7 @@ function BreakdownComparisonCard({
         <div className="flex-1 border-t border-border-subtle p-3">
           {data.length === 0 ? (
             <div className="py-3 text-center text-xs text-fg-tertiary">
-              No data for this dimension in either period.
+              {emptyText}
             </div>
           ) : (
             <div className="h-[180px] w-full">
@@ -850,6 +878,16 @@ function BreakdownComparisonCard({
                     angle={data.length > 6 ? -30 : 0}
                     textAnchor={data.length > 6 ? 'end' : 'middle'}
                     height={data.length > 6 ? 44 : 18}
+                    // Emoji-aware font stack so the flag prefix on
+                    // region/country ticks renders as a flag, not a pair
+                    // of regional-indicator letters. Latin text falls
+                    // through unchanged.
+                    tick={{
+                      style: {
+                        fontFamily:
+                          '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif',
+                      },
+                    }}
                   />
                   <YAxis
                     stroke={palette.axis}

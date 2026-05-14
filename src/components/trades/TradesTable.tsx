@@ -23,7 +23,7 @@ import type {
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares } from '@/lib/format'
-import { flagEmoji } from '@/core/country/flag'
+import Flag from '@/components/ui/Flag'
 import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
 
@@ -103,7 +103,7 @@ export default function TradesTable({
         if (!iso) return <span className="font-mono text-[10px] text-fg-muted">—</span>
         return (
           <span className="inline-flex items-center gap-1 font-mono text-xs text-fg-primary">
-            <span className="text-base leading-none">{flagEmoji(iso)}</span>
+            <Flag iso={iso} className="text-base leading-none" />
             <span>{iso}</span>
           </span>
         )

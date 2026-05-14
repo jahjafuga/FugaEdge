@@ -1,5 +1,3 @@
-import type { WebContents } from 'electron'
-import { IPC } from '@shared/ipc-channels'
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference, MassiveError } from '../market/massive'
 import { resolveCountryFromPolygon, type ResolvedCountry } from '@/core/country/resolve'
@@ -124,18 +122,6 @@ async function run(opts: {
     errors,
     durationMs: Date.now() - startedAt,
   }
-}
-
-/** Convenience wrapper used by the import flow — emits no progress and
- *  re-uses the singleton lock so a concurrent manual backfill shares the
- *  same run. */
-export async function autoBackfillAfterImport(webContents: WebContents | null = null): Promise<CountryBackfillResult> {
-  return backfillAllCountries({
-    force: false,
-    emitProgress: webContents
-      ? (p) => webContents.send(IPC.COUNTRY_BACKFILL_PROGRESS, p)
-      : undefined,
-  })
 }
 
 export { saveTradeCountry }

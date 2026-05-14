@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   REGION_MAP,
+  REGION_REPRESENTATIVE_COUNTRY,
   SHELL_JURISDICTIONS,
   REGIONS,
   getRegionForCountry,
@@ -49,5 +50,18 @@ describe('regions', () => {
     expect(getCountryName('CN')).toBe('China')
     expect(getCountryName(null)).toBe('Unknown')
     expect(getCountryName('ZZ')).toBe('Unknown')
+  })
+
+  it('REGION_REPRESENTATIVE_COUNTRY has an entry for every REGIONS key', () => {
+    for (const r of REGIONS) {
+      expect(r in REGION_REPRESENTATIVE_COUNTRY).toBe(true)
+    }
+  })
+
+  it('multi-country regions and Unknown map to null', () => {
+    expect(REGION_REPRESENTATIVE_COUNTRY.Europe).toBeNull()
+    expect(REGION_REPRESENTATIVE_COUNTRY.LatAm).toBeNull()
+    expect(REGION_REPRESENTATIVE_COUNTRY.Other).toBeNull()
+    expect(REGION_REPRESENTATIVE_COUNTRY.Unknown).toBeNull()
   })
 })

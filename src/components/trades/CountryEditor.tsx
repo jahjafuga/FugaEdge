@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import Modal from '@/components/ui/Modal'
-import { flagEmoji } from '@/core/country/flag'
+import Flag from '@/components/ui/Flag'
 import {
   COUNTRY_NAMES,
   REGIONS,
@@ -68,7 +68,7 @@ export default function CountryEditor({
     <>
       {country ? (
         <div className="flex items-center gap-2 font-mono text-sm">
-          <span className="text-lg leading-none">{flagEmoji(country)}</span>
+          <Flag iso={country} className="text-lg leading-none" />
           <span className="text-fg-primary">{countryName}</span>
           <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
             {region}
@@ -134,7 +134,7 @@ export default function CountryEditor({
                             : 'text-fg-primary hover:bg-bg-3'
                         }`}
                       >
-                        <span className="w-5 text-base leading-none">{flagEmoji(row.iso)}</span>
+                        <Flag iso={row.iso} className="w-5 text-base leading-none" />
                         <span className="font-mono">{row.name}</span>
                         <span className="ml-auto font-mono text-[10px] text-fg-tertiary">{row.iso}</span>
                       </button>

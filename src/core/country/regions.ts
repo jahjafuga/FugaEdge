@@ -97,6 +97,33 @@ export const COUNTRY_NAMES: Record<string, string> = {
   MT: 'Malta', CY: 'Cyprus',
 }
 
+/** Region key → ISO alpha-2 of the country that visually represents
+ *  the region in UI labels (so a region row in Reports can show a flag
+ *  next to its name). For multi-country regions (Europe, LatAm, Other,
+ *  Unknown) the value is `null` — there's no single fair representative
+ *  flag, so the caller renders the region name only.
+ *
+ *  Keys MUST stay in sync with the REGIONS list — the unit test guards
+ *  that. */
+export const REGION_REPRESENTATIVE_COUNTRY: Record<Region, string | null> = {
+  USA: 'US',
+  China: 'CN',
+  'Hong Kong': 'HK',
+  Singapore: 'SG',
+  Israel: 'IL',
+  Canada: 'CA',
+  UK: 'GB',
+  Europe: null,
+  Australia: 'AU',
+  Japan: 'JP',
+  Korea: 'KR',
+  Taiwan: 'TW',
+  India: 'IN',
+  LatAm: null,
+  Other: null,
+  Unknown: null,
+}
+
 export function getRegionForCountry(iso: string | null | undefined): Region {
   if (!iso) return 'Unknown'
   const code = iso.toUpperCase()
