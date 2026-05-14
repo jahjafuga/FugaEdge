@@ -13,6 +13,7 @@ import type { EquityPoint, MaxDrawdown } from '@shared/analytics-types'
 import { money, signed, longDate, shortDate } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 
 interface EquityChartProps {
   equity: EquityPoint[]
@@ -81,14 +82,14 @@ export default function EquityChart({ equity, maxDrawdown }: EquityChartProps) {
           )}
 
           <Area
-            type="monotone"
+            type={CUMULATIVE_LINE_TYPE}
             dataKey="cumulative_net_pnl"
             stroke="none"
             fill="url(#equityFill)"
             isAnimationActive={false}
           />
           <Line
-            type="monotone"
+            type={CUMULATIVE_LINE_TYPE}
             dataKey="cumulative_net_pnl"
             stroke="#d4af37"
             strokeWidth={1.75}
