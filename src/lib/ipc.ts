@@ -26,6 +26,8 @@ import type { TimeRange } from '@shared/dashboard-types'
 
 export const ipc = {
   ping: () => window.api.ping(),
+  getVersion: () => window.api.getVersion(),
+  openExternal: (url: string) => window.api.openExternal(url),
   dbHealthcheck: () => window.api.dbHealthcheck(),
   importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
   importCommit: (input: CommitInput) => window.api.importCommit(input),

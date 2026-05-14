@@ -1,3 +1,4 @@
+import { CalendarOff } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
 import { int, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
@@ -168,6 +169,7 @@ function DayCell({
   const tags = stats?.day_tags ?? []
   const pnl = stats?.net_pnl ?? 0
   const hasJournal = !!stats?.has_journal
+  const noTrade = !!stats?.no_trade_day
   const sentiment = stats?.sentiment ?? null
 
   // Each cell sits on a bg-1 base (white in light mode, ~black in dark)
@@ -210,8 +212,21 @@ function DayCell({
           {cell.day}
         </span>
         <div className="flex items-center gap-1">
+          {noTrade && cell.inMonth && (
+            <span
+              aria-label="No-trade day"
+              title="No-trade day"
+              // Muted gold per the v0.1.3 spec — distinct from the win/loss
+              // tile tints and the active sentiment / tag dots. Renders
+              // inline so cell layout stays unchanged on trading days.
+              style={{ color: 'rgba(212, 175, 55, 0.6)' }}
+              className="inline-flex h-[14px] w-[14px] items-center justify-center"
+            >
+              <CalendarOff size={12} strokeWidth={2} />
+            </span>
+          )}
           {tags.length > 0 && <TagDots tags={tags} />}
-          {hasJournal && !has && (
+          {hasJournal && !has && !noTrade && (
             <span
               aria-label="Journal entry"
               title="Journal entry on this day"

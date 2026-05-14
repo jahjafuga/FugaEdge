@@ -38,6 +38,11 @@ export interface IntradayBarsPayload {
   fetchedAt: string | null
   /** Last error if the most recent fetch attempt failed; null on success. */
   error: string | null
+  /** HTTP status on the last failed fetch, when available. 403 indicates a
+   *  plan-restriction error from Polygon (renderer shows a clean upgrade
+   *  prompt instead of the raw JSON). Null when no upstream HTTP exchange
+   *  occurred (network error, cache hit, etc.). */
+  errorStatus: number | null
   /** True when the data was just freshly fetched (vs read from cache). */
   justFetched: boolean
   /** True when the user has no Massive API key configured and we have no cache. */

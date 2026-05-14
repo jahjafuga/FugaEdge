@@ -156,15 +156,29 @@ export function todayDateISO(now: Date = new Date()): string {
 }
 
 /** No-trade days in the calendar month containing `date`. Used for the
- *  "No-trade days this month: X" stat. */
+ *  "No-trade days this month: X" stat.
+ *
+ *  Counts DISTINCT dates flagged through any UI path:
+ *   - session_meta.no_trade_day = 1 (dashboard "Mark as no-trade day")
+ *   - journal.day_tags includes "no-trade-day" (calendar sit-out modal)
+ *
+ *  `extraNoTradeDates` is the renderer-supplied set of dates the calendar
+ *  IPC already unified across both stores — pass it in to count without
+ *  re-querying. Falls back to just the session_meta list when omitted, so
+ *  existing call sites keep their old behaviour (test fixtures, mainly).
+ */
 export function countNoTradeDaysThisMonth(
   date: string,
   sessions: SessionMeta[],
+  extraNoTradeDates: readonly string[] = [],
 ): number {
   const month = date.slice(0, 7) // YYYY-MM prefix
-  let n = 0
+  const dates = new Set<string>()
   for (const s of sessions) {
-    if (s.date.startsWith(month) && s.no_trade_day) n += 1
+    if (s.date.startsWith(month) && s.no_trade_day) dates.add(s.date)
   }
-  return n
+  for (const d of extraNoTradeDates) {
+    if (d.startsWith(month)) dates.add(d)
+  }
+  return dates.size
 }

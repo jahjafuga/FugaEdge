@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import { ipc } from '@/lib/ipc'
+import { useAppVersion } from '@/lib/useAppVersion'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
 import { money } from '@/lib/format'
@@ -479,6 +480,10 @@ export default function Settings() {
           </p>
         </Card>
 
+        <Card title="About" subtitle="FugaEdge build information.">
+          <AboutPanel />
+        </Card>
+
         <div className="sticky bottom-0 -mx-6 mt-2 flex items-center justify-end gap-3 border-t border-white/[0.06] bg-bg/85 px-6 py-3 backdrop-blur">
           {savedAt && !dirty && (
             <span className="text-[10px] uppercase tracking-widest text-win">
@@ -496,6 +501,18 @@ export default function Settings() {
         </div>
       </div>
     </PageShell>
+  )
+}
+
+function AboutPanel() {
+  const version = useAppVersion()
+  return (
+    <div className="space-y-1">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        Version
+      </div>
+      <div className="font-mono text-sm text-fg-primary">v{version}</div>
+    </div>
   )
 }
 

@@ -233,6 +233,7 @@ export default function Calendar() {
           losers: 0,
           day_tags: [],
           has_journal: false,
+          no_trade_day: false,
           sentiment: next,
         }
         return { ...prev, days: [...prev.days, stub] }
@@ -267,7 +268,18 @@ export default function Calendar() {
         const existingIdx = prev.days.findIndex((d) => d.date === selectedDate)
         if (existingIdx >= 0) {
           const next = [...prev.days]
-          next[existingIdx] = { ...next[existingIdx], day_tags: nextTags }
+          const wasNoTrade = next[existingIdx].no_trade_day
+          // Optimistic update of the unified no-trade flag too — keeps the
+          // gold marker on the day cell in sync with the tag chip without
+          // waiting for a full month refetch. We keep the flag on when
+          // session_meta still has it set (wasNoTrade is true and the user
+          // is just editing OTHER tags).
+          const nowHasTag = nextTags.includes('no-trade-day')
+          next[existingIdx] = {
+            ...next[existingIdx],
+            day_tags: nextTags,
+            no_trade_day: nowHasTag || wasNoTrade,
+          }
           return { ...prev, days: next }
         }
         // No row for this date yet (no-trade day getting its first tag). Insert
@@ -284,6 +296,7 @@ export default function Calendar() {
           losers: 0,
           day_tags: nextTags,
           has_journal: true, // setting a tag IS a journal action
+          no_trade_day: nextTags.includes('no-trade-day'),
           sentiment: null,
         }
         return { ...prev, days: [...prev.days, stub] }
