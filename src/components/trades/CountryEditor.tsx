@@ -108,6 +108,7 @@ export default function CountryEditor({
           <input
             type="text"
             autoFocus
+            aria-label="Search country"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search country or ISO code…"
