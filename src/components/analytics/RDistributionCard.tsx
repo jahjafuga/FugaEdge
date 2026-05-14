@@ -62,7 +62,7 @@ export default function RDistributionCard({ data }: RDistributionCardProps) {
         />
       </div>
 
-      <div className="mt-4 text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <div className="mt-4 text-[10px] uppercase tracking-wider text-fg-tertiary">
         Coverage{' '}
         <span className="ml-1 font-mono text-fg-primary">
           {int(data.coverage)} / {int(data.total_trades)}
@@ -77,7 +77,7 @@ export default function RDistributionCard({ data }: RDistributionCardProps) {
           <RBuckets buckets={data.buckets} />
         ) : (
           <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-            <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+            <div className="mb-1 uppercase tracking-wider text-gold">
               Awaiting data
             </div>
             Set a Planned risk ($) on a few trades to populate the R distribution.
@@ -101,7 +101,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-md border border-white/[0.06] bg-white/[0.015] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div
         className={`mt-1 font-mono font-medium ${tone}`}
         style={{ fontSize: '20px', letterSpacing: '-0.02em', lineHeight: 1.1 }}

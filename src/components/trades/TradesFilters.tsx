@@ -74,7 +74,7 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
             value={filters.symbol}
             onChange={(e) => onChange({ ...filters, symbol: e.target.value })}
             placeholder="Symbol"
-            className="w-24 bg-transparent font-mono text-sm uppercase text-fg-primary placeholder:text-fg-muted focus:outline-none"
+            className="w-24 bg-transparent text-sm uppercase text-fg-primary placeholder:text-fg-muted focus:outline-none"
           />
           {filters.symbol && (
             <button
@@ -101,23 +101,23 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
         />
 
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             From
           </span>
           <input
             type="date"
             value={filters.dateFrom}
             onChange={(e) => onChange({ ...filters, dateFrom: e.target.value })}
-            className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 font-mono text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
+            className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
           />
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             To
           </span>
           <input
             type="date"
             value={filters.dateTo}
             onChange={(e) => onChange({ ...filters, dateTo: e.target.value })}
-            className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 font-mono text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
+            className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
           />
         </div>
 
@@ -125,7 +125,7 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
           <button
             type="button"
             onClick={() => onChange(emptyFilters())}
-            className="ml-auto inline-flex h-8 cursor-pointer items-center rounded-md border border-border-subtle bg-bg-3 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="ml-auto inline-flex h-8 cursor-pointer items-center rounded-md border border-border-subtle bg-bg-3 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
           >
             Clear
           </button>
@@ -155,7 +155,7 @@ function Segmented<T extends string>({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(o.key)}
-            className={`cursor-pointer rounded-[5px] px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
+ className={`cursor-pointer rounded-[5px] px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
               active ? 'bg-gold text-accent-ink' : 'text-fg-tertiary hover:bg-bg-3 hover:text-fg-primary'
             }`}
           >

@@ -21,7 +21,7 @@ export default function WinLossDaysTable({ days }: WinLossDaysTableProps) {
     <div className="overflow-auto">
       <table className="w-full border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-bg-header">
-          <tr className="border-b border-border text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <tr className="border-b border-border text-[10px] uppercase tracking-wider text-fg-tertiary">
             <Th>Date</Th>
             <Th align="right">Trades</Th>
             <Th align="right">W</Th>

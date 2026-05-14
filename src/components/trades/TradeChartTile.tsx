@@ -40,7 +40,7 @@ export default function TradeChartTile({ trade }: TradeChartTileProps) {
       <div className="flex items-baseline justify-between text-[10px]">
         <span className="font-mono text-muted">{shortDate(trade.date)}</span>
         <span
-          className={`font-mono uppercase ${
+ className={`uppercase ${
             trade.side === 'short' ? 'text-red' : 'text-win'
           }`}
         >

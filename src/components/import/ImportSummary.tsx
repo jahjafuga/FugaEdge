@@ -22,7 +22,7 @@ export default function ImportSummary({
     <div className="rounded-md border border-border bg-panel p-5 space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto]">
         <div className="space-y-2">
-          <div className="text-[10px] uppercase tracking-widest text-muted">Files</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted">Files</div>
           <ul className="space-y-1.5">
             {files.map((f) => (
               <li key={f.filename} className="flex items-center gap-3 text-sm">
@@ -46,7 +46,7 @@ export default function ImportSummary({
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted">Date range</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted">Date range</div>
           <div className="mt-1 font-mono text-sm text-text">{rangeLabel}</div>
         </div>
       </div>
@@ -71,20 +71,20 @@ export default function ImportSummary({
 function FormatPill({ format }: { format: FileInfo['format'] }) {
   if (format === 'executions') {
     return (
-      <span className="rounded bg-win/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-win">
+      <span className="rounded bg-win/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-win">
         execs
       </span>
     )
   }
   if (format === 'daily-summary') {
     return (
-      <span className="rounded bg-gold/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">
+      <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
         fees
       </span>
     )
   }
   return (
-    <span className="rounded bg-red/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-red">
+    <span className="rounded bg-red/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-red">
       unknown
     </span>
   )
@@ -109,7 +109,7 @@ function Stat({
           : 'text-text'
   return (
     <div className="min-w-[80px]">
-      <div className="text-[10px] uppercase tracking-widest text-muted">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
       <div className={`mt-1 font-mono text-lg ${color}`}>{int(value)}</div>
     </div>
   )

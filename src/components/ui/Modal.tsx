@@ -58,7 +58,7 @@ export default function Modal({
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-gold">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
               {title}
             </div>
             {subtitle && (

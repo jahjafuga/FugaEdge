@@ -69,7 +69,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors duration-150 ${
+        className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors duration-150 ${
           active
             ? 'border-gold/40 bg-gold/[0.08] text-gold'
             : 'border-white/[0.08] bg-white/[0.02] text-subtle hover:border-gold/40 hover:text-gold'
@@ -100,7 +100,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
               onChange(null)
               setOpen(false)
             }}
-            className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left font-mono text-xs transition-colors duration-150 ${
+            className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
               !active ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
             }`}
           >
@@ -109,7 +109,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
           </button>
           <div className="my-1 h-px bg-white/[0.04]" />
           {!playbooks && (
-            <div className="px-2 py-2 font-mono text-[10px] text-muted">Loading…</div>
+            <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
           )}
           {playbooks
             ?.filter((p) => !p.archived)
@@ -123,7 +123,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
                     onChange(p.id)
                     setOpen(false)
                   }}
-                  className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left font-mono text-xs transition-colors duration-150 ${
+                  className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
                     isActive ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
                   }`}
                 >

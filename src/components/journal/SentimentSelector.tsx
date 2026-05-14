@@ -40,7 +40,7 @@ export default function SentimentSelector({ value, onChange }: SentimentSelector
             <div className="flex w-full items-baseline justify-between">
               <span className="font-mono text-base font-semibold tnum">{level}</span>
               {active && (
-                <span className="font-mono text-[9px] font-semibold uppercase tracking-widest">
+                <span className="text-[9px] font-semibold uppercase tracking-wider">
                   ✓
                 </span>
               )}

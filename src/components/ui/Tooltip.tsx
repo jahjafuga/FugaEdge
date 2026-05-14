@@ -33,7 +33,7 @@ export default function Tooltip({
 
 export function InfoIcon() {
   return (
-    <span className="cursor-help font-mono text-[10px] text-muted transition-colors group-hover:text-gold">
+    <span className="cursor-help text-[10px] text-muted transition-colors group-hover:text-gold">
       ⓘ
     </span>
   )

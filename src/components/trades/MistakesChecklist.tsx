@@ -87,7 +87,7 @@ export default function MistakesChecklist({ selected, onChange }: MistakesCheckl
             type="button"
             onClick={() => toggle(label)}
             style={style}
-            className={`rounded-full border px-2.5 py-1 font-mono text-[10px] transition-all duration-150 ease-smooth ${
+            className={`rounded-full border px-2.5 py-1 text-[10px] transition-all duration-150 ease-smooth ${
               isLight
                 ? ''
                 : active

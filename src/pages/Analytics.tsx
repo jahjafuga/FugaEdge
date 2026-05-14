@@ -62,7 +62,7 @@ export default function Analytics() {
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load analytics
             </div>
             <div className="mt-1">{err}</div>
@@ -132,7 +132,7 @@ export default function Analytics() {
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
             title="Print this tab"
           >
             <Printer size={12} strokeWidth={2} />

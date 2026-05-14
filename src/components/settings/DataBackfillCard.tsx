@@ -62,7 +62,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
           >
             {running ? 'Backfilling…' : 'Backfill countries'}
           </button>
-          <span className="font-mono text-xs text-fg-tertiary">
+          <span className="text-xs text-fg-tertiary">
             Last run: {lastRun ? longDate(lastRun.slice(0, 10)) : 'never'}
           </span>
         </div>
@@ -80,7 +80,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
             <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
               <div className="h-full bg-gold transition-all" style={{ width: `${pct}%` }} />
             </div>
-            <div className="mt-1 font-mono text-[10px] text-fg-tertiary">
+            <div className="mt-1 text-[10px] text-fg-tertiary tnum">
               Processing {progress.symbol} ({progress.current}/{progress.total})
             </div>
           </div>
@@ -93,7 +93,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
           </div>
         )}
         {err && (
-          <div className="font-mono text-xs text-loss">{err}</div>
+          <div className="text-xs text-loss">{err}</div>
         )}
       </div>
     </Card>

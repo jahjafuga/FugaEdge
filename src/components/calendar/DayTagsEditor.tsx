@@ -64,7 +64,7 @@ export default function DayTagsEditor({ date, tags, onChange }: DayTagsEditorPro
 
   if (options === null) {
     return (
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
         Loading tag options…
       </div>
     )
@@ -72,7 +72,7 @@ export default function DayTagsEditor({ date, tags, onChange }: DayTagsEditorPro
 
   if (options.length === 0) {
     return (
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
         No day-note tags configured · add some in Settings → Day note tags.
       </div>
     )
@@ -80,7 +80,7 @@ export default function DayTagsEditor({ date, tags, onChange }: DayTagsEditorPro
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
         Day tags
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
@@ -94,7 +94,7 @@ export default function DayTagsEditor({ date, tags, onChange }: DayTagsEditorPro
               disabled={saving}
               onClick={() => toggle(tag)}
               aria-pressed={active}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+ className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] uppercase tracking-wider transition-colors duration-150 ${
                 active
                   ? 'border-transparent text-accent-ink'
                   : 'border-border-subtle bg-bg-1/40 text-fg-secondary hover:border-gold/40 hover:text-fg-primary'

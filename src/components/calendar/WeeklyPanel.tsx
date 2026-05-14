@@ -26,12 +26,12 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
         }`}
         title="Open weekly review"
       >
-        <div className="font-mono text-[9px] uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[9px] uppercase tracking-wider text-fg-tertiary">
           {shortMonthDay(summary.week_start)} – {shortMonthDay(summary.week_end)}
         </div>
         <div className="text-[10px] text-fg-tertiary">No trades</div>
         {hasJournal && (
-          <div className="font-mono text-[9px] uppercase tracking-widest text-gold">
+          <div className="text-[9px] uppercase tracking-wider text-gold">
             ✎ {summary.days_journaled} journaled
           </div>
         )}
@@ -59,10 +59,10 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
       title="Open weekly review"
     >
       <div className="flex items-baseline justify-between">
-        <div className="font-mono text-[9px] uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[9px] uppercase tracking-wider text-fg-tertiary">
           {shortMonthDay(summary.week_start)}–{shortMonthDay(summary.week_end)}
         </div>
-        <div className="font-mono text-[9px] uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[9px] uppercase tracking-wider text-fg-tertiary">
           {int(summary.trade_count)}t
         </div>
       </div>
@@ -91,7 +91,7 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
 
       {summary.streak.kind !== 'none' && summary.streak.days >= 2 && (
         <div
-          className={`font-mono text-[10px] uppercase tracking-widest ${
+ className={`text-[10px] uppercase tracking-wider ${
             summary.streak.kind === 'win' ? 'text-win' : 'text-loss'
           }`}
         >
@@ -100,21 +100,21 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
       )}
 
       {hasJournal && (
-        <div className="font-mono text-[9px] uppercase tracking-widest text-gold/80">
+        <div className="text-[9px] uppercase tracking-wider text-gold/80">
           ✎ {int(summary.days_journaled)}/{int(summary.days_traded)} journaled
         </div>
       )}
 
       {summary.top_mistake && (
         <div
-          className="truncate font-mono text-[9px] uppercase tracking-widest text-loss"
+          className="truncate text-[9px] uppercase tracking-wider text-loss"
           title={`Top mistake: ${summary.top_mistake.name} (${summary.top_mistake.count}×)`}
         >
           ✕ {summary.top_mistake.name}
         </div>
       )}
 
-      <div className="mt-auto pt-1 text-[9px] uppercase tracking-widest text-fg-tertiary/80">
+      <div className="mt-auto pt-1 text-[9px] uppercase tracking-wider text-fg-tertiary/80">
         {money(summary.total_fees)} fees
       </div>
     </button>

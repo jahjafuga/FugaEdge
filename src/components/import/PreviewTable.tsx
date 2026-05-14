@@ -30,7 +30,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
       <div className="max-h-[480px] overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-bg-header">
-            <tr className="border-b border-border text-[10px] uppercase tracking-widest text-muted">
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
               <Th align="left">Status</Th>
               <Th align="left">Date</Th>
               <Th align="left">Open</Th>
@@ -82,7 +82,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                     </Td>
                     <Td>
                       <span
-                        className={`font-mono text-xs uppercase ${
+ className={`text-xs uppercase ${
                           t.side === 'short' ? 'text-red' : 'text-win'
                         }`}
                       >
@@ -114,7 +114,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                   {isExpanded && (
                     <tr key={`${t.exec_hash}-fills`} className="border-b border-border/40">
                       <td colSpan={12} className="bg-bg/40 px-6 py-3">
-                        <div className="text-[10px] uppercase tracking-widest text-muted">
+                        <div className="text-[10px] uppercase tracking-wider text-muted">
                           {t.executions.length} fill{t.executions.length === 1 ? '' : 's'}
                         </div>
                         <div className="mt-2 grid grid-cols-[80px_60px_60px_80px_1fr] gap-x-4 gap-y-1 font-mono text-xs">
@@ -160,7 +160,7 @@ function Pill({
         : 'bg-white/[0.05] text-muted'
   return (
     <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cls}`}
+      className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${cls}`}
     >
       {children}
     </span>

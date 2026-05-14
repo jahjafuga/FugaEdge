@@ -38,7 +38,7 @@ export default function ReportBucketTable({
     <div className="overflow-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border bg-bg-header text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <tr className="border-b border-border bg-bg-header text-[10px] uppercase tracking-wider text-fg-tertiary">
             <Th>{keyHeader}</Th>
             <Th align="right">Trades</Th>
             <Th align="center">P&amp;L</Th>

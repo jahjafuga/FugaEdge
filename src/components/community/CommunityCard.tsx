@@ -38,7 +38,7 @@ export default function CommunityCard({ compact = false }: CommunityCardProps) {
           <MessageCircle size={20} strokeWidth={2} />
         </span>
         {!compact && (
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary sm:text-center">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary sm:text-center">
             Community
           </span>
         )}
@@ -64,12 +64,12 @@ export default function CommunityCard({ compact = false }: CommunityCardProps) {
           <button
             type="button"
             onClick={open}
-            className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-[11px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
+            className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-[11px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
           >
             Open Discord
             <ArrowUpRight size={13} strokeWidth={2.25} />
           </button>
-          <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             opens in your browser
           </span>
         </div>

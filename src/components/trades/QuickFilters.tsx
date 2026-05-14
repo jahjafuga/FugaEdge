@@ -109,10 +109,7 @@ function Chip({ label, active, onClick, tone = 'gold' }: ChipProps) {
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex h-7 cursor-pointer items-center rounded-full border px-3 font-mono text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ease-out-soft ${
-        active
-          ? activeStyles
-          : `border-border-subtle bg-bg-2 text-fg-tertiary ${hoverStyles}`
+      className={`inline-flex h-7 cursor-pointer items-center rounded-full border px-3 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out-soft ${ active ? activeStyles :`border-border-subtle bg-bg-2 text-fg-tertiary ${hoverStyles}`
       }`}
     >
       {label}

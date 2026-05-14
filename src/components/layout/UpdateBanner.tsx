@@ -67,7 +67,7 @@ export default function UpdateBanner() {
             <button
               type="button"
               onClick={() => ipc.updaterQuitAndInstall()}
-              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-2.5 text-[10px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
             >
               <RotateCcw size={11} strokeWidth={2.25} />
               Restart now

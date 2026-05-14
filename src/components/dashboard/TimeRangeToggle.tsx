@@ -29,7 +29,7 @@ export default function TimeRangeToggle({ value, onChange }: TimeRangeToggleProp
             role="tab"
             aria-selected={active}
             onClick={() => onChange(opt.key)}
-            className={`cursor-pointer rounded-[6px] px-3 py-1 font-mono text-[11px] font-semibold tracking-wider transition-colors duration-150 ease-out-soft ${
+            className={`cursor-pointer rounded-[6px] px-3 py-1 text-[11px] font-semibold tracking-wider transition-colors duration-150 ease-out-soft ${
               active
                 ? 'bg-gold text-accent-ink'
                 : 'text-fg-tertiary hover:bg-bg-3 hover:text-fg-primary'

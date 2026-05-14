@@ -26,7 +26,7 @@ export default function TradesViewToggle({ value, onChange }: TradesViewTogglePr
             aria-selected={active}
             onClick={() => onChange(key)}
             title={label}
-            className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-[6px] px-3 font-mono text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out-soft ${
+ className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out-soft ${
               active
                 ? 'bg-gold text-accent-ink'
                 : 'text-fg-tertiary hover:bg-bg-3 hover:text-fg-primary'

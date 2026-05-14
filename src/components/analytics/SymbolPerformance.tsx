@@ -38,7 +38,7 @@ function SymbolTable({
   return (
     <table className="w-full border-collapse text-sm">
       <thead>
-        <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
           <th className="px-3 py-2 text-left font-semibold">Symbol</th>
           <th className="px-3 py-2 text-right font-semibold">Trades</th>
           <th className="px-3 py-2 text-right font-semibold">W/L</th>

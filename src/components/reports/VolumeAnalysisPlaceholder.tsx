@@ -69,7 +69,7 @@ function Section({
   return (
     <div className="overflow-hidden rounded-md border border-border-subtle/60 bg-bg-1/30">
       <div className="border-b border-border-subtle/40 px-4 py-2">
-        <div className="text-[10px] uppercase tracking-widest text-gold">{title}</div>
+        <div className="text-[10px] uppercase tracking-wider text-gold">{title}</div>
         <div className="mt-0.5 text-xs text-fg-secondary">{subtitle}</div>
       </div>
       <div>{children}</div>
@@ -87,7 +87,7 @@ function UnavailableState({ data }: { data: VolumeAnalysis }) {
       <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4">
         <div className="flex items-center gap-2">
           <span className="font-serif text-lg text-gold">ⓘ</span>
-          <span className="text-[10px] uppercase tracking-widest text-gold">
+          <span className="text-[10px] uppercase tracking-wider text-gold">
             Market data unavailable
           </span>
         </div>
@@ -111,7 +111,7 @@ function UnavailableState({ data }: { data: VolumeAnalysis }) {
 function DimSection({ title, buckets }: { title: string; buckets: string[] }) {
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/30 p-4 opacity-60">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{title}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{title}</div>
       <ul className="mt-2 space-y-2">
         {buckets.map((b) => (
           <li

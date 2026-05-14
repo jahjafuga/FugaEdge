@@ -80,7 +80,7 @@ export default function ExecutionTab({ data, reports }: ExecutionTabProps) {
 
       <Card title="Slippage analysis" subtitle="Requires per-fill quoted prices alongside execution prices.">
         <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-          <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+          <div className="mb-1 uppercase tracking-wider text-gold">
             Not yet wired
           </div>
           Slippage needs quoted bid/ask at each fill timestamp. DAS Trades.csv
@@ -95,7 +95,7 @@ export default function ExecutionTab({ data, reports }: ExecutionTabProps) {
 function ExcursionPlaceholder({ kind }: { kind: 'adverse' | 'favorable' }) {
   return (
     <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-      <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+      <div className="mb-1 uppercase tracking-wider text-gold">
         Awaiting intraday data
       </div>
       Requires 1-minute bars covering each trade's open through close. Open
@@ -124,7 +124,7 @@ function ExcursionBlock({
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4">
       <div className="flex items-baseline justify-between">
-        <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+        <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
         <div className="font-mono text-[10px] text-fg-tertiary">
           {coverage}/{total} trades
         </div>
@@ -156,7 +156,7 @@ function HoldCell({
     tone === 'green' ? 'text-win' : tone === 'red' ? 'text-loss' : 'text-fg-primary'
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className={`mt-1 font-mono text-base font-medium ${color}`}>
         {seconds == null ? '—' : duration(seconds)}
       </div>

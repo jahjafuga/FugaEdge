@@ -39,14 +39,14 @@ export default function MonthCalendarPreview({ month }: MonthCalendarPreviewProp
         <button
           type="button"
           onClick={() => navigate('/calendar')}
-          className="inline-flex cursor-pointer items-center gap-0.5 rounded-sm font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-gold"
+          className="inline-flex cursor-pointer items-center gap-0.5 rounded-sm text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
         >
           Open
           <ChevronRight size={12} strokeWidth={2.25} />
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 font-mono text-[10px] text-fg-muted">
+      <div className="grid grid-cols-7 gap-1 text-[10px] text-fg-muted">
         {WEEKDAYS.map((d, i) => (
           <div key={i} className="px-1 py-0.5 text-center">
             {d}

@@ -98,16 +98,16 @@ export default function CalendarGrid({
     <div className="overflow-hidden rounded-md border border-border-subtle bg-bg-2">
       {/* Header row: weekday labels + (optional) "Week" label */}
       <div className="flex border-b border-border-subtle/60">
-        <div className="grid flex-1 grid-cols-7 text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <div className="grid flex-1 grid-cols-7 text-[10px] uppercase tracking-wider text-fg-tertiary">
           {WEEKDAYS.map((w) => (
-            <div key={w} className="px-2 py-2 text-center font-mono">
+            <div key={w} className="px-2 py-2 text-center">
               {w}
             </div>
           ))}
         </div>
         {showWeekly && (
           <div
-            className="flex items-center justify-center border-l border-border-subtle/60 px-2 py-2 font-mono text-[10px] uppercase tracking-widest text-gold"
+            className="flex items-center justify-center border-l border-border-subtle/60 px-2 py-2 text-[10px] uppercase tracking-wider text-gold"
             style={{ width: PANEL_WIDTH }}
           >
             Week
@@ -230,13 +230,13 @@ function DayCell({
             <span
               aria-label="Journal entry"
               title="Journal entry on this day"
-              className="font-mono text-[10px] leading-none text-gold"
+              className="text-[10px] leading-none text-gold"
             >
               ✎
             </span>
           )}
           {has && (
-            <span className="font-mono text-[12px] font-medium uppercase tracking-widest text-fg-tertiary">
+            <span className="text-[12px] font-medium uppercase tracking-wider text-fg-tertiary">
               {stats!.trade_count}t
             </span>
           )}
@@ -271,7 +271,7 @@ function DayCell({
           </span>
         </div>
       ) : tags.length > 0 && cell.inMonth ? (
-        <div className="flex justify-end font-mono text-[9px] uppercase tracking-widest text-fg-tertiary">
+        <div className="flex justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">
           {tags[0]}
           {tags.length > 1 ? ` +${tags.length - 1}` : ''}
         </div>

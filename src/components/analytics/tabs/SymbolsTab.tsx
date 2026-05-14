@@ -54,7 +54,7 @@ function BucketTable({
   return (
     <div className="overflow-auto">
       <table className="w-full text-xs">
-        <thead className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <thead className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           <tr className="border-b border-border-subtle/60">
             <th className="px-3 py-2 text-left font-semibold">{firstColLabel}</th>
             <th className="px-3 py-2 text-right font-semibold">Trades</th>

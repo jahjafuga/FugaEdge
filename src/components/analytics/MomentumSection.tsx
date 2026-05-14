@@ -219,7 +219,7 @@ function BucketRows({
     <div className="overflow-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
             <Th>{keyHeader}</Th>
             <Th align="right">Trades</Th>
             <Th align="center">P&amp;L</Th>
@@ -356,21 +356,21 @@ function Side({
   const borderClass = tone === 'green' ? 'border-win/30' : 'border-loss/30'
   return (
     <div className={`rounded-md border ${borderClass} bg-bg-1/40 p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className="mt-1 text-[11px] text-fg-secondary">{sublabel}</div>
       <div className="mt-3 grid grid-cols-3 gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Trades</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Trades</div>
           <div className="mt-0.5 font-mono text-lg text-fg-primary">{int(count)}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Net P&L</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Net P&L</div>
           <div className={`mt-0.5 font-mono text-lg font-medium ${pnlClass(netPnl)}`}>
             {count > 0 ? signed(netPnl) : DASH}
           </div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Win rate</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Win rate</div>
           <div className="mt-0.5 font-mono text-lg text-gold">
             {winRate == null ? DASH : `${(winRate * 100).toFixed(0)}%`}
           </div>
@@ -383,7 +383,7 @@ function Side({
 function NoData({ reason }: { reason: string }) {
   return (
     <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-      <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+      <div className="mb-1 uppercase tracking-wider text-gold">
         Awaiting data
       </div>
       {reason}

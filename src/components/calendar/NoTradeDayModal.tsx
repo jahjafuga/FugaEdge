@@ -144,7 +144,7 @@ export default function NoTradeDayModal({
       >
         <div className="flex items-baseline justify-between border-b border-border-subtle/60 px-5 py-3">
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+            <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
               Sit-out day
             </div>
             <div

@@ -67,7 +67,7 @@ export default function DayTradesPanel({
     <div className="rounded-md border border-border-subtle bg-bg-2">
       <div className="flex items-baseline justify-between border-b border-border-subtle/60 px-5 py-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             Selected day
           </div>
           <div className="mt-0.5 text-base font-medium text-fg-primary">

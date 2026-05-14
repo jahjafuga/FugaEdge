@@ -91,7 +91,7 @@ export default function Import() {
       {phase.kind === 'done' && (
         <div className="space-y-4">
           <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
-            <div className="text-[10px] uppercase tracking-widest text-win">
+            <div className="text-[10px] uppercase tracking-wider text-win">
               Import complete
             </div>
             <div className="mt-2 text-base text-text">
@@ -141,7 +141,7 @@ export default function Import() {
           <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
             <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
             <div>
-              <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
                 Import failed
               </div>
               <div className="mt-1">{phase.message}</div>
@@ -184,7 +184,7 @@ function PreviewPanel({
       {data.needsDate && (
         <div className="flex items-end gap-4 rounded-md border border-gold/40 bg-gold/[0.05] p-4">
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-widest text-gold">
+            <div className="text-[10px] uppercase tracking-wider text-gold">
               Date required
             </div>
             <div className="mt-1 text-sm text-text">
@@ -193,7 +193,7 @@ function PreviewPanel({
             </div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-muted">
+            <div className="text-[10px] uppercase tracking-wider text-muted">
               Trade date
             </div>
             <input
@@ -208,7 +208,7 @@ function PreviewPanel({
 
       {data.warnings.length > 0 && (
         <div className="rounded-md border border-gold/40 bg-gold/[0.06] p-3 text-xs text-gold-100">
-          <div className="mb-1 font-semibold uppercase tracking-widest text-gold">
+          <div className="mb-1 font-semibold uppercase tracking-wider text-gold">
             Warnings
           </div>
           <ul className="list-disc space-y-0.5 pl-5">

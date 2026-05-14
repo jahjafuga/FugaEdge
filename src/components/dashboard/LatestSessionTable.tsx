@@ -66,7 +66,7 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
       <div className="max-h-[320px] overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-bg-header">
-            <tr className="border-b border-border-subtle font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+            <tr className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
               <Th align="left">Symbol</Th>
               <Th align="left">Side</Th>
               <Th align="left">Playbook</Th>
@@ -90,7 +90,7 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
                 </Td>
                 <Td>
                   <span
-                    className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+ className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                       t.side === 'short'
                         ? 'bg-loss-soft text-loss'
                         : 'bg-win-soft text-win'
@@ -101,7 +101,7 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
                 </Td>
                 <Td>
                   {t.playbook_name ? (
-                    <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gold">
+                    <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
                       {t.playbook_name}
                     </span>
                   ) : (

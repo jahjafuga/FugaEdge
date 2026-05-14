@@ -49,7 +49,7 @@ export default function CatalystEditor({
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
       <div>
-        <label className="mb-1 block font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Catalyst type
         </label>
         <select
@@ -68,7 +68,7 @@ export default function CatalystEditor({
       </div>
 
       <div>
-        <label className="mb-1 block font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Days since
         </label>
         <input

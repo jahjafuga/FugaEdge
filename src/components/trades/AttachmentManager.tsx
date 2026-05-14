@@ -170,7 +170,7 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
 
       {rejected.length > 0 && (
         <div className="rounded-md border border-red/30 bg-red/[0.06] p-3 text-xs">
-          <div className="mb-1 font-mono uppercase tracking-widest text-red">
+          <div className="mb-1 uppercase tracking-wider text-red">
             Some files skipped
           </div>
           <ul className="space-y-0.5">
@@ -183,7 +183,7 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
           <button
             type="button"
             onClick={() => setRejected([])}
-            className="mt-2 text-[10px] uppercase tracking-widest text-muted hover:text-text"
+            className="mt-2 text-[10px] uppercase tracking-wider text-muted hover:text-text"
           >
             dismiss
           </button>
@@ -279,14 +279,14 @@ function Lightbox({
               onClick={() => {
                 if (window.confirm(`Delete "${attachment.original_name}"?`)) onDelete()
               }}
-              className="rounded border border-red/40 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-red transition-colors hover:bg-red/[0.10]"
+              className="rounded border border-red/40 px-2 py-1 text-[10px] uppercase tracking-wider text-red transition-colors hover:bg-red/[0.10]"
             >
               Delete
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-white/[0.08] px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-subtle transition-colors hover:border-gold/40 hover:text-gold"
+              className="rounded border border-white/[0.08] px-2 py-1 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
             >
               Close
             </button>

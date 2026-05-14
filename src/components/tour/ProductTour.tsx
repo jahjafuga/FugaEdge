@@ -276,13 +276,13 @@ export default function ProductTour({ onComplete }: ProductTourProps) {
 
       {/* Top-right HUD: step indicator + skip */}
       <div className="absolute right-4 top-4 z-[61] flex items-center gap-3">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-secondary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-secondary">
           Step {visibleIndex + 1} of {TOUR_STEPS.length}
         </span>
         <button
           type="button"
           onClick={finish}
-          className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-2 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <X size={11} strokeWidth={2.25} />
           Skip
@@ -304,7 +304,7 @@ export default function ProductTour({ onComplete }: ProductTourProps) {
         </h2>
         <p className="mt-2 text-sm text-fg-secondary">{step.body}</p>
         <div className="mt-4 flex items-center justify-between gap-2 border-t border-border-subtle pt-3">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             {step.id}
           </span>
           <div className="flex items-center gap-2">
@@ -312,7 +312,7 @@ export default function ProductTour({ onComplete }: ProductTourProps) {
               <button
                 type="button"
                 onClick={back}
-                className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+                className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
               >
                 <ArrowLeft size={11} strokeWidth={2.25} />
                 Back
@@ -321,7 +321,7 @@ export default function ProductTour({ onComplete }: ProductTourProps) {
             <button
               type="button"
               onClick={next}
-              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-[10px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
             >
               {isLast ? (step.finalLabel ?? 'Finish') : 'Next'}
               {!isLast && <ArrowRight size={11} strokeWidth={2.25} />}

@@ -152,7 +152,7 @@ function BookendBlock({
     tone === 'green' ? 'border-win/30' : 'border-loss/30'
   return (
     <div className={`rounded-md border ${borderColor} bg-bg-1/40 p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       {day ? (
         <>
           <div className={`mt-1 font-mono text-xl font-medium ${color}`}>
@@ -202,13 +202,13 @@ function DrawdownSummary({
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Amount</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Amount</div>
           <div className="mt-0.5 font-mono text-xl font-medium text-loss">
             −{money(dd.amount)}
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">%</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">%</div>
           <div className="mt-0.5 font-mono text-xl font-medium text-loss">
             {dd.percent == null ? '—' : `−${(dd.percent * 100).toFixed(1)}%`}
           </div>

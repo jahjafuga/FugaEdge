@@ -152,7 +152,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             type="button"
             onClick={commitAndClose}
             disabled={committing}
-            className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-fg-primary disabled:opacity-50"
+            className="cursor-pointer text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-fg-primary disabled:opacity-50"
           >
             Skip for now
           </button>
@@ -162,7 +162,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 type="button"
                 onClick={back}
                 disabled={committing}
-                className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-50"
+                className="inline-flex h-9 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-50"
               >
                 Back
               </button>
@@ -172,7 +172,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 type="button"
                 onClick={commitAndClose}
                 disabled={committing}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-4 font-mono text-[11px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:opacity-50"
+                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-4 text-[11px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:opacity-50"
               >
                 {committing ? 'Setting up…' : 'Get started'}
                 {!committing && <ArrowRight size={13} strokeWidth={2.25} />}
@@ -182,7 +182,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 type="button"
                 onClick={next}
                 disabled={committing}
-                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-4 font-mono text-[11px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:opacity-50"
+                className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-4 text-[11px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:opacity-50"
               >
                 {state.step === 0 ? "Let's go" : 'Continue'}
                 <ArrowRight size={13} strokeWidth={2.25} />
@@ -319,7 +319,7 @@ function MoneyField({
 }) {
   return (
     <label className="block">
-      <span className="block font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+ <span className="block text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </span>
       <span className="mt-1 flex items-center gap-2">
@@ -413,11 +413,11 @@ function StyleCard({
     >
       <span className="text-sm font-medium text-fg-primary">{title}</span>
       {playbooks.length > 0 ? (
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           {playbooks.join(' · ')}
         </span>
       ) : mixedNote ? (
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           No templates — start blank
         </span>
       ) : null}
@@ -475,7 +475,7 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
 
       <DropZone onFiles={handleFiles} disabled={importing} />
 
-      <p className="text-center font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <p className="text-center text-[10px] uppercase tracking-wider text-fg-tertiary">
         Imports always append. Nothing is overwritten.
       </p>
 

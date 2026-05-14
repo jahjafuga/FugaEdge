@@ -73,7 +73,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
             Drag both at once, or one at a time. Click to choose files.
           </div>
         </div>
-        <div className="mt-3 max-w-md text-[11px] uppercase tracking-widest text-fg-tertiary">
+        <div className="mt-3 max-w-md text-[11px] uppercase tracking-wider text-fg-tertiary">
           Imports always append. Nothing is overwritten.
         </div>
       </button>

@@ -40,7 +40,7 @@ export default function CatalystBreakdownCard({ data }: CatalystBreakdownCardPro
     >
       {data.tagged_trades === 0 ? (
         <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-          <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+          <div className="mb-1 uppercase tracking-wider text-gold">
             No catalysts tagged yet
           </div>
           Open any trade in the Trades page → Overview tab → Catalyst section
@@ -51,7 +51,7 @@ export default function CatalystBreakdownCard({ data }: CatalystBreakdownCardPro
         <div className="overflow-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-border-subtle/60 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+              <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
                 <th className="px-3 py-2 text-left font-semibold">Catalyst</th>
                 <th className="px-3 py-2 text-right font-semibold">Trades</th>
                 <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
@@ -110,7 +110,7 @@ export default function CatalystBreakdownCard({ data }: CatalystBreakdownCardPro
       )}
 
       <div className="mt-3 flex items-baseline gap-3 text-[11px] text-fg-tertiary">
-        <span className="font-mono uppercase tracking-widest">Coverage</span>
+        <span className="uppercase tracking-wider">Coverage</span>
         <span className="font-mono text-fg-primary tnum">
           {int(data.tagged_trades)} / {int(data.total_trades)} trades tagged
         </span>

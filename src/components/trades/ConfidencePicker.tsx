@@ -39,7 +39,7 @@ export default function ConfidencePicker({ value, onChange }: ConfidencePickerPr
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="ml-1 font-mono text-[10px] uppercase tracking-widest text-muted transition-colors hover:text-text"
+          className="ml-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-text"
         >
           clear
         </button>

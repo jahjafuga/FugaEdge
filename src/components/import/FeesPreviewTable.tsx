@@ -13,7 +13,7 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
     <div className="overflow-hidden rounded-md border border-border bg-panel">
       <div className="flex items-baseline justify-between border-b border-border/60 px-5 py-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-muted">
+          <div className="text-[10px] uppercase tracking-wider text-muted">
             Daily summary fees
           </div>
           <div className="mt-0.5 text-sm text-subtle">
@@ -24,7 +24,7 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
       <div className="max-h-[360px] overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-bg-header">
-            <tr className="border-b border-border text-[10px] uppercase tracking-widest text-muted">
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
               <Th align="left">Status</Th>
               <Th align="left">Date</Th>
               <Th align="left">Symbol</Th>
@@ -100,7 +100,7 @@ function Pill({
   const cls = tone === 'new' ? 'bg-win/15 text-win' : 'bg-gold/15 text-gold'
   return (
     <span
-      className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cls}`}
+      className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${cls}`}
     >
       {children}
     </span>

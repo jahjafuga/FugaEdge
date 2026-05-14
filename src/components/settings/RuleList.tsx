@@ -72,7 +72,7 @@ export default function RuleList({ rules, onChange }: RuleListProps) {
           type="button"
           onClick={commitDraft}
           disabled={!draft.trim()}
-          className="rounded-sm border border-border-subtle px-2 py-0.5 text-[10px] uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-sm border border-border-subtle px-2 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
         >
           add
         </button>

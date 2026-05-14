@@ -217,7 +217,7 @@ function CompletedView({
     <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
       {/* Left — header */}
       <header className="flex shrink-0 flex-col lg:w-[260px]">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Today's session
         </span>
         <span className="mt-0.5 text-lg font-semibold tracking-tight text-fg-primary">
@@ -227,14 +227,14 @@ function CompletedView({
           {badge}
           {noTradeDaysThisMonth > 0 && (
             <span
-              className="font-mono text-[10px] text-fg-tertiary"
+              className="text-[10px] text-fg-tertiary tnum"
               title="Distinct no-trade days marked this calendar month."
             >
               {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
             </span>
           )}
           {savedFlash && (
-            <span className="font-mono text-[10px] uppercase tracking-widest text-win">
+            <span className="text-[10px] uppercase tracking-wider text-win">
               Saved
             </span>
           )}
@@ -249,7 +249,7 @@ function CompletedView({
 
       {/* Right — sentiment + journal + edit */}
       <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Market sentiment
         </span>
         {sentiment != null ? (
@@ -260,7 +260,7 @@ function CompletedView({
         <button
           type="button"
           onClick={onJournal}
-          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <NotebookPen size={12} strokeWidth={2} />
           Open journal
@@ -268,7 +268,7 @@ function CompletedView({
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 self-end font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-gold"
+          className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 self-end text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
         >
           <Pencil size={11} strokeWidth={2} />
           Edit
@@ -286,14 +286,14 @@ function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
     const wr = s.winRate == null ? '—' : `${Math.round(s.winRate * 100)}% win rate`
     return (
       <>
-        <span className="font-mono text-fg-primary tnum">{s.trades}</span>{' '}
+        <span className="text-fg-primary tnum">{s.trades}</span>{' '}
         {s.trades === 1 ? 'trade' : 'trades'} ·{' '}
-        <span className={`font-mono font-medium tnum ${tone}`}>Net {signed(s.netPnL)}</span>{' '}
-        · <span className="font-mono text-fg-secondary tnum">{wr}</span>
+        <span className={`font-medium tnum ${tone}`}>Net {signed(s.netPnL)}</span>{' '}
+        · <span className="text-fg-secondary tnum">{wr}</span>
         {s.bestTrade && (
           <>
             {' · '}
-            <span className="font-mono text-fg-tertiary tnum">
+            <span className="text-fg-tertiary tnum">
               best {s.bestTrade.symbol} {money(s.bestTrade.pnl)}
             </span>
           </>
@@ -328,14 +328,14 @@ function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
 function badgeForCommittedStatus(status: TodaySessionStatus) {
   if (status.status === 'no-trade') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.10] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-gold">
+      <span className="inline-flex items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.10] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold">
         <CalendarOff size={11} strokeWidth={2.25} />
         No-trade day
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-win/40 bg-win/[0.10] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-win">
+    <span className="inline-flex items-center gap-1 rounded-md border border-win/40 bg-win/[0.10] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-win">
       <CheckCircle2 size={11} strokeWidth={2.25} />
       Session logged
     </span>
@@ -350,7 +350,7 @@ function QuoteCard({ quote }: { quote: TradingQuote }) {
       <blockquote className="font-serif text-[13px] italic leading-snug text-fg-secondary">
         “{quote.text}”
       </blockquote>
-      <figcaption className="mt-1 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <figcaption className="mt-1 flex items-center gap-1.5 text-xs tracking-wider text-fg-tertiary">
         <Sparkles size={10} strokeWidth={2} className="text-gold/70" />
         {quote.author}
       </figcaption>
@@ -427,7 +427,7 @@ function EditableView({
     <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
       {/* Left — header */}
       <header className="flex shrink-0 flex-col lg:w-[260px]">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Today's session
         </span>
         <span className="mt-0.5 text-lg font-semibold tracking-tight text-fg-primary">
@@ -437,7 +437,7 @@ function EditableView({
           <StatusBadge status={status.status} />
           {noTradeDaysThisMonth > 0 && (
             <span
-              className="font-mono text-[10px] text-fg-tertiary"
+              className="text-[10px] text-fg-tertiary tnum"
               title="Distinct no-trade days marked this calendar month."
             >
               {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
@@ -468,14 +468,14 @@ function EditableView({
 
       {/* Right — sentiment + journal */}
       <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Market sentiment
         </span>
         <SentimentRow value={sentiment} onChange={onSetSentiment} />
         <button
           type="button"
           onClick={onJournal}
-          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <NotebookPen size={12} strokeWidth={2} />
           Add journal entry
@@ -490,7 +490,7 @@ function EditableView({
 function StatusBadge({ status }: { status: SessionStatus }) {
   if (status === 'active') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-win/40 bg-win/[0.10] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-win">
+      <span className="inline-flex items-center gap-1 rounded-md border border-win/40 bg-win/[0.10] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-win">
         <CheckCircle2 size={11} strokeWidth={2.25} />
         Active
       </span>
@@ -498,14 +498,14 @@ function StatusBadge({ status }: { status: SessionStatus }) {
   }
   if (status === 'no-trade') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.10] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-gold">
+      <span className="inline-flex items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.10] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-gold">
         <CalendarOff size={11} strokeWidth={2.25} />
         No-trade day
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+    <span className="inline-flex items-center gap-1 rounded-md border border-border-strong bg-bg-3 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
       <CircleDashed size={11} strokeWidth={2.25} />
       Not started
     </span>
@@ -529,7 +529,7 @@ function NotStartedPrompt({
         <button
           type="button"
           onClick={onMarkNoTrade}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-gold/40 bg-gold/[0.08] px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-gold transition-colors duration-150 hover:bg-gold/[0.14]"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-gold/40 bg-gold/[0.08] px-3 text-[10px] font-semibold uppercase tracking-wider text-gold transition-colors duration-150 hover:bg-gold/[0.14]"
         >
           <CalendarOff size={12} strokeWidth={2} />
           Mark as no-trade day
@@ -537,7 +537,7 @@ function NotStartedPrompt({
         <button
           type="button"
           onClick={onOpenJournal}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <NotebookPen size={12} strokeWidth={2} />
           Add journal entry
@@ -566,7 +566,7 @@ function NoTradeFlow({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <label className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <label className="text-[10px] uppercase tracking-wider text-fg-tertiary">
         Why no trades today?
       </label>
       <textarea
@@ -582,7 +582,7 @@ function NoTradeFlow({
             key={c}
             type="button"
             onClick={() => onReasonChange(c)}
-            className="cursor-pointer rounded-full border border-border-strong bg-bg-1 px-2.5 py-0.5 font-mono text-[10px] text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="cursor-pointer rounded-full border border-border-strong bg-bg-1 px-2.5 py-0.5 text-[10px] text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
           >
             {c}
           </button>
@@ -593,7 +593,7 @@ function NoTradeFlow({
           type="button"
           onClick={onSave}
           disabled={saving || !reason.trim()}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-[10px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Save size={12} strokeWidth={2.25} />
           {alreadyMarked ? 'Update reason' : 'Save no-trade day'}
@@ -603,7 +603,7 @@ function NoTradeFlow({
             type="button"
             onClick={onUnmark}
             disabled={saving}
-            className="inline-flex h-8 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-3 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-loss/40 hover:text-loss disabled:opacity-50"
+            className="inline-flex h-8 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-loss/40 hover:text-loss disabled:opacity-50"
           >
             Unmark
           </button>
@@ -612,7 +612,7 @@ function NoTradeFlow({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="inline-flex h-8 cursor-pointer items-center rounded-md px-3 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-fg-primary disabled:opacity-50"
+          className="inline-flex h-8 cursor-pointer items-center rounded-md px-3 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-fg-primary disabled:opacity-50"
         >
           Cancel
         </button>

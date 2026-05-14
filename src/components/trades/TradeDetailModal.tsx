@@ -182,19 +182,19 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
             {trade.symbol}
           </h2>
           <span
-            className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+            className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
               trade.side === 'short' ? 'bg-loss-soft text-loss' : 'bg-win-soft text-win'
             }`}
           >
             {trade.side}
           </span>
           {trade.playbook_name && (
-            <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gold">
+            <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
               {trade.playbook_name}
             </span>
           )}
         </div>
-        <div className="mt-1 font-mono text-xs text-fg-tertiary tnum">
+        <div className="mt-1 text-xs text-fg-tertiary tnum">
           {longDate(trade.date)} · {trade.executions.length} fill
           {trade.executions.length === 1 ? '' : 's'} ·{' '}
           {int(trade.shares_bought)} sh bought · {int(trade.shares_sold)} sh sold
@@ -202,7 +202,7 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
       </div>
       <div className="flex shrink-0 items-baseline gap-4">
         <div className="text-right">
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             Net P&amp;L
           </div>
           <div className={`font-mono text-2xl font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
@@ -328,7 +328,7 @@ function OverviewTab({
       {/* Catalyst — separate card per the spec. Both fields save atomically
           via TRADE_CATALYST_SAVE so type + days_since stay coherent. */}
       <div className="rounded-lg border border-border-subtle bg-bg-2 p-4">
-        <div className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Catalyst
         </div>
         <CatalystEditor
@@ -359,7 +359,7 @@ function OverviewTab({
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
-      <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </div>
       {children}
@@ -370,7 +370,7 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
 function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </div>
       <div className={`mt-1 font-mono text-lg font-semibold tnum ${tone}`}>{value}</div>
@@ -399,7 +399,7 @@ function Ema9Readout({ pct }: { pct: number | null }) {
       {pct >= 0 ? '+' : ''}
       {pct.toFixed(2)}%
       {abs > 5 && (
-        <span className="rounded-sm bg-loss-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+        <span className="rounded-sm bg-loss-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-loss">
           extended
         </span>
       )}
@@ -411,23 +411,23 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
   if (trade.executions.length === 0) return null
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
-      <div className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
       <div className="grid grid-cols-[90px_50px_80px_90px_1fr] gap-x-4 gap-y-1.5 font-mono text-xs">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Time
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Side
         </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Shares
         </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Price
         </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Gross value
         </div>
         {trade.executions.map((e, i) => (
@@ -479,7 +479,7 @@ function MistakesTab({
   return (
     <div className="space-y-4">
       <div>
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Mistakes
         </div>
         <p className="mt-1 text-sm text-fg-secondary">
@@ -514,7 +514,7 @@ function ChartTabSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-subtle bg-bg-2 py-12 text-center">
       <Loader2 size={24} strokeWidth={1.75} className="mb-3 animate-spin text-gold/70" />
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         Loading chart…
       </div>
       <div className="mt-1 text-sm text-fg-tertiary">

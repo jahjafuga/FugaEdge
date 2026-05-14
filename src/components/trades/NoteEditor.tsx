@@ -38,10 +38,10 @@ export default function NoteEditor({ tradeId, note, onSave }: NoteEditorProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-[10px] uppercase tracking-widest text-muted">Note</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted">Note</div>
         <div className="flex items-center gap-3">
           {savedAt && !dirty && (
-            <span className="text-[10px] uppercase tracking-widest text-win">saved</span>
+            <span className="text-[10px] uppercase tracking-wider text-win">saved</span>
           )}
           <button
             type="button"

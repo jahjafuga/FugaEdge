@@ -20,7 +20,7 @@ export default function ExitQualityTable({ rows }: ExitQualityTableProps) {
       ) : (
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-widest text-fg-tertiary">
+            <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
               <th className="px-3 py-2 text-left font-semibold">Date</th>
               <th className="px-3 py-2 text-left font-semibold">Symbol</th>
               <th className="px-3 py-2 text-left font-semibold">Side</th>
@@ -39,7 +39,7 @@ export default function ExitQualityTable({ rows }: ExitQualityTableProps) {
                 <td className="px-3 py-2 font-mono font-medium text-fg-primary">{r.symbol}</td>
                 <td className="px-3 py-2">
                   <span
-                    className={`font-mono text-xs uppercase ${
+ className={`text-xs uppercase ${
                       r.side === 'short' ? 'text-loss' : 'text-win'
                     }`}
                   >

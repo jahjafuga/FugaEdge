@@ -144,7 +144,7 @@ export default function FilterBar({
           type="button"
           onClick={reset}
           title="Reset all filters"
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <RotateCcw size={12} strokeWidth={2} />
           Reset
@@ -155,7 +155,7 @@ export default function FilterBar({
           type="button"
           onClick={onToggleCompare}
           aria-pressed={compareOn}
-          className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
+          className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
             compareOn
               ? 'border-gold/60 bg-gold/[0.12] text-gold'
               : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/40 hover:text-gold'
@@ -189,7 +189,7 @@ function Segment<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`h-7 cursor-pointer rounded px-2 text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+            className={`h-7 cursor-pointer rounded px-2 text-[10px] uppercase tracking-wider transition-colors duration-150 ${
               active
                 ? 'bg-gold/15 text-gold'
                 : 'text-fg-tertiary hover:text-fg-primary'
@@ -229,7 +229,7 @@ function MultiSelectMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-[10px] uppercase tracking-wider transition-colors duration-150 ${
           selected.length > 0
             ? 'border-gold/50 bg-gold/[0.08] text-gold'
             : 'border-border-strong bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'
@@ -280,7 +280,7 @@ function MultiSelectMenu({
               <button
                 type="button"
                 onClick={() => onChange([])}
-                className="mt-1 w-full cursor-pointer rounded px-2 py-1.5 text-left text-[10px] uppercase tracking-widest text-fg-tertiary hover:text-gold"
+                className="mt-1 w-full cursor-pointer rounded px-2 py-1.5 text-left text-[10px] uppercase tracking-wider text-fg-tertiary hover:text-gold"
               >
                 Clear
               </button>
@@ -304,7 +304,7 @@ function DateField({
   onChange: (v: string) => void
 }) {
   return (
-    <label className="inline-flex h-8 items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2 text-[10px] uppercase tracking-widest text-fg-tertiary">
+    <label className="inline-flex h-8 items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
       <span>{label}</span>
       <input
         type="date"

@@ -71,7 +71,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
               : pnlClass(kpi.value)
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-4 shadow-sm transition-colors duration-150 ease-out-soft hover:border-border">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {kpi.label}
       </div>
       <div
