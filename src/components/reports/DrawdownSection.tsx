@@ -13,6 +13,7 @@ import type { DrawdownInfo } from '@shared/reports-types'
 import { int, longDate, money, pnlClass, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 
 interface DrawdownSectionProps {
   drawdown: DrawdownInfo | null
@@ -163,14 +164,14 @@ export default function DrawdownSection({ drawdown }: DrawdownSectionProps) {
               )}
 
               <Area
-                type="monotone"
+                type={CUMULATIVE_LINE_TYPE}
                 dataKey="cumulative"
                 stroke="none"
                 fill="url(#ddEquityFill)"
                 isAnimationActive={false}
               />
               <Line
-                type="monotone"
+                type={CUMULATIVE_LINE_TYPE}
                 dataKey="cumulative"
                 stroke="#d4af37"
                 strokeWidth={1.75}

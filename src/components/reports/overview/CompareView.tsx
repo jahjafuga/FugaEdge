@@ -29,6 +29,7 @@ import Card from '@/components/ui/Card'
 import { duration, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 import { FlagSvg } from '@/components/ui/Flag'
 import {
   COUNTRY_NAMES,
@@ -723,7 +724,7 @@ function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }
             wrapperStyle={{ fontSize: 11, color: palette.axis }}
           />
           <Line
-            type="monotone"
+            type={CUMULATIVE_LINE_TYPE}
             dataKey="A"
             name="Period A"
             stroke={goldHex}
@@ -733,7 +734,7 @@ function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }
             connectNulls={false}
           />
           <Line
-            type="monotone"
+            type={CUMULATIVE_LINE_TYPE}
             dataKey="B"
             name="Period B"
             stroke={winHex}
