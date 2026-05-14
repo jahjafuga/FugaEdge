@@ -118,4 +118,12 @@ export interface CommitResult {
   replacedFees: number
   affectedDates: string[]
   affectedPairs: number
+  /** Newly-imported symbols whose country was successfully auto-detected
+   *  from Polygon during this import. */
+  countriesResolved: number
+  /** Newly-imported symbols whose country could NOT be detected (Polygon
+   *  returned no usable address/locale/exchange, the call errored, or the
+   *  API key wasn't configured). These trades save with country=NULL and
+   *  source='unknown' so a later Backfill in Settings can retry. */
+  countriesUnknown: number
 }

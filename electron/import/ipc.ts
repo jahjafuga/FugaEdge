@@ -19,6 +19,7 @@ import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, backfillTra
 import { refreshMarketData } from '../market/fetch'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
+import { resolveCountriesForImportedSymbols } from './resolve-countries'
 
 export function registerImportIpc(): void {
   ipcMain.handle(
@@ -195,7 +196,7 @@ export function registerImportIpc(): void {
 
   ipcMain.handle(
     IPC.IMPORT_COMMIT,
-    (_e, { trips, fees, feeDateOverride }: CommitInput): CommitResult => {
+    async (_e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
       // Apply the date override to any fee row missing a date.
       const finalFees: DaySummaryFeeRow[] = fees.map((f) =>
         f.date ? f : { ...f, date: feeDateOverride ?? '' },
@@ -212,6 +213,39 @@ export function registerImportIpc(): void {
       // Bump even on zero-insert (caller may have edited fees-only without
       // new trips — fees still affect every aggregate).
       bumpDataVersion()
+
+      // Auto-detect country per newly-inserted symbol using the same Polygon
+      // ticker reference the float fetch uses. Awaited so the import-complete
+      // toast can report a gap (vs. v0.1.2's fire-and-forget refresh, which
+      // left trades at country=NULL until the user clicked Backfill).
+      // Errors are recorded as `countriesUnknown`; the import itself never
+      // blocks on a Polygon failure.
+      const newSymbols = Array.from(
+        new Set(toInsertTrips.map((t) => t.symbol)),
+      ).sort()
+      let countriesResolved = 0
+      let countriesUnknown = 0
+      if (out.insertedTrips > 0 && newSymbols.length > 0) {
+        try {
+          const r = await resolveCountriesForImportedSymbols(newSymbols)
+          countriesResolved = r.resolved
+          countriesUnknown = r.unknown
+          if (r.errors.length > 0) {
+            console.info(
+              `[FE import] country resolution errors: ` +
+                r.errors.map((e) => `${e.symbol}=${e.message}`).join(', '),
+            )
+          }
+          if (countriesResolved > 0) bumpDataVersion()
+        } catch (e) {
+          // Should never throw — the orchestrator catches per-symbol — but
+          // guard the import either way.
+          console.info(
+            `[FE import] country resolution unexpected error: ${e instanceof Error ? e.message : String(e)}`,
+          )
+          countriesUnknown = newSymbols.length
+        }
+      }
 
       // Fire-and-forget: pull market data for any newly-touched symbols, and
       // intraday bars for the new (symbol, date) pairs. The renderer doesn't
@@ -258,10 +292,11 @@ export function registerImportIpc(): void {
           `fees_in=${fees.length} (dropped_no_date=${droppedNoDate}) ` +
           `inserted_trips=${out.insertedTrips} skipped_trips=${out.skippedTrips} ` +
           `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
-          `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}]`,
+          `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
+          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown}`,
       )
 
-      return out
+      return { ...out, countriesResolved, countriesUnknown }
     },
   )
 }

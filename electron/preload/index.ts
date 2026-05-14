@@ -59,6 +59,9 @@ import type {
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
+  getVersion: (): Promise<string> => ipcRenderer.invoke(IPC.APP_GET_VERSION),
+  openExternal: (url: string): Promise<boolean> =>
+    ipcRenderer.invoke(IPC.APP_OPEN_EXTERNAL, url),
   dbHealthcheck: (): Promise<DbHealthcheck> => ipcRenderer.invoke(IPC.DB_HEALTHCHECK),
   importPreview: (files: PreviewInputFile[]): Promise<PreviewResult> =>
     ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files),

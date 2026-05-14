@@ -114,6 +114,16 @@ export default function Import() {
                   </span>
                 </>
               )}
+              {phase.result.countriesUnknown > 0 && (
+                <>
+                  {' '}
+                  <span className="text-subtle">
+                    <span className="font-mono">{int(phase.result.countriesUnknown)}</span>{' '}
+                    ticker{phase.result.countriesUnknown === 1 ? '' : 's'} couldn&apos;t
+                    auto-detect country — run Backfill in Settings.
+                  </span>
+                </>
+              )}
             </div>
           </div>
           <button

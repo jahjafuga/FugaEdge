@@ -73,7 +73,7 @@ export default function FilterBar({
   }
 
   return (
-    <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border-subtle bg-bg-1/95 px-4 py-3 backdrop-blur">
+    <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border-subtle bg-bg-1/95 px-4 py-3 font-sans backdrop-blur">
       <div className="flex flex-wrap items-center gap-2">
         {/* Symbol */}
         <input
@@ -81,7 +81,7 @@ export default function FilterBar({
           value={filters.symbol}
           onChange={(e) => set('symbol', e.target.value)}
           placeholder="Symbol"
-          className="h-8 w-28 rounded-md border border-border-strong bg-bg-1 px-2.5 font-mono text-xs text-fg-primary placeholder:text-fg-tertiary focus:border-gold focus:outline-none"
+          className="h-8 w-28 rounded-md border border-border-strong bg-bg-1 px-2.5 text-xs text-fg-primary placeholder:text-fg-tertiary focus:border-gold focus:outline-none"
         />
 
         {/* Side segment */}
@@ -144,7 +144,7 @@ export default function FilterBar({
           type="button"
           onClick={reset}
           title="Reset all filters"
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-2.5 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <RotateCcw size={12} strokeWidth={2} />
           Reset
@@ -155,7 +155,7 @@ export default function FilterBar({
           type="button"
           onClick={onToggleCompare}
           aria-pressed={compareOn}
-          className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
+          className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
             compareOn
               ? 'border-gold/60 bg-gold/[0.12] text-gold'
               : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/40 hover:text-gold'
@@ -189,7 +189,7 @@ function Segment<T extends string>({
             key={o.value}
             type="button"
             onClick={() => onChange(o.value)}
-            className={`h-7 cursor-pointer rounded px-2 font-mono text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+            className={`h-7 cursor-pointer rounded px-2 text-[10px] uppercase tracking-widest transition-colors duration-150 ${
               active
                 ? 'bg-gold/15 text-gold'
                 : 'text-fg-tertiary hover:text-fg-primary'
@@ -229,7 +229,7 @@ function MultiSelectMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 font-mono text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-[10px] uppercase tracking-widest transition-colors duration-150 ${
           selected.length > 0
             ? 'border-gold/50 bg-gold/[0.08] text-gold'
             : 'border-border-strong bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'
@@ -280,7 +280,7 @@ function MultiSelectMenu({
               <button
                 type="button"
                 onClick={() => onChange([])}
-                className="mt-1 w-full cursor-pointer rounded px-2 py-1.5 text-left font-mono text-[10px] uppercase tracking-widest text-fg-tertiary hover:text-gold"
+                className="mt-1 w-full cursor-pointer rounded px-2 py-1.5 text-left text-[10px] uppercase tracking-widest text-fg-tertiary hover:text-gold"
               >
                 Clear
               </button>
@@ -310,7 +310,7 @@ function DateField({
         type="date"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="border-0 bg-transparent px-1 font-mono text-xs text-fg-primary focus:outline-none"
+        className="border-0 bg-transparent px-1 text-xs text-fg-primary focus:outline-none"
       />
     </label>
   )

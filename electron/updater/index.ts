@@ -88,8 +88,22 @@ export function startAutoUpdater(mainWindow: BrowserWindow): void {
     broadcast({ state: 'downloaded', version: info.version })
   })
   autoUpdater.on('error', (err) => {
+    const message = err instanceof Error ? err.message : String(err)
+    // "No releases yet" / 404 / missing latest.yml are NOT real errors —
+    // they just mean the GitHub repo hasn't cut its first release. Log
+    // them at info level and downgrade to `not-available` so the banner
+    // stays silent. Genuine network failures (offline, DNS, 5xx) still
+    // surface as `error` but the banner ignores that state too — they
+    // get a console line only.
+    const isNoReleaseYet =
+      /404|Cannot find latest\.yml|HttpError: 404|status code 404/i.test(message)
+    if (isNoReleaseYet) {
+      console.info('[FE updater] no releases published yet — treating as up-to-date')
+      broadcast({ state: 'not-available' })
+      return
+    }
     console.error('[FE updater] error:', err)
-    broadcast({ state: 'error', error: err instanceof Error ? err.message : String(err) })
+    broadcast({ state: 'error', error: message })
   })
 
   // Kick off an initial check on launch. Notify (default) shows the

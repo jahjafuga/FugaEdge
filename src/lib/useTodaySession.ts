@@ -33,11 +33,17 @@ export function useTodaySession(): UseTodaySessionResult {
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [meta, setMeta] = useState<SessionMeta | null>(null)
   const [journalEntry, setJournalEntry] = useState<JournalEntry | null>(null)
+  // Dates this calendar month flagged as no-trade through ANY path
+  // (session_meta or journal.day_tags). Sourced from the unified calendar
+  // IPC so we never re-count from one store and miss the other.
+  const [monthNoTradeDates, setMonthNoTradeDates] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
 
   const today = todayDateISO()
+  const monthYear = Number(today.slice(0, 4))
+  const monthIdx = Number(today.slice(5, 7))
 
   useEffect(() => {
     let cancelled = false
@@ -48,13 +54,17 @@ export function useTodaySession(): UseTodaySessionResult {
       ipc.sessionGet(today),
       ipc.sessionListAll(),
       ipc.journalGet(today),
+      ipc.calendarGet(monthYear, monthIdx),
     ])
-      .then(([tradesList, todayMeta, allSessions, journalDay]) => {
+      .then(([tradesList, todayMeta, allSessions, journalDay, month]) => {
         if (cancelled) return
         setTrades(tradesList.filter((t) => !t.is_open))
         setMeta(todayMeta)
         setSessions(allSessions)
         setJournalEntry(journalDay?.entry ?? null)
+        setMonthNoTradeDates(
+          month.days.filter((d) => d.no_trade_day).map((d) => d.date),
+        )
         setLoading(false)
       })
       .catch((e: Error) => {
@@ -66,7 +76,7 @@ export function useTodaySession(): UseTodaySessionResult {
     return () => {
       cancelled = true
     }
-  }, [today, version])
+  }, [today, monthYear, monthIdx, version])
 
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
 
@@ -74,12 +84,19 @@ export function useTodaySession(): UseTodaySessionResult {
     async (input: SaveTodaySessionInput) => {
       const saved = await ipc.sessionTodaySave(input)
       setMeta(saved)
-      // Refresh the all-sessions list so the "no-trade days this month"
-      // counter updates without waiting for a remount.
-      const refreshed = await ipc.sessionListAll()
+      // Refresh the all-sessions list AND the calendar union so the
+      // "no-trade days this month" counter updates without waiting for a
+      // remount.
+      const [refreshed, month] = await Promise.all([
+        ipc.sessionListAll(),
+        ipc.calendarGet(monthYear, monthIdx),
+      ])
       setSessions(refreshed)
+      setMonthNoTradeDates(
+        month.days.filter((d) => d.no_trade_day).map((d) => d.date),
+      )
     },
-    [],
+    [monthYear, monthIdx],
   )
 
   const hasJournalEntry = hasJournalContent(journalEntry)
@@ -95,7 +112,11 @@ export function useTodaySession(): UseTodaySessionResult {
           committed: hasJournalEntry,
         }
 
-  const noTradeDaysThisMonth = countNoTradeDaysThisMonth(today, sessions)
+  const noTradeDaysThisMonth = countNoTradeDaysThisMonth(
+    today,
+    sessions,
+    monthNoTradeDates,
+  )
 
   return { status, noTradeDaysThisMonth, loading, error, refresh, save }
 }

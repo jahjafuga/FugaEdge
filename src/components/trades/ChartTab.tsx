@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
   Loader2,
+  Lock,
   Maximize2,
   RefreshCw,
 } from 'lucide-react'
@@ -89,6 +93,7 @@ export default function ChartTab({ trade }: ChartTabProps) {
             bars: [],
             fetchedAt: null,
             error: `Payload mismatch: requested ${reqSymbol}/${reqDate} but got ${p.symbol}/${p.date}. Check intraday_bars table and IPC handler.`,
+            errorStatus: null,
             justFetched: false,
             apiKeyMissing: false,
           })
@@ -103,6 +108,7 @@ export default function ChartTab({ trade }: ChartTabProps) {
           bars: [],
           fetchedAt: null,
           error: e instanceof Error ? e.message : String(e),
+          errorStatus: null,
           justFetched: false,
           apiKeyMissing: false,
         })
@@ -182,6 +188,16 @@ interface EmptyStateProps {
 function EmptyState({ payload, onRefresh, refreshing }: EmptyStateProps) {
   const isError = !!payload.error
   const isApiKeyMissing = payload.apiKeyMissing
+  // Polygon's plan-restriction response — clean upgrade prompt instead of the
+  // raw 403 JSON body. Match both signals to avoid catching unrelated 403s
+  // (e.g. an invalid API key, which surfaces differently).
+  const isPlanRestricted =
+    payload.errorStatus === 403 &&
+    (payload.error?.includes('NOT_AUTHORIZED') ?? false)
+
+  if (isPlanRestricted) {
+    return <PlanRestrictedState />
+  }
 
   let title: string
   let body: string
@@ -189,8 +205,8 @@ function EmptyState({ payload, onRefresh, refreshing }: EmptyStateProps) {
     title = 'No Massive API key configured'
     body = 'Set your Massive API key in Settings → Data, then click Refresh to fetch intraday bars for this trade.'
   } else if (isError) {
-    title = 'Failed to load intraday bars'
-    body = payload.error ?? 'Unknown error from Massive.'
+    title = 'Chart unavailable'
+    body = 'Couldn’t load intraday data for this ticker. The data source may be temporarily unavailable.'
   } else {
     title = 'Intraday data not available for this trade'
     body = 'Bars haven\'t been fetched yet. Use Refresh to pull them from Massive — first fetch takes a few seconds.'
@@ -221,6 +237,66 @@ function EmptyState({ payload, onRefresh, refreshing }: EmptyStateProps) {
         )}
         {refreshing ? 'Fetching…' : 'Refresh intraday data'}
       </button>
+    </div>
+  )
+}
+
+function PlanRestrictedState() {
+  const [showWhy, setShowWhy] = useState(false)
+  const handleUpgrade = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
+    // Prefer the main-process openExternal IPC (Bug 3's stash recovery) so the
+    // link opens in the user's default browser, not a child BrowserWindow.
+    // Fall back to the default anchor behaviour when the IPC isn't bound (e.g.
+    // dev builds before the preload exposes it).
+    const api = (window as unknown as { api?: { openExternal?: (url: string) => Promise<void> | void } }).api
+    if (api?.openExternal) {
+      e.preventDefault()
+      void api.openExternal('https://polygon.io/pricing')
+    }
+  }, [])
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-subtle bg-bg-2 px-6 py-12 text-center">
+      <Lock size={32} strokeWidth={1.5} className="mb-3 text-gold/60" />
+      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        Plan restricted
+      </div>
+      <div className="mt-2 text-base font-semibold text-fg-primary">
+        Intraday chart unavailable
+      </div>
+      <div className="mx-auto mt-1 max-w-sm text-sm text-fg-tertiary">
+        Your Polygon plan doesn&apos;t include this timeframe&apos;s intraday data.
+        Real-time and recent intraday bars are available on paid plans starting at $29/mo.
+      </div>
+      <a
+        href="https://polygon.io/pricing"
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={handleUpgrade}
+        className="mt-5 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-xs font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
+      >
+        Upgrade Polygon Plan
+        <ExternalLink size={12} strokeWidth={2.25} />
+      </a>
+      <button
+        type="button"
+        onClick={() => setShowWhy((v) => !v)}
+        aria-expanded={showWhy}
+        className="mt-4 inline-flex cursor-pointer items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-fg-secondary"
+      >
+        {showWhy
+          ? <ChevronDown size={11} strokeWidth={2.25} />
+          : <ChevronRight size={11} strokeWidth={2.25} />}
+        Why am I seeing this?
+      </button>
+      {showWhy && (
+        <div className="mx-auto mt-3 max-w-md rounded-md border border-border-subtle bg-bg-3 p-3 text-left text-xs leading-relaxed text-fg-tertiary">
+          Polygon&apos;s free tier only provides delayed market data (typically 15 minutes
+          for stocks, 2 years for full historical). FugaEdge uses Polygon to render
+          intraday charts on every trade so you can review entries and exits against
+          the EMA9, EMA20, and VWAP. Without a paid plan, this view is unavailable.
+          Stats, journaling, and trade tracking still work normally.
+        </div>
+      )}
     </div>
   )
 }

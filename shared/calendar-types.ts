@@ -8,6 +8,13 @@ export interface CalendarDay {
   losers: number
   day_tags: string[]   // FOMC, Earnings, Choppy… per-day labels
   has_journal: boolean // any journal content on this date (premarket, postsession, rules, emotion, OR no-trade-day mark)
+  /** True when the trader marked this date as a no-trade / sit-out day.
+   *  Unifies both write paths: the dashboard's "Mark as no-trade day"
+   *  button (writes session_meta.no_trade_day) AND the calendar's sit-out
+   *  modal (writes journal.day_tags = ["no-trade-day"]). Counters and
+   *  calendar markers should always read this field, never re-check the
+   *  underlying stores. */
+  no_trade_day: boolean
   /** Market sentiment 1..5 (or null) the trader assigned to this session.
    *  Sourced from the session_meta table via the calendar query LEFT JOIN. */
   sentiment: number | null

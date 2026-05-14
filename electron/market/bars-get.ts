@@ -27,6 +27,7 @@ export async function getIntradayBars(
       bars: cached.bars,
       fetchedAt: cached.fetched_at,
       error: null,
+      errorStatus: null,
       justFetched: false,
       apiKeyMissing: false,
     }
@@ -42,6 +43,7 @@ export async function getIntradayBars(
       bars: cached?.bars ?? [],
       fetchedAt: cached?.fetched_at ?? null,
       error: cached?.error ?? null,
+      errorStatus: null,
       justFetched: false,
       apiKeyMissing: true,
     }
@@ -57,11 +59,13 @@ export async function getIntradayBars(
       bars,
       fetchedAt,
       error: null,
+      errorStatus: null,
       justFetched: true,
       apiKeyMissing: false,
     }
   } catch (e) {
     const msg = e instanceof MassiveError ? e.message : (e instanceof Error ? e.message : String(e))
+    const status = e instanceof MassiveError ? e.status : null
     const fetchedAt = new Date().toISOString()
     // Persist the error so the bulk refresh's retry logic picks it up.
     upsertIntradayRow({
@@ -77,6 +81,7 @@ export async function getIntradayBars(
       bars: cached?.bars ?? [],
       fetchedAt,
       error: msg,
+      errorStatus: status,
       justFetched: false,
       apiKeyMissing: false,
     }

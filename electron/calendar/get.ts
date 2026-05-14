@@ -50,6 +50,7 @@ interface DayRowDb {
   losers: number
   day_tags: string | null
   has_journal: number
+  no_trade_day: number
   sentiment: number | null
 }
 
@@ -100,13 +101,17 @@ function readMonthDays(
         WHERE day_tags IS NOT NULL AND day_tags != '[]' AND day_tags != ''
       ),
       sm AS (
-        SELECT date, sentiment FROM session_meta WHERE date LIKE ?
+        SELECT date, sentiment, no_trade_day FROM session_meta WHERE date LIKE ?
       ),
       all_dates AS (
         SELECT date FROM tr
         UNION SELECT date FROM jt
         UNION SELECT date FROM jr WHERE has_content = 1
         UNION SELECT date FROM sm WHERE sentiment IS NOT NULL
+        -- A no-trade day marked only via session_meta (the dashboard
+        -- button) won't show up in the other CTEs. Pull it in directly so
+        -- the calendar marker + counter both see it.
+        UNION SELECT date FROM sm WHERE no_trade_day = 1
       )
       SELECT
         d.date                                   AS date,
@@ -118,6 +123,13 @@ function readMonthDays(
         COALESCE(tr.losers, 0)                   AS losers,
         jt.day_tags                              AS day_tags,
         COALESCE(jr.has_content, 0)              AS has_journal,
+        -- Unified no-trade flag: either UI path counts. day_tags is a JSON
+        -- array TEXT, so a LIKE check on the literal needle is the cheapest
+        -- way to detect the marker without a sqlite JSON1 dependency.
+        CASE WHEN
+          (sm.no_trade_day = 1)
+          OR (jt.day_tags IS NOT NULL AND jt.day_tags LIKE '%"no-trade-day"%')
+        THEN 1 ELSE 0 END                        AS no_trade_day,
         sm.sentiment                             AS sentiment
       FROM all_dates d
       LEFT JOIN tr ON tr.date = d.date
@@ -138,6 +150,7 @@ function readMonthDays(
     losers: r.losers,
     day_tags: parseTags(r.day_tags),
     has_journal: !!r.has_journal,
+    no_trade_day: !!r.no_trade_day,
     sentiment: r.sentiment,
   }))
 }

@@ -1,6 +1,7 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { IPC } from '@shared/ipc-channels'
 import { openDatabase, closeDatabase } from '../db/database'
 import { registerIpcHandlers } from '../db/ipc'
 import { registerImportIpc } from '../import/ipc'
@@ -91,6 +92,31 @@ function createWindow(): BrowserWindow {
 
   return win
 }
+
+// App metadata accessor — exposes the package.json version (via Electron's
+// own app.getVersion(), which reads the manifest at runtime) so the
+// renderer doesn't have to hardcode it anywhere. One-liner; no business
+// logic, lives inline rather than in its own ipc module.
+ipcMain.handle(IPC.APP_GET_VERSION, () => app.getVersion())
+
+// Open an external URL in the user's default browser. shell.openExternal
+// is a main-only API per ARCHITECTURE.md (renderers can't reach it
+// directly), so the renderer routes through this IPC. We allow only
+// http(s) URLs as a basic safety check — pasted javascript: or file://
+// schemes are rejected even though they couldn't reach this from a
+// trusted call path. Returns true when launched, false when refused.
+ipcMain.handle(IPC.APP_OPEN_EXTERNAL, async (_e, url: unknown): Promise<boolean> => {
+  if (typeof url !== 'string' || url.trim() === '') return false
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  await shell.openExternal(parsed.toString())
+  return true
+})
 
 app.whenReady().then(() => {
   openDatabase()

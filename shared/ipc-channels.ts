@@ -1,5 +1,7 @@
 export const IPC = {
   PING: 'app:ping',
+  APP_GET_VERSION: 'app:getVersion',
+  APP_OPEN_EXTERNAL: 'app:openExternal',
   DB_HEALTHCHECK: 'db:healthcheck',
   IMPORT_PREVIEW: 'import:preview',
   IMPORT_COMMIT: 'import:commit',
