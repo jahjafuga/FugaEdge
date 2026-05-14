@@ -757,3 +757,78 @@ export function runDisciplineStreakMilestone(input: InsightInput): InsightResult
     priority: 50 + streak * 5,
   }
 }
+
+// ── 11. REGION WEAKNESS ──────────────────────────────────────────────────
+// Fires when a region (excluding Unknown) has ≥REGION_MIN_TRADES trades and
+// its win rate is ≥REGION_WIN_RATE_GAP percentage points BELOW the trader's
+// overall win rate. Emits the WORST qualifying region as a single card.
+
+export const REGION_MIN_TRADES = 10
+export const REGION_WIN_RATE_GAP = 0.15
+
+interface RegionStats {
+  region: string
+  trades: number
+  winRate: number
+  netPnl: number
+}
+
+function buildRegionStats(input: InsightInput): { overall: number | null; rows: RegionStats[] } {
+  const overall = aggregate(input.trades)
+  const groups = groupBy(input.trades, (t) => t.region === 'Unknown' ? null : t.region)
+  const rows: RegionStats[] = []
+  for (const [region, group] of groups) {
+    if (group.length < REGION_MIN_TRADES) continue
+    const agg = aggregate(group)
+    if (agg.win_rate == null) continue
+    rows.push({ region, trades: group.length, winRate: agg.win_rate, netPnl: agg.net_pnl })
+  }
+  return { overall: overall.win_rate, rows }
+}
+
+export function runRegionWeakness(input: InsightInput): InsightResult | null {
+  const { overall, rows } = buildRegionStats(input)
+  if (overall == null || rows.length === 0) return null
+  const weak = rows
+    .filter((r) => overall - r.winRate >= REGION_WIN_RATE_GAP)
+    .sort((a, b) => a.winRate - b.winRate)[0]
+  if (!weak) return null
+  const title = `${weak.region} region weakness`
+  const body =
+    `Your win rate on ${weak.region} trades is ${fmtPct(weak.winRate)} vs ${fmtPct(overall)} overall ` +
+    `(${weak.trades} trades). Consider tightening size or skipping this region.`
+  return {
+    id: `region-weakness:${weak.region}`,
+    rule: 'region-weakness',
+    tone: 'negative',
+    title,
+    body,
+    metric: `${fmtPct(weak.winRate - overall)} gap`,
+    priority: 220 + (overall - weak.winRate) * 1000 + Math.log(weak.trades + 1) * 30,
+  }
+}
+
+// ── 12. REGION STRENGTH ──────────────────────────────────────────────────
+// Mirror of rule 11 — best region whose win rate exceeds overall by ≥15pts.
+
+export function runRegionStrength(input: InsightInput): InsightResult | null {
+  const { overall, rows } = buildRegionStats(input)
+  if (overall == null || rows.length === 0) return null
+  const strong = rows
+    .filter((r) => r.winRate - overall >= REGION_WIN_RATE_GAP)
+    .sort((a, b) => b.winRate - a.winRate)[0]
+  if (!strong) return null
+  const title = `${strong.region} region edge`
+  const body =
+    `Your win rate on ${strong.region} trades is ${fmtPct(strong.winRate)} vs ${fmtPct(overall)} overall ` +
+    `(${strong.trades} trades). You have edge here — consider sizing up.`
+  return {
+    id: `region-strength:${strong.region}`,
+    rule: 'region-strength',
+    tone: 'positive',
+    title,
+    body,
+    metric: `+${fmtPct(strong.winRate - overall)}`,
+    priority: 180 + (strong.winRate - overall) * 1000 + Math.log(strong.trades + 1) * 30,
+  }
+}
