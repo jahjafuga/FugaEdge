@@ -17,6 +17,7 @@ import Tooltip, { InfoIcon } from '@/components/ui/Tooltip'
 import { money, shortDate, longDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 import type {
   CumulativePoint,
   DailyPnLPoint,
@@ -195,7 +196,7 @@ function CumulativePnLCard({
               />
               <RechartsTooltip content={<CumulativeTooltip />} />
               <Area
-                type="monotone"
+                type={CUMULATIVE_LINE_TYPE}
                 dataKey="cumulative"
                 stroke={goldStroke}
                 strokeWidth={2}
