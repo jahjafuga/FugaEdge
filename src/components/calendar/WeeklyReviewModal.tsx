@@ -96,7 +96,7 @@ export default function WeeklyReviewModal({
       >
         <div className="flex items-baseline justify-between border-b border-border-subtle/60 px-6 py-4">
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+            <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
               Weekly review
             </div>
             <div className="mt-0.5 text-base font-medium text-fg-primary">
@@ -234,7 +234,7 @@ export default function WeeklyReviewModal({
               ) : (
                 <div className="overflow-auto">
                   <table className="w-full border-collapse text-xs">
-                    <thead className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+                    <thead className="text-[10px] uppercase tracking-wider text-fg-tertiary">
                       <tr className="border-b border-border-subtle/60">
                         <th className="px-2 py-2 text-left font-semibold">Date</th>
                         <th className="px-2 py-2 text-left font-semibold">Symbol</th>
@@ -252,7 +252,7 @@ export default function WeeklyReviewModal({
                           <td className="px-2 py-1.5 font-mono text-fg-primary">{t.date}</td>
                           <td className="px-2 py-1.5 font-mono text-fg-primary">{t.symbol}</td>
                           <td
-                            className={`px-2 py-1.5 font-mono uppercase ${
+ className={`px-2 py-1.5 uppercase ${
                               t.side === 'short' ? 'text-loss' : 'text-win'
                             }`}
                           >
@@ -277,11 +277,11 @@ export default function WeeklyReviewModal({
 
           <div className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+              <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
                 Week notes
               </div>
               {savedAt && !dirty && (
-                <span className="text-[10px] uppercase tracking-widest text-win">
+                <span className="text-[10px] uppercase tracking-wider text-win">
                   saved
                 </span>
               )}
@@ -311,7 +311,7 @@ export default function WeeklyReviewModal({
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="mb-2 border-b border-border-subtle/40 pb-1 text-[10px] uppercase tracking-widest text-gold">
+      <div className="mb-2 border-b border-border-subtle/40 pb-1 text-[10px] uppercase tracking-wider text-gold">
         {title}
       </div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">{children}</div>
@@ -322,7 +322,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Stat({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className="mt-0.5 text-sm text-fg-primary">{value}</div>
     </div>
   )

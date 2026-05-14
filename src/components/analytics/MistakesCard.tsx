@@ -53,7 +53,7 @@ export default function MistakesCard({ data }: MistakesCardProps) {
 
       {totalTagged === 0 ? (
         <div className="mt-5 rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
-          <div className="mb-1 font-mono uppercase tracking-widest text-gold">
+          <div className="mb-1 uppercase tracking-wider text-gold">
             Awaiting data
           </div>
           Tag mistakes on individual trades via the Trades page expand row. Edit
@@ -65,12 +65,12 @@ export default function MistakesCard({ data }: MistakesCardProps) {
         </div>
       ) : (
         <div className="mt-5">
-          <div className="mb-2 text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <div className="mb-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
             Per mistake — worst P&L impact first
           </div>
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b border-white/[0.06] text-[10px] uppercase tracking-widest text-fg-tertiary">
+              <tr className="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-fg-tertiary">
                 <Th>Mistake</Th>
                 <Th align="right">Trades</Th>
                 <Th align="right">Net P&amp;L</Th>
@@ -85,7 +85,7 @@ export default function MistakesCard({ data }: MistakesCardProps) {
                   className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.015]"
                 >
                   <Td>
-                    <span className="rounded-sm bg-loss/[0.10] px-1.5 py-0.5 font-mono text-[10px] text-loss">
+                    <span className="rounded-sm bg-loss/[0.10] px-1.5 py-0.5 text-[10px] text-loss">
                       {m.label}
                     </span>
                   </Td>
@@ -143,21 +143,21 @@ function Side({
   const borderClass = tone === 'green' ? 'border-win/30' : 'border-loss/30'
   return (
     <div className={`rounded-md border ${borderClass} bg-bg-1/40 p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className="mt-1 text-[11px] text-fg-secondary">{sublabel}</div>
       <div className="mt-3 grid grid-cols-3 gap-3">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Trades</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Trades</div>
           <div className="mt-0.5 font-mono text-lg text-fg-primary">{int(count)}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Net P&L</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Net P&L</div>
           <div className={`mt-0.5 font-mono text-lg font-medium ${pnlClass(netPnl)}`}>
             {count > 0 ? signed(netPnl) : DASH}
           </div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Win rate</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Win rate</div>
           <div className="mt-0.5 font-mono text-lg text-gold">
             {winRate == null ? DASH : `${(winRate * 100).toFixed(0)}%`}
           </div>

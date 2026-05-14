@@ -97,8 +97,11 @@ export default function TradesTable({
     const countryColumn = col.accessor('country', {
       id: 'country',
       header: 'Country',
-      size: 90,
-      minSize: 80,
+      // v0.1.4 — ISO code text removed from the cell. Flag-only render
+      // means the column can shrink ~30px; tooltip carries the country
+      // name on hover.
+      size: 64,
+      minSize: 56,
       cell: ({ row }) => {
         const iso = row.original.country
         const name = row.original.country_name
@@ -166,7 +169,7 @@ export default function TradesTable({
           const t = info.row.original
           if (!t.close_time) {
             return (
-              <span className="rounded-sm bg-loss-soft px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-loss">
+              <span className="rounded-sm bg-loss-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-loss">
                 open
               </span>
             )
@@ -197,7 +200,7 @@ export default function TradesTable({
           const name = row.original.playbook_name
           if (!name) return <span className="font-mono text-[10px] text-fg-muted">—</span>
           return (
-            <span className="inline-block max-w-full truncate rounded-sm bg-gold/10 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gold">
+            <span className="inline-block max-w-full truncate rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
               {name}
             </span>
           )
@@ -211,7 +214,7 @@ export default function TradesTable({
           const side = info.getValue()
           return (
             <span
-              className={`rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+              className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
                 side === 'short' ? 'bg-loss-soft text-loss' : 'bg-win-soft text-win'
               }`}
             >
@@ -348,7 +351,7 @@ export default function TradesTable({
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
-                className="border-b border-border-subtle font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary"
+                className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
               >
                 {hg.headers.map((h) => {
                   const sorted = h.column.getIsSorted()

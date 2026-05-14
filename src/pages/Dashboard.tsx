@@ -63,7 +63,7 @@ export default function Dashboard() {
         >
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load dashboard
             </div>
             <div className="mt-1">{err}</div>

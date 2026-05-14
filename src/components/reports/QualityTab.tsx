@@ -59,7 +59,7 @@ function SqnHero({ sqn, stdDev, avgPnl, n }: SqnHeroProps) {
           <div className={`font-mono text-5xl font-medium tracking-tight ${rating.tone}`}>
             {sqn == null ? '—' : sqn.toFixed(2)}
           </div>
-          <div className={`mt-1 text-xs uppercase tracking-widest ${rating.tone}`}>
+          <div className={`mt-1 text-xs uppercase tracking-wider ${rating.tone}`}>
             {rating.label}
           </div>
         </div>
@@ -104,7 +104,7 @@ function SqnHero({ sqn, stdDev, avgPnl, n }: SqnHeroProps) {
             />
           )}
         </div>
-        <div className="mt-1 grid grid-cols-4 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <div className="mt-1 grid grid-cols-4 text-[10px] uppercase tracking-wider text-fg-tertiary">
           <span>0</span>
           <span>1</span>
           <span>2</span>
@@ -161,7 +161,7 @@ function KellyCard({
             <>Edge does not favor trading at this win rate × payoff ratio.</>
           )}
         </div>
-        <div className="mt-2 text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <div className="mt-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
           based on {winners} winners · {losers} losers
         </div>
       </div>
@@ -212,7 +212,7 @@ function KRatioCard({
           <div className={`font-mono text-5xl font-medium tracking-tight ${r.tone}`}>
             {kRatio == null ? '—' : kRatio.toFixed(2)}
           </div>
-          <div className={`mt-1 text-xs uppercase tracking-widest ${r.tone}`}>
+          <div className={`mt-1 text-xs uppercase tracking-wider ${r.tone}`}>
             {r.label}
           </div>
         </div>
@@ -243,7 +243,7 @@ function KRatioCard({
             />
           )}
         </div>
-        <div className="mt-1 grid grid-cols-4 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <div className="mt-1 grid grid-cols-4 text-[10px] uppercase tracking-wider text-fg-tertiary">
           <span>noisy</span>
           <span>developing</span>
           <span>consistent</span>
@@ -295,7 +295,7 @@ function RandomChanceCard({
           >
             {randomChance == null ? '—' : `${(randomChance * 100).toFixed(1)}%`}
           </div>
-          <div className="mt-1 text-xs uppercase tracking-widest text-fg-tertiary">
+          <div className="mt-1 text-xs uppercase tracking-wider text-fg-tertiary">
             {randomChance == null
               ? 'no data'
               : randomChance < 0.05
@@ -391,7 +391,7 @@ function ExcursionRow({
 }) {
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/30 p-4">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className="mt-1 font-mono text-2xl text-fg-tertiary">
         {value == null ? '—' : money(value)}
       </div>

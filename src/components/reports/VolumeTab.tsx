@@ -17,7 +17,7 @@ export default function VolumeTab({ data }: VolumeTabProps) {
         <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-5">
           <div className="flex items-center gap-2">
             <span className="font-serif text-lg text-gold">ⓘ</span>
-            <span className="text-[10px] uppercase tracking-widest text-gold">
+            <span className="text-[10px] uppercase tracking-wider text-gold">
               Market data unavailable
             </span>
           </div>
@@ -88,14 +88,14 @@ function BucketSummary({ buckets }: { buckets: BucketStats[] }) {
     <div className="border-t border-border-subtle/40 px-5 py-3">
       <div className="grid grid-cols-2 gap-4 text-xs">
         <div>
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Best</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Best</div>
           <div className="mt-0.5 font-mono text-fg-primary">
             {best.key}{' '}
             <span className={pnlClass(best.net_pnl)}>{signed(best.net_pnl)}</span>
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">Worst</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Worst</div>
           <div className="mt-0.5 font-mono text-fg-primary">
             {worst.key}{' '}
             <span className={pnlClass(worst.net_pnl)}>{signed(worst.net_pnl)}</span>

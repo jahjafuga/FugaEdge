@@ -111,7 +111,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <span className="text-[15px] font-semibold tracking-tight text-fg-primary">
               FugaEdge
             </span>
-            <span className="mt-1 font-mono text-[10px] uppercase tracking-widest text-fg-muted">
+            <span className="mt-1 text-[10px] uppercase tracking-wider text-fg-muted">
               edge journal
             </span>
           </div>
@@ -127,7 +127,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         }`}
       >
         {!collapsed && (
-          <div className="px-2 pb-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-muted">
+          <div className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
             Workspace
           </div>
         )}
@@ -193,7 +193,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         ) : null}
         {!collapsed && (
-          <div className="mt-2 px-1 font-mono text-[10px] uppercase tracking-widest text-fg-muted">
+          <div className="mt-2 px-1 text-[10px] uppercase tracking-wider text-fg-muted">
             v0.1.0
           </div>
         )}

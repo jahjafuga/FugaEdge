@@ -53,7 +53,7 @@ export default function Reports() {
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load reports
             </div>
             <div className="mt-1">{err}</div>

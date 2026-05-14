@@ -39,7 +39,7 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
       <div className="overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-border-subtle/60 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+            <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
               <th className="px-3 py-2 text-left font-semibold">Sentiment</th>
               <th className="px-3 py-2 text-right font-semibold">Trades</th>
               <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
@@ -102,7 +102,7 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
       </div>
 
       <div className="mt-3 flex items-baseline gap-3 text-[11px] text-fg-tertiary">
-        <span className="font-mono uppercase tracking-widest">Coverage</span>
+        <span className="uppercase tracking-wider">Coverage</span>
         <span className="font-mono text-fg-primary tnum">
           {int(data.rated_days)} / {int(data.total_days)} days rated
         </span>

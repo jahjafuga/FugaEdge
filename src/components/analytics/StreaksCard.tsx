@@ -74,13 +74,13 @@ function StreakBlock({
 }) {
   return (
     <div className="rounded-md border border-border-subtle/60 bg-bg-1/40 p-4">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className={`font-mono text-2xl font-medium ${accent}`}>
           {length > 0 ? int(length) : '—'}
         </span>
         {suffix && length > 0 && (
-          <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             {suffix}
           </span>
         )}

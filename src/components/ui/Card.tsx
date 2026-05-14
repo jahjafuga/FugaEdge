@@ -33,7 +33,7 @@ export default function Card({
         <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle px-4 py-3">
           <div className="min-w-0">
             {title && (
-              <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
                 {title}
               </div>
             )}

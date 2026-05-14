@@ -55,7 +55,7 @@ export default function CalendarHeader({
               <button
                 type="button"
                 onClick={onToday}
-                className="text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors hover:text-gold"
+                className="text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors hover:text-gold"
               >
                 today
               </button>

@@ -29,7 +29,7 @@ export default function TopBar() {
   return (
     <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b border-border-subtle bg-bg-1/80 px-6 backdrop-blur-md">
       <div className="flex min-w-0 items-baseline gap-3">
-        <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           {crumb}
         </span>
         <span className="text-fg-muted">/</span>
@@ -79,7 +79,7 @@ function ThemeToggle() {
 
 function LivePill() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-win/30 bg-win-soft px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-win">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-win/30 bg-win-soft px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-win">
       <span
         className="inline-block h-1.5 w-1.5 rounded-full bg-win"
         style={{ boxShadow: '0 0 6px rgba(52,211,153,0.7)' }}

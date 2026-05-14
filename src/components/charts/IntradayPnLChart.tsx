@@ -127,7 +127,7 @@ export default function IntradayPnLChart({ trades, date, height = 160 }: Intrada
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3 shadow-sm">
       <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Intraday P&amp;L
         </div>
         <div

@@ -31,7 +31,7 @@ export default function PsychologyTab({ data }: PsychologyTabProps) {
           <Card title="Discipline">
             <div className="space-y-3">
               <div className="text-center">
-                <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+                <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
                   Discipline score
                 </div>
                 <div

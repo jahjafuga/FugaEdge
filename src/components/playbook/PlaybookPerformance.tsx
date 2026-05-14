@@ -116,7 +116,7 @@ function Cell({
 }) {
   return (
     <div className={`px-6 py-4 ${isLast ? '' : 'lg:border-r border-border-subtle'}`}>
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </div>
       <div

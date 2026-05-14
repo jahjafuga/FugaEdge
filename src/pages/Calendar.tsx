@@ -311,7 +311,7 @@ export default function Calendar() {
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load calendar
             </div>
             <div className="mt-1">{err}</div>
@@ -376,7 +376,7 @@ export default function Calendar() {
           <button
             type="button"
             onClick={() => setShowWeekly((v) => !v)}
-            className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 font-mono text-[10px] font-semibold uppercase tracking-widest shadow-sm transition-colors duration-150 ${
+ className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider shadow-sm transition-colors duration-150 ${
               showWeekly
                 ? 'border-gold/60 bg-gold/[0.12] text-gold'
                 : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/50 hover:text-gold'

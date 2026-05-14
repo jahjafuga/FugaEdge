@@ -59,7 +59,7 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div
         className={`mt-1 font-mono ${bold ? 'text-xl font-medium' : 'text-base'} ${tone}`}
       >

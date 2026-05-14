@@ -78,7 +78,7 @@ export default function CalendarCompareStrip({ dataVersion = 0 }: CalendarCompar
   return (
     <div className="rounded-md border border-border-subtle bg-bg-2 px-3 py-2 shadow-sm">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Compare
         </span>
         <Chip active={mode === 'week'} onClick={() => setMode('week')}>
@@ -118,7 +118,7 @@ function Chip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`cursor-pointer rounded-md border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors duration-150 ${
+ className={`cursor-pointer rounded-md border px-2.5 py-1 text-[10px] uppercase tracking-wider transition-colors duration-150 ${
         active
           ? 'border-gold/60 bg-gold/[0.12] text-gold'
           : 'border-border-strong bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'

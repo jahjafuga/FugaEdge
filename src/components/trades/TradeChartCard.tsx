@@ -30,14 +30,14 @@ export default function TradeChartCard({ trade }: TradeChartCardProps) {
           <div className="flex items-center gap-2">
             <span className="font-mono text-lg font-medium text-text">{trade.symbol}</span>
             <span
-              className={`rounded px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${
+ className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
                 trade.side === 'short' ? 'bg-red/15 text-red' : 'bg-win/15 text-win'
               }`}
             >
               {trade.side}
             </span>
             {trade.is_open && (
-              <span className="rounded bg-red/15 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-red">
+              <span className="rounded bg-red/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-red">
                 open
               </span>
             )}
@@ -65,14 +65,14 @@ export default function TradeChartCard({ trade }: TradeChartCardProps) {
           />
           <div className="mt-2 flex w-full max-w-[420px] items-baseline justify-between px-1 font-mono text-[11px] text-muted">
             <span>
-              <span className="text-[9px] uppercase tracking-widest text-win">● Entry</span>{' '}
+              <span className="text-[9px] uppercase tracking-wider text-win">● Entry</span>{' '}
               <span className="text-win">{price(entryPrice)}</span>
             </span>
             <span className="text-[10px] text-muted">
               {int(execs.length)} fill{execs.length === 1 ? '' : 's'}
             </span>
             <span>
-              <span className="text-[9px] uppercase tracking-widest text-red">Exit ●</span>{' '}
+              <span className="text-[9px] uppercase tracking-wider text-red">Exit ●</span>{' '}
               <span className="text-red">{price(exitPrice)}</span>
             </span>
           </div>
@@ -81,7 +81,7 @@ export default function TradeChartCard({ trade }: TradeChartCardProps) {
         {/* Stats */}
         <div className="space-y-1.5 text-right">
           <div>
-            <div className="text-[10px] uppercase tracking-widest text-muted">Net P&L</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted">Net P&L</div>
             <div className={`font-mono text-xl font-medium ${pnlClass(trade.net_pnl)}`}>
               {signed(trade.net_pnl)}
             </div>

@@ -152,7 +152,7 @@ export default function Settings() {
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load settings
             </div>
             <div className="mt-1">{err}</div>
@@ -240,7 +240,7 @@ export default function Settings() {
         >
           <div className="space-y-4">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
                 API key
               </div>
               <input
@@ -309,7 +309,7 @@ export default function Settings() {
 
             {refreshResult && refreshResult.errors.length > 0 && (
               <div className="rounded-md border border-red/40 bg-red/[0.06] p-3 text-xs">
-                <div className="mb-1 font-mono uppercase tracking-widest text-red">
+                <div className="mb-1 uppercase tracking-wider text-red">
                   Refresh errors
                 </div>
                 <ul className="space-y-0.5">
@@ -336,7 +336,7 @@ export default function Settings() {
 
             {intradayResult && !intradayResult.apiKeyMissing && (
               <div className="rounded-md border border-border/40 bg-bg/30 p-3 text-xs">
-                <div className="font-mono uppercase tracking-widest text-gold">
+                <div className="uppercase tracking-wider text-gold">
                   Intraday refresh
                 </div>
                 <div className="mt-1 text-subtle">
@@ -377,7 +377,7 @@ export default function Settings() {
         <Card title="Data" subtitle="Export and back up your local database.">
           <div className="space-y-4">
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+              <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
                 Database location
               </div>
               <div
@@ -414,7 +414,7 @@ export default function Settings() {
 
             {exportStatus && (
               <div className="rounded-md border border-win/40 bg-win/[0.06] p-3 text-xs">
-                <span className="font-mono uppercase tracking-widest text-win">
+                <span className="uppercase tracking-wider text-win">
                   {labelFor(exportStatus.kind)} saved
                 </span>{' '}
                 <span className="text-subtle">
@@ -486,7 +486,7 @@ export default function Settings() {
 
         <div className="sticky bottom-0 -mx-6 mt-2 flex items-center justify-end gap-3 border-t border-white/[0.06] bg-bg/85 px-6 py-3 backdrop-blur">
           {savedAt && !dirty && (
-            <span className="text-[10px] uppercase tracking-widest text-win">
+            <span className="text-[10px] uppercase tracking-wider text-win">
               saved
             </span>
           )}
@@ -508,7 +508,7 @@ function AboutPanel() {
   const version = useAppVersion()
   return (
     <div className="space-y-1">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         Version
       </div>
       <div className="font-mono text-sm text-fg-primary">v{version}</div>
@@ -532,7 +532,7 @@ function NumberField({
   return (
     <div>
       <div className="flex items-baseline justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">{label}</div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">{label}</div>
         {suffix && (
           <div className="font-mono text-[11px] text-fg-secondary">{suffix}</div>
         )}
@@ -623,7 +623,7 @@ function ThemePicker() {
                   {label}
                 </span>
                 {active && (
-                  <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-gold">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">
                     Active
                   </span>
                 )}
@@ -633,7 +633,7 @@ function ThemePicker() {
           )
         })}
       </div>
-      <div className="mt-3 font-mono text-[10px] text-fg-tertiary">
+      <div className="mt-3 text-[10px] text-fg-tertiary">
         Current rendered theme:{' '}
         <span className="font-semibold text-fg-secondary">{resolved}</span>
       </div>

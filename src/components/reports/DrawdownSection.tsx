@@ -86,7 +86,7 @@ export default function DrawdownSection({ drawdown }: DrawdownSectionProps) {
 
       <div className="rounded-md border border-border-subtle/40 bg-bg-1/30 p-4">
         <div className="mb-2 flex items-baseline justify-between">
-          <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             Equity curve · drawdown window shaded red
           </div>
           {hasDrawdown && (
@@ -141,7 +141,7 @@ export default function DrawdownSection({ drawdown }: DrawdownSectionProps) {
                         {signed(p.cumulative)}
                       </div>
                       {p.in_drawdown && (
-                        <div className="mt-1 text-[10px] uppercase tracking-widest text-loss">
+                        <div className="mt-1 text-[10px] uppercase tracking-wider text-loss">
                           in drawdown
                         </div>
                       )}
@@ -204,7 +204,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/30 px-4 py-3">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className={`mt-1 font-mono text-xl font-medium tracking-tight ${tone}`}>
         {value}
       </div>

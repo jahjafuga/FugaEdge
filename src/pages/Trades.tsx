@@ -243,7 +243,7 @@ export default function Trades() {
         <TradesFilters filters={filters} onChange={setFilters} trades={trades} />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             View
           </div>
           <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ export default function Trades() {
               type="button"
               onClick={() => setShowFloatColumn((v) => !v)}
               aria-pressed={showFloatColumn}
-              className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
+ className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
                 showFloatColumn
                   ? 'border-gold/50 bg-gold/[0.10] text-gold'
                   : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
@@ -311,7 +311,7 @@ function ErrorState({ message }: { message: string }) {
     >
       <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
       <div>
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
           Failed to load trades
         </div>
         <div className="mt-1">{message}</div>
@@ -356,7 +356,7 @@ function NoMatch({ onClear }: { onClear: () => void }) {
       <button
         type="button"
         onClick={onClear}
-        className="mt-4 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-3 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+        className="mt-4 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-3 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
       >
         Clear filters
       </button>

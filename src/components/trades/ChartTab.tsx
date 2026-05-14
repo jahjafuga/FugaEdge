@@ -219,7 +219,7 @@ function EmptyState({ payload, onRefresh, refreshing }: EmptyStateProps) {
         strokeWidth={1.5}
         className={isError ? 'mb-3 text-loss' : 'mb-3 text-gold/60'}
       />
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {isError ? 'Error' : 'No data'}
       </div>
       <div className="mt-2 text-base font-semibold text-fg-primary">{title}</div>
@@ -257,7 +257,7 @@ function PlanRestrictedState() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-subtle bg-bg-2 px-6 py-12 text-center">
       <Lock size={32} strokeWidth={1.5} className="mb-3 text-gold/60" />
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         Plan restricted
       </div>
       <div className="mt-2 text-base font-semibold text-fg-primary">
@@ -281,7 +281,7 @@ function PlanRestrictedState() {
         type="button"
         onClick={() => setShowWhy((v) => !v)}
         aria-expanded={showWhy}
-        className="mt-4 inline-flex cursor-pointer items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:text-fg-secondary"
+        className="mt-4 inline-flex cursor-pointer items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-fg-secondary"
       >
         {showWhy
           ? <ChevronDown size={11} strokeWidth={2.25} />
@@ -765,7 +765,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
   if (libError) {
     return (
       <div className="rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
           Failed to load chart library
         </div>
         <div className="mt-1">{libError}</div>
@@ -819,7 +819,7 @@ function FitToFillsButton({
       type="button"
       onClick={fit}
       title="Zoom to 30 min before first fill / 30 min after last fill"
-      className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+      className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
     >
       <Maximize2 size={11} strokeWidth={2} />
       Fit to fills
@@ -857,7 +857,7 @@ function TimeframeToggle({ value, onChange }: TimeframeToggleProps) {
             disabled={disabled}
             onClick={() => onChange(o.key)}
             title={o.disabled ?? `Show ${o.label} bars`}
-            className={`rounded-[5px] px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+ className={`rounded-[5px] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
               active
                 ? 'bg-gold text-accent-ink'
                 : disabled
@@ -889,7 +889,7 @@ function IndicatorToggle({ label, color, active, onClick, dashed, dotted }: Indi
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 font-mono text-[10px] font-semibold uppercase tracking-widest transition-colors duration-150 ${
+ className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border px-2 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
         active
           ? 'border-border bg-bg-3 text-fg-primary'
           : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:text-fg-secondary'
@@ -969,7 +969,7 @@ function ContextBar({
 function Pair({ label, value, tone = 'text-fg-primary' }: { label: string; value: string; tone?: string }) {
   return (
     <div className="min-w-0">
-      <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </div>
       <div className={`mt-0.5 truncate font-mono text-sm font-semibold tnum ${tone}`}>

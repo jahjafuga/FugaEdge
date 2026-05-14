@@ -179,6 +179,25 @@
     box-sizing: border-box;
   }
 
+  /* TYPOGRAPHY SCALE — v0.1.4
+   * ─────────────────────────
+   * Heading tiers (sans, tracking-tight, text-fg-primary):
+   *   text-2xl font-semibold  → modal / hero heading (TradeDetailModal title)
+   *   text-xl  font-semibold  → page-level h2 (CalendarHeader, JournalHeader)
+   *   text-lg  font-semibold  → section h2 (MomentumSection, page empty states)
+   *   text-base font-semibold → sub-section h3 (CommunityCard, ProductTour)
+   *
+   * Inline labels (uppercase, sans, tracking-wider, text-fg-tertiary):
+   *   text-[10px] font-semibold uppercase tracking-wider  → Card / SectionHeader / field labels
+   *   text-[11px] font-semibold uppercase tracking-wider  → SectionHeader (gold variant)
+   *
+   * Numeric data (mono):
+   *   font-mono tnum                                       → trade table cells, KPI values
+   *   .tnum (without mono)                                 → tabular sans alternative for body text
+   *
+   * Letter-spacing rule: every uppercase label uses tracking-wider (0.05em).
+   * v0.1.4 standardized away from the prior mix of tracking-widest / -wider /
+   * -[0.18em] — keep new uppercase labels at tracking-wider for consistency. */
   .font-mono {
     font-variant-numeric: tabular-nums slashed-zero;
   }

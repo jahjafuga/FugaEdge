@@ -22,7 +22,7 @@ export default function MaxLossBanner({
     >
       <AlertTriangle size={20} strokeWidth={2} className="shrink-0 text-loss" />
       <div className="flex-1">
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
           Max daily loss reached
         </div>
         <div className="mt-0.5 text-sm text-fg-secondary">

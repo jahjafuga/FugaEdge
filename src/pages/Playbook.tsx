@@ -128,7 +128,7 @@ export default function Playbook() {
         <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
           <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
           <div>
-            <div className="font-mono text-[10px] font-semibold uppercase tracking-widest text-loss">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
               Failed to load playbooks
             </div>
             <div className="mt-1">{err}</div>
@@ -155,13 +155,13 @@ export default function Playbook() {
         {/* Left: playbook list */}
         <Card padded={false}>
           <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-3">
-            <div className="text-[10px] uppercase tracking-widest text-muted">
+            <div className="text-[10px] uppercase tracking-wider text-muted">
               Playbooks
             </div>
             <button
               type="button"
               onClick={handleCreate}
-              className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.08] px-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-gold transition-colors duration-150 hover:bg-gold/[0.18]"
+              className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold transition-colors duration-150 hover:bg-gold/[0.18]"
             >
               <Plus size={11} strokeWidth={2.5} />
               New
@@ -197,7 +197,7 @@ export default function Playbook() {
                           {p.name}
                         </span>
                         {p.archived && (
-                          <span className="rounded-sm bg-bg-3 px-1 font-mono text-[9px] uppercase tracking-widest text-fg-tertiary">
+                          <span className="rounded-sm bg-bg-3 px-1 text-[9px] uppercase tracking-wider text-fg-tertiary">
                             archived
                           </span>
                         )}
@@ -241,12 +241,12 @@ export default function Playbook() {
 
             <Card padded={false}>
               <div className="flex items-baseline justify-between border-b border-white/[0.05] px-5 py-3">
-                <div className="text-[10px] uppercase tracking-widest text-muted">
+                <div className="text-[10px] uppercase tracking-wider text-muted">
                   Setup definition
                 </div>
                 <div className="flex items-center gap-3">
                   {savedAt && (
-                    <span className="text-[10px] uppercase tracking-widest text-win">
+                    <span className="text-[10px] uppercase tracking-wider text-win">
                       saved
                     </span>
                   )}
@@ -255,14 +255,14 @@ export default function Playbook() {
                     onClick={() =>
                       setEditor({ ...editor, archived: !editor.archived })
                     }
-                    className="rounded border border-white/[0.08] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-subtle transition-colors hover:border-gold/40 hover:text-gold"
+                    className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
                   >
                     {editor.archived ? 'restore' : 'archive'}
                   </button>
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="rounded border border-red/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-red transition-colors hover:bg-red/[0.08]"
+                    className="rounded border border-red/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-red transition-colors hover:bg-red/[0.08]"
                     title="Permanently delete this playbook. Trades will be unlinked but not deleted."
                   >
                     delete
@@ -342,7 +342,7 @@ function Field({
 }) {
   return (
     <div>
-      <div className="mb-1 text-[10px] uppercase tracking-widest text-muted">
+      <div className="mb-1 text-[10px] uppercase tracking-wider text-muted">
         {label}
       </div>
       {children}

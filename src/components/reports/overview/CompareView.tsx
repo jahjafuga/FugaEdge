@@ -279,7 +279,7 @@ function PickerSection({
           <span className="text-win">Period B</span>{' '}
           <span className="text-fg-primary">{summarizeRange(rangeB)}</span>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Expand
         </span>
       </button>
@@ -288,7 +288,7 @@ function PickerSection({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Periods
         </span>
         <button
@@ -296,7 +296,7 @@ function PickerSection({
           onClick={onToggle}
           aria-expanded={true}
           aria-label="Collapse period picker"
-          className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+          className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-border-strong bg-bg-1 px-2 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
         >
           <ChevronDown size={12} strokeWidth={2.25} />
           Collapse
@@ -319,7 +319,7 @@ function PickerSection({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-fg-tertiary">
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Shortcuts
         </span>
         {SHORTCUTS.map((s) => (
@@ -327,7 +327,7 @@ function PickerSection({
             key={s.label}
             type="button"
             onClick={() => onApplyShortcut(s)}
-            className="inline-flex h-7 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-2.5 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="inline-flex h-7 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
           >
             {s.label}
           </button>
@@ -360,7 +360,7 @@ function PeriodPicker({
     <div className="rounded-md border border-border-subtle bg-bg-2 p-3 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         <span
-          className={`inline-flex h-5 items-center rounded-sm border px-1.5 font-mono text-[10px] font-semibold uppercase tracking-widest ${toneCls}`}
+          className={`inline-flex h-5 items-center rounded-sm border px-1.5 text-[10px] font-semibold uppercase tracking-wider ${toneCls}`}
         >
           Period {which}
         </span>
@@ -374,20 +374,20 @@ function PeriodPicker({
             key={p}
             type="button"
             onClick={() => onChange(rangeForPreset(p))}
-            className="cursor-pointer rounded border border-border-strong bg-bg-1 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="cursor-pointer rounded border border-border-strong bg-bg-1 px-2 py-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
           >
             {PERIOD_PRESET_LABEL[p]}
           </button>
         ))}
       </div>
-      <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-widest text-fg-tertiary">
+      <div className="mt-2 flex items-center gap-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
         <label className="inline-flex items-center gap-1">
           From
           <input
             type="date"
             value={range.from}
             onChange={(e) => onChange({ ...range, from: e.target.value })}
-            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 font-mono text-xs text-fg-primary focus:border-gold focus:outline-none"
+            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:border-gold focus:outline-none"
           />
         </label>
         <label className="inline-flex items-center gap-1">
@@ -396,7 +396,7 @@ function PeriodPicker({
             type="date"
             value={range.to}
             onChange={(e) => onChange({ ...range, to: e.target.value })}
-            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 font-mono text-xs text-fg-primary focus:border-gold focus:outline-none"
+            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:border-gold focus:outline-none"
           />
         </label>
       </div>
@@ -498,7 +498,7 @@ function StatSectionCard({ section }: { section: StatSection }) {
     <div className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 pb-2">
         <span className="h-1.5 w-1.5 rounded-full bg-gold" />
-        <h3 className="font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-secondary">
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fg-secondary">
           {section.title}
         </h3>
       </div>
@@ -850,7 +850,7 @@ function BreakdownComparisonCard({
           {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           <span>{title}</span>
         </div>
-        <span className="font-mono text-[10px] text-fg-tertiary">
+        <span className="text-[10px] text-fg-tertiary tnum">
           {data.length} {data.length === 1 ? 'row' : 'rows'}
         </span>
       </button>

@@ -36,7 +36,7 @@ export default function JournalHeader({
             <button
               type="button"
               onClick={onToday}
-              className="text-[10px] uppercase tracking-widest text-fg-tertiary transition-colors hover:text-gold"
+              className="text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors hover:text-gold"
             >
               today
             </button>
@@ -53,14 +53,14 @@ export default function JournalHeader({
       </div>
 
       <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase tracking-widest text-fg-tertiary">Jump to</span>
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">Jump to</span>
         <input
           type="date"
           value={date}
           onChange={(e) => {
             if (e.target.value) onDateChange(e.target.value)
           }}
-          className="rounded-sm border border-border-subtle bg-bg-1 px-2 py-1 font-mono text-sm text-fg-primary outline-none focus:border-gold"
+          className="rounded-sm border border-border-subtle bg-bg-1 px-2 py-1 text-sm text-fg-primary outline-none focus:border-gold"
         />
       </div>
     </div>

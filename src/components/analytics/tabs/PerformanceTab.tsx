@@ -126,7 +126,7 @@ function SideBlock({
   const border = tone === 'green' ? 'border-win/30' : 'border-loss/30'
   return (
     <div className={`rounded-md border ${border} bg-bg-1/40 p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className={`mt-1 font-mono text-xl font-medium ${color}`}>
         {amount == null ? '—' : signed(amount)}
       </div>
@@ -148,7 +148,7 @@ function HoldBar({
     tone === 'green' ? 'text-win' : tone === 'red' ? 'text-loss' : 'text-fg-primary'
   return (
     <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-3 text-center">
-      <div className="text-[10px] uppercase tracking-widest text-fg-tertiary">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className={`mt-1 font-mono text-base font-medium ${color}`}>
         {seconds == null ? '—' : duration(seconds)}
       </div>

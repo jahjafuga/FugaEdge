@@ -69,7 +69,7 @@ export default function EdgeInsights() {
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-3 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
           >
             {expanded ? (
               <>
@@ -93,7 +93,7 @@ function Header({ count }: { count?: number }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <div className="flex items-baseline gap-2">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-widest text-fg-tertiary">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Edge insights
         </h2>
         {count != null && count > 0 && (

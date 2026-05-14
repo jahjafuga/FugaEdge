@@ -67,7 +67,7 @@ export default function CountryEditor({
   return (
     <>
       {country ? (
-        <div className="flex items-center gap-2 font-mono text-sm">
+        <div className="flex items-center gap-2 text-sm">
           <Flag iso={country} size={28} title={countryName} />
           <span className="text-fg-primary">{countryName}</span>
           <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
@@ -91,7 +91,7 @@ export default function CountryEditor({
         <button
           type="button"
           onClick={() => { setQ(''); setOpen(true) }}
-          className="cursor-pointer font-mono text-sm text-gold/60 underline-offset-2 transition-colors duration-150 hover:text-gold hover:underline"
+          className="cursor-pointer text-sm text-gold/60 underline-offset-2 transition-colors duration-150 hover:text-gold hover:underline"
         >
           Set country
         </button>
@@ -112,12 +112,12 @@ export default function CountryEditor({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Search country or ISO code…"
-            className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
+            className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
           />
           <div className="max-h-[60vh] space-y-3 overflow-auto">
             {REGIONS.filter((r) => (filtered[r] ?? []).length > 0).map((r) => (
               <div key={r}>
-                <div className="mb-1 px-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+ <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
                   {r}
                 </div>
                 <div className="grid grid-cols-1 gap-px">
@@ -135,7 +135,7 @@ export default function CountryEditor({
                         }`}
                       >
                         <Flag iso={row.iso} size={22} title={row.name} />
-                        <span className="font-mono">{row.name}</span>
+                        <span>{row.name}</span>
                         <span className="ml-auto font-mono text-[10px] text-fg-tertiary">{row.iso}</span>
                       </button>
                     )
@@ -148,7 +148,7 @@ export default function CountryEditor({
             <button
               type="button"
               onClick={() => { onChange(null); setOpen(false) }}
-              className="cursor-pointer font-mono text-xs text-fg-tertiary transition-colors duration-150 hover:text-loss"
+              className="cursor-pointer text-xs text-fg-tertiary transition-colors duration-150 hover:text-loss"
             >
               Clear country (mark Unknown)
             </button>

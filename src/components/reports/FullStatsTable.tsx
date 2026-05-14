@@ -131,7 +131,7 @@ export default function FullStatsTable({ stats }: FullStatsTableProps) {
             <span className="font-mono text-gold">
               {stats.sqn == null ? DASH : stats.sqn.toFixed(2)}
               {stats.sqn != null && (
-                <span className="ml-2 text-[10px] uppercase tracking-widest text-fg-tertiary">
+                <span className="ml-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
                   {sqnLabel(stats.sqn)}
                 </span>
               )}
@@ -165,7 +165,7 @@ export default function FullStatsTable({ stats }: FullStatsTableProps) {
     <div className="grid grid-cols-1 gap-x-8 gap-y-2 md:grid-cols-2">
       {sections.map((section) => (
         <div key={section.title} className="rounded-md border border-border-subtle/40 bg-bg-1/30">
-          <div className="border-b border-border-subtle/40 px-4 py-2 text-[10px] uppercase tracking-widest text-gold">
+          <div className="border-b border-border-subtle/40 px-4 py-2 text-[10px] uppercase tracking-wider text-gold">
             {section.title}
           </div>
           <dl>
