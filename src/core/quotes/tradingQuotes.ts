@@ -57,7 +57,7 @@ export const QUOTES: TradingQuote[] = [
   { id: 18, text: 'The way to build long-term returns is through preservation of capital and home runs.', author: 'Stanley Druckenmiller', category: 'edge' },
   { id: 19, text: 'It takes courage to be a pig — to size up when you know you are right.', author: 'Stanley Druckenmiller', category: 'edge' },
   { id: 20, text: 'Never invest in the present. Invest in where the puck is going, not where it has been.', author: 'Stanley Druckenmiller', category: 'process' },
-  { id: 21, text: 'I have learned many things from George Soros, but the most significant is that it is not whether you are right or wrong, but how much you make when right.', author: 'Stanley Druckenmiller', category: 'edge' },
+  { id: 21, text: 'What matters is not whether you are right or wrong, but how much you make when right and how much you lose when wrong.', author: 'Stanley Druckenmiller', category: 'edge' },
 
   // ── Ray Dalio ─ process / psychology ────────────────────────────────
   { id: 22, text: 'He who lives by the crystal ball will eat shattered glass.', author: 'Ray Dalio', category: 'psychology' },
@@ -73,8 +73,8 @@ export const QUOTES: TradingQuote[] = [
 
   // ── Bruce Kovner ─ risk ─────────────────────────────────────────────
   { id: 30, text: 'I know where I am getting out before I get in.', author: 'Bruce Kovner', category: 'risk' },
-  { id: 31, text: 'Novice traders trade five to ten times too big. They are taking 5 to 10 percent risks on a trade they should be taking 1 to 2 percent on.', author: 'Bruce Kovner', category: 'risk' },
-  { id: 32, text: 'The first rule of trading — there are probably many first rules — is don\'t get caught in a situation where you can lose a great deal of money for reasons you don\'t understand.', author: 'Bruce Kovner', category: 'risk' },
+  { id: 31, text: 'Novice traders trade five to ten times too big — taking 5–10% risk on a trade they should be risking 1–2% on.', author: 'Bruce Kovner', category: 'risk' },
+  { id: 32, text: 'Don\'t get caught in a situation where you can lose a great deal of money for reasons you don\'t understand.', author: 'Bruce Kovner', category: 'risk' },
 
   // ── Linda Raschke ─ patience / process ──────────────────────────────
   { id: 33, text: 'Patience is one of the most important qualities of a successful trader.', author: 'Linda Raschke', category: 'patience' },
