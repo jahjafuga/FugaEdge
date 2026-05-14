@@ -5,6 +5,7 @@ export const SHOW_SPARKLINE_STORAGE_KEY = 'fuga.trades.showSparkline'
 
 function storage(): Storage | null {
   if (typeof window !== 'undefined') return window.localStorage
+  // fall back for non-DOM test envs
   const g = globalThis as { localStorage?: Storage }
   return g.localStorage ?? null
 }
