@@ -762,6 +762,10 @@ export function runDisciplineStreakMilestone(input: InsightInput): InsightResult
 // Fires when a region (excluding Unknown) has ≥REGION_MIN_TRADES trades and
 // its win rate is ≥REGION_WIN_RATE_GAP percentage points BELOW the trader's
 // overall win rate. Emits the WORST qualifying region as a single card.
+//
+// NOTE: 'overall' includes Unknown-region trades (they reflect real trading
+// performance, even if unclassified). Only the per-region buckets exclude
+// Unknown — the gap is "this classified region vs your full book."
 
 export const REGION_MIN_TRADES = 10
 export const REGION_WIN_RATE_GAP = 0.15
@@ -770,7 +774,6 @@ interface RegionStats {
   region: string
   trades: number
   winRate: number
-  netPnl: number
 }
 
 function buildRegionStats(input: InsightInput): { overall: number | null; rows: RegionStats[] } {
@@ -781,7 +784,7 @@ function buildRegionStats(input: InsightInput): { overall: number | null; rows: 
     if (group.length < REGION_MIN_TRADES) continue
     const agg = aggregate(group)
     if (agg.win_rate == null) continue
-    rows.push({ region, trades: group.length, winRate: agg.win_rate, netPnl: agg.net_pnl })
+    rows.push({ region, trades: group.length, winRate: agg.win_rate })
   }
   return { overall: overall.win_rate, rows }
 }

@@ -84,4 +84,19 @@ describe('runRegionStrength', () => {
     const trades = Array.from({ length: 30 }, () => mkTrade({ region: 'USA', net_pnl: 100 }))
     expect(runRegionStrength(baseInput(trades))).toBeNull()
   })
+
+  it('returns one card — the best region — when multiple qualify', () => {
+    const usa = Array.from({ length: 30 }, (_, i) => mkTrade({
+      region: 'USA', net_pnl: i < 9 ? 100 : -50,    // 30% win
+    }))
+    const cn = Array.from({ length: 10 }, (_, i) => mkTrade({
+      region: 'China', net_pnl: i < 7 ? 100 : -50,  // 70% win
+    }))
+    const eu = Array.from({ length: 10 }, (_, i) => mkTrade({
+      region: 'Europe', net_pnl: i < 9 ? 100 : -50, // 90% win — best
+    }))
+    const result = runRegionStrength(baseInput([...usa, ...cn, ...eu]))
+    expect(result).not.toBeNull()
+    expect(result!.title).toContain('Europe')
+  })
 })
