@@ -29,12 +29,7 @@ import Card from '@/components/ui/Card'
 import { duration, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
-import { flagEmoji } from '@/core/country/flag'
-import {
-  COUNTRY_NAMES,
-  REGION_REPRESENTATIVE_COUNTRY,
-  type Region,
-} from '@/core/country/regions'
+import { COUNTRY_NAMES } from '@/core/country/regions'
 import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
@@ -801,21 +796,13 @@ function BreakdownComparisonCard({
   // otherwise render as a label with two empty placeholders, eating
   // horizontal space for nothing.
   //
-  // For region/country dimensions we transform the displayed key into a
-  // flag-prefixed label ("🇨🇳 China") so the X-axis matches the static
-  // breakdown tables. Other dimensions pass through unchanged.
+  // For the country dimension the raw key is an ISO alpha-2; swap it for
+  // the readable country name (the static breakdown tables show a flag
+  // SVG next to the name, but Recharts tick labels are plain SVG <text>
+  // so we leave the flag rendering to the BreakdownTab views).
   const data = useMemo(() => {
     const decorate = (rawKey: string): string => {
-      if (dimension === 'country') {
-        const flag = flagEmoji(rawKey)
-        const name = COUNTRY_NAMES[rawKey] ?? rawKey
-        return flag ? `${flag} ${name}` : name
-      }
-      if (dimension === 'region') {
-        const iso = REGION_REPRESENTATIVE_COUNTRY[rawKey as Region] ?? null
-        const flag = iso ? flagEmoji(iso) : ''
-        return flag ? `${flag} ${rawKey}` : rawKey
-      }
+      if (dimension === 'country') return COUNTRY_NAMES[rawKey] ?? rawKey
       return rawKey
     }
     return breakdown.rows
@@ -878,16 +865,6 @@ function BreakdownComparisonCard({
                     angle={data.length > 6 ? -30 : 0}
                     textAnchor={data.length > 6 ? 'end' : 'middle'}
                     height={data.length > 6 ? 44 : 18}
-                    // Emoji-aware font stack so the flag prefix on
-                    // region/country ticks renders as a flag, not a pair
-                    // of regional-indicator letters. Latin text falls
-                    // through unchanged.
-                    tick={{
-                      style: {
-                        fontFamily:
-                          '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif',
-                      },
-                    }}
                   />
                   <YAxis
                     stroke={palette.axis}

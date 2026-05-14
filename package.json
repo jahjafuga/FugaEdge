@@ -29,6 +29,7 @@
     "lucide-react": "^1.14.0",
     "papaparse": "^5.4.1",
     "react": "^18.3.1",
+    "react-country-flag": "^3.1.0",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
     "recharts": "^2.13.0"

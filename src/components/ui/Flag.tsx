@@ -1,28 +1,29 @@
-import { flagEmoji } from '@/core/country/flag'
+import ReactCountryFlag from 'react-country-flag'
 
-// The renderer's primary font (Inter) doesn't ship the U+1F1E6..U+1F1FF
-// regional-indicator block, so without an explicit fallback the browser
-// falls through to Segoe UI on Windows and renders the indicators as plain
-// letter pairs ('IL' instead of 🇮🇱). Listing the OS emoji fonts here
-// forces the flag glyphs to render as actual flags wherever they exist.
-const EMOJI_FONT_STACK =
-  '"Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif'
+// Single point of truth for flag rendering. Always SVG via react-country-flag
+// so Windows, macOS, and Linux all render the same flag glyph — emoji-based
+// flag rendering relied on the OS emoji font and degraded to letter pairs
+// on Windows. ISO 3166-1 alpha-2 only; pass `iso` from a TradeListRow or a
+// REGION_REPRESENTATIVE_COUNTRY lookup.
 
 interface FlagProps {
+  /** ISO 3166-1 alpha-2 (any case). Null/undefined/empty returns null. */
   iso: string | null | undefined
-  className?: string
+  /** Side length in pixels for both width and height. */
+  size?: number
+  /** Tooltip + accessible label. Defaults to the ISO code. */
+  title?: string
 }
 
-export default function Flag({ iso, className }: FlagProps) {
-  const emoji = flagEmoji(iso)
-  if (!emoji) return null
+export default function Flag({ iso, size = 16, title }: FlagProps) {
+  if (!iso) return null
   return (
-    <span
-      className={className}
-      style={{ fontFamily: EMOJI_FONT_STACK }}
-      aria-hidden="true"
-    >
-      {emoji}
-    </span>
+    <ReactCountryFlag
+      countryCode={iso}
+      svg
+      style={{ width: size, height: size }}
+      title={title}
+      aria-label={title ?? iso}
+    />
   )
 }

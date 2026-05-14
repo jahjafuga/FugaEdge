@@ -102,8 +102,8 @@ export default function TradesTable({
         const iso = info.getValue()
         if (!iso) return <span className="font-mono text-[10px] text-fg-muted">—</span>
         return (
-          <span className="inline-flex items-center gap-1 font-mono text-xs text-fg-primary">
-            <Flag iso={iso} className="text-base leading-none" />
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-fg-primary">
+            <Flag iso={iso} size={14} title={iso} />
             <span>{iso}</span>
           </span>
         )

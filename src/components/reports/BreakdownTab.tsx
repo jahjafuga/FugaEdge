@@ -69,7 +69,7 @@ export default function BreakdownTab({ data }: BreakdownTabProps) {
             const iso = REGION_REPRESENTATIVE_COUNTRY[b.key as Region] ?? null
             return (
               <span className="inline-flex items-center gap-2 font-mono text-sm text-fg-primary">
-                {iso && <Flag iso={iso} className="text-base leading-none" />}
+                {iso && <Flag iso={iso} size={18} title={b.key} />}
                 <span>{b.key}</span>
               </span>
             )
@@ -85,12 +85,15 @@ export default function BreakdownTab({ data }: BreakdownTabProps) {
           keyHeader="Country"
           buckets={data.byCountry}
           emptyText="Add country to 3+ trades to see breakdown."
-          cellRenderer={(b) => (
-            <span className="inline-flex items-center gap-2 font-mono text-sm text-fg-primary">
-              <Flag iso={b.key} className="text-base leading-none" />
-              <span>{COUNTRY_NAMES[b.key] ?? b.key}</span>
-            </span>
-          )}
+          cellRenderer={(b) => {
+            const name = COUNTRY_NAMES[b.key] ?? b.key
+            return (
+              <span className="inline-flex items-center gap-2 font-mono text-sm text-fg-primary">
+                <Flag iso={b.key} size={18} title={name} />
+                <span>{name}</span>
+              </span>
+            )
+          }}
         />
       </CollapsibleCard>
 
