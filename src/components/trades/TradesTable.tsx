@@ -13,6 +13,7 @@ import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -22,6 +23,7 @@ import type {
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares } from '@/lib/format'
+import Flag from '@/components/ui/Flag'
 import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
 
@@ -36,8 +38,11 @@ interface TradesTableProps {
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
+  onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   /** Show the Float column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
+  /** Show the Country column. Defaults to true. */
+  showCountryColumn?: boolean
 }
 
 // MASTER §5.3 + §7.2 — data-dense, virtualized table. Row click opens the
@@ -79,7 +84,9 @@ export default function TradesTable({
   onSavePlannedStopLoss,
   onSaveFloat,
   onSaveCatalyst,
+  onSaveCountry,
   showFloatColumn = false,
+  showCountryColumn = true,
 }: TradesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'open_time', desc: true },
@@ -87,6 +94,37 @@ export default function TradesTable({
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   const columns = useMemo(() => {
+    const countryColumn = col.accessor('country', {
+      id: 'country',
+      header: 'Country',
+      size: 90,
+      minSize: 80,
+      cell: ({ row }) => {
+        const iso = row.original.country
+        const name = row.original.country_name
+        if (!iso) {
+          return <span className="font-mono text-[10px] text-fg-muted">—</span>
+        }
+        return (
+          <span
+            className="inline-flex items-center justify-center"
+            title={name || iso}
+          >
+            <Flag iso={iso} size={28} title={name || iso} />
+          </span>
+        )
+      },
+      // Sort by human-readable country name (alphabetical) and push rows
+      // with no country to the bottom regardless of direction.
+      sortingFn: (a, b) => {
+        const av = a.original.country
+        const bv = b.original.country
+        if (av === null && bv === null) return 0
+        if (av === null) return 1
+        if (bv === null) return -1
+        return a.original.country_name.localeCompare(b.original.country_name)
+      },
+    })
     const floatColumn = col.accessor('float_shares', {
       id: 'float',
       header: () => <span className="block text-right">Float</span>,
@@ -264,8 +302,13 @@ export default function TradesTable({
       if (netPnlIdx > -1) base.splice(netPnlIdx, 0, floatColumn)
       else base.push(floatColumn)
     }
+    if (showCountryColumn) {
+      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
+      const insertAt = playbookIdx >= 0 ? playbookIdx + 1 : 5
+      base.splice(insertAt, 0, countryColumn)
+    }
     return base
-  }, [showFloatColumn])
+  }, [showFloatColumn, showCountryColumn])
 
   const table = useReactTable({
     data: trades,
@@ -390,6 +433,7 @@ export default function TradesTable({
         onSavePlannedStopLoss={onSavePlannedStopLoss}
         onSaveFloat={onSaveFloat}
         onSaveCatalyst={onSaveCatalyst}
+        onSaveCountry={onSaveCountry}
       />
     </div>
   )

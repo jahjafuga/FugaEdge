@@ -25,6 +25,8 @@ interface TradeForReport {
   total_fees: number
   mae: number | null
   mfe: number | null
+  country: string | null
+  region: string | null
 }
 
 const SCRATCH_THRESHOLD = 2 // |net_pnl| <= $2 counts as a scratch
@@ -540,6 +542,37 @@ function computeVolumeAnalysis(trades: TradeForReport[]): VolumeAnalysis {
   }
 }
 
+function buildByRegion(trades: TradeForReport[]): BucketStats[] {
+  const groups = groupBy(trades, (t) => t.region ?? 'Unknown')
+  const out: BucketStats[] = []
+  let i = 0
+  for (const [key, group] of groups) {
+    out.push(computeStats(group, key, i++))
+  }
+  // Sort by trade count desc; Unknown last regardless of count.
+  out.sort((a, b) => {
+    if (a.key === 'Unknown' && b.key !== 'Unknown') return 1
+    if (b.key === 'Unknown' && a.key !== 'Unknown') return -1
+    return b.trade_count - a.trade_count
+  })
+  return out
+}
+
+const COUNTRY_MIN_TRADES = 3
+
+function buildByCountry(trades: TradeForReport[]): BucketStats[] {
+  const groups = groupBy(trades, (t) => t.country ?? '')
+  const out: BucketStats[] = []
+  let i = 0
+  for (const [key, group] of groups) {
+    if (!key) continue                               // skip unknowns
+    if (group.length < COUNTRY_MIN_TRADES) continue  // long-tail collapse
+    out.push(computeStats(group, key, i++))
+  }
+  out.sort((a, b) => b.trade_count - a.trade_count)
+  return out
+}
+
 export function getReports(): ReportsData {
   const db = openDatabase()
   const trades = db
@@ -549,7 +582,8 @@ export function getReports(): ReportsData {
         avg_buy_price, avg_sell_price,
         shares_bought, shares_sold,
         net_pnl, gross_pnl, total_fees,
-        mae, mfe
+        mae, mfe,
+        country, region
       FROM trades
     `)
     .all() as TradeForReport[]
@@ -614,6 +648,8 @@ export function getReports(): ReportsData {
     byHour,
     bySymbol,
     byShareSize,
+    byRegion: buildByRegion(trades),
+    byCountry: buildByCountry(trades),
     fullStats: computeFullStats(trades),
     volumeAnalysis: computeVolumeAnalysis(trades),
     winLossDays: computeWinLossDays(trades),

@@ -5,6 +5,7 @@ export interface SettingsValues {
   mistake_list: string[]
   day_tag_list: string[]
   polygon_api_key: string
+  last_country_backfill: string | null   // ISO timestamp; null when never run
 }
 
 export interface SettingsPayload {

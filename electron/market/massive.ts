@@ -55,6 +55,13 @@ async function massiveGet<T>(apiKey: string, path: string): Promise<T> {
 }
 
 // ── /v3/reference/tickers/{ticker} ──────────────────────────────────────────
+//
+// Two layers:
+//   - fetchTickerReference returns the raw, lightly-typed body. Country
+//     resolution (and any future caller that needs name/description/locale)
+//     reads from this.
+//   - fetchTickerDetails wraps the raw call and extracts the float / market
+//     cap / sector fields the market_data table actually persists.
 
 interface MassiveTickerResp {
   status?: string
@@ -62,11 +69,27 @@ interface MassiveTickerResp {
     ticker?: string
     name?: string
     market?: string
+    locale?: string
+    primary_exchange?: string
+    address?: { country?: string }
+    description?: string
     share_class_shares_outstanding?: number
     weighted_shares_outstanding?: number
     market_cap?: number
     sic_description?: string
   }
+}
+
+/** Raw shape consumed by resolveCountryFromPolygon — kept loose so the
+ *  pure resolver doesn't depend on the full Polygon response type. */
+export type TickerReference = MassiveTickerResp
+
+export async function fetchTickerReference(
+  apiKey: string,
+  symbol: string,
+): Promise<TickerReference> {
+  const path = `/v3/reference/tickers/${encodeURIComponent(symbol)}`
+  return massiveGet<MassiveTickerResp>(apiKey, path)
 }
 
 export interface TickerDetails {
@@ -80,8 +103,14 @@ export async function fetchTickerDetails(
   apiKey: string,
   symbol: string,
 ): Promise<TickerDetails> {
-  const path = `/v3/reference/tickers/${encodeURIComponent(symbol)}`
-  const data = await massiveGet<MassiveTickerResp>(apiKey, path)
+  const data = await fetchTickerReference(apiKey, symbol)
+  return extractTickerDetails(symbol, data)
+}
+
+export function extractTickerDetails(
+  symbol: string,
+  data: TickerReference,
+): TickerDetails {
   const r = data.results ?? {}
   return {
     symbol,

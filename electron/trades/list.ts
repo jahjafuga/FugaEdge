@@ -30,6 +30,10 @@ interface TradeRowDb {
   float_shares: number | null
   catalyst_type: string | null
   days_since_catalyst: number | null
+  country: string | null
+  country_name: string | null
+  region: string | null
+  country_source: string | null
   note_text: string | null
   attachment_count: number
 }
@@ -98,6 +102,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
         t.catalyst_type, t.days_since_catalyst,
+        t.country, t.country_name, t.region, t.country_source,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count
       FROM trades t
@@ -143,6 +148,10 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       float_shares: r.float_shares,
       catalyst_type: r.catalyst_type,
       days_since_catalyst: r.days_since_catalyst,
+      country: r.country,
+      country_name: r.country_name ?? 'Unknown',
+      region: r.region ?? 'Unknown',
+      country_source: (r.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
     }
@@ -162,6 +171,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
         t.catalyst_type, t.days_since_catalyst,
+        t.country, t.country_name, t.region, t.country_source,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count
       FROM trades t
@@ -205,6 +215,10 @@ export function getTrade(id: number): TradeListRow | null {
     float_shares: row.float_shares,
     catalyst_type: row.catalyst_type,
     days_since_catalyst: row.days_since_catalyst,
+    country: row.country,
+    country_name: row.country_name ?? 'Unknown',
+    region: row.region ?? 'Unknown',
+    country_source: (row.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
   }

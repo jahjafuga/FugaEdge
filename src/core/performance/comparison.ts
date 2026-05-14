@@ -347,6 +347,10 @@ function dimensionKey(
       const m = t.open_time.match(/[T ](\d{2}):/)
       return m ? `${parseInt(m[1], 10)}:00` : null
     }
+    case 'region':
+      return t.region ?? 'Unknown'
+    case 'country':
+      return t.country ?? null  // unknowns filtered upstream by the !key check
   }
 }
 

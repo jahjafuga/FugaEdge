@@ -4,6 +4,7 @@ import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
+import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import { ipc } from '@/lib/ipc'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
@@ -364,6 +365,13 @@ export default function Settings() {
             )}
           </div>
         </Card>
+
+        <DataBackfillCard
+          lastRun={editor.last_country_backfill}
+          onLastRunChange={(iso) =>
+            setEditor({ ...editor, last_country_backfill: iso })
+          }
+        />
 
         <Card title="Data" subtitle="Export and back up your local database.">
           <div className="space-y-4">

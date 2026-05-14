@@ -11,6 +11,8 @@
     "build": "tsc --noEmit && electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && prebuild-install --runtime electron --target 33.4.11 --arch x64 --platform win32",
     "postinstall": "npm run rebuild:sqlite",
     "pack": "npm run build && electron-builder --dir",
@@ -22,6 +24,7 @@
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.13.24",
     "better-sqlite3": "^11.7.0",
+    "country-flag-icons": "^1.6.17",
     "electron-updater": "^6.8.3",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^1.14.0",
@@ -47,7 +50,8 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
-    "vite": "^5.4.9"
+    "vite": "^5.4.9",
+    "vitest": "^1.6.0"
   },
   "build": {
     "appId": "com.fugaedge.app",

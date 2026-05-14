@@ -21,6 +21,8 @@ import {
   runMistakeInLosers,
   runMistakePattern,
   runPlaybookPerformance,
+  runRegionStrength,
+  runRegionWeakness,
   runRevengeTrading,
   runRewardRiskRatio,
   runSentimentEdge,
@@ -47,6 +49,8 @@ const SINGLE_RULES: SingleRule[] = [
   runHoldTimeFlipped,
   runRevengeTrading,
   runFirstThirtyMinutes,
+  runRegionWeakness,
+  runRegionStrength,
 ]
 
 const MULTI_RULES: MultiRule[] = [

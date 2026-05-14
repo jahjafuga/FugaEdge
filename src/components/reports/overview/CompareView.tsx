@@ -29,6 +29,12 @@ import Card from '@/components/ui/Card'
 import { duration, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
+import { FlagSvg } from '@/components/ui/Flag'
+import {
+  COUNTRY_NAMES,
+  REGION_REPRESENTATIVE_COUNTRY,
+  type Region,
+} from '@/core/country/regions'
 import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
@@ -36,6 +42,7 @@ import {
   daysBetween,
   rangeForPreset,
   rangeForSameMonthLastYear,
+  type BreakdownDimension,
   type ComparisonInsight,
   type ComparisonResult,
   type DateRange,
@@ -203,6 +210,22 @@ export default function CompareView({
               sentimentByDate={sentimentByDate}
               dimension="hour"
               title="By Hour"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
+              dimension="region"
+              title="By Region"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
+              dimension="country"
+              title="By Country"
             />
           </div>
 
@@ -760,7 +783,7 @@ function BreakdownComparisonCard({
   rangeA: DateRange
   rangeB: DateRange
   sentimentByDate: Map<string, number | null>
-  dimension: 'catalyst' | 'playbook' | 'sentiment' | 'dow' | 'hour'
+  dimension: BreakdownDimension
   title: string
 }) {
   const [open, setOpen] = useState(false)
@@ -777,19 +800,43 @@ function BreakdownComparisonCard({
   // Drop rows that have no trades AND no P&L in either period — they'd
   // otherwise render as a label with two empty placeholders, eating
   // horizontal space for nothing.
-  const data = useMemo(
-    () =>
-      breakdown.rows
-        .filter((r) => r.tradesA > 0 || r.tradesB > 0)
-        .map((r) => ({
-          key: r.key,
+  //
+  // For region/country dimensions we attach an `iso` alongside the label
+  // so the custom X-axis tick can render a flag SVG above the text. For
+  // every other dimension `iso` stays null and the tick falls back to
+  // text-only.
+  const data = useMemo(() => {
+    return breakdown.rows
+      .filter((r) => r.tradesA > 0 || r.tradesB > 0)
+      .map((r) => {
+        let label = r.key
+        let iso: string | null = null
+        if (dimension === 'country') {
+          label = COUNTRY_NAMES[r.key] ?? r.key
+          iso = r.key
+        } else if (dimension === 'region') {
+          iso = REGION_REPRESENTATIVE_COUNTRY[r.key as Region] ?? null
+        }
+        return {
+          key: label,
+          iso,
           A: r.netPnLA,
           B: r.netPnLB,
           tradesA: r.tradesA,
           tradesB: r.tradesB,
-        })),
-    [breakdown],
-  )
+        }
+      })
+  }, [breakdown, dimension])
+
+  const showFlags = dimension === 'region' || dimension === 'country'
+  const rotate = data.length > 6
+
+  const emptyText =
+    dimension === 'country'
+      ? 'Add country to 3+ trades to see breakdown.'
+      : dimension === 'region'
+        ? 'Add country to trades to see region breakdown.'
+        : 'No data for this dimension in either period.'
 
   return (
     <div className="flex h-full flex-col rounded-md border border-border-subtle bg-bg-2 shadow-sm">
@@ -811,7 +858,7 @@ function BreakdownComparisonCard({
         <div className="flex-1 border-t border-border-subtle p-3">
           {data.length === 0 ? (
             <div className="py-3 text-center text-xs text-fg-tertiary">
-              No data for this dimension in either period.
+              {emptyText}
             </div>
           ) : (
             <div className="h-[180px] w-full">
@@ -830,9 +877,26 @@ function BreakdownComparisonCard({
                     tickLine={false}
                     axisLine={{ stroke: palette.grid }}
                     interval={0}
-                    angle={data.length > 6 ? -30 : 0}
-                    textAnchor={data.length > 6 ? 'end' : 'middle'}
-                    height={data.length > 6 ? 44 : 18}
+                    // Custom tick when we're drawing flags so a 24×16
+                    // FlagSvg can sit above the text label. Other
+                    // dimensions keep Recharts' default tick handling.
+                    angle={showFlags ? undefined : rotate ? -30 : 0}
+                    textAnchor={showFlags ? undefined : rotate ? 'end' : 'middle'}
+                    tick={
+                      showFlags
+                        ? (props: TickRenderProps) => (
+                            <FlagTick
+                              {...props}
+                              data={data}
+                              rotate={rotate}
+                              axisColor={palette.axis}
+                            />
+                          )
+                        : undefined
+                    }
+                    height={
+                      showFlags ? (rotate ? 60 : 38) : rotate ? 44 : 18
+                    }
                   />
                   <YAxis
                     stroke={palette.axis}
@@ -919,6 +983,64 @@ function compactDeltaMoney(v: number): string {
   const abs = Math.abs(v)
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`
   return `${sign}$${abs.toFixed(0)}`
+}
+
+// ── Custom X-axis tick with a flag SVG above the text label ────────────
+//
+// Recharts custom-tick functions run inside the chart <svg>, so the tick
+// must return SVG elements (not HTML). FlagSvg gives us a raw <svg>
+// pulled from the country-flag-icons registry that can be positioned
+// alongside the <text> label.
+
+interface BreakdownRowVisual {
+  key: string
+  iso: string | null
+}
+
+interface TickRenderProps {
+  x: number
+  y: number
+  payload: { value: string }
+  index?: number
+}
+
+interface FlagTickProps extends TickRenderProps {
+  data: BreakdownRowVisual[]
+  rotate: boolean
+  axisColor: string
+}
+
+const FLAG_TICK_WIDTH = 24
+const FLAG_TICK_HEIGHT = 16
+
+function FlagTick({ x, y, payload, index, data, rotate, axisColor }: FlagTickProps) {
+  const row = typeof index === 'number' ? data[index] : undefined
+  const iso = row?.iso ?? null
+  const textY = FLAG_TICK_HEIGHT + 14
+  // Recharts passes (x, y) at the top of the tick area just below the
+  // axis line. Translate so we draw relative to that origin.
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      {iso && (
+        <FlagSvg
+          iso={iso}
+          x={-FLAG_TICK_WIDTH / 2}
+          y={2}
+          width={FLAG_TICK_WIDTH}
+          height={FLAG_TICK_HEIGHT}
+        />
+      )}
+      <text
+        y={textY}
+        textAnchor={rotate ? 'end' : 'middle'}
+        fontSize={9}
+        fill={axisColor}
+        transform={rotate ? `rotate(-30 0 ${textY})` : undefined}
+      >
+        {payload.value}
+      </text>
+    </g>
+  )
 }
 
 // ── Auto-insights list ───────────────────────────────────────────────────

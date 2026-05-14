@@ -11,6 +11,7 @@ import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -18,6 +19,7 @@ import type {
   UpdatePlannedStopLossInput,
   UpdateTimeframeInput,
 } from '@shared/trades-types'
+import type { ResolvedCountry } from '@/core/country/resolve'
 import type {
   CreatePlaybookInput,
   PlaybookWithStats,
@@ -84,6 +86,23 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_FLOAT_SAVE, input),
   tradeCatalystSave: (input: UpdateCatalystInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_CATALYST_SAVE, input),
+  tradeCountrySave: (input: UpdateCountryInput): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE, input),
+  countryResolve: (symbol: string): Promise<ResolvedCountry | null> =>
+    ipcRenderer.invoke(IPC.COUNTRY_RESOLVE, symbol),
+  countryBackfill: (force?: boolean): Promise<{
+    updated: number; skipped: number; failed: number;
+    apiKeyMissing: boolean; errors: { symbol: string; message: string }[]; durationMs: number
+  }> => ipcRenderer.invoke(IPC.COUNTRY_BACKFILL, { force: !!force }),
+  countryOnBackfillProgress: (
+    cb: (p: { current: number; total: number; symbol: string }) => void,
+  ): (() => void) => {
+    const listener = (_e: unknown, p: { current: number; total: number; symbol: string }) => cb(p)
+    ipcRenderer.on(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
+    }
+  },
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>
     ipcRenderer.invoke(IPC.ATTACHMENTS_LIST, tradeId),
   attachmentsAdd: (input: AddAttachmentsInput): Promise<AddAttachmentsResult> =>

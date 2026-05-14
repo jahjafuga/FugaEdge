@@ -1,18 +1,33 @@
+import type { ReactNode } from 'react'
 import type { BucketStats } from '@shared/reports-types'
 import { money, int, signed, pnlClass } from '@/lib/format'
 
 interface ReportBucketTableProps {
   keyHeader: string         // column header for the bucket dimension
   buckets: BucketStats[]
+  /** Custom renderer for the key column. Defaults to plain mono text of
+   *  `bucket.key`. Use this to prepend a flag emoji, swap an ISO code for
+   *  a human name, etc. */
+  cellRenderer?: (bucket: BucketStats) => ReactNode
+  /** Custom empty-state message. Defaults to a generic "No data" string —
+   *  override when the breakdown has a known threshold the user can act on
+   *  (e.g. "Add country to 3+ trades to see breakdown."). */
+  emptyText?: string
 }
 
 const DASH = '—'
+const DEFAULT_EMPTY_TEXT = 'No data for this breakdown.'
 
-export default function ReportBucketTable({ keyHeader, buckets }: ReportBucketTableProps) {
+export default function ReportBucketTable({
+  keyHeader,
+  buckets,
+  cellRenderer,
+  emptyText = DEFAULT_EMPTY_TEXT,
+}: ReportBucketTableProps) {
   if (buckets.length === 0) {
     return (
       <div className="px-5 py-8 text-center text-sm text-fg-tertiary">
-        No data for this breakdown.
+        {emptyText}
       </div>
     )
   }
@@ -40,7 +55,11 @@ export default function ReportBucketTable({ keyHeader, buckets }: ReportBucketTa
               className="border-b border-border-subtle last:border-b-0 transition-colors hover:bg-bg-3"
             >
               <Td>
-                <span className="font-mono text-sm text-fg-primary">{b.key}</span>
+                {cellRenderer ? (
+                  cellRenderer(b)
+                ) : (
+                  <span className="font-mono text-sm text-fg-primary">{b.key}</span>
+                )}
               </Td>
               <Td align="right">
                 <span className="font-mono text-fg-primary">{int(b.trade_count)}</span>

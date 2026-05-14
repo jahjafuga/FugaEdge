@@ -12,6 +12,7 @@ import { registerAnalyticsIpc } from '../analytics/ipc'
 import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
 import { registerMarketIpc } from '../market/ipc'
+import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
 import { registerAttachmentsIpc } from '../attachments/ipc'
 import {
@@ -103,6 +104,7 @@ app.whenReady().then(() => {
   registerJournalIpc()
   registerSettingsIpc()
   registerMarketIpc()
+  registerCountryIpc()
   registerPlaybookIpc()
   registerAttachmentsIpc()
   registerAttachmentProtocolHandler()

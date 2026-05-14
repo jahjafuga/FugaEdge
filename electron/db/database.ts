@@ -184,6 +184,39 @@ function migrateAfterSchema(conn: Database.Database): void {
     // backwards-compat on legacy trades.
     conn.exec('ALTER TABLE trades ADD COLUMN planned_stop_loss_price REAL')
   }
+  if (!has('country')) {
+    // ISO 3166-1 alpha-2 of the company's country of OPERATIONS (not
+    // incorporation). Resolved from Polygon's /v3/reference/tickers and
+    // overridable per trade via the detail modal. Nullable when no data.
+    conn.exec('ALTER TABLE trades ADD COLUMN country TEXT')
+  }
+  if (!has('country_name')) {
+    // Human-readable country name cached at write time so list/breakdown
+    // queries don't have to join through a static lookup table.
+    conn.exec('ALTER TABLE trades ADD COLUMN country_name TEXT')
+  }
+  if (!has('region')) {
+    // Bucket key (USA, China, Europe, ...). One country maps to exactly
+    // one region; see src/core/country/regions.ts REGION_MAP.
+    conn.exec('ALTER TABLE trades ADD COLUMN region TEXT')
+  }
+  if (!has('country_source')) {
+    // Where the country value came from. 'polygon' = auto-detected,
+    // 'manual' = user override (NEVER overwritten by backfill),
+    // 'unknown' = not set / could not resolve. NULL on rows imported
+    // before this migration — treated as 'unknown' by readers.
+    conn.exec('ALTER TABLE trades ADD COLUMN country_source TEXT')
+  }
+  // Index on region for fast breakdown queries (group-by region).
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_region ON trades(region)')
+
+  const marketCols = conn.prepare('PRAGMA table_info(market_data)').all() as {
+    name: string
+  }[]
+  const hasMarket = (n: string) => marketCols.some((c) => c.name === n)
+  if (!hasMarket('country'))      conn.exec('ALTER TABLE market_data ADD COLUMN country TEXT')
+  if (!hasMarket('country_name')) conn.exec('ALTER TABLE market_data ADD COLUMN country_name TEXT')
+  if (!hasMarket('region'))       conn.exec('ALTER TABLE market_data ADD COLUMN region TEXT')
 
   const journalCols = conn.prepare('PRAGMA table_info(journal)').all() as {
     name: string
