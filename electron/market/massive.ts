@@ -94,7 +94,7 @@ export async function fetchTickerReference(
 
 export interface TickerDetails {
   symbol: string
-  shares_outstanding: number | null
+  shares_outstanding: number | null  // share-class proxy; see fetchFreeFloat for the actual free float
   market_cap: number | null
   sector: string | null
 }
