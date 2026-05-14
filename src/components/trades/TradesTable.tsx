@@ -98,23 +98,31 @@ export default function TradesTable({
       id: 'country',
       header: 'Country',
       size: 80,
-      cell: (info) => {
-        const iso = info.getValue()
-        if (!iso) return <span className="font-mono text-[10px] text-fg-muted">—</span>
+      minSize: 70,
+      cell: ({ row }) => {
+        const iso = row.original.country
+        const name = row.original.country_name
+        if (!iso) {
+          return <span className="font-mono text-[10px] text-fg-muted">—</span>
+        }
         return (
-          <span className="inline-flex items-center gap-1.5 font-mono text-xs text-fg-primary">
-            <Flag iso={iso} size={14} title={iso} />
-            <span>{iso}</span>
+          <span
+            className="inline-flex items-center justify-center"
+            title={name || iso}
+          >
+            <Flag iso={iso} size={22} title={name || iso} />
           </span>
         )
       },
+      // Sort by human-readable country name (alphabetical) and push rows
+      // with no country to the bottom regardless of direction.
       sortingFn: (a, b) => {
         const av = a.original.country
         const bv = b.original.country
         if (av === null && bv === null) return 0
         if (av === null) return 1
         if (bv === null) return -1
-        return av.localeCompare(bv)
+        return a.original.country_name.localeCompare(b.original.country_name)
       },
     })
     const floatColumn = col.accessor('float_shares', {

@@ -68,7 +68,7 @@ export default function CountryEditor({
     <>
       {country ? (
         <div className="flex items-center gap-2 font-mono text-sm">
-          <Flag iso={country} size={20} title={countryName} />
+          <Flag iso={country} size={28} title={countryName} />
           <span className="text-fg-primary">{countryName}</span>
           <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
             {region}
@@ -134,7 +134,7 @@ export default function CountryEditor({
                             : 'text-fg-primary hover:bg-bg-3'
                         }`}
                       >
-                        <Flag iso={row.iso} size={16} title={row.name} />
+                        <Flag iso={row.iso} size={22} title={row.name} />
                         <span className="font-mono">{row.name}</span>
                         <span className="ml-auto font-mono text-[10px] text-fg-tertiary">{row.iso}</span>
                       </button>
