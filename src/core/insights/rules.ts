@@ -803,7 +803,7 @@ export function runRegionWeakness(input: InsightInput): InsightResult | null {
     tone: 'negative',
     title,
     body,
-    metric: `${fmtPct(weak.winRate - overall)} gap`,
+    metric: `${fmtPct(overall - weak.winRate)} gap`,
     priority: 220 + (overall - weak.winRate) * 1000 + Math.log(weak.trades + 1) * 30,
   }
 }
