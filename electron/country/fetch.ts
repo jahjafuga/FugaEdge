@@ -1,4 +1,5 @@
 import type { WebContents } from 'electron'
+import { IPC } from '@shared/ipc-channels'
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference, MassiveError } from '../market/massive'
 import { resolveCountryFromPolygon, type ResolvedCountry } from '@/core/country/resolve'
@@ -132,7 +133,7 @@ export async function autoBackfillAfterImport(webContents: WebContents | null = 
   return backfillAllCountries({
     force: false,
     emitProgress: webContents
-      ? (p) => webContents.send('country:backfillProgress', p)
+      ? (p) => webContents.send(IPC.COUNTRY_BACKFILL_PROGRESS, p)
       : undefined,
   })
 }
