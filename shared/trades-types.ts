@@ -1,4 +1,5 @@
 import type { RoundTripExecution } from './import-types'
+import type { PlaybookTier } from './playbook-types'
 
 export interface TradeNote {
   text: string
@@ -27,6 +28,9 @@ export interface TradeListRow {
   entry_ema9_distance_pct: number | null
   playbook_id: number | null
   playbook_name: string | null
+  /** Quality tier of the trade's playbook, joined in from `playbooks.tier`.
+   *  Null when the trade has no playbook assigned. */
+  playbook_tier: PlaybookTier | null
   confidence: number | null
   mistakes: string[]
   /** Legacy: $ amount the trader was willing to lose on the trade. Kept for

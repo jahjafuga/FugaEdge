@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Info } from 'lucide-react'
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import Card from '@/components/ui/Card'
 import IconTooltip from '@/components/ui/Tooltip'
@@ -34,7 +35,7 @@ export default function RDistributionCard({ data }: RDistributionCardProps) {
             </>
           }
         >
-          <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+          <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
         </IconTooltip>
       }
     >

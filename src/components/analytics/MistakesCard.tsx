@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { MistakesAnalytics } from '@shared/analytics-types'
 import { int, money, pnlClass, signed } from '@/lib/format'
@@ -27,7 +28,7 @@ export default function MistakesCard({ data }: MistakesCardProps) {
             </>
           }
         >
-          <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+          <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
         </Tooltip>
       }
     >

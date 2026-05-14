@@ -1,23 +1,28 @@
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import StreaksCard from '@/components/analytics/StreaksCard'
+import TierPerformanceCard from '@/components/analytics/TierPerformanceCard'
 import FullStatsTable from '@/components/reports/FullStatsTable'
 import { duration, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 interface PerformanceTabProps {
   data: AnalyticsData
   reports: ReportsData | null
+  trades: readonly TradeListRow[]
 }
 
-export default function PerformanceTab({ data, reports }: PerformanceTabProps) {
+export default function PerformanceTab({ data, reports, trades }: PerformanceTabProps) {
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Performance"
         description="System quality scores, distributional stats, and the wins-vs-losses split that drives expectancy."
       />
+
+      <TierPerformanceCard trades={trades} />
 
       {reports ? (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">

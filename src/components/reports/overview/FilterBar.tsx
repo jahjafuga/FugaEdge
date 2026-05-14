@@ -29,11 +29,14 @@ const SIDES: { value: SideFilter; label: string }[] = [
   { value: 'short', label: 'Short' },
 ]
 
+// v0.1.5: lowercase `m` for minutes + proper en-dash on the ranges so
+// `<1m` doesn't get read as "less than 1 month". Paired with a visible
+// "DURATION" group label above the segment (see render below).
 const DURATIONS: { value: DurationBucket; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'under-1m', label: '<1m' },
-  { value: '1-5m', label: '1-5m' },
-  { value: '5-30m', label: '5-30m' },
+  { value: '1-5m', label: '1–5m' },
+  { value: '5-30m', label: '5–30m' },
   { value: 'over-30m', label: '>30m' },
 ]
 
@@ -91,12 +94,21 @@ export default function FilterBar({
           onChange={(v) => set('side', v)}
         />
 
-        {/* Duration segment */}
-        <Segment
-          options={DURATIONS}
-          value={filters.duration}
-          onChange={(v) => set('duration', v)}
-        />
+        {/* Duration segment — v0.1.5 carries a visible group label so the
+            `<1m` button isn't misread as "less than 1 month". */}
+        <div className="inline-flex items-center gap-1.5">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
+            title="Trade hold time — how long between entry and exit"
+          >
+            Duration
+          </span>
+          <Segment
+            options={DURATIONS}
+            value={filters.duration}
+            onChange={(v) => set('duration', v)}
+          />
+        </div>
 
         {/* Tag multi-selects */}
         <MultiSelectMenu

@@ -4,6 +4,7 @@ import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
+import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
@@ -207,32 +208,41 @@ export default function Settings() {
           </div>
         </Card>
 
-        <Card title="Journal rules" subtitle="Shown on the Journal page as a checklist. Order is preserved.">
+        <SettingsAccordion
+          storageKey="journalRules"
+          title="Journal rules"
+          subtitle="Shown on the Journal page as a checklist. Order is preserved."
+          count={editor.journal_rules.length}
+        >
           <RuleList
             rules={editor.journal_rules}
             onChange={(next) => setEditor({ ...editor, journal_rules: next })}
           />
-        </Card>
+        </SettingsAccordion>
 
-        <Card
+        <SettingsAccordion
+          storageKey="mistakeList"
           title="Mistake list"
           subtitle="Tag any of these on a trade in the expand row. Used by the Mistakes card on Analytics."
+          count={editor.mistake_list.length}
         >
           <RuleList
             rules={editor.mistake_list}
             onChange={(next) => setEditor({ ...editor, mistake_list: next })}
           />
-        </Card>
+        </SettingsAccordion>
 
-        <Card
+        <SettingsAccordion
+          storageKey="dayTags"
           title="Day note tags"
           subtitle="Per-day labels shown on the Calendar (FOMC, Earnings, Choppy, etc.). Click a calendar day to toggle which ones apply."
+          count={editor.day_tag_list.length}
         >
           <RuleList
             rules={editor.day_tag_list}
             onChange={(next) => setEditor({ ...editor, day_tag_list: next })}
           />
-        </Card>
+        </SettingsAccordion>
 
         <Card
           title="Market data"

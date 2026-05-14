@@ -2,6 +2,12 @@ import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import type { EntryTimeframe, TradeListRow, TradeNote } from '@shared/trades-types'
 import type { RoundTripExecution } from '@shared/import-types'
+import { PLAYBOOK_TIERS, type PlaybookTier } from '@shared/playbook-types'
+
+function parsePlaybookTier(raw: string | null | undefined): PlaybookTier | null {
+  if (!raw) return null
+  return (PLAYBOOK_TIERS as readonly string[]).includes(raw) ? (raw as PlaybookTier) : null
+}
 
 interface TradeRowDb {
   id: number
@@ -23,6 +29,7 @@ interface TradeRowDb {
   entry_ema9_distance_pct: number | null
   playbook_id: number | null
   playbook_name: string | null
+  playbook_tier: string | null
   confidence: number | null
   mistakes_json: string | null
   planned_risk: number | null
@@ -98,7 +105,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
         t.entry_timeframe, t.entry_ema9_distance_pct,
-        t.playbook_id, p.name AS playbook_name,
+        t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
         t.catalyst_type, t.days_since_catalyst,
@@ -138,6 +145,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
       playbook_id: r.playbook_id,
       playbook_name: r.playbook_name,
+      playbook_tier: parsePlaybookTier(r.playbook_tier),
       confidence: r.confidence,
       mistakes: parseMistakes(r.mistakes_json),
       planned_risk: r.planned_risk,
@@ -167,7 +175,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
         t.entry_timeframe, t.entry_ema9_distance_pct,
-        t.playbook_id, p.name AS playbook_name,
+        t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
         t.catalyst_type, t.days_since_catalyst,
@@ -205,6 +213,7 @@ export function getTrade(id: number): TradeListRow | null {
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,
     playbook_id: row.playbook_id,
     playbook_name: row.playbook_name,
+    playbook_tier: parsePlaybookTier(row.playbook_tier),
     confidence: row.confidence,
     mistakes: parseMistakes(row.mistakes_json),
     planned_risk: row.planned_risk,

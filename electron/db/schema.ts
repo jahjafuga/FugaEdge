@@ -5,7 +5,7 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-export const SCHEMA_VERSION = '16'
+export const SCHEMA_VERSION = '17'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -117,6 +117,11 @@ CREATE TABLE IF NOT EXISTS playbooks (
   rules            TEXT    NOT NULL DEFAULT '',
   ideal_conditions TEXT    NOT NULL DEFAULT '',
   archived         INTEGER NOT NULL DEFAULT 0,
+  -- v0.1.5: classify each setup by quality tier so the user can see
+  -- whether A+ discipline actually pays. 'A+' | 'A' | 'B' | 'C'. Defaults
+  -- to 'B' (the average tier) so existing playbooks neither over- nor
+  -- under-claim quality until the user grades them.
+  tier             TEXT    NOT NULL DEFAULT 'B',
   created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

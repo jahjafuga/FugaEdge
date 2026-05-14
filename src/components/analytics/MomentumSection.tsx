@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Info } from 'lucide-react'
 import {
   Bar,
   BarChart,
@@ -64,7 +65,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
           hover
           right={
             <Tooltip content="Set the timeframe per trade in the Trades page expand row. Trades you haven't tagged show under 'unset'.">
-              <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+              <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
             </Tooltip>
           }
         >
@@ -86,7 +87,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
                 </>
               }
             >
-              <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+              <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
             </Tooltip>
           }
         >
@@ -104,7 +105,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
         hover
         right={
           <Tooltip content="Set a 1–5 confidence rating per trade in the expand row. This card groups trades by rating so you can verify whether your high-confidence picks really outperform.">
-            <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+            <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
           </Tooltip>
         }
       >
@@ -121,7 +122,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
         hover
         right={
           <Tooltip content="Anything beyond 5% from the 9-period EMA at entry is flagged 'extended'. Compare net P&L and win rate to see if you're chasing.">
-            <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+            <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
           </Tooltip>
         }
       >

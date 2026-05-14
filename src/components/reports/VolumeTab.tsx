@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { Info } from 'lucide-react'
 import HorizontalBarChart from './HorizontalBarChart'
 import type { BucketStats, ReportsData } from '@shared/reports-types'
 import { int, pnlClass, signed } from '@/lib/format'
@@ -16,7 +17,7 @@ export default function VolumeTab({ data }: VolumeTabProps) {
       <Card title="Volume analysis" subtitle="Float and relative volume buckets.">
         <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-5">
           <div className="flex items-center gap-2">
-            <span className="font-serif text-lg text-gold">ⓘ</span>
+            <Info size={14} strokeWidth={2} aria-hidden="true" className="text-lg text-gold" />
             <span className="text-[10px] uppercase tracking-wider text-gold">
               Market data unavailable
             </span>

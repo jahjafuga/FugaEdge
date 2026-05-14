@@ -190,7 +190,11 @@ export function applyTradesFilters(
     if (f.dateTo && t.date > f.dateTo) return false
     if (f.outcome === 'winners' && t.net_pnl <= 0) return false
     if (f.outcome === 'losers' && t.net_pnl >= 0) return false
-    if (f.aPlus && (t.confidence === null || t.confidence < 4)) return false
+    // v0.1.5: A+ Setups filter now reads the playbook's tier classification
+    // rather than the per-trade confidence (which was a v0.1.3 stop-gap).
+    // A trade without a playbook is excluded — there's no claim of A+
+    // discipline if no setup was tagged.
+    if (f.aPlus && t.playbook_tier !== 'A+') return false
     if (f.mistakesOnly && t.mistakes.length === 0) return false
     return true
   })

@@ -3,6 +3,7 @@ import Database from 'better-sqlite3'
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SCHEMA_SQL } from './schema'
+import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 
 let db: Database.Database | null = null
 
@@ -248,7 +249,21 @@ function migrateAfterSchema(conn: Database.Database): void {
   // Source must never carry a real key; rotate immediately if a previous
   // commit ever leaked one.
 
+  // v0.1.5: per-playbook tier classification. Adds a TEXT column with a
+  // default of 'B' (the neutral tier) so any pre-existing playbook keeps
+  // showing in the UI without nulls. The tier feeds the Setup Library
+  // badge, the trades table playbook cell, the A+ Setups quick filter,
+  // and the Tier Performance analytics card.
+  const playbookCols = conn.prepare('PRAGMA table_info(playbooks)').all() as {
+    name: string
+  }[]
+  const hasPlaybook = (n: string) => playbookCols.some((c) => c.name === n)
+  if (!hasPlaybook('tier')) {
+    conn.exec("ALTER TABLE playbooks ADD COLUMN tier TEXT NOT NULL DEFAULT 'B'")
+  }
+
   seedDefaultPlaybooksOnce(conn)
+  seedDefaultPlaybookTiersOnce(conn)
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The
@@ -331,6 +346,51 @@ function seedDefaultPlaybooksOnce(conn: Database.Database): void {
   conn
     .prepare(`
       INSERT INTO settings (key, value) VALUES ('defaults_seeded', 'true')
+      ON CONFLICT(key) DO UPDATE SET value = 'true'
+    `)
+    .run()
+}
+
+// First-run-only suggestion of tier values for the default playbooks. We
+// only touch rows that still carry the column default 'B' AND whose name
+// matches a known starter setup — any user-grade override (or rename)
+// keeps its value. Latched by the `playbook_tiers_seeded` settings flag so
+// re-running this is a no-op even if a user later resets a row to 'B'.
+//
+// Matching is name-substring based to tolerate small wording variants the
+// user may have introduced ("1-min Pullback" vs "1m Pullback", etc.). The
+// suggested mapping comes from the v0.1.5 spec; users can change any of
+// these in the Setup Library editor.
+function seedDefaultPlaybookTiersOnce(conn: Database.Database): void {
+  const flag = conn
+    .prepare("SELECT value FROM settings WHERE key = 'playbook_tiers_seeded'")
+    .get() as { value: string } | undefined
+  if (flag?.value === 'true') return
+
+  interface Row { id: number; name: string; tier: string }
+  const rows = conn
+    .prepare("SELECT id, name, tier FROM playbooks")
+    .all() as Row[]
+
+  const update = conn.prepare('UPDATE playbooks SET tier = ? WHERE id = ?')
+
+  let updates = 0
+  const tx = conn.transaction(() => {
+    for (const r of rows) {
+      if (r.tier !== 'B') continue // user-graded; leave alone
+      const next = suggestTierForPlaybookName(r.name)
+      if (next && next !== 'B') {
+        update.run(next, r.id)
+        updates += 1
+      }
+    }
+  })
+  tx()
+  if (updates > 0) console.info(`[FE db] seeded tier suggestions for ${updates} playbook(s)`)
+
+  conn
+    .prepare(`
+      INSERT INTO settings (key, value) VALUES ('playbook_tiers_seeded', 'true')
       ON CONFLICT(key) DO UPDATE SET value = 'true'
     `)
     .run()

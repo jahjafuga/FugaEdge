@@ -24,6 +24,7 @@ import type {
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares } from '@/lib/format'
 import Flag from '@/components/ui/Flag'
+import TierBadge from '@/components/playbook/TierBadge'
 import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
 
@@ -198,10 +199,14 @@ export default function TradesTable({
         size: COLUMN_WIDTHS.playbook,
         cell: ({ row }) => {
           const name = row.original.playbook_name
+          const tier = row.original.playbook_tier
           if (!name) return <span className="font-mono text-[10px] text-fg-muted">—</span>
           return (
-            <span className="inline-block max-w-full truncate rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
-              {name}
+            <span className="inline-flex max-w-full items-center gap-1.5">
+              {tier && <TierBadge tier={tier} />}
+              <span className="truncate rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
+                {name}
+              </span>
             </span>
           )
         },

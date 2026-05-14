@@ -1,6 +1,6 @@
-import { CalendarOff } from 'lucide-react'
+import { CalendarOff, Pencil } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
-import { int, signed } from '@/lib/format'
+import { int, money, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
 import WeeklyPanel from './WeeklyPanel'
 
@@ -194,11 +194,19 @@ function DayCell({
     ? 'ring-2 ring-gold ring-offset-2 ring-offset-bg-0 z-10 relative'
     : ''
 
+  // v0.1.5: keep the cell visually clean, surface fees in the hover
+  // tooltip so the user can still see the cost drag without crowding the
+  // tile with another number.
+  const title = has && stats
+    ? `${cell.date} · Gross ${signed(stats.gross_pnl)} · Fees ${money(stats.total_fees)} · Net ${signed(stats.net_pnl)}`
+    : undefined
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!cell.inMonth}
+      title={title}
       className={`flex min-h-[110px] flex-col items-stretch justify-between border-b border-r border-border-strong p-2.5 text-left transition-colors duration-150 ${baseTone} ${selectedRing} ${
         cell.inMonth ? 'cursor-pointer' : 'cursor-default'
       }`}
@@ -230,9 +238,9 @@ function DayCell({
             <span
               aria-label="Journal entry"
               title="Journal entry on this day"
-              className="text-[10px] leading-none text-gold"
+              className="inline-flex items-center text-gold"
             >
-              ✎
+              <Pencil size={10} strokeWidth={2} />
             </span>
           )}
           {has && (
