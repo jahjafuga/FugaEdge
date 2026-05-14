@@ -16,6 +16,7 @@ import TradeChartCard from '@/components/trades/TradeChartCard'
 import TradeChartTile from '@/components/trades/TradeChartTile'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
+import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
 import type {
   TradeListRow,
   UpdateCatalystInput,
@@ -48,6 +49,7 @@ export default function Trades() {
     const v = window.localStorage.getItem(COUNTRY_COL_STORAGE_KEY)
     return v === null ? true : v === '1'
   })
+  const [showSparkline, setShowSparkline] = useState<boolean>(() => readShowSparkline())
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -64,6 +66,10 @@ export default function Trades() {
       showCountryColumn ? '1' : '0',
     )
   }, [showCountryColumn])
+
+  useEffect(() => {
+    writeShowSparkline(showSparkline)
+  }, [showSparkline])
 
   useEffect(() => {
     let cancelled = false
@@ -263,6 +269,19 @@ export default function Trades() {
             >
               Float col
             </button>
+            <button
+              type="button"
+              onClick={() => setShowSparkline((v) => !v)}
+              aria-pressed={showSparkline}
+              className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                showSparkline
+                  ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                  : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+              }`}
+              title="Show / hide the per-row sparkline mini-chart"
+            >
+              Sparkline
+            </button>
             <TradesViewToggle value={view} onChange={setView} />
           </div>
         </div>
@@ -284,6 +303,7 @@ export default function Trades() {
             onSaveCountry={handleSaveCountry}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
+            showSparkline={showSparkline}
           />
         ) : view === 'charts-large' ? (
           <div className="space-y-3">

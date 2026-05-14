@@ -90,11 +90,11 @@ export default function PerformanceTab({ data, reports, trades }: PerformanceTab
                 )}
             </Card>
 
-            <Card title="Streaks">
-              <div className="-mx-3 -mt-2">
-                <StreaksCardInline data={data} />
-              </div>
-            </Card>
+            <StreaksCard
+              longestWin={data.longestWinStreak}
+              longestLoss={data.longestLossStreak}
+              current={data.currentStreak}
+            />
           </div>
         </div>
       ) : (
@@ -103,16 +103,6 @@ export default function PerformanceTab({ data, reports, trades }: PerformanceTab
         </div>
       )}
     </div>
-  )
-}
-
-function StreaksCardInline({ data }: { data: AnalyticsData }) {
-  return (
-    <StreaksCard
-      longestWin={data.longestWinStreak}
-      longestLoss={data.longestLossStreak}
-      current={data.currentStreak}
-    />
   )
 }
 

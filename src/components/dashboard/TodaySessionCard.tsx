@@ -36,7 +36,7 @@ import { SENTIMENT_LABELS } from '@shared/session-types'
 // "Committed" is a pure derivation in /src/core/session/today — trades
 // imported, no-trade-day saved with a reason, OR a journal entry exists.
 
-const LAST_QUOTE_STORAGE_KEY = 'fugaedge-today-quote-id'
+const LAST_QUOTE_STORAGE_KEY = 'fuga.quote.lastShownId'
 
 function readLastQuoteId(): number | null {
   if (typeof window === 'undefined') return null
@@ -354,12 +354,20 @@ function badgeForCommittedStatus(status: TodaySessionStatus) {
 
 function QuoteCard({ quote }: { quote: TradingQuote }) {
   return (
-    <figure className="mt-3 rounded-md border-l-2 border-gold/60 bg-bg-3 px-3 py-2 transition-colors">
-      <blockquote className="font-serif text-[13px] italic leading-snug text-fg-secondary">
-        “{quote.text}”
+    <figure className="mt-3 rounded-md border-l-2 border-gold/60 bg-bg-3 px-4 py-3 transition-colors">
+      <blockquote
+        className="font-serif italic text-fg-primary/90"
+        style={{ fontSize: '18px', lineHeight: 1.5 }}
+      >
+        <span className="mr-0.5 align-[-0.05em] text-[22px] leading-none text-gold">“</span>
+        {quote.text}
+        <span className="ml-0.5 align-[-0.05em] text-[22px] leading-none text-gold">”</span>
       </blockquote>
-      <figcaption className="mt-1 flex items-center gap-1.5 text-xs tracking-wider text-fg-tertiary">
-        <Sparkles size={10} strokeWidth={2} className="text-gold/70" />
+      <figcaption
+        className="mt-2 flex items-center gap-1.5 font-sans text-fg-secondary"
+        style={{ fontSize: '13px' }}
+      >
+        <Sparkles size={11} strokeWidth={2} className="text-gold" />
         {quote.author}
       </figcaption>
     </figure>
