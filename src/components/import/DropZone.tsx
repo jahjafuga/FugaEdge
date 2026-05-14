@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { Download } from 'lucide-react'
 
 interface DroppedFile {
   name: string
@@ -62,8 +63,8 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
               : 'border-border-strong bg-bg-header hover:border-gold/60 hover:bg-bg-header/80'
         }`}
       >
-        <div className="font-serif text-4xl text-gold transition-transform duration-200 group-hover:scale-105">
-          ↧
+        <div className="text-gold transition-transform duration-200 group-hover:scale-105">
+          <Download size={36} strokeWidth={1.75} />
         </div>
         <div>
           <div className="text-base font-medium text-fg-primary">

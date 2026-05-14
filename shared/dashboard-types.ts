@@ -1,3 +1,5 @@
+import type { PlaybookTier } from './playbook-types'
+
 export interface OverviewStats {
   net_pnl: number
   gross_pnl: number
@@ -36,12 +38,17 @@ export interface SessionTrade {
   total_fees: number
   net_pnl: number
   playbook_name: string | null
+  /** Joined from `playbooks.tier`. Null when the trade has no playbook. */
+  playbook_tier: PlaybookTier | null
   confidence: number | null
 }
 
 export interface LatestSession {
   date: string                   // most recent date with trades; '' if none
   net_pnl: number
+  /** Pre-fees gross P&L for the session. Added in v0.1.5 so the dashboard
+   *  summary line can show Gross / Fees / Net as distinct items. */
+  gross_pnl: number
   total_fees: number
   trade_count: number
   winners: number

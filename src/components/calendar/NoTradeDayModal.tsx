@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Check } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
 import type { JournalDay } from '@shared/journal-types'
@@ -248,7 +249,7 @@ function ReasonButton({
       }`}
     >
       <span>{label}</span>
-      {active && <span className="font-mono text-xs">✓</span>}
+      {active && <Check size={13} strokeWidth={2.5} />}
     </button>
   )
 }

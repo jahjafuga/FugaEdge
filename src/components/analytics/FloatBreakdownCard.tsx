@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { FloatAnalytics } from '@shared/analytics-types'
 import { int, signed, pnlClass } from '@/lib/format'
@@ -37,7 +38,7 @@ export default function FloatBreakdownCard({ data }: FloatBreakdownCardProps) {
             </>
           }
         >
-          <span className="cursor-help text-[11px] text-fg-tertiary">ⓘ</span>
+          <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
         </Tooltip>
       }
     >

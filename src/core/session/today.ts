@@ -20,6 +20,13 @@ export interface TradeExtreme {
 
 export interface TodaySessionStats {
   netPnL: number
+  /** Gross P&L (pre-fees) summed across today's trades. v0.1.5 — surfaces
+   *  on the Today's Session summary line so the trader can see fees as a
+   *  distinct line item rather than baked into net. */
+  grossPnL: number
+  /** Total fees today (sum of trade.total_fees). Always shown — even 0 —
+   *  so the user knows fees are tracked. */
+  totalFees: number
   trades: number
   winners: number
   losers: number
@@ -60,6 +67,8 @@ export function emptyMeta(date: string): SessionMeta {
 /** Compute today-stats from a list of trades scoped to a single date. */
 export function computeTodayStats(trades: TradeListRow[]): TodaySessionStats {
   let net = 0
+  let gross = 0
+  let fees = 0
   let winners = 0
   let losers = 0
   let best: TradeExtreme | null = null
@@ -67,6 +76,8 @@ export function computeTodayStats(trades: TradeListRow[]): TodaySessionStats {
   const SCRATCH = 2
   for (const t of trades) {
     net += t.net_pnl
+    gross += t.gross_pnl
+    fees += t.total_fees
     if (t.net_pnl > SCRATCH) winners += 1
     else if (t.net_pnl < -SCRATCH) losers += 1
     if (best == null || t.net_pnl > best.pnl) best = { symbol: t.symbol, pnl: t.net_pnl }
@@ -75,6 +86,8 @@ export function computeTodayStats(trades: TradeListRow[]): TodaySessionStats {
   const decided = winners + losers
   return {
     netPnL: net,
+    grossPnL: gross,
+    totalFees: fees,
     trades: trades.length,
     winners,
     losers,

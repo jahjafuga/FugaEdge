@@ -1,11 +1,13 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
-import type {
-  CreatePlaybookInput,
-  Playbook,
-  PlaybookStats,
-  PlaybookWithStats,
-  UpdatePlaybookInput,
+import {
+  PLAYBOOK_TIERS,
+  type CreatePlaybookInput,
+  type Playbook,
+  type PlaybookStats,
+  type PlaybookTier,
+  type PlaybookWithStats,
+  type UpdatePlaybookInput,
 } from '@shared/playbook-types'
 
 interface PlaybookRowDb {
@@ -15,7 +17,17 @@ interface PlaybookRowDb {
   rules: string
   ideal_conditions: string
   archived: number
+  tier: string
   created_at: string
+}
+
+function normalizeTier(raw: string | null | undefined): PlaybookTier {
+  // The DB column is NOT NULL DEFAULT 'B' but tolerate odd values from
+  // hand-edited rows by clamping back to 'B' rather than throwing.
+  if (raw && (PLAYBOOK_TIERS as readonly string[]).includes(raw)) {
+    return raw as PlaybookTier
+  }
+  return 'B'
 }
 
 function rowToPlaybook(r: PlaybookRowDb): Playbook {
@@ -26,6 +38,7 @@ function rowToPlaybook(r: PlaybookRowDb): Playbook {
     rules: r.rules ?? '',
     ideal_conditions: r.ideal_conditions ?? '',
     archived: !!r.archived,
+    tier: normalizeTier(r.tier),
     created_at: r.created_at,
   }
 }
@@ -140,7 +153,7 @@ export function listPlaybooks(): PlaybookWithStats[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT id, name, description, rules, ideal_conditions, archived, created_at
+      SELECT id, name, description, rules, ideal_conditions, archived, tier, created_at
       FROM playbooks
       ORDER BY archived ASC, name ASC
     `)
@@ -155,7 +168,7 @@ export function getPlaybook(id: number): PlaybookWithStats | null {
   const db = openDatabase()
   const row = db
     .prepare(`
-      SELECT id, name, description, rules, ideal_conditions, archived, created_at
+      SELECT id, name, description, rules, ideal_conditions, archived, tier, created_at
       FROM playbooks WHERE id = ?
     `)
     .get(id) as PlaybookRowDb | undefined
@@ -168,17 +181,19 @@ export function createPlaybook(input: CreatePlaybookInput): PlaybookWithStats {
   const db = openDatabase()
   const name = (input.name ?? '').trim()
   if (!name) throw new Error('Playbook name is required')
+  const tier = normalizeTier(input.tier ?? 'B')
 
   const result = db
     .prepare(`
-      INSERT INTO playbooks (name, description, rules, ideal_conditions)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO playbooks (name, description, rules, ideal_conditions, tier)
+      VALUES (?, ?, ?, ?, ?)
     `)
     .run(
       name,
       (input.description ?? '').trim(),
       (input.rules ?? '').trim(),
       (input.ideal_conditions ?? '').trim(),
+      tier,
     )
   const id = Number(result.lastInsertRowid)
   const got = getPlaybook(id)
@@ -191,9 +206,9 @@ export function updatePlaybook(input: UpdatePlaybookInput): PlaybookWithStats {
   // Read the current row, merge incoming fields, write back. Cleaner than
   // building a dynamic SET clause per call.
   const current = db
-    .prepare('SELECT id, name, description, rules, ideal_conditions, archived FROM playbooks WHERE id = ?')
+    .prepare('SELECT id, name, description, rules, ideal_conditions, archived, tier FROM playbooks WHERE id = ?')
     .get(input.id) as
-      | { id: number; name: string; description: string; rules: string; ideal_conditions: string; archived: number }
+      | { id: number; name: string; description: string; rules: string; ideal_conditions: string; archived: number; tier: string }
       | undefined
   if (!current) throw new Error(`Playbook ${input.id} not found`)
 
@@ -204,13 +219,14 @@ export function updatePlaybook(input: UpdatePlaybookInput): PlaybookWithStats {
     ideal_conditions:
       input.ideal_conditions !== undefined ? input.ideal_conditions.trim() : current.ideal_conditions,
     archived: input.archived !== undefined ? (input.archived ? 1 : 0) : current.archived,
+    tier: input.tier !== undefined ? normalizeTier(input.tier) : normalizeTier(current.tier),
   }
 
   if (!next.name) throw new Error('Playbook name cannot be empty')
 
   db.prepare(`
     UPDATE playbooks
-    SET name = ?, description = ?, rules = ?, ideal_conditions = ?, archived = ?
+    SET name = ?, description = ?, rules = ?, ideal_conditions = ?, archived = ?, tier = ?
     WHERE id = ?
   `).run(
     next.name,
@@ -218,6 +234,7 @@ export function updatePlaybook(input: UpdatePlaybookInput): PlaybookWithStats {
     next.rules,
     next.ideal_conditions,
     next.archived,
+    next.tier,
     input.id,
   )
 

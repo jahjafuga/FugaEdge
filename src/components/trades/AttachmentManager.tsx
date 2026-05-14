@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ImagePlus, Trash2, Upload, X } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import type {
   AddAttachmentFile,
@@ -111,51 +112,32 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
   }, [])
 
   const openLightbox = items?.find((x) => x.id === lightboxId) ?? null
+  const hasItems = items != null && items.length > 0
 
+  // v0.1.5 inverted layout: thumbnails are the primary content; the upload
+  // path is a small top-right button. Drag-and-drop still works anywhere
+  // on the tab via the outer wrapper; the visible drop overlay only
+  // surfaces while a drag is over the tab.
   return (
-    <div className="space-y-3">
-      <div
-        role="button"
-        tabIndex={0}
-        aria-disabled={busy}
-        onClick={() => !busy && inputRef.current?.click()}
-        onKeyDown={(e) => {
-          if (busy) return
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            inputRef.current?.click()
-          }
-        }}
-        onDragOver={(e) => {
-          e.preventDefault()
-          if (!busy) setOver(true)
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setOver(false)
-          if (busy) return
-          if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)
-        }}
-        className={`flex flex-col items-center justify-center gap-1 rounded-md border border-dashed px-4 py-5 text-center text-xs transition-all duration-150 ease-smooth ${
-          busy
-            ? 'cursor-not-allowed border-white/[0.06] opacity-60'
-            : over
-              ? 'border-gold/60 bg-gold/[0.06] text-gold'
-              : 'border-white/[0.08] bg-white/[0.015] text-subtle hover:border-gold/40 hover:text-gold'
-        }`}
-      >
-        <span className="font-serif text-lg leading-none">↧</span>
-        <span>
-          {busy
-            ? 'Saving…'
-            : 'Drop chart screenshots here, or click to choose'}
-        </span>
-        <span className="font-mono text-[10px] text-muted">
-          PNG / JPG / GIF / WebP · 10 MB max
-        </span>
-      </div>
-
+    <div
+      className="relative space-y-3"
+      onDragOver={(e) => {
+        e.preventDefault()
+        if (!busy) setOver(true)
+      }}
+      onDragLeave={(e) => {
+        // Only clear when the drag leaves the wrapper itself, not when it
+        // crosses between child elements (which fire dragleave-then-
+        // dragenter rapidly).
+        if (e.currentTarget === e.target) setOver(false)
+      }}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        if (busy) return
+        if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)
+      }}
+    >
       <input
         ref={inputRef}
         type="file"
@@ -168,22 +150,39 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
         }}
       />
 
+      {hasItems && (
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Screenshots ({items.length})
+          </div>
+          <button
+            type="button"
+            onClick={() => !busy && inputRef.current?.click()}
+            disabled={busy}
+            className="inline-flex h-9 w-[140px] cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-xs font-semibold text-fg-primary transition-colors duration-150 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ImagePlus size={14} strokeWidth={2.25} />
+            {busy ? 'Uploading…' : 'Add Screenshot'}
+          </button>
+        </div>
+      )}
+
       {rejected.length > 0 && (
-        <div className="rounded-md border border-red/30 bg-red/[0.06] p-3 text-xs">
-          <div className="mb-1 uppercase tracking-wider text-red">
+        <div className="rounded-md border border-loss/30 bg-loss/[0.06] p-3 text-xs">
+          <div className="mb-1 uppercase tracking-wider text-loss">
             Some files skipped
           </div>
           <ul className="space-y-0.5">
             {rejected.map((r, i) => (
-              <li key={i} className="text-subtle">
-                <span className="font-mono text-text">{r.name}</span> — {r.reason}
+              <li key={i} className="text-fg-secondary">
+                <span className="text-fg-primary">{r.name}</span> — {r.reason}
               </li>
             ))}
           </ul>
           <button
             type="button"
             onClick={() => setRejected([])}
-            className="mt-2 text-[10px] uppercase tracking-wider text-muted hover:text-text"
+            className="mt-2 text-[10px] uppercase tracking-wider text-fg-tertiary hover:text-fg-primary"
           >
             dismiss
           </button>
@@ -191,37 +190,47 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
       )}
 
       {err && (
-        <div className="rounded-md border border-red/40 bg-red/[0.08] p-3 text-xs text-red">
+        <div className="rounded-md border border-loss/40 bg-loss/[0.08] p-3 text-xs text-loss">
           {err}
         </div>
       )}
 
       {items === null ? (
-        <div className="text-xs text-muted">Loading attachments…</div>
+        <div className="text-xs text-fg-tertiary">Loading attachments…</div>
       ) : items.length === 0 ? (
-        <div className="text-xs text-muted">No attachments yet.</div>
+        <EmptyState
+          busy={busy}
+          onClick={() => !busy && inputRef.current?.click()}
+        />
       ) : (
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {items.map((a) => (
-            <button
+            <ThumbnailTile
               key={a.id}
-              type="button"
-              onClick={() => setLightboxId(a.id)}
-              className="group relative aspect-[4/3] overflow-hidden rounded-md border border-white/[0.06] bg-bg/40 transition-all duration-150 hover:border-gold/40"
-              title={`${a.original_name} · ${humanSize(a.size_bytes)}`}
-            >
-              <img
-                src={srcFor(a.trade_id, a.filename)}
-                alt={a.original_name}
-                className="h-full w-full object-cover"
-                draggable={false}
-              />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-bg/85 to-transparent px-2 py-1 text-[10px] opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-                <span className="truncate font-mono text-text">{a.original_name}</span>
-                <span className="font-mono text-muted">{humanSize(a.size_bytes)}</span>
-              </div>
-            </button>
+              attachment={a}
+              onOpen={() => setLightboxId(a.id)}
+              onDelete={() => {
+                if (window.confirm(`Delete "${a.original_name}"?`)) {
+                  handleDelete(a.id)
+                }
+              }}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Drag overlay — surfaces ONLY while a drag is over the tab. */}
+      {over && !busy && (
+        <div
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-gold/60 bg-gold/[0.06] backdrop-blur-sm"
+        >
+          <div className="flex flex-col items-center gap-2 text-gold">
+            <Upload size={28} strokeWidth={1.75} />
+            <span className="text-sm font-semibold">Drop to upload</span>
+            <span className="text-[11px] text-gold/80">
+              PNG / JPG / GIF / WebP · 10 MB max
+            </span>
+          </div>
         </div>
       )}
 
@@ -232,6 +241,76 @@ export default function AttachmentManager({ tradeId }: AttachmentManagerProps) {
           onDelete={() => handleDelete(openLightbox.id)}
         />
       )}
+    </div>
+  )
+}
+
+function EmptyState({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border-subtle bg-bg-2 px-6 py-12 text-center">
+      <ImagePlus size={32} strokeWidth={1.5} className="text-fg-muted" />
+      <div className="text-sm text-fg-tertiary">No screenshots yet</div>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={busy}
+        className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-4 text-xs font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <ImagePlus size={14} strokeWidth={2.25} />
+        {busy ? 'Uploading…' : 'Add Screenshot'}
+      </button>
+      <div className="text-[10px] text-fg-muted">
+        Or drag and drop anywhere on this tab
+      </div>
+    </div>
+  )
+}
+
+function ThumbnailTile({
+  attachment: a,
+  onOpen,
+  onDelete,
+}: {
+  attachment: AttachmentRecord
+  onOpen: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="block w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-1 shadow-sm transition-all duration-150 ease-out-soft hover:-translate-y-0.5 hover:border-gold/40 hover:shadow-md"
+        title={`${a.original_name} · ${humanSize(a.size_bytes)}`}
+        style={{ height: 180 }}
+      >
+        <img
+          src={srcFor(a.trade_id, a.filename)}
+          alt={a.original_name}
+          className="h-full w-full object-cover"
+          draggable={false}
+        />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        aria-label="Delete screenshot"
+        title="Delete screenshot"
+        className="absolute right-2 top-2 inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border-strong bg-bg-1/95 text-fg-tertiary opacity-0 shadow-sm transition-all duration-150 hover:border-loss/60 hover:text-loss group-hover:opacity-100"
+      >
+        <Trash2 size={13} strokeWidth={2} />
+      </button>
+      <div className="mt-1.5 flex items-baseline justify-between gap-2 px-0.5">
+        <span className="truncate text-xs text-fg-secondary" title={a.original_name}>
+          {a.original_name}
+        </span>
+        <span className="text-[10px] text-fg-muted tnum">
+          {humanSize(a.size_bytes)}
+        </span>
+      </div>
     </div>
   )
 }
@@ -257,19 +336,19 @@ function Lightbox({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-bg/85 p-6 backdrop-blur"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-bg-1/85 p-6 backdrop-blur"
       onClick={onClose}
     >
       <div
         className="relative flex max-h-[92vh] max-w-[92vw] flex-col gap-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-4 rounded-md border border-white/[0.06] bg-bg/95 px-4 py-2">
+        <div className="flex items-center justify-between gap-4 rounded-md border border-border-subtle bg-bg-2/95 px-4 py-2 shadow-sm">
           <div className="min-w-0">
-            <div className="truncate font-mono text-sm text-text">
+            <div className="truncate text-sm text-fg-primary">
               {attachment.original_name}
             </div>
-            <div className="font-mono text-[10px] text-muted">
+            <div className="text-[10px] text-fg-tertiary tnum">
               {attachment.mime_type} · {humanSize(attachment.size_bytes)}
             </div>
           </div>
@@ -279,16 +358,18 @@ function Lightbox({
               onClick={() => {
                 if (window.confirm(`Delete "${attachment.original_name}"?`)) onDelete()
               }}
-              className="rounded border border-red/40 px-2 py-1 text-[10px] uppercase tracking-wider text-red transition-colors hover:bg-red/[0.10]"
+              className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-loss/40 px-2 text-[10px] font-semibold uppercase tracking-wider text-loss transition-colors hover:bg-loss/[0.10]"
             >
+              <Trash2 size={11} strokeWidth={2.25} />
               Delete
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-white/[0.08] px-2 py-1 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
+              aria-label="Close"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border-subtle text-fg-tertiary transition-colors hover:border-gold/40 hover:text-gold"
             >
-              Close
+              <X size={13} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -296,7 +377,7 @@ function Lightbox({
         <img
           src={srcFor(attachment.trade_id, attachment.filename)}
           alt={attachment.original_name}
-          className="max-h-[80vh] max-w-[92vw] rounded-md border border-white/[0.06] object-contain"
+          className="max-h-[80vh] max-w-[92vw] rounded-md border border-border-subtle object-contain"
           draggable={false}
         />
       </div>

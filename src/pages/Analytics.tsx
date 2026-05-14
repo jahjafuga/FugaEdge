@@ -14,6 +14,7 @@ import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 type TabKey =
   | 'overview'
@@ -35,6 +36,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export default function Analytics() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [reports, setReports] = useState<ReportsData | null>(null)
+  const [trades, setTrades] = useState<TradeListRow[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [tab, setTab] = useState<TabKey>('overview')
 
@@ -42,11 +44,20 @@ export default function Analytics() {
     let cancelled = false
     setData(null)
     setReports(null)
-    Promise.all([ipc.analyticsGet(), ipc.reportsGet().catch(() => null)])
-      .then(([analytics, reportsData]) => {
+    setTrades([])
+    // Trades list is needed by the v0.1.5 Tier Performance card. We fetch
+    // it alongside analytics + reports; a failure on tradesList shouldn't
+    // block the rest of the page so we swallow to [].
+    Promise.all([
+      ipc.analyticsGet(),
+      ipc.reportsGet().catch(() => null),
+      ipc.tradesList().catch(() => [] as TradeListRow[]),
+    ])
+      .then(([analytics, reportsData, tradesList]) => {
         if (cancelled) return
         setData(analytics)
         setReports(reportsData)
+        setTrades(tradesList)
       })
       .catch((e: Error) => {
         if (!cancelled) setErr(e.message)
@@ -143,7 +154,7 @@ export default function Analytics() {
         <div key={tab} className="animate-fade-in">
           {tab === 'overview' && <OverviewTab data={data} reports={reports} />}
           {tab === 'performance' && (
-            <PerformanceTab data={data} reports={reports} />
+            <PerformanceTab data={data} reports={reports} trades={trades} />
           )}
           {tab === 'execution' && (
             <ExecutionTab data={data} reports={reports} />

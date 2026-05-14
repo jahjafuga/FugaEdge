@@ -1,4 +1,5 @@
 import type { FullStats } from '@shared/reports-types'
+import { Info } from 'lucide-react'
 import { duration, int, money, pnlClass, signed } from '@/lib/format'
 
 interface FullStatsTableProps {
@@ -177,7 +178,7 @@ export default function FullStatsTable({ stats }: FullStatsTableProps) {
                 <dt className="text-sm text-fg-secondary" title={row.hint}>
                   {row.label}
                   {row.hint && (
-                    <span className="ml-1 cursor-help text-[10px] text-fg-tertiary">ⓘ</span>
+                    <Info size={14} strokeWidth={2} aria-hidden="true" className="ml-1 cursor-help text-fg-tertiary" />
                   )}
                 </dt>
                 <dd className="text-right">{row.value}</dd>

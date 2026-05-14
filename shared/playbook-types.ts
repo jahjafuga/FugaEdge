@@ -1,3 +1,10 @@
+/** Quality tier for a setup. Ordered A+ → A → B → C; B is the neutral
+ *  default for un-graded setups. Drives the Setup Library badge, the
+ *  trades-table inline badge, the A+ Setups quick filter, and the Tier
+ *  Performance analytics aggregator. */
+export const PLAYBOOK_TIERS = ['A+', 'A', 'B', 'C'] as const
+export type PlaybookTier = (typeof PLAYBOOK_TIERS)[number]
+
 export interface Playbook {
   id: number
   name: string
@@ -5,6 +12,7 @@ export interface Playbook {
   rules: string
   ideal_conditions: string
   archived: boolean
+  tier: PlaybookTier
   created_at: string
 }
 
@@ -33,6 +41,7 @@ export interface CreatePlaybookInput {
   description?: string
   rules?: string
   ideal_conditions?: string
+  tier?: PlaybookTier
 }
 
 export interface UpdatePlaybookInput {
@@ -42,6 +51,7 @@ export interface UpdatePlaybookInput {
   rules?: string
   ideal_conditions?: string
   archived?: boolean
+  tier?: PlaybookTier
 }
 
 export interface SetPlaybookOnTradeInput {

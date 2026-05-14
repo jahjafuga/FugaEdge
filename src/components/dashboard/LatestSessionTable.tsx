@@ -34,18 +34,28 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
         </div>
         <div className="flex flex-wrap items-baseline gap-5 text-xs text-fg-secondary">
           <span>
-            <span className="text-fg-tertiary">Net</span>{' '}
-            <span className={`font-mono font-semibold tnum ${pnlClass(session.net_pnl)}`}>
-              {signed(session.net_pnl)}
+            <span className="text-fg-tertiary">Trades</span>{' '}
+            <span className="font-mono text-fg-primary tnum">{int(session.trade_count)}</span>
+          </span>
+          <span>
+            <span className="text-fg-tertiary">Gross</span>{' '}
+            <span className={`font-mono tnum ${pnlClass(session.gross_pnl)}`}>
+              {signed(session.gross_pnl)}
             </span>
           </span>
           <span>
             <span className="text-fg-tertiary">Fees</span>{' '}
-            <span className="font-mono text-loss tnum">{money(session.total_fees)}</span>
+            <span
+              className={`font-mono tnum ${session.total_fees > 0 ? 'text-fg-primary' : 'text-fg-secondary'}`}
+            >
+              {money(session.total_fees)}
+            </span>
           </span>
           <span>
-            <span className="text-fg-tertiary">Trades</span>{' '}
-            <span className="font-mono text-fg-primary tnum">{int(session.trade_count)}</span>
+            <span className="text-fg-tertiary">Net</span>{' '}
+            <span className={`font-mono font-semibold tnum ${pnlClass(session.net_pnl)}`}>
+              {signed(session.net_pnl)}
+            </span>
           </span>
           <span>
             <span className="text-fg-tertiary">W/L</span>{' '}

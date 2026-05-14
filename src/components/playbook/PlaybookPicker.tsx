@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import type { PlaybookWithStats } from '@shared/playbook-types'
 
@@ -76,7 +77,11 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
         }`}
       >
         <span>{display}</span>
-        <span className="text-[11px]">{open ? '▴' : '▾'}</span>
+        {open ? (
+          <ChevronUp size={11} strokeWidth={2} />
+        ) : (
+          <ChevronDown size={11} strokeWidth={2} />
+        )}
       </button>
       {active && (
         <button
@@ -105,7 +110,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
             }`}
           >
             <span>No playbook</span>
-            {!active && <span className="text-[10px]">✓</span>}
+            {!active && <Check size={11} strokeWidth={2.5} />}
           </button>
           <div className="my-1 h-px bg-white/[0.04]" />
           {!playbooks && (
@@ -128,7 +133,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
                   }`}
                 >
                   <span>{p.name}</span>
-                  {isActive && <span className="text-[10px]">✓</span>}
+                  {isActive && <Check size={11} strokeWidth={2.5} />}
                 </button>
               )
             })}

@@ -281,14 +281,22 @@ function CompletedView({
 function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
   if (status.status === 'active' && status.stats != null) {
     const s = status.stats
-    const tone =
+    const netTone =
       s.netPnL > 0 ? 'text-win' : s.netPnL < 0 ? 'text-loss' : 'text-fg-primary'
+    const grossTone =
+      s.grossPnL > 0 ? 'text-win' : s.grossPnL < 0 ? 'text-loss' : 'text-fg-primary'
+    // v0.1.5: fees are always shown — even $0 — so the user knows it's a
+    // tracked line item. Zero reads as `text-fg-secondary` (de-emphasized);
+    // any actual fee burden reads as `text-fg-primary` so the user notices.
+    const feesTone = s.totalFees > 0 ? 'text-fg-primary' : 'text-fg-secondary'
     const wr = s.winRate == null ? '—' : `${Math.round(s.winRate * 100)}% win rate`
     return (
       <>
         <span className="text-fg-primary tnum">{s.trades}</span>{' '}
         {s.trades === 1 ? 'trade' : 'trades'} ·{' '}
-        <span className={`font-medium tnum ${tone}`}>Net {signed(s.netPnL)}</span>{' '}
+        <span className={`tnum ${grossTone}`}>Gross {signed(s.grossPnL)}</span>{' '}
+        · <span className={`tnum ${feesTone}`}>Fees {money(s.totalFees)}</span>{' '}
+        · <span className={`font-medium tnum ${netTone}`}>Net {signed(s.netPnL)}</span>{' '}
         · <span className="text-fg-secondary tnum">{wr}</span>
         {s.bestTrade && (
           <>

@@ -146,6 +146,7 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
     return {
       date: '',
       net_pnl: 0,
+      gross_pnl: 0,
       total_fees: 0,
       trade_count: 0,
       winners: 0,
@@ -155,25 +156,40 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
   }
   const summary = db
     .prepare(`
-      SELECT total_pnl AS net_pnl, total_fees, trade_count, winners, losers
+      SELECT total_pnl AS net_pnl, gross_pnl, total_fees, trade_count, winners, losers
       FROM daily_summary WHERE date = ?
     `)
     .get(date) as
-      | { net_pnl: number; total_fees: number; trade_count: number; winners: number; losers: number }
+      | { net_pnl: number; gross_pnl: number; total_fees: number; trade_count: number; winners: number; losers: number }
       | undefined
-  const trades = db
+  // v0.1.5: include playbook tier so the dashboard's latest-session table
+  // can show the tier badge inline with the playbook name. Cast to a
+  // strict shape and coerce the tier text to the union — anything outside
+  // the known set drops to null rather than poisoning the typed payload.
+  interface SessionTradeDb extends Omit<SessionTrade, 'playbook_tier'> {
+    playbook_tier: string | null
+  }
+  const VALID_TIERS = new Set(['A+', 'A', 'B', 'C'])
+  const rawTrades = db
     .prepare(`
       SELECT t.id, t.symbol, t.side, t.shares_bought, t.avg_buy_price,
              t.shares_sold, t.avg_sell_price, t.total_fees, t.net_pnl,
-             p.name AS playbook_name, t.confidence
+             p.name AS playbook_name, p.tier AS playbook_tier, t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
       WHERE t.date = ? ORDER BY t.net_pnl DESC
     `)
-    .all(date) as SessionTrade[]
+    .all(date) as SessionTradeDb[]
+  const trades: SessionTrade[] = rawTrades.map((r) => ({
+    ...r,
+    playbook_tier: r.playbook_tier && VALID_TIERS.has(r.playbook_tier)
+      ? (r.playbook_tier as SessionTrade['playbook_tier'])
+      : null,
+  }))
   return {
     date,
     net_pnl: summary?.net_pnl ?? 0,
+    gross_pnl: summary?.gross_pnl ?? 0,
     total_fees: summary?.total_fees ?? 0,
     trade_count: summary?.trade_count ?? trades.length,
     winners: summary?.winners ?? 0,

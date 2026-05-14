@@ -201,6 +201,29 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
         </div>
       </div>
       <div className="flex shrink-0 items-baseline gap-4">
+        {/* Gross / Fees / Net trio — v0.1.5. Net stays largest to keep the
+            modal's bottom-line affordance dominant; Gross and Fees sit
+            beside it as smaller secondary stats so the trader can see
+            the cost drag at a glance. Fees uses fg-secondary when 0 so
+            zero-fee trades de-emphasize visually. */}
+        <div className="text-right">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Gross
+          </div>
+          <div className={`font-mono text-sm font-semibold tnum ${pnlClass(trade.gross_pnl)}`}>
+            {signed(trade.gross_pnl)}
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Fees
+          </div>
+          <div
+            className={`font-mono text-sm font-semibold tnum ${trade.total_fees > 0 ? 'text-fg-primary' : 'text-fg-secondary'}`}
+          >
+            {money(trade.total_fees)}
+          </div>
+        </div>
         <div className="text-right">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             Net P&amp;L

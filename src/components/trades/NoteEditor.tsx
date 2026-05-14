@@ -58,7 +58,7 @@ export default function NoteEditor({ tradeId, note, onSave }: NoteEditorProps) {
         onChange={(e) => setText(e.target.value)}
         rows={5}
         placeholder="Plan, thesis, mistakes, lessons…"
-        className="w-full resize-y rounded border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted focus:border-gold focus:outline-none"
+        className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
       />
     </div>
   )

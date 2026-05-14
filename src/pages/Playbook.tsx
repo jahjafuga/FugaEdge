@@ -5,9 +5,14 @@ import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
+import TierBadge from '@/components/playbook/TierBadge'
 import { ipc } from '@/lib/ipc'
 import { int, pnlClass, signed } from '@/lib/format'
-import type { PlaybookWithStats } from '@shared/playbook-types'
+import {
+  PLAYBOOK_TIERS,
+  type PlaybookTier,
+  type PlaybookWithStats,
+} from '@shared/playbook-types'
 
 export default function Playbook() {
   const [list, setList] = useState<PlaybookWithStats[] | null>(null)
@@ -24,6 +29,7 @@ export default function Playbook() {
     rules: string
     ideal_conditions: string
     archived: boolean
+    tier: PlaybookTier
   } | null>(null)
 
   const refresh = useCallback(async () => {
@@ -60,6 +66,7 @@ export default function Playbook() {
         rules: selected.rules,
         ideal_conditions: selected.ideal_conditions,
         archived: selected.archived,
+        tier: selected.tier,
       })
       setSavedAt(null)
     } else {
@@ -92,6 +99,7 @@ export default function Playbook() {
         rules: editor.rules,
         ideal_conditions: editor.ideal_conditions,
         archived: editor.archived,
+        tier: editor.tier,
       })
       invalidatePlaybookCache()
       const fresh = await ipc.playbooksList()
@@ -183,12 +191,13 @@ export default function Playbook() {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
+                        <TierBadge tier={p.tier} />
                         {/* Active item: full primary text + medium weight. Inactive:
                             tertiary (#6b7280 in light) — readable but clearly
                             secondary. Gold indicator dot on the right marks
                             selection without dyeing the label. */}
                         <span
-                          className={`text-sm ${
+                          className={`truncate text-sm ${
                             isSel
                               ? 'font-medium text-fg-primary'
                               : 'font-normal text-fg-tertiary'
@@ -290,6 +299,38 @@ export default function Playbook() {
                     }
                     className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary outline-none focus:border-gold"
                   />
+                </Field>
+
+                <Field label="Tier">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {PLAYBOOK_TIERS.map((t) => {
+                      const active = editor.tier === t
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setEditor({ ...editor, tier: t })}
+                          aria-pressed={active}
+                          className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                            active
+                              ? t === 'A+'
+                                ? 'border-gold/60 bg-gold/[0.14] text-gold'
+                                : t === 'A'
+                                  ? 'border-win/50 bg-win/[0.12] text-win'
+                                  : t === 'C'
+                                    ? 'border-loss/40 bg-loss/[0.10] text-loss'
+                                    : 'border-border-strong bg-bg-3 text-fg-primary'
+                              : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-secondary'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      )
+                    })}
+                    <span className="text-[11px] text-fg-tertiary">
+                      A+ = best · A = strong · B = neutral · C = weak
+                    </span>
+                  </div>
                 </Field>
 
                 <Field label="Description">

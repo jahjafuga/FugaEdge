@@ -1,3 +1,5 @@
+import { Check, X } from 'lucide-react'
+
 export type RuleState = 'followed' | 'violated' | 'neutral'
 
 interface RuleChecklistProps {
@@ -37,14 +39,14 @@ export default function RuleChecklist({ rules, states, onChange }: RuleChecklist
             <div className="flex items-center gap-1">
               <StateButton
                 label="followed"
-                glyph="✓"
+                icon={<Check size={13} strokeWidth={2.5} />}
                 tone="green"
                 active={state === 'followed'}
                 onClick={() => onChange(rule, state === 'followed' ? 'neutral' : 'followed')}
               />
               <StateButton
                 label="violated"
-                glyph="✗"
+                icon={<X size={13} strokeWidth={2.5} />}
                 tone="red"
                 active={state === 'violated'}
                 onClick={() => onChange(rule, state === 'violated' ? 'neutral' : 'violated')}
@@ -59,13 +61,13 @@ export default function RuleChecklist({ rules, states, onChange }: RuleChecklist
 
 function StateButton({
   label,
-  glyph,
+  icon,
   tone,
   active,
   onClick,
 }: {
   label: string
-  glyph: string
+  icon: React.ReactNode
   tone: 'green' | 'red'
   active: boolean
   onClick: () => void
@@ -84,11 +86,11 @@ function StateButton({
       title={label}
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded-sm border font-mono text-xs transition-all duration-150 ease-smooth ${
+      className={`flex h-7 w-7 items-center justify-center rounded-sm border text-xs transition-all duration-150 ease-smooth ${
         active ? activeClasses : idleClasses
       }`}
     >
-      {glyph}
+      {icon}
     </button>
   )
 }

@@ -10,7 +10,7 @@ function mkTrade(over: Partial<TradeListRow>): TradeListRow {
     shares_bought: 100, avg_buy_price: 10, shares_sold: 100, avg_sell_price: 11,
     gross_pnl: 100, total_fees: 0, net_pnl: 100,
     executions: [], note: null, entry_timeframe: null, entry_ema9_distance_pct: null,
-    playbook_id: null, playbook_name: null, confidence: null, mistakes: [],
+    playbook_id: null, playbook_name: null, playbook_tier: null, confidence: null, mistakes: [],
     planned_risk: null, planned_stop_loss_price: null,
     risk_per_share: null, total_risk: null, r_multiple: null,
     float_shares: null, catalyst_type: null, days_since_catalyst: null,

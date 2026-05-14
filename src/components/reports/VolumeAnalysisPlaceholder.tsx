@@ -1,4 +1,5 @@
 import type { VolumeAnalysis } from '@shared/reports-types'
+import { Info } from 'lucide-react'
 import { int } from '@/lib/format'
 import ReportBucketTable from './ReportBucketTable'
 
@@ -86,7 +87,7 @@ function UnavailableState({ data }: { data: VolumeAnalysis }) {
     <div className="space-y-4 px-5 py-5">
       <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4">
         <div className="flex items-center gap-2">
-          <span className="font-serif text-lg text-gold">ⓘ</span>
+          <Info size={14} strokeWidth={2} aria-hidden="true" className="text-lg text-gold" />
           <span className="text-[10px] uppercase tracking-wider text-gold">
             Market data unavailable
           </span>

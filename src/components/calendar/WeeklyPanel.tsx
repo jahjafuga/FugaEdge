@@ -1,3 +1,4 @@
+import { Pencil, X as XIcon } from 'lucide-react'
 import type { WeeklySummary } from '@shared/calendar-types'
 import { int, money, signed } from '@/lib/format'
 
@@ -31,8 +32,9 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
         </div>
         <div className="text-[10px] text-fg-tertiary">No trades</div>
         {hasJournal && (
-          <div className="text-[9px] uppercase tracking-wider text-gold">
-            ✎ {summary.days_journaled} journaled
+          <div className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider text-gold">
+            <Pencil size={9} strokeWidth={2} />
+            {summary.days_journaled} journaled
           </div>
         )}
       </button>
@@ -100,17 +102,19 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
       )}
 
       {hasJournal && (
-        <div className="text-[9px] uppercase tracking-wider text-gold/80">
-          ✎ {int(summary.days_journaled)}/{int(summary.days_traded)} journaled
+        <div className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider text-gold/80">
+          <Pencil size={9} strokeWidth={2} />
+          {int(summary.days_journaled)}/{int(summary.days_traded)} journaled
         </div>
       )}
 
       {summary.top_mistake && (
         <div
-          className="truncate text-[9px] uppercase tracking-wider text-loss"
+          className="inline-flex items-center gap-1 truncate text-[9px] uppercase tracking-wider text-loss"
           title={`Top mistake: ${summary.top_mistake.name} (${summary.top_mistake.count}×)`}
         >
-          ✕ {summary.top_mistake.name}
+          <XIcon size={9} strokeWidth={2.5} />
+          <span className="truncate">{summary.top_mistake.name}</span>
         </div>
       )}
 
