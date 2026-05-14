@@ -5,6 +5,7 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -44,6 +45,8 @@ interface TradesTableProps {
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
   showCountryColumn?: boolean
+  /** Show the per-row sparkline mini-chart column. Off by default. */
+  showSparkline?: boolean
 }
 
 // MASTER §5.3 + §7.2 — data-dense, virtualized table. Row click opens the
@@ -88,6 +91,7 @@ export default function TradesTable({
   onSaveCountry,
   showFloatColumn = false,
   showCountryColumn = true,
+  showSparkline = false,
 }: TradesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'open_time', desc: true },
@@ -139,7 +143,18 @@ export default function TradesTable({
         </div>
       ),
     })
-    const base = [
+    const sparkColumn = col.display({
+      id: 'spark',
+      header: '',
+      size: COLUMN_WIDTHS.spark,
+      cell: ({ row }) => (
+        <Sparkline
+          executions={row.original.executions}
+          netPnl={row.original.net_pnl}
+        />
+      ),
+    })
+    const base: ColumnDef<TradeListRow, any>[] = [
       col.accessor('open_time', {
         id: 'open_time',
         header: 'Date',
@@ -291,17 +306,6 @@ export default function TradesTable({
           )
         },
       }),
-      col.display({
-        id: 'spark',
-        header: '',
-        size: COLUMN_WIDTHS.spark,
-        cell: ({ row }) => (
-          <Sparkline
-            executions={row.original.executions}
-            netPnl={row.original.net_pnl}
-          />
-        ),
-      }),
     ]
     // Insert the Float column just before the Net P&L column so it sits
     // alongside the trade-quality fields rather than at the row's edge.
@@ -315,8 +319,9 @@ export default function TradesTable({
       const insertAt = playbookIdx >= 0 ? playbookIdx + 1 : 5
       base.splice(insertAt, 0, countryColumn)
     }
+    if (showSparkline) base.push(sparkColumn)
     return base
-  }, [showFloatColumn, showCountryColumn])
+  }, [showFloatColumn, showCountryColumn, showSparkline])
 
   const table = useReactTable({
     data: trades,
