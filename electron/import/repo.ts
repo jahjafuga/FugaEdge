@@ -95,6 +95,35 @@ export function backfillFloatShares(symbols?: string[]): number {
   return info.changes
 }
 
+// Populate trades.country/_name/region from market_data.* wherever the
+// trade row's country_source is NULL (so manual overrides and previously-
+// resolved Polygon hits both stay put). Idempotent.
+export function backfillTradeCountriesFromMarket(symbols?: string[]): number {
+  const db = openDatabase()
+  if (symbols && symbols.length === 0) return 0
+  const where = symbols
+    ? `WHERE t.country_source IS NULL AND t.symbol IN (${symbols.map(() => '?').join(',')})`
+    : 'WHERE t.country_source IS NULL'
+  const sql = `
+    UPDATE trades
+    SET
+      country        = (SELECT m.country        FROM market_data m WHERE m.symbol = trades.symbol),
+      country_name   = (SELECT m.country_name   FROM market_data m WHERE m.symbol = trades.symbol),
+      region         = (SELECT m.region         FROM market_data m WHERE m.symbol = trades.symbol),
+      country_source = (
+        SELECT CASE WHEN m.country IS NOT NULL THEN 'polygon' ELSE 'unknown' END
+        FROM market_data m WHERE m.symbol = trades.symbol
+      )
+    WHERE id IN (
+      SELECT t.id FROM trades t
+      JOIN market_data m ON m.symbol = t.symbol
+      ${where}
+    )
+  `
+  const info = symbols ? db.prepare(sql).run(...symbols) : db.prepare(sql).run()
+  return info.changes
+}
+
 export function commit(
   trips: RoundTrip[],
   fees: DaySummaryFeeRow[],
@@ -225,6 +254,7 @@ export function commit(
     for (const p of pairs) symbolsInserted.add(p.split('|')[1])
     if (symbolsInserted.size > 0) {
       backfillFloatShares(Array.from(symbolsInserted))
+      backfillTradeCountriesFromMarket(Array.from(symbolsInserted))
     }
   })
 

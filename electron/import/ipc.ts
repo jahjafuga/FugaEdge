@@ -15,7 +15,7 @@ import { parseExecutionsCsv } from './parse-executions'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { computeRoundTrips } from './compute-trips'
 import { parseFilenameDate } from './parse-filename'
-import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, commit } from './repo'
+import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, backfillTradeCountriesFromMarket, commit } from './repo'
 import { refreshMarketData } from '../market/fetch'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
@@ -227,6 +227,13 @@ export function registerImportIpc(): void {
               const filled = backfillFloatShares()
               if (filled > 0) {
                 console.info(`[FE import] backfilled float_shares for ${filled} trades`)
+              }
+              // Country was resolved per-ticker during refreshMarketData and
+              // cached on market_data; copy it onto the new trades the same
+              // way float is copied. Pure SQL — no extra Polygon calls.
+              const countryFilled = backfillTradeCountriesFromMarket()
+              if (countryFilled > 0) {
+                console.info(`[FE import] backfilled country for ${countryFilled} trades`)
               }
             } catch (e) {
               console.info(
