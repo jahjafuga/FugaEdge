@@ -7,6 +7,7 @@ import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -32,6 +33,7 @@ interface DayTradesPanelProps {
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
+  onSaveCountry: (input: UpdateCountryInput) => Promise<void>
 }
 
 export default function DayTradesPanel({
@@ -49,6 +51,7 @@ export default function DayTradesPanel({
   onSavePlannedStopLoss,
   onSaveFloat,
   onSaveCatalyst,
+  onSaveCountry,
 }: DayTradesPanelProps) {
   // Escape closes the panel — matches the WeeklyReviewModal + lightbox
   // pattern so the calendar's two dismissal paths feel consistent.
@@ -110,6 +113,7 @@ export default function DayTradesPanel({
               onSavePlannedStopLoss={onSavePlannedStopLoss}
               onSaveFloat={onSaveFloat}
               onSaveCatalyst={onSaveCatalyst}
+              onSaveCountry={onSaveCountry}
             />
           </>
         )}

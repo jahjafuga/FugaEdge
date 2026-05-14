@@ -20,6 +20,7 @@ import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -30,6 +31,7 @@ import type {
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
 const FLOAT_COL_STORAGE_KEY = 'trades.showFloatColumn'
+const COUNTRY_COL_STORAGE_KEY = 'trades.showCountryColumn'
 
 export default function Trades() {
   const [trades, setTrades] = useState<TradeListRow[] | null>(null)
@@ -40,6 +42,12 @@ export default function Trades() {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(FLOAT_COL_STORAGE_KEY) === '1'
   })
+  // Country column defaults to visible. Setter reserved for future toggle UI.
+  const [showCountryColumn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true
+    const v = window.localStorage.getItem(COUNTRY_COL_STORAGE_KEY)
+    return v === null ? true : v === '1'
+  })
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -48,6 +56,14 @@ export default function Trades() {
       showFloatColumn ? '1' : '0',
     )
   }, [showFloatColumn])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      COUNTRY_COL_STORAGE_KEY,
+      showCountryColumn ? '1' : '0',
+    )
+  }, [showCountryColumn])
 
   useEffect(() => {
     let cancelled = false
@@ -133,6 +149,14 @@ export default function Trades() {
 
   const handleSaveCatalyst = useCallback(async (input: UpdateCatalystInput) => {
     const updated = await ipc.tradeCatalystSave(input)
+    if (!updated) return
+    setTrades((prev) =>
+      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+    )
+  }, [])
+
+  const handleSaveCountry = useCallback(async (input: UpdateCountryInput) => {
+    const updated = await ipc.tradeCountrySave(input)
     if (!updated) return
     setTrades((prev) =>
       prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
@@ -257,7 +281,9 @@ export default function Trades() {
             onSavePlannedStopLoss={handleSavePlannedStopLoss}
             onSaveFloat={handleSaveFloat}
             onSaveCatalyst={handleSaveCatalyst}
+            onSaveCountry={handleSaveCountry}
             showFloatColumn={showFloatColumn}
+            showCountryColumn={showCountryColumn}
           />
         ) : view === 'charts-large' ? (
           <div className="space-y-3">

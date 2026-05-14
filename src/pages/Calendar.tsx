@@ -13,11 +13,12 @@ import { ipc } from '@/lib/ipc'
 import type { CalendarMonth } from '@shared/calendar-types'
 import type {
   TradeListRow,
+  UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
+  UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
-  UpdateCatalystInput,
-  UpdateFloatInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
   UpdateTimeframeInput,
@@ -190,6 +191,14 @@ export default function Calendar() {
 
   const handleSaveCatalyst = useCallback(async (input: UpdateCatalystInput) => {
     const updated = await ipc.tradeCatalystSave(input)
+    if (!updated) return
+    setDayTrades((prev) =>
+      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+    )
+  }, [])
+
+  const handleSaveCountry = useCallback(async (input: UpdateCountryInput) => {
+    const updated = await ipc.tradeCountrySave(input)
     if (!updated) return
     setDayTrades((prev) =>
       prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
@@ -439,6 +448,7 @@ export default function Calendar() {
             onSavePlannedStopLoss={handleSavePlannedStopLoss}
             onSaveFloat={handleSaveFloat}
             onSaveCatalyst={handleSaveCatalyst}
+            onSaveCountry={handleSaveCountry}
           />
         )}
       </div>

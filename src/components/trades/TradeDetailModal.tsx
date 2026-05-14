@@ -6,6 +6,7 @@ import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -20,6 +21,7 @@ import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
 import PlannedRiskEditor from './PlannedRiskEditor'
 import FloatEditor from './FloatEditor'
+import CountryEditor from './CountryEditor'
 import CatalystEditor from './CatalystEditor'
 import NoteEditor from './NoteEditor'
 import AttachmentManager from './AttachmentManager'
@@ -41,6 +43,7 @@ interface TradeDetailModalProps {
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
+  onSaveCountry: (input: UpdateCountryInput) => Promise<void>
 }
 
 type TabKey = 'overview' | 'notes' | 'attachments' | 'mistakes' | 'chart'
@@ -68,6 +71,7 @@ export default function TradeDetailModal({
   onSavePlannedStopLoss,
   onSaveFloat,
   onSaveCatalyst,
+  onSaveCountry,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
 
@@ -140,6 +144,7 @@ export default function TradeDetailModal({
               onSavePlannedStopLoss={onSavePlannedStopLoss}
               onSaveFloat={onSaveFloat}
               onSaveCatalyst={onSaveCatalyst}
+              onSaveCountry={onSaveCountry}
             />
           )}
           {tab === 'notes' && (
@@ -241,6 +246,7 @@ interface OverviewTabProps {
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
+  onSaveCountry: (input: UpdateCountryInput) => Promise<void>
 }
 
 function OverviewTab({
@@ -251,6 +257,7 @@ function OverviewTab({
   onSavePlannedStopLoss,
   onSaveFloat,
   onSaveCatalyst,
+  onSaveCountry,
 }: OverviewTabProps) {
   const t = trade
   return (
@@ -299,6 +306,17 @@ function OverviewTab({
             value={t.float_shares}
             onChange={(next) =>
               onSaveFloat({ trade_id: t.id, float_shares: next })
+            }
+          />
+        </FieldRow>
+        <FieldRow label="Country">
+          <CountryEditor
+            country={t.country}
+            countryName={t.country_name}
+            region={t.region}
+            source={t.country_source}
+            onChange={(next) =>
+              onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
             }
           />
         </FieldRow>
