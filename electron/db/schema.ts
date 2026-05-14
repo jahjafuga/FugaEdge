@@ -136,6 +136,9 @@ CREATE TABLE IF NOT EXISTS market_data (
   sector         TEXT,
   avg_volume     REAL,
   daily_volumes  TEXT    NOT NULL DEFAULT '{}',
+  country        TEXT,
+  country_name   TEXT,
+  region         TEXT,
   fetched_at     TEXT    NOT NULL DEFAULT (datetime('now')),
   error          TEXT
 );

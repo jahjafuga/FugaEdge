@@ -7,6 +7,9 @@ export interface MarketRow {
   sector: string | null
   avg_volume: number | null
   daily_volumes: Record<string, number>
+  country: string | null
+  country_name: string | null
+  region: string | null
   fetched_at: string  // ISO from DB
   error: string | null
 }
@@ -18,6 +21,9 @@ interface MarketRowDb {
   sector: string | null
   avg_volume: number | null
   daily_volumes: string
+  country: string | null
+  country_name: string | null
+  region: string | null
   fetched_at: string
   error: string | null
 }
@@ -47,6 +53,9 @@ function rowToMarket(r: MarketRowDb): MarketRow {
     sector: r.sector,
     avg_volume: r.avg_volume,
     daily_volumes: parseDailyVolumes(r.daily_volumes),
+    country: r.country,
+    country_name: r.country_name,
+    region: r.region,
     fetched_at: r.fetched_at,
     error: r.error,
   }
@@ -57,7 +66,8 @@ export function getMarketRow(symbol: string): MarketRow | null {
   const row = db
     .prepare(`
       SELECT symbol, float, market_cap, sector, avg_volume,
-             daily_volumes, fetched_at, error
+             daily_volumes, country, country_name, region,
+             fetched_at, error
       FROM market_data WHERE symbol = ?
     `)
     .get(symbol) as MarketRowDb | undefined
@@ -69,7 +79,8 @@ export function getAllMarketRows(): MarketRow[] {
   const rows = db
     .prepare(`
       SELECT symbol, float, market_cap, sector, avg_volume,
-             daily_volumes, fetched_at, error
+             daily_volumes, country, country_name, region,
+             fetched_at, error
       FROM market_data
     `)
     .all() as MarketRowDb[]
@@ -80,14 +91,19 @@ export function upsertMarketRow(input: MarketRow): void {
   const db = openDatabase()
   db.prepare(`
     INSERT INTO market_data
-      (symbol, float, market_cap, sector, avg_volume, daily_volumes, fetched_at, error)
-    VALUES (@symbol, @float, @market_cap, @sector, @avg_volume, @daily_volumes, @fetched_at, @error)
+      (symbol, float, market_cap, sector, avg_volume, daily_volumes,
+       country, country_name, region, fetched_at, error)
+    VALUES (@symbol, @float, @market_cap, @sector, @avg_volume, @daily_volumes,
+            @country, @country_name, @region, @fetched_at, @error)
     ON CONFLICT(symbol) DO UPDATE SET
       float          = excluded.float,
       market_cap     = excluded.market_cap,
       sector         = excluded.sector,
       avg_volume     = excluded.avg_volume,
       daily_volumes  = excluded.daily_volumes,
+      country        = COALESCE(excluded.country, market_data.country),
+      country_name   = COALESCE(excluded.country_name, market_data.country_name),
+      region         = COALESCE(excluded.region, market_data.region),
       fetched_at     = excluded.fetched_at,
       error          = excluded.error
   `).run({
@@ -97,6 +113,9 @@ export function upsertMarketRow(input: MarketRow): void {
     sector: input.sector,
     avg_volume: input.avg_volume,
     daily_volumes: JSON.stringify(input.daily_volumes ?? {}),
+    country: input.country,
+    country_name: input.country_name,
+    region: input.region,
     fetched_at: input.fetched_at,
     error: input.error,
   })

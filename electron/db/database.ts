@@ -210,6 +210,14 @@ function migrateAfterSchema(conn: Database.Database): void {
   // Index on region for fast breakdown queries (group-by region).
   conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_region ON trades(region)')
 
+  const marketCols = conn.prepare('PRAGMA table_info(market_data)').all() as {
+    name: string
+  }[]
+  const hasMarket = (n: string) => marketCols.some((c) => c.name === n)
+  if (!hasMarket('country'))      conn.exec('ALTER TABLE market_data ADD COLUMN country TEXT')
+  if (!hasMarket('country_name')) conn.exec('ALTER TABLE market_data ADD COLUMN country_name TEXT')
+  if (!hasMarket('region'))       conn.exec('ALTER TABLE market_data ADD COLUMN region TEXT')
+
   const journalCols = conn.prepare('PRAGMA table_info(journal)').all() as {
     name: string
   }[]

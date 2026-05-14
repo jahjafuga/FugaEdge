@@ -1,9 +1,11 @@
 import { getSettings } from '../settings/repo'
 import {
+  extractTickerDetails,
   fetchDailyAggregates,
-  fetchTickerDetails,
+  fetchTickerReference,
   MassiveError,
 } from './massive'
+import { resolveCountryFromPolygon } from '../../src/core/country/resolve'
 import {
   symbolsNeedingFetch,
   tradeDateRangePerSymbol,
@@ -104,7 +106,9 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
 
     try {
       await respectSpacing()
-      const details = await fetchTickerDetails(polygon_api_key, symbol)
+      const ref = await fetchTickerReference(polygon_api_key, symbol)
+      const details = extractTickerDetails(symbol, ref)
+      const country = resolveCountryFromPolygon(ref)
 
       await respectSpacing()
       let aggs
@@ -130,6 +134,9 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         sector: details.sector,
         avg_volume: avg,
         daily_volumes: dailyVolumes,
+        country: country.country,
+        country_name: country.country_name,
+        region: country.region,
         fetched_at: new Date().toISOString(),
         error: null,
       }
@@ -151,6 +158,9 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         sector: null,
         avg_volume: null,
         daily_volumes: {},
+        country: null,
+        country_name: null,
+        region: null,
         fetched_at: new Date().toISOString(),
         error: message,
       })
