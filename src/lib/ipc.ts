@@ -3,6 +3,7 @@ import type { SaveDayTagsInput, SaveWeekNotesInput } from '@shared/calendar-type
 import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
+  UpdateCountryInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -45,6 +46,12 @@ export const ipc = {
     window.api.tradeFloatSave(input),
   tradeCatalystSave: (input: UpdateCatalystInput) =>
     window.api.tradeCatalystSave(input),
+  tradeCountrySave: (input: UpdateCountryInput) => window.api.tradeCountrySave(input),
+  countryResolve: (symbol: string) => window.api.countryResolve(symbol),
+  countryBackfill: (force?: boolean) => window.api.countryBackfill(force),
+  countryOnBackfillProgress: (
+    cb: (p: { current: number; total: number; symbol: string }) => void,
+  ) => window.api.countryOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),
