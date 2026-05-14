@@ -56,6 +56,19 @@ export interface TradeListRow {
   /** Integer days since the catalyst event. 0 = same-day, 1 = day-2
    *  continuation, etc. Null when not applicable. */
   days_since_catalyst: number | null
+  /** ISO 3166-1 alpha-2 of the company's country of OPERATIONS. Auto-
+   *  detected from Polygon's ticker reference; nullable when no data or
+   *  the user explicitly cleared it. */
+  country: string | null
+  /** Human-readable name — 'Unknown' when country is null. Cached at
+   *  write time so list/breakdown queries don't have to join a lookup. */
+  country_name: string
+  /** Bucket key (USA, China, Europe, ...). 'Unknown' when country is
+   *  null. One country → exactly one region; see src/core/country. */
+  region: string
+  /** Where the value came from. 'manual' overrides are never overwritten
+   *  by automatic backfill. 'unknown' means "we tried and couldn't resolve". */
+  country_source: 'polygon' | 'manual' | 'unknown'
   /** Number of screenshot attachments — drives the badge on the expand-row
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */
@@ -97,6 +110,16 @@ export interface UpdateCatalystInput {
   trade_id: number
   catalyst_type: string | null
   days_since_catalyst: number | null
+}
+
+export interface UpdateCountryInput {
+  trade_id: number
+  /** ISO alpha-2 (any case) or null to clear. */
+  country: string | null
+  /** Defaults to 'manual' when omitted. The IPC handler only ever stores
+   *  'manual' from this entry point — 'polygon'/'unknown' come from the
+   *  backfill flow. */
+  source?: 'polygon' | 'manual' | 'unknown'
 }
 
 /** Canonical catalyst options for the trade detail modal's dropdown.
