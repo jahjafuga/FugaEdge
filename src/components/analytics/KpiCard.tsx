@@ -24,7 +24,7 @@ export default function KpiCard({ label, value, detail, tone = 'neutral' }: KpiC
         {value}
       </div>
       {detail && (
-        <div className="mt-1 font-mono text-[11px] text-fg-tertiary">{detail}</div>
+        <div className="mt-1 text-[11px] text-fg-tertiary tnum">{detail}</div>
       )}
     </div>
   )

@@ -49,7 +49,7 @@ export default function CalendarHeader({
           <div className="flex items-baseline gap-3">
             <h2 className="text-xl font-semibold tracking-tight text-fg-primary">
               {MONTH_NAMES[stats.month - 1]}{' '}
-              <span className="font-mono text-fg-secondary">{stats.year}</span>
+              <span className="text-fg-secondary tnum">{stats.year}</span>
             </h2>
             {!isCurrentMonth && (
               <button
@@ -108,7 +108,7 @@ function Stat({
   return (
     <span>
       <span className="text-fg-tertiary">{label}</span>{' '}
-      <span className={`font-mono ${bold ? 'font-medium' : ''} ${className ?? ''}`}>
+      <span className={`tnum ${bold ? 'font-medium' : ''} ${className ?? ''}`}>
         {value}
       </span>
     </span>

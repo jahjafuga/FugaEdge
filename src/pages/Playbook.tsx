@@ -288,7 +288,7 @@ export default function Playbook() {
                     onChange={(e) =>
                       setEditor({ ...editor, name: e.target.value })
                     }
-                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary outline-none focus:border-gold"
+                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary outline-none focus:border-gold"
                   />
                 </Field>
 
