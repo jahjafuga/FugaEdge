@@ -98,7 +98,7 @@ export default function CalendarGrid({
     <div className="overflow-hidden rounded-md border border-border-subtle bg-bg-2">
       {/* Header row: weekday labels + (optional) "Week" label */}
       <div className="flex border-b border-border-subtle/60">
-        <div className="grid flex-1 grid-cols-7 text-[10px] uppercase tracking-wider text-fg-tertiary">
+        <div className="grid flex-1 grid-cols-7 font-sans text-[10px] uppercase tracking-wider text-fg-tertiary">
           {WEEKDAYS.map((w) => (
             <div key={w} className="px-2 py-2 text-center">
               {w}

@@ -45,7 +45,7 @@ export default function SentimentSelector({ value, onChange }: SentimentSelector
                 </span>
               )}
             </div>
-            <div className="text-[11px] leading-snug">
+            <div className="font-sans text-[11px] leading-snug">
               {SENTIMENT_LABELS[level]}
             </div>
           </button>
