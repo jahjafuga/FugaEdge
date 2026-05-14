@@ -101,6 +101,10 @@ export function upsertMarketRow(input: MarketRow): void {
       sector         = excluded.sector,
       avg_volume     = excluded.avg_volume,
       daily_volumes  = excluded.daily_volumes,
+      -- Country fields use COALESCE so an error-path upsert (where country
+      -- is null) does not wipe a previously-resolved country. Other fields
+      -- overwrite because nulls there just mean "API gave nothing new",
+      -- not "keep the old value".
       country        = COALESCE(excluded.country, market_data.country),
       country_name   = COALESCE(excluded.country_name, market_data.country_name),
       region         = COALESCE(excluded.region, market_data.region),

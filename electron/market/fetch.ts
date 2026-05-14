@@ -5,7 +5,7 @@ import {
   fetchTickerReference,
   MassiveError,
 } from './massive'
-import { resolveCountryFromPolygon } from '../../src/core/country/resolve'
+import { resolveCountryFromPolygon } from '@/core/country/resolve'
 import {
   symbolsNeedingFetch,
   tradeDateRangePerSymbol,
