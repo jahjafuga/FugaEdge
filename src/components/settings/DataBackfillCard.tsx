@@ -35,6 +35,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
         const iso = new Date().toISOString()
         await ipc.settingsSave({ last_country_backfill: iso })
         onLastRunChange(iso)
+        setForce(false)
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
