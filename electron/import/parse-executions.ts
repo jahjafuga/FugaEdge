@@ -76,7 +76,18 @@ export interface ParseExecutionsResult {
   trace: { row: number; outcome: 'kept' | 'skipped'; reason?: string; symbol?: string }[]
 }
 
-export function parseExecutionsCsv(csvText: string): ParseExecutionsResult {
+// `sourceFile` is the originating filename. When set, every emitted Execution
+// carries it as provenance (surfaces in error messages and future import-
+// history UI). Optional so v0.1.6 callers that don't pass a filename still
+// compile — those Executions just leave `source_file` undefined. Per decision
+// D, account_name is intentionally NOT populated here even though DAS Trades
+// .csv has an Account column; doing so would change exec_hash inputs and
+// break duplicate detection for existing v0.1.6 users on re-import. The
+// legacy `account` field still carries the value for informational use.
+export function parseExecutionsCsv(
+  csvText: string,
+  sourceFile?: string,
+): ParseExecutionsResult {
   const cleaned = csvText.replace(/^[﻿￾​]+/, '')
 
   const parsed = Papa.parse<Record<string, string>>(cleaned, {
@@ -156,6 +167,9 @@ export function parseExecutionsCsv(csvText: string): ParseExecutionsResult {
       price,
       time: t.iso,
       date: t.date,
+      source_broker: 'DAS',
+      source_format: 'execution',
+      source_file: sourceFile,
     })
     trace.push({ row: rowNum, outcome: 'kept', symbol })
   }

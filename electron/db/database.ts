@@ -5,6 +5,12 @@ import { join } from 'node:path'
 import { SCHEMA_SQL } from './schema'
 import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 
+// v0.2.0 introduces the universal-import schema (schema_version 18).
+// maybeBackupForV020() copies the on-disk DB before any structural change
+// runs, latched in settings so it executes at most once per machine.
+const V020_TARGET_SCHEMA_VERSION = 18
+const V020_BACKUP_LATCH_KEY = 'v020_backup_done'
+
 let db: Database.Database | null = null
 
 export function getDbPath(): string {
@@ -61,6 +67,7 @@ export function openDatabase(): Database.Database {
   db.pragma('cache_size = -32000')
   db.pragma('mmap_size = 268435456')
   db.pragma('temp_store = MEMORY')
+  maybeBackupForV020(db, path)
   migrateBeforeSchema(db)
   db.exec(SCHEMA_SQL)
   migrateAfterSchema(db)
@@ -80,6 +87,89 @@ export function listTables(): string[] {
     .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
     .all() as { name: string }[]
   return rows.map((r) => r.name)
+}
+
+// One-shot DB file copy taken right before the v0.2.0 universal-import
+// migration runs. Skips on fresh installs (no _meta row), on already-migrated
+// DBs (schema_version >= 18), and on machines where the latch has already
+// been set. WAL is force-checkpointed before the copy so the main DB file
+// is self-contained and the backup needs no sidecars.
+//
+// Failure to back up is loud (console.error) but non-fatal — the migration
+// still proceeds. SQLite's ALTER TABLE ADD COLUMN is itself non-destructive
+// (rows are not rewritten), so a missing backup doesn't put existing data
+// at risk; it just removes the manual-rollback option.
+function maybeBackupForV020(conn: Database.Database, dbPath: string): void {
+  // 1) Detect current schema version. _meta missing == fresh install.
+  let currentVersion = 0
+  try {
+    const row = conn
+      .prepare("SELECT value FROM _meta WHERE key='schema_version'")
+      .get() as { value: string } | undefined
+    if (row) currentVersion = Number.parseInt(row.value, 10) || 0
+  } catch {
+    return
+  }
+  if (currentVersion === 0) return
+  if (currentVersion >= V020_TARGET_SCHEMA_VERSION) return
+
+  // 2) Latch check — has a v0.2.0 backup already been written?
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(V020_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings table not yet created but _meta says version > 0 — wildly
+    // inconsistent state we shouldn't try to recover from here.
+    return
+  }
+
+  // 3) Compute backup destination.
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `fugaedge.db.pre-v0.2.0-${ts}.bak`)
+
+  // 4) Checkpoint WAL into the main file so the copy is self-contained.
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(`[FE db] wal_checkpoint before v0.2.0 backup failed: ${e}`)
+  }
+
+  // 5) Copy. Sidecars are usually empty after a TRUNCATE checkpoint but
+  //    copy any that still exist defensively.
+  try {
+    mkdirSync(backupDir, { recursive: true })
+    copyFileSync(dbPath, backupPath)
+    for (const suffix of ['-wal', '-shm']) {
+      const src = dbPath + suffix
+      const dst = backupPath + suffix
+      if (existsSync(src)) copyFileSync(src, dst)
+    }
+    console.info(
+      `[FE db] v0.2.0 pre-migration backup → ${backupPath} ` +
+        `(schema v${currentVersion} → v${V020_TARGET_SCHEMA_VERSION})`,
+    )
+  } catch (e) {
+    // Don't latch on failure — the next launch retries until backup succeeds.
+    console.error(`[FE db] v0.2.0 backup failed: ${e}`)
+    return
+  }
+
+  // 6) Latch — settings table is guaranteed to exist here because we only
+  //    reach this point when schema_version > 0 (i.e., the v1+ schema has
+  //    already run on a prior launch).
+  try {
+    conn
+      .prepare(`
+        INSERT INTO settings (key, value) VALUES (?, 'true')
+        ON CONFLICT(key) DO UPDATE SET value = 'true'
+      `)
+      .run(V020_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] v0.2.0 backup latch write failed: ${e}`)
+  }
 }
 
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
@@ -210,6 +300,30 @@ function migrateAfterSchema(conn: Database.Database): void {
   }
   // Index on region for fast breakdown queries (group-by region).
   conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_region ON trades(region)')
+
+  // v0.2.0 universal-import provenance. Defaults pin existing v0.1.6 rows
+  // to DAS/execution — every legacy round trip was produced by parsing a
+  // DAS Trades.csv (the daily-summary path produced only fee rows, never
+  // trip rows). source_file and account_name stay NULL on legacy data
+  // because that information wasn't captured at import time. fees_reported
+  // = 0 (i.e. false) because v0.1.6 fees came from the day_fees pro-rata
+  // allocation, not from a per-execution feed.
+  if (!has('source_broker')) {
+    conn.exec("ALTER TABLE trades ADD COLUMN source_broker TEXT NOT NULL DEFAULT 'DAS'")
+  }
+  if (!has('source_format')) {
+    conn.exec("ALTER TABLE trades ADD COLUMN source_format TEXT NOT NULL DEFAULT 'execution'")
+  }
+  if (!has('source_file')) {
+    conn.exec('ALTER TABLE trades ADD COLUMN source_file TEXT')
+  }
+  if (!has('account_name')) {
+    conn.exec('ALTER TABLE trades ADD COLUMN account_name TEXT')
+  }
+  if (!has('fees_reported')) {
+    conn.exec('ALTER TABLE trades ADD COLUMN fees_reported INTEGER NOT NULL DEFAULT 0')
+  }
+  conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_source_broker ON trades(source_broker)')
 
   const marketCols = conn.prepare('PRAGMA table_info(market_data)').all() as {
     name: string

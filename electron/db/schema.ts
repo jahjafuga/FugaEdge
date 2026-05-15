@@ -5,7 +5,7 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-export const SCHEMA_VERSION = '17'
+export const SCHEMA_VERSION = '18'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -46,6 +46,48 @@ CREATE INDEX IF NOT EXISTS idx_trades_net_pnl     ON trades(net_pnl);
 -- idx_trades_playbook_id is created in migrateAfterSchema() after the
 -- ALTER COLUMN that adds the column itself — fresh installs don't have
 -- playbook_id at the time SCHEMA_SQL runs.
+
+-- v0.2.0 universal-import: per-fill execution log. Dual-written alongside
+-- trades.executions_json so readers can stay on the JSON column today while
+-- the table accumulates the data we'll need for multi-broker analytics and
+-- the eventual web port. round_trip_id FK is ON DELETE CASCADE so the
+-- existing purgeOpen wipe-and-rewrite path continues to work on (symbol,
+-- date) — cascade deletes the dangling fills.
+--
+-- Column conventions: timestamp_utc / quantity match the v0.2.0 universal-
+-- model spec. side stays as 'B'/'S' (decision C — no renames in v0.2.0).
+-- Fee components are sign-preserving — negative ECN values are rebates.
+CREATE TABLE IF NOT EXISTS executions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  round_trip_id   INTEGER NOT NULL,
+  trade_id        TEXT    NOT NULL,
+  order_id        TEXT    NOT NULL,
+  symbol          TEXT    NOT NULL,
+  side            TEXT    NOT NULL CHECK (side IN ('B','S')),
+  quantity        INTEGER NOT NULL,
+  price           REAL    NOT NULL,
+  timestamp_utc   TEXT    NOT NULL,                          -- ISO YYYY-MM-DDTHH:MM:SS
+  source_broker   TEXT    NOT NULL,                          -- 'DAS' | 'Webull' | ...
+  source_format   TEXT    NOT NULL,                          -- 'execution' | 'summary' | ...
+  source_file     TEXT,
+  route           TEXT,
+  liquidity_type  TEXT,                                      -- 'ADDED' | 'REMOVED'
+  account_name    TEXT,
+  is_paper        INTEGER NOT NULL DEFAULT 0,
+  commission      REAL,
+  ecn_fee         REAL,
+  sec_fee         REAL,
+  finra_fee       REAL,
+  cat_fee         REAL,
+  htb_fee         REAL,
+  other_fees      REAL,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (round_trip_id) REFERENCES trades(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_executions_round_trip  ON executions(round_trip_id);
+CREATE INDEX IF NOT EXISTS idx_executions_symbol      ON executions(symbol);
+CREATE INDEX IF NOT EXISTS idx_executions_timestamp   ON executions(timestamp_utc);
 
 CREATE TABLE IF NOT EXISTS daily_summary (
   date          TEXT    PRIMARY KEY,

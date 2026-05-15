@@ -2,12 +2,34 @@
 //   - executions (DAS Trades.csv): one row per fill → grouped into round trips
 //   - daily-summary: one row per (date, symbol) → fees applied pro-rata
 // A single import can contain either, both, or multiple files of each format.
+//
+// v0.2.0 extends the model with broker-agnostic provenance and per-execution
+// fee fields. All additions are OPTIONAL so the v0.1.6 parser/builder/repo
+// callers keep compiling unchanged. The universal pipeline (parse → build →
+// commit) treats unset fields as "not provided", never as zero.
 
 export type ExecSide = 'B' | 'S'
+
+/** Origin broker for a row. Drives format-specific parser routing only —
+ *  the universal Execution shape itself is broker-agnostic. */
+export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS'
+
+/** Which export shape produced this row. 'summary' = daily aggregate,
+ *  'execution' = per-fill, 'orders' = per-order, 'xlsx' = Webull desktop,
+ *  'account_report' = DAS fee statement. */
+export type SourceFormat =
+  | 'summary'
+  | 'execution'
+  | 'orders'
+  | 'xlsx'
+  | 'account_report'
 
 export interface Execution {
   trade_id: string
   order_id: string
+  /** Legacy field — kept populated for v0.1.6 callers. New code should
+   *  prefer `account_name`, which carries the same value and participates
+   *  in the universal grouping/hashing logic. */
   account?: string
   route?: string
   symbol: string
@@ -17,6 +39,33 @@ export interface Execution {
   price: number
   time: string // ISO YYYY-MM-DDTHH:MM:SS
   date: string // YYYY-MM-DD
+
+  // v0.2.0 universal-model additions (all optional).
+  source_broker?: SourceBroker
+  source_format?: SourceFormat
+  /** Filename the execution was parsed from. Surfaces in error messages
+   *  and future import-history UI; never used for identity. */
+  source_file?: string
+  /** Broker account identifier. Participates in round-trip grouping and
+   *  in `exec_hash` only when non-empty — see build-round-trips.ts. */
+  account_name?: string
+  /** True when the originating account is a paper/simulator account.
+   *  Set by Webull desktop XLSX parser; flagged in UI but doesn't change
+   *  any math. */
+  is_paper?: boolean
+  /** ADDED = liquidity rebated to trader, REMOVED = liquidity taken. */
+  liquidity_type?: 'ADDED' | 'REMOVED'
+
+  // Per-execution fee components. SIGN-PRESERVING — negative ECN values are
+  // rebates and contribute as negative numbers to total_fees. v0.1.6's
+  // daily-summary path stripped signs; the universal path keeps them.
+  commission?: number
+  ecn_fee?: number
+  sec_fee?: number
+  finra_fee?: number
+  cat_fee?: number
+  htb_fee?: number
+  other_fees?: number
 }
 
 export type RowStatus = 'new' | 'duplicate'
@@ -48,6 +97,20 @@ export interface RoundTrip {
   exec_hash: string
   executions: RoundTripExecution[]
   status: RowStatus
+
+  // v0.2.0 universal-model additions (all optional).
+  source_broker?: SourceBroker
+  source_format?: SourceFormat
+  /** Filename of the import that produced this trip. Derived from the
+   *  first constituent execution; if a single trip's executions span
+   *  multiple files (rare today, possible once batched imports land),
+   *  this records the first file only. */
+  source_file?: string
+  account_name?: string
+  /** True when at least one constituent execution arrived with a fee
+   *  component populated. Lets the UI say "Fees: not reported" instead of
+   *  rendering $0.00 for brokers/formats that don't surface fees. */
+  fees_reported?: boolean
 }
 
 export interface DaySummaryFeeRow {
