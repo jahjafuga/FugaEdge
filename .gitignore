@@ -27,3 +27,4 @@ secrets.json
 *.db-wal
 *.db-shm
 docs/superpowers/
+_verify_quotes.js
