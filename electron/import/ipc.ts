@@ -13,7 +13,7 @@ import type {
 import { detectFormat } from './detect-format'
 import { parseExecutionsCsv } from './parse-executions'
 import { parseDailySummaryCsv } from './parse-daily-summary'
-import { computeRoundTrips } from './compute-trips'
+import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, backfillTradeCountriesFromMarket, commit } from './repo'
 import { refreshMarketData } from '../market/fetch'
@@ -37,7 +37,7 @@ export function registerImportIpc(): void {
         const fmt = detectFormat(f.text)
 
         if (fmt === 'executions') {
-          const parsed = parseExecutionsCsv(f.text)
+          const parsed = parseExecutionsCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
           warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           allExecutions.push(...parsed.executions)
@@ -123,7 +123,7 @@ export function registerImportIpc(): void {
         needsDate = false
       }
 
-      const computedTrips = computeRoundTrips(allExecutions)
+      const computedTrips = buildRoundTrips(allExecutions)
       const trips = annotateTripStatus(computedTrips)
       // Fees status depends on day_fees lookup; only annotate the ones that
       // already have a date.
