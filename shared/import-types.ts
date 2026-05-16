@@ -17,12 +17,15 @@ export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS'
 /** Which export shape produced this row. 'summary' = daily aggregate,
  *  'execution' = per-fill (DAS Trades.csv), 'tradehistory' = per-fill
  *  with separate Date+Time columns and broker P/L (DAS Trades window /
- *  Executed Orders export), 'orders' = per-order, 'xlsx' = Webull desktop,
- *  'account_report' = DAS fee statement. */
+ *  Executed Orders export, "Tester A variant"), 'trades_window' = per-fill
+ *  Trades-window export with Cloid + LiqType + Broker columns and bare
+ *  HH:MM:SS time ("Tester B variant"), 'orders' = per-order, 'xlsx' =
+ *  Webull desktop, 'account_report' = DAS fee statement. */
 export type SourceFormat =
   | 'summary'
   | 'execution'
   | 'tradehistory'
+  | 'trades_window'
   | 'orders'
   | 'xlsx'
   | 'account_report'
@@ -58,6 +61,17 @@ export interface Execution {
   is_paper?: boolean
   /** ADDED = liquidity rebated to trader, REMOVED = liquidity taken. */
   liquidity_type?: 'ADDED' | 'REMOVED'
+  /** Raw broker-specific liquidity code (DAS: RR, X, 99, RBD, …). Stays
+   *  loose because the mapping to the universal ADDED/REMOVED bucket
+   *  isn't 1:1 across DAS configurations — capture now, normalize later. */
+  liq_type?: string
+  /** Executing broker / clearing tag from the source row (DAS Broker
+   *  column: ARCX, CROX, …). Distinct from `source_broker`, which is
+   *  the originating platform ("DAS"). */
+  broker_code?: string
+  /** Order type / account-tier tag (DAS Type column: Margin, Cash, …).
+   *  Captured for future per-account analytics. */
+  order_type?: string
 
   // Per-execution fee components. SIGN-PRESERVING — negative ECN values are
   // rebates and contribute as negative numbers to total_fees. v0.1.6's
@@ -145,7 +159,12 @@ export interface DaySummaryFeeRow {
   matchedTrips: number  // round trips already in DB for this (date, symbol)
 }
 
-export type CsvFormat = 'executions' | 'tradehistory' | 'daily-summary' | 'unknown'
+export type CsvFormat =
+  | 'executions'
+  | 'tradehistory'
+  | 'trades_window'
+  | 'daily-summary'
+  | 'unknown'
 
 export interface FileInfo {
   filename: string
