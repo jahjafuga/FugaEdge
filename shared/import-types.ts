@@ -15,11 +15,14 @@ export type ExecSide = 'B' | 'S'
 export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS'
 
 /** Which export shape produced this row. 'summary' = daily aggregate,
- *  'execution' = per-fill, 'orders' = per-order, 'xlsx' = Webull desktop,
+ *  'execution' = per-fill (DAS Trades.csv), 'tradehistory' = per-fill
+ *  with separate Date+Time columns and broker P/L (DAS Trades window /
+ *  Executed Orders export), 'orders' = per-order, 'xlsx' = Webull desktop,
  *  'account_report' = DAS fee statement. */
 export type SourceFormat =
   | 'summary'
   | 'execution'
+  | 'tradehistory'
   | 'orders'
   | 'xlsx'
   | 'account_report'
@@ -66,6 +69,11 @@ export interface Execution {
   cat_fee?: number
   htb_fee?: number
   other_fees?: number
+
+  /** Broker-computed P&L for the fill (DAS Trades window / Executed Orders
+   *  export). Captured for reference only; FugaEdge's own gross/net P&L
+   *  is always recomputed from buy/sell pricing in buildRoundTrips(). */
+  broker_pnl?: number
 }
 
 export type RowStatus = 'new' | 'duplicate'
@@ -126,7 +134,7 @@ export interface DaySummaryFeeRow {
   matchedTrips: number  // round trips already in DB for this (date, symbol)
 }
 
-export type CsvFormat = 'executions' | 'daily-summary' | 'unknown'
+export type CsvFormat = 'executions' | 'tradehistory' | 'daily-summary' | 'unknown'
 
 export interface FileInfo {
   filename: string
