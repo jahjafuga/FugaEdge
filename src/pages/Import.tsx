@@ -196,7 +196,7 @@ function PreviewPanel({
             <div className="text-[10px] uppercase tracking-wider text-gold">
               Date required
             </div>
-            <div className="mt-1 text-sm text-text">
+            <div className="mt-1 text-sm text-fg-secondary">
               A daily summary file in this batch has no date in its filename. Pick the
               trade date so fees can be matched to the right round trips.
             </div>
@@ -209,7 +209,7 @@ function PreviewPanel({
               type="date"
               value={dateOverride}
               onChange={(e) => onDateChange(e.target.value)}
-              className="mt-1 rounded border border-border bg-bg px-2 py-1 font-mono text-sm text-text outline-none focus:border-gold"
+              className="mt-1 rounded border border-border bg-bg px-2 py-1 font-mono text-sm text-fg-secondary outline-none focus:border-gold"
             />
           </div>
         </div>
@@ -217,7 +217,7 @@ function PreviewPanel({
 
       {data.feesUnavailable && (
         <div
-          className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-sm text-text"
+          className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-sm text-fg-secondary"
           role="status"
         >
           <div className="text-[10px] uppercase tracking-wider text-gold">
@@ -250,12 +250,12 @@ function PreviewPanel({
         <FeesPreviewTable fees={data.fees} dateOverride={dateOverride} />
       )}
 
-      <div className="rounded-md border border-border/60 bg-panel/40 px-4 py-3">
-        <div className="text-[10px] uppercase tracking-wider text-muted">
+      <div className="rounded-md border border-border/60 bg-bg-3 px-4 py-3">
+        <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Account type
         </div>
         <div className="mt-2 flex flex-col gap-1.5">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-text">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-secondary">
             <input
               type="radio"
               name="account-type"
@@ -266,7 +266,7 @@ function PreviewPanel({
             />
             Real account
           </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-text">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-secondary">
             <input
               type="radio"
               name="account-type"
@@ -279,7 +279,7 @@ function PreviewPanel({
           </label>
         </div>
         {blockedByPaper && (
-          <p className="mt-3 text-xs text-subtle">
+          <p className="mt-3 text-xs text-fg-tertiary">
             Paper-account imports arrive in v0.3.0 — they&rsquo;ll be tracked
             separately from your real-account stats.
           </p>
