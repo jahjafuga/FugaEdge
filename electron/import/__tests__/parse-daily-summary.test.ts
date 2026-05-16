@@ -40,3 +40,43 @@ describe('parseDailySummaryCsv', () => {
     expect(result.rows[0].symbol).toBe('AAPL')
   })
 })
+
+// Day 3 of v0.2.0: ECN can be NEGATIVE (maker rebate when the trader adds
+// liquidity). v0.1.6 stripped sign via Math.abs(), which destroyed the
+// rebate before it ever reached the DB. These tests pin the new sign-
+// preserving contract — rebates must survive parse and reduce total_fees.
+describe('parseDailySummaryCsv — negative ECN rebates (sign-preserving)', () => {
+  it('preserves the negative sign on an ECN rebate', () => {
+    const csv = [
+      'Symbol,ECN,SEC,FINRA,HTB Fee,CAT Fee',
+      'AAPL,-0.50,0.02,0.05,0.00,0.01',
+    ].join('\n')
+    const result = parseDailySummaryCsv(csv)
+    const aapl = result.rows[0]
+    expect(aapl.fee_ecn).toBe(-0.5)
+  })
+
+  it('nets a negative ECN against positive components in total_fees', () => {
+    // 0.02 + 0.05 + 0 + 0.01 = 0.08 of debits, minus 0.50 rebate = -0.42 net.
+    // A negative total means the trader earned more from rebates than they
+    // paid in fees — net_pnl downstream gets BOOSTED, not reduced.
+    const csv = [
+      'Symbol,ECN,SEC,FINRA,HTB Fee,CAT Fee',
+      'AAPL,-0.50,0.02,0.05,0.00,0.01',
+    ].join('\n')
+    const result = parseDailySummaryCsv(csv)
+    expect(result.rows[0].total_fees).toBeCloseTo(-0.42, 2)
+  })
+
+  it('preserves sign on parenthesized negatives like "(0.50)"', () => {
+    // Some DAS exports represent negatives with accounting-style parentheses
+    // instead of leading minus. num() already handles this; the test pins
+    // that we don't accidentally undo it with another Math.abs() somewhere.
+    const csv = [
+      'Symbol,ECN,SEC,FINRA,HTB Fee,CAT Fee',
+      'AAPL,(0.50),0.02,0.05,0.00,0.01',
+    ].join('\n')
+    const result = parseDailySummaryCsv(csv)
+    expect(result.rows[0].fee_ecn).toBe(-0.5)
+  })
+})
