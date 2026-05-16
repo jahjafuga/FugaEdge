@@ -31,6 +31,9 @@ export default function ImportSummary({
                 <span className="text-xs text-muted">
                   {f.format === 'executions' ? `${int(f.rowCount)} fills` : null}
                   {f.format === 'daily-summary' ? `${int(f.rowCount)} symbols` : null}
+                  {f.format === 'tradehistory' || f.format === 'trades_window'
+                    ? `${int(f.rowCount)} trades`
+                    : null}
                 </span>
                 {f.format === 'daily-summary' && f.inferredDate && (
                   <span className="text-xs text-subtle">
@@ -80,6 +83,15 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
     return (
       <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
         fees
+      </span>
+    )
+  }
+  // Pre-computed round-trip exports (DAS TradeHistory and Trades window).
+  // Same role — filename next to the pill differentiates the source.
+  if (format === 'tradehistory' || format === 'trades_window') {
+    return (
+      <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">
+        trades
       </span>
     )
   }
