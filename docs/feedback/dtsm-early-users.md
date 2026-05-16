@@ -316,3 +316,240 @@ Plus queued reminders:
 
 \- Watch for Webull user response to my message from yesterday
 
+
+
+\## 2026-05-16 — Day 2 of v0.2.0 shipped (3 parsers landed in one session)
+
+
+
+\### What got built today
+
+
+
+Day 2 closed with three new parsers covering every DAS execution-level
+variant the DTSM cohort has surfaced. Committed as three separate
+commits on feature/v0.2.0-universal-import for a clean architectural
+log (Track A → B → C). Each commit's snapshot typechecks in isolation.
+
+
+
+Track A — `parse-tradehistory.ts` (commit 5ad11c8):
+
+\- New parser for Dave-shape DAS export: Date,Time,Symbol,Side,
+&#x20;  Quantity,Price,P\&L
+
+\- Synthesizes deterministic per-fill IDs: `th-<sha1[0..12]>`
+&#x20;  (date|time|symbol|side|qty|price)
+
+\- Broker P\&L captured into new optional Execution.broker\_pnl field
+
+\- 26 new tests (115 → 141)
+
+
+
+Track B — single-file import + refinements (commit 2bfcbc3):
+
+\- DAS Trades.csv can now import standalone (no companion fee file
+&#x20;  required). Gold "Fees not included" banner suggests dropping the
+&#x20;  Account Report alongside; commit button stays enabled
+
+\- Bare HH:MM:SS time fallback in parse-executions.ts uses filename
+&#x20;  date (new MM-DD-YYYY pattern added to parse-filename.ts).
+&#x20;  Requires 4-digit year so "05-15-26" stays ambiguous
+
+\- Dateless-execution guardrail: no date in time AND no date in
+&#x20;  filename → top-level "rename the file" warning, no silent drop
+
+\- Opportunistic P/L or P\&L column capture on parse-executions.ts
+&#x20;  (DAS exports vary on whether this column is included)
+
+\- route + broker\_pnl threaded into RoundTripExecution so they
+&#x20;  persist via executions\_json with no DB migration
+
+\- exec\_hash invariance proven: bare and rich builds of identical
+&#x20;  fills produce the same hash (verified by test)
+
+\- 23 new tests (141 → 164)
+
+
+
+Track C — `parse-trades-window.ts` (commit a002eaa):
+
+\- New parser for Brendan-shape DAS export: Time,Symbol,Side,Price,
+&#x20;  Qty,Route,LiqType,Broker,Account,Type,Cloid
+
+\- Caught during Day 2 audit when Brendan supplied his real file
+&#x20;  earlier — turned out to be a THIRD distinct DAS export shape, not
+&#x20;  the same as the existing TradeID-led path
+
+\- Cloid is per-ORDER (partial fills share it) → used as order\_id
+
+\- Per-fill trade\_id synthesized as `tw-<sha1[0..12]>` (same payload
+&#x20;  formula as Track A)
+
+\- Account column populated into both legacy `account` AND universal
+&#x20;  `account_name` (Brendan-shape is v0.2.0-only, no v0.1.6 dedup
+&#x20;  compat concern)
+
+\- liq\_type, broker\_code, order\_type captured as supplementary
+&#x20;  metadata on Execution
+
+\- Bare time + filename rescue reuses Track B's guardrail path
+
+\- 26 new tests (164 → 190, target was 175+)
+
+
+
+\### Architectural decisions locked in Day 2
+
+
+
+1\. broker\_pnl is reference-only data — FugaEdge always recomputes
+&#x20;  its own gross/net P\&L from buy/sell pricing
+
+2\. route + broker\_pnl persist via executions\_json (no DB migration);
+&#x20;  Day 8 wires them to the Trade Detail Modal
+
+3\. exec\_hash IGNORES route and broker\_pnl (identity invariance proven
+&#x20;  by test)
+
+4\. Dedup fires at exec\_hash (trip) level only. Per-execution rows in
+&#x20;  the executions table get inserted via cascade when the parent trip
+&#x20;  insert succeeds. No separate per-row uniqueness constraint —
+&#x20;  protection cascades from trips. Important contract for downstream
+&#x20;  code that touches the executions table directly
+
+5\. Dateless-execution path blocks with a clear "rename the file"
+&#x20;  message rather than firing a modal. Date-picker modal for executions
+&#x20;  is reserved for Day 9 in-app guide work
+
+6\. account\_name population differs by format:
+
+&#x20;  \- parse-executions.ts: NOT populated (Decision D — v0.1.6 hash compat)
+
+&#x20;  \- parse-trades-window.ts: IS populated (v0.2.0-only format)
+
+7\. trade\_id synth scheme is consistent across new parsers: 12-hex of
+&#x20;  sha1 over (date|time|symbol|side|qty|price) — different prefix per
+&#x20;  format (`th-`, `tw-`) for traceability
+
+8\. broker\_code (Brendan's "Broker" column) is distinct from
+&#x20;  source\_broker. source\_broker = originating platform ("DAS");
+&#x20;  broker\_code = executing-broker tag (ARCX, CROX). Different fields,
+&#x20;  both captured
+
+9\. liq\_type stays a raw string (DAS RR/X/99/RBD codes) rather than
+&#x20;  forcing the universal ADDED/REMOVED mapping. Capture now,
+&#x20;  normalize later when the translation table exists
+
+
+
+\### Smoke test results (6/6 PASSED, user-verified)
+
+
+
+1\. Dave CSV regression: 188 fills / 65 trips / all DUP on re-drop ✅
+
+2\. `brendan_trades_2026-04-02.csv` (ISO): 95 exec / 13 trips / 13 NEW
+&#x20;  / ISO filename rescue → 2026-04-02 ✅
+
+3\. `04-02-2026.csv` (MM-DD-YYYY): 95 exec / 13 trips / 13 NEW /
+&#x20;  MM-DD-YYYY rescue → 2026-04-02 (imported to DB) ✅
+
+4\. `random-export.csv`: dateless guardrail fired, "Nothing new to
+&#x20;  import" disabled state, actionable warning copy ✅
+
+5\. `Brendan Trades Example.csv` (no date in name): same guardrail
+&#x20;  fired identically (consistent message across filename shapes) ✅
+
+6\. Re-drop of `brendan_trades_2026-04-02.csv` after Scenario 3 wrote
+&#x20;  under `04-02-2026.csv`: 0 NEW / 13 DUPLICATE — synth IDs are
+&#x20;  content-based and survive filename drift when the derived date
+&#x20;  matches ✅
+
+
+
+\### Known cosmetic issues deferred to Day 8 polish
+
+
+
+\- UNKNOWN format pill in ImportSummary should map 'tradehistory' and
+&#x20;  'trades\_window' to friendly labels (currently shows "unknown")
+
+\- "Saving to database…" UI lacks completion feedback
+
+\- PreviewTable.tsx:48 React key warning (pre-existing)
+
+
+
+\### Test count summary
+
+
+
+\- Baseline (post Day 1): 115
+
+\- After Track A: 141 (+26)
+
+\- After Track B: 164 (+23)
+
+\- After Track C: 190 (+26)
+
+\- Net for Day 2: +75
+
+
+
+\### Commits today
+
+
+
+\- 5ad11c8 feat(v0.2.0): TradeHistory parser for Dave-shape DAS
+&#x20;  export (Day 2 Track A)
+
+\- 2bfcbc3 feat(v0.2.0): single-file Trades.csv + bare-time guardrail
+&#x20;  + filename pattern (Day 2 Track B)
+
+\- a002eaa feat(v0.2.0): TradesWindow parser for Brendan-shape DAS
+&#x20;  export (Day 2 Track C)
+
+
+
+All on feature/v0.2.0-universal-import, pushed to origin.
+
+
+
+\### Test fixtures (all gitignored)
+
+
+
+\- test-fixtures/dtsm-dave-das-executed-orders-may-2026.csv (Track A
+&#x20;  real-fixture coverage)
+
+\- test-fixtures/Brendan Trades Example.csv (Track C real-fixture
+&#x20;  coverage, generic-invariant assertions only — no HOGEDG or other
+&#x20;  identifying strings)
+
+\- test-fixtures/brendan\_trades\_2026-04-02.csv (ISO rename for
+&#x20;  smoke-test filename-rescue scenario)
+
+\- test-fixtures/04-02-2026.csv (MM-DD-YYYY rename for smoke-test)
+
+\- test-fixtures/random-export.csv (no-date rename for guardrail
+&#x20;  scenario)
+
+
+
+\### Tomorrow
+
+
+
+Day 3 candidates per the plan:
+
+\- Account Report parser (DAS fee file)
+
+\- Fee matching by (date, symbol) with proportional allocation for
+&#x20;  multi-roundtrip days
+
+\- Support negative ECN fees (Brendan's confirmed data)
+
+\- Day 4 (Webull Mobile CSV) is still queued for after
+
