@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { RoundTrip } from '@shared/import-types'
 import { money, price, int, pnlClass, signed, longDate } from '@/lib/format'
 
@@ -49,9 +49,8 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
             {trips.map((t, i) => {
               const isExpanded = expanded.has(i)
               return (
-                <>
+                <Fragment key={t.exec_hash}>
                   <tr
-                    key={`${t.exec_hash}-row`}
                     onClick={() => toggle(i)}
                     className={`cursor-pointer border-b border-border/40 last:border-b-0 hover:bg-white/[0.02] ${
                       t.status === 'duplicate' ? 'opacity-50' : ''
@@ -112,7 +111,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                   </tr>
 
                   {isExpanded && (
-                    <tr key={`${t.exec_hash}-fills`} className="border-b border-border/40">
+                    <tr className="border-b border-border/40">
                       <td colSpan={12} className="bg-bg/40 px-6 py-3">
                         <div className="text-[10px] uppercase tracking-wider text-muted">
                           {t.executions.length} fill{t.executions.length === 1 ? '' : 's'}
@@ -135,7 +134,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
           </tbody>
