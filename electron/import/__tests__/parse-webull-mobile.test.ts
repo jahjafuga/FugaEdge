@@ -7,6 +7,7 @@ import {
   normalizeWebullSide,
   parseWebullMobileTimestamp,
 } from '../parse-webull-mobile'
+import { detectFormat } from '../detect-format'
 
 // Synthetic CSV — generic tickers, no identifying account or PII.
 const SAMPLE_HEADER =
@@ -278,6 +279,54 @@ describe('parseWebullMobileTimestamp', () => {
   it('returns null on empty / whitespace', () => {
     expect(parseWebullMobileTimestamp('')).toBeNull()
     expect(parseWebullMobileTimestamp('   ')).toBeNull()
+  })
+})
+
+describe('detectFormat routing — webull_mobile', () => {
+  it('routes the Webull Mobile header to "webull_mobile"', () => {
+    expect(detectFormat(SAMPLE)).toBe('webull_mobile')
+  })
+
+  it('strips a BOM before sniffing', () => {
+    expect(detectFormat('﻿' + SAMPLE)).toBe('webull_mobile')
+  })
+
+  it('does not collide with any of the DAS shapes', () => {
+    // executions: first column TradeID
+    expect(
+      detectFormat('TradeID,OrderID,B/S,Symbol,Qty,Price,Time\n1,A1,B,X,100,10,09:30'),
+    ).toBe('executions')
+    // tradehistory: first column Date + matching columns
+    expect(
+      detectFormat('Date,Time,Symbol,Side,Quantity,Price,P&L\n05/14/26,09:30:00,X,B,100,10,0'),
+    ).toBe('tradehistory')
+    // trades_window: first column Time + Cloid
+    expect(
+      detectFormat(
+        'Time,Symbol,Side,Price,Qty,Route,LiqType,Broker,Account,Type,Cloid\n09:30:00,X,B,10,100,ARCA,RR,ARCX,A,Margin,C1',
+      ),
+    ).toBe('trades_window')
+    // daily-summary: first column Symbol with fee markers
+    expect(detectFormat('Symbol,ECN,FINRA,HTB\nXYZ,1.00,0.10,0.50')).toBe('daily-summary')
+  })
+
+  it('returns "unknown" for a Name-led header missing the distinctive Webull columns', () => {
+    // A hypothetical other-broker "Name"-first header without
+    // "Filled Time" / "Time-in-Force" should NOT be misrouted.
+    expect(detectFormat('Name,Symbol,Price\nFoo,ABC,10')).toBe('unknown')
+  })
+
+  it('returns "unknown" on Name-led header with only one of the two Webull markers', () => {
+    // Has Filled Time but no Time-in-Force.
+    expect(detectFormat('Name,Symbol,Filled Time\nFoo,ABC,2026-05-14')).toBe('unknown')
+    // Has Time-in-Force but no Filled Time.
+    expect(detectFormat('Name,Symbol,Time-in-Force\nFoo,ABC,DAY')).toBe('unknown')
+  })
+
+  it('header check is case-insensitive', () => {
+    const upperHeader = SAMPLE_HEADER.toUpperCase()
+    const sampleUpper = [upperHeader, ...SAMPLE.split('\n').slice(1)].join('\n')
+    expect(detectFormat(sampleUpper)).toBe('webull_mobile')
   })
 })
 

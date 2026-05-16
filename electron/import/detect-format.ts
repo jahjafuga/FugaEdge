@@ -4,6 +4,7 @@ export type CsvFormat =
   | 'executions'
   | 'tradehistory'
   | 'trades_window'
+  | 'webull_mobile'
   | 'daily-summary'
   | 'unknown'
 
@@ -60,6 +61,19 @@ export function detectFormat(csvText: string): CsvFormat {
     has('cloid')
   ) {
     return 'trades_window'
+  }
+
+  // Webull Mobile export — first column is "Name" (full company name).
+  // No DAS shape starts with Name. We pair the first-column check with
+  // two distinctive Webull headers ("Filled Time" — hyphen-free, distinct
+  // from DAS's "Time" — and "Time-in-Force") so a future broker that
+  // happens to lead with a Name column won't false-match.
+  if (
+    first === 'name' &&
+    has('filled time') &&
+    has('time-in-force')
+  ) {
+    return 'webull_mobile'
   }
 
   // Daily summary — first column is Symbol. Verify with fee/aggregate markers
