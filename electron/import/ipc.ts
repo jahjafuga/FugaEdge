@@ -15,6 +15,8 @@ import { parseExecutionsCsv } from './parse-executions'
 import { parseTradeHistoryCsv } from './parse-tradehistory'
 import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
+import { parseWebullMobileCsv } from './parse-webull-mobile'
+import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, backfillTradeCountriesFromMarket, commit } from './repo'
@@ -26,7 +28,7 @@ import { resolveCountriesForImportedSymbols } from './resolve-countries'
 export function registerImportIpc(): void {
   ipcMain.handle(
     IPC.IMPORT_PREVIEW,
-    (_e, files: PreviewInputFile[]): PreviewResult => {
+    async (_e, files: PreviewInputFile[]): Promise<PreviewResult> => {
       const fileInfos: FileInfo[] = []
       const allExecutions = []
       const allFees: DaySummaryFeeRow[] = []
@@ -41,6 +43,81 @@ export function registerImportIpc(): void {
       const filesNeedingDate: string[] = []
 
       for (const f of files) {
+        // XLSX is routed by file extension BEFORE detect-format. XLSX has
+        // no text first-row to sniff; the renderer reads .xlsx files as
+        // bytes (Uint8Array via file.arrayBuffer()) and sends them on
+        // PreviewInputFile.bytes. Currently the only XLSX format we
+        // support is Webull Desktop.
+        if (f.filename.toLowerCase().endsWith('.xlsx')) {
+          if (!f.bytes) {
+            fileInfos.push({
+              filename: f.filename,
+              format: 'unknown',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
+            warnings.push(
+              `${f.filename}: XLSX file received but bytes field missing — likely a renderer/IPC mismatch`,
+            )
+            continue
+          }
+          try {
+            executionFilesPresent = true
+            const parsed = await parseWebullDesktopXlsx(f.bytes, f.filename)
+            skippedExecutions += parsed.skipped
+            warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
+            allExecutions.push(...parsed.executions)
+            fileInfos.push({
+              filename: f.filename,
+              format: 'xlsx',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: parsed.executions.length,
+            })
+            for (const t of parsed.trace) {
+              if (t.outcome === 'skipped') {
+                console.info(
+                  `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                    (t.symbol ? ` symbol=${t.symbol}` : ''),
+                )
+              }
+            }
+          } catch (e) {
+            // Structural failures (wrong sheet name, missing required
+            // column, non-XLSX byte payload) surface here as thrown
+            // errors from parseWebullDesktopXlsx. Convert to a warning
+            // + mark the file unknown so the rest of the batch still
+            // imports cleanly instead of the whole preview failing.
+            const message = e instanceof Error ? e.message : String(e)
+            fileInfos.push({
+              filename: f.filename,
+              format: 'unknown',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
+            warnings.push(`${f.filename}: XLSX parse failed: ${message}`)
+          }
+          continue
+        }
+
+        // CSV path needs text. Renderer should always populate it for
+        // non-XLSX files; a missing value here means a renderer bug.
+        if (typeof f.text !== 'string') {
+          fileInfos.push({
+            filename: f.filename,
+            format: 'unknown',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: 0,
+          })
+          warnings.push(
+            `${f.filename}: file received but text field missing — likely a renderer issue`,
+          )
+          continue
+        }
+
         const fmt = detectFormat(f.text)
 
         if (fmt === 'executions') {
@@ -111,6 +188,27 @@ export function registerImportIpc(): void {
               )
             }
           }
+        } else if (fmt === 'webull_mobile') {
+          executionFilesPresent = true
+          const parsed = parseWebullMobileCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
+          allExecutions.push(...parsed.executions)
+          fileInfos.push({
+            filename: f.filename,
+            format: 'webull_mobile',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
         } else if (fmt === 'daily-summary') {
           feeFilesPresent = true
           const parsed = parseDailySummaryCsv(f.text)
@@ -159,7 +257,7 @@ export function registerImportIpc(): void {
             rowCount: 0,
           })
           warnings.push(
-            `${f.filename}: format not recognized. Supported: DAS Trades.csv (TradeID-led), DAS Trades-window export with Date+Time+P&L columns, DAS Trades-window export with Cloid+LiqType columns (bare time — filename needs a date), and DAS daily summary CSV.`,
+            `${f.filename}: format not recognized. Supported: DAS Trades.csv (TradeID-led), DAS Trades-window (Date+Time+P&L), DAS Trades-window (Cloid+LiqType, bare-time — filename needs a date), DAS daily summary CSV, Webull Mobile (Name-led CSV), and Webull Desktop (XLSX).`,
           )
         }
       }
