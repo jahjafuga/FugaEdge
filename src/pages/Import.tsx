@@ -21,11 +21,11 @@ export default function Import() {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
 
   const handleFiles = useCallback(
-    async (files: { name: string; text: string }[]) => {
+    async (files: { name: string; text?: string; bytes?: Uint8Array }[]) => {
       setPhase({ kind: 'parsing', filenames: files.map((f) => f.name) })
       try {
         const data = await ipc.importPreview(
-          files.map((f) => ({ filename: f.name, text: f.text })),
+          files.map((f) => ({ filename: f.name, text: f.text, bytes: f.bytes })),
         )
         // Seed date override with the inferred range start, or today.
         const seed =
@@ -58,7 +58,7 @@ export default function Import() {
   return (
     <PageShell
       title="Import"
-      subtitle="Drop the DAS Trades.csv (execution file) and/or the daily summary CSV. Imports always append; nothing is overwritten."
+      subtitle="Drop your broker export file(s) — DAS Trader or Webull. Imports always append; nothing is overwritten."
     >
       {phase.kind === 'idle' && <DropZone onFiles={handleFiles} />}
 

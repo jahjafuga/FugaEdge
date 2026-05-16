@@ -1,14 +1,26 @@
 import { useCallback, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
 
+// Mirrors the upstream PreviewInputFile shape: CSV files carry `text`,
+// XLSX files carry `bytes`. Mutually exclusive at runtime; the IPC
+// handler routes by filename extension.
 interface DroppedFile {
   name: string
-  text: string
+  text?: string
+  bytes?: Uint8Array
 }
 
 interface DropZoneProps {
   onFiles: (files: DroppedFile[]) => void
   disabled?: boolean
+}
+
+function isXlsxName(name: string): boolean {
+  return name.toLowerCase().endsWith('.xlsx')
+}
+
+function isCsvName(name: string): boolean {
+  return name.toLowerCase().endsWith('.csv')
 }
 
 export default function DropZone({ onFiles, disabled }: DropZoneProps) {
@@ -21,14 +33,23 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       setError(null)
       const files = Array.from(fileList)
       if (files.length === 0) return
-      const bad = files.find((f) => !f.name.toLowerCase().endsWith('.csv'))
+      const bad = files.find((f) => !isCsvName(f.name) && !isXlsxName(f.name))
       if (bad) {
-        setError(`Only .csv files are supported (got "${bad.name}").`)
+        setError(`Only .csv and .xlsx files are supported (got "${bad.name}").`)
         return
       }
       try {
         const read = await Promise.all(
-          files.map(async (f) => ({ name: f.name, text: await f.text() })),
+          files.map(async (f): Promise<DroppedFile> => {
+            if (isXlsxName(f.name)) {
+              // XLSX is binary — read as ArrayBuffer, wrap in Uint8Array
+              // so the value survives structured-clone IPC + contextBridge
+              // without an encoding step.
+              const buf = await f.arrayBuffer()
+              return { name: f.name, bytes: new Uint8Array(buf) }
+            }
+            return { name: f.name, text: await f.text() }
+          }),
         )
         onFiles(read)
       } catch (e) {
@@ -68,10 +89,10 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
         </div>
         <div>
           <div className="text-base font-medium text-fg-primary">
-            Drop Trades.csv and/or the daily summary CSV
+            Drop your broker export file(s)
           </div>
           <div className="mt-1 text-xs text-fg-secondary">
-            Drag both at once, or one at a time. Click to choose files.
+            DAS Trader or Webull files. Drag any combination.
           </div>
         </div>
         <div className="mt-3 max-w-md text-[11px] uppercase tracking-wider text-fg-tertiary">
@@ -82,7 +103,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         multiple
         className="hidden"
         onChange={(e) => {
