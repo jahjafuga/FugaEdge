@@ -206,6 +206,23 @@ function PreviewPanel({
         </div>
       )}
 
+      {data.feesUnavailable && (
+        <div
+          className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-sm text-text"
+          role="status"
+        >
+          <div className="text-[10px] uppercase tracking-wider text-gold">
+            Fees not included
+          </div>
+          <div className="mt-1">
+            This import has no fee data. Drop your DAS{' '}
+            <span className="font-mono">Account Report</span> CSV alongside this file
+            to capture per-round-trip fees, or proceed without — trips will save with
+            fees marked &ldquo;not reported&rdquo;.
+          </div>
+        </div>
+      )}
+
       {data.warnings.length > 0 && (
         <div className="rounded-md border border-gold/40 bg-gold/[0.06] p-3 text-xs text-gold-100">
           <div className="mb-1 font-semibold uppercase tracking-wider text-gold">

@@ -86,6 +86,17 @@ export interface RoundTripExecution {
   qty: number
   price: number
   time: string
+
+  // v0.2.0 Day 2 additions (all optional). Travel through executions_json
+  // so the modal can display broker-supplied reference data without a
+  // schema migration. Day 8 wires them to the UI.
+  /** ECN / venue route the fill was directed to (ARCA, NSDQ, EDGX, …).
+   *  Captured from DAS Trades.csv when present. */
+  route?: string
+  /** Broker-computed P&L for the fill (e.g. DAS Trades window P/L column).
+   *  Captured for reference only — FugaEdge's own gross/net P&L is always
+   *  recomputed from buy/sell pricing. */
+  broker_pnl?: number
 }
 
 export interface RoundTrip {
@@ -165,6 +176,11 @@ export interface PreviewResult {
   fees: DaySummaryFeeRow[]
   /** True when a daily-summary file in this batch couldn't infer a date and needs user input. */
   needsDate: boolean
+  /** True when this batch contains executions (DAS Trades.csv or tradehistory)
+   *  but no fee-bearing file (daily-summary, account_report). UI shows a
+   *  banner suggesting the user drop their Account Report alongside, but
+   *  the import is still permitted — trips just get fees_reported=false. */
+  feesUnavailable: boolean
   dateRange: { from: string; to: string } | null
   summary: PreviewSummary
   warnings: string[]

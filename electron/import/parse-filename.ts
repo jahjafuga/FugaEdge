@@ -68,6 +68,21 @@ export function parseFilenameDate(
     }
   }
 
+  // US-style "MM-DD-YYYY" / "MM_DD_YYYY" / "MM/DD/YYYY" / "M-D-YYYY"
+  // anywhere in the filename. Year must come last so we don't accidentally
+  // parse "26-05-2026" as 26-May with year inferred (the ISO branch above
+  // catches 4-digit-year-first patterns, this one catches 4-digit-year-last
+  // patterns). Disambiguates by requiring a 4-digit year.
+  const m4 = filename.match(/(\d{1,2})[-_/](\d{1,2})[-_/](\d{4})/)
+  if (m4) {
+    const month = Number(m4[1])
+    const day = Number(m4[2])
+    const year = Number(m4[3])
+    if (year >= 2000 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { date: `${year}-${pad(month)}-${pad(day)}`, parsed: true }
+    }
+  }
+
   return { date: '', parsed: false }
 }
 

@@ -33,11 +33,17 @@ export function registerImportIpc(): void {
       let skippedExecutions = 0
       let skippedFeeRows = 0
       let needsDate = false
+      let executionFilesPresent = false
+      let feeFilesPresent = false
+      // Per-file "requires date" rollup — used to upgrade the per-row trace
+      // into a top-level warning that tells the user what to do.
+      const filesNeedingDate: string[] = []
 
       for (const f of files) {
         const fmt = detectFormat(f.text)
 
         if (fmt === 'executions') {
+          executionFilesPresent = true
           const parsed = parseExecutionsCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
           warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
@@ -49,6 +55,9 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: parsed.executions.length,
           })
+          if (parsed.requiresDate) {
+            filesNeedingDate.push(f.filename)
+          }
 
           for (const t of parsed.trace) {
             if (t.outcome === 'skipped') {
@@ -59,6 +68,7 @@ export function registerImportIpc(): void {
             }
           }
         } else if (fmt === 'tradehistory') {
+          executionFilesPresent = true
           const parsed = parseTradeHistoryCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
           warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
@@ -79,6 +89,7 @@ export function registerImportIpc(): void {
             }
           }
         } else if (fmt === 'daily-summary') {
+          feeFilesPresent = true
           const parsed = parseDailySummaryCsv(f.text)
           skippedFeeRows += parsed.skipped
           warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
@@ -125,7 +136,7 @@ export function registerImportIpc(): void {
             rowCount: 0,
           })
           warnings.push(
-            `${f.filename}: format not recognized (expected DAS Trades.csv, DAS Trades-window export, or DAS daily summary)`,
+            `${f.filename}: format not recognized. Supported: DAS Trades.csv (execution-level), DAS Trades-window / Executed-Orders export (Date,Time,Symbol,Side,Quantity,Price,P&L), and DAS daily summary CSV.`,
           )
         }
       }
@@ -172,6 +183,26 @@ export function registerImportIpc(): void {
       const newFeeRows = fees.filter((f) => f.status === 'new').length
       const replaceFeeRows = fees.length - newFeeRows
 
+      // Dateless-execution guardrail. When a Trades.csv has rows whose
+      // `time` column lacks a date AND the filename couldn't supply one,
+      // the parser flagged the file in `filesNeedingDate`. Surface that
+      // as a top-level warning the user can actually act on (rename the
+      // file) instead of letting the rows silently disappear.
+      if (filesNeedingDate.length > 0) {
+        for (const name of filesNeedingDate) {
+          warnings.push(
+            `${name}: rows lacked a date and the filename couldn't supply one. ` +
+              `Rename to include a date (e.g. trades_2026-05-15.csv) or ` +
+              `use an export that includes a Date column.`,
+          )
+        }
+      }
+
+      // Executions present but no companion fee file → UI banner suggests
+      // dropping the Account Report. Import still proceeds; trips carry
+      // fees_reported=false.
+      const feesUnavailable = executionFilesPresent && !feeFilesPresent
+
       const allDates = [
         ...allExecutions.map((e) => e.date),
         ...fees.map((f) => f.date).filter(Boolean),
@@ -210,6 +241,7 @@ export function registerImportIpc(): void {
         trips,
         fees,
         needsDate,
+        feesUnavailable,
         dateRange,
         summary,
         warnings,
