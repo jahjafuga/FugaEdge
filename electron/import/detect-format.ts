@@ -1,6 +1,11 @@
 import Papa from 'papaparse'
 
-export type CsvFormat = 'executions' | 'tradehistory' | 'daily-summary' | 'unknown'
+export type CsvFormat =
+  | 'executions'
+  | 'tradehistory'
+  | 'trades_window'
+  | 'daily-summary'
+  | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
 // We parse via PapaParse so quoted multi-line cells (which DAS uses for the
@@ -27,11 +32,11 @@ export function detectFormat(csvText: string): CsvFormat {
   // Executions file (Trades.csv) — first column is TradeID.
   if (first === 'tradeid') return 'executions'
 
-  // TradeHistory / DAS Trades window export — first column is Date, with
-  // separate Time + Symbol + Side + Quantity + Price columns. Header check
-  // is strict enough to avoid colliding with other date-first formats we
-  // might encounter later (e.g. Webull mobile, which starts with a "Name"
-  // or "Filled Time" column, not "Date").
+  // TradeHistory / DAS Trades window export (Dave variant) — first column
+  // is Date, separate Time + Symbol + Side + Quantity + Price columns.
+  // Header check is strict enough to avoid colliding with other date-first
+  // formats we might encounter later (e.g. Webull mobile, which starts
+  // with a "Name" or "Filled Time" column, not "Date").
   if (
     first === 'date' &&
     has('time') &&
@@ -41,6 +46,20 @@ export function detectFormat(csvText: string): CsvFormat {
     has('price')
   ) {
     return 'tradehistory'
+  }
+
+  // DAS Trades window export (Brendan variant) — first column is Time,
+  // bare HH:MM:SS without a date prefix. Cloid is the distinctive header
+  // that disambiguates this from a hypothetical "Time"-led Webull export.
+  if (
+    first === 'time' &&
+    has('symbol') &&
+    has('side') &&
+    has('price') &&
+    (has('qty') || has('quantity')) &&
+    has('cloid')
+  ) {
+    return 'trades_window'
   }
 
   // Daily summary — first column is Symbol. Verify with fee/aggregate markers

@@ -13,6 +13,7 @@ import type {
 import { detectFormat } from './detect-format'
 import { parseExecutionsCsv } from './parse-executions'
 import { parseTradeHistoryCsv } from './parse-tradehistory'
+import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
@@ -88,6 +89,28 @@ export function registerImportIpc(): void {
               )
             }
           }
+        } else if (fmt === 'trades_window') {
+          executionFilesPresent = true
+          const parsed = parseTradesWindowCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
+          allExecutions.push(...parsed.executions)
+          fileInfos.push({
+            filename: f.filename,
+            format: 'trades_window',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          if (parsed.requiresDate) filesNeedingDate.push(f.filename)
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
         } else if (fmt === 'daily-summary') {
           feeFilesPresent = true
           const parsed = parseDailySummaryCsv(f.text)
@@ -136,7 +159,7 @@ export function registerImportIpc(): void {
             rowCount: 0,
           })
           warnings.push(
-            `${f.filename}: format not recognized. Supported: DAS Trades.csv (execution-level), DAS Trades-window / Executed-Orders export (Date,Time,Symbol,Side,Quantity,Price,P&L), and DAS daily summary CSV.`,
+            `${f.filename}: format not recognized. Supported: DAS Trades.csv (TradeID-led), DAS Trades-window export with Date+Time+P&L columns, DAS Trades-window export with Cloid+LiqType columns (bare time — filename needs a date), and DAS daily summary CSV.`,
           )
         }
       }
