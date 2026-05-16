@@ -213,7 +213,15 @@ export interface PreviewResult {
 
 export interface PreviewInputFile {
   filename: string
-  text: string
+  /** Set by the renderer for CSV files (DropZone reads via file.text()).
+   *  Mutually exclusive with `bytes` at runtime — IPC handler routes by
+   *  filename extension and reads whichever field is appropriate. */
+  text?: string
+  /** Set by the renderer for binary files (XLSX). Reads via
+   *  file.arrayBuffer() then constructs a Uint8Array. Uint8Array
+   *  passes through Electron's structured-clone IPC and contextBridge
+   *  transparently — no encoding step needed. */
+  bytes?: Uint8Array
 }
 
 export interface CommitInput {
