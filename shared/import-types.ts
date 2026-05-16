@@ -159,10 +159,16 @@ export interface DaySummaryFeeRow {
   matchedTrips: number  // round trips already in DB for this (date, symbol)
 }
 
+// File-format tag carried on FileInfo. Broader than detect-format.ts's
+// own CsvFormat — this one also covers 'xlsx' (Webull Desktop), which is
+// routed by file extension upstream of detect-format because XLSX has no
+// text first-row to sniff.
 export type CsvFormat =
   | 'executions'
   | 'tradehistory'
   | 'trades_window'
+  | 'webull_mobile'
+  | 'xlsx'
   | 'daily-summary'
   | 'unknown'
 
