@@ -30,6 +30,8 @@ interface ExecOverrides {
   cat_fee?: number
   htb_fee?: number
   other_fees?: number
+  route?: string
+  broker_pnl?: number
 }
 
 function exec(o: ExecOverrides): Execution {
@@ -56,6 +58,8 @@ function exec(o: ExecOverrides): Execution {
     cat_fee: o.cat_fee,
     htb_fee: o.htb_fee,
     other_fees: o.other_fees,
+    route: o.route,
+    broker_pnl: o.broker_pnl,
   }
 }
 
@@ -268,6 +272,51 @@ describe('buildRoundTrips — provenance + grouping', () => {
     expect(byAccount.ACCT_A.gross_pnl).toBe(100)
     expect(byAccount.ACCT_B.gross_pnl).toBe(100)
     expect(byAccount.ACCT_A.exec_hash).not.toBe(byAccount.ACCT_B.exec_hash)
+  })
+
+  describe('Day 2 — route + broker_pnl pass-through to RoundTripExecution', () => {
+    it('threads route from Execution through to each fill', () => {
+      const trips = buildRoundTrips([
+        exec({ symbol: 'AAPL', side: 'B', qty: 100, price: 150, time: '2026-05-15T09:30:00', route: 'ARCA' }),
+        exec({ symbol: 'AAPL', side: 'S', qty: 100, price: 151, time: '2026-05-15T09:31:00', route: 'NSDQ' }),
+      ])
+      expect(trips[0].executions[0].route).toBe('ARCA')
+      expect(trips[0].executions[1].route).toBe('NSDQ')
+    })
+
+    it('threads broker_pnl from Execution through to each fill', () => {
+      const trips = buildRoundTrips([
+        exec({ symbol: 'AAPL', side: 'B', qty: 100, price: 150, time: '2026-05-15T09:30:00', broker_pnl: 0 }),
+        exec({ symbol: 'AAPL', side: 'S', qty: 100, price: 151, time: '2026-05-15T09:31:00', broker_pnl: 100 }),
+      ])
+      expect(trips[0].executions[0].broker_pnl).toBe(0)
+      expect(trips[0].executions[1].broker_pnl).toBe(100)
+    })
+
+    it('leaves route + broker_pnl undefined on fills whose source Execution did not set them', () => {
+      const trips = buildRoundTrips([
+        exec({ symbol: 'AAPL', side: 'B', qty: 100, price: 150, time: '2026-05-15T09:30:00' }),
+        exec({ symbol: 'AAPL', side: 'S', qty: 100, price: 151, time: '2026-05-15T09:31:00' }),
+      ])
+      expect(trips[0].executions[0].route).toBeUndefined()
+      expect(trips[0].executions[0].broker_pnl).toBeUndefined()
+    })
+
+    it('does NOT change exec_hash when route or broker_pnl differ (reference-only fields)', () => {
+      // Two builds of the same fill set, one with route+broker_pnl, one
+      // without. Hash must be identical so adding the new fields can't
+      // accidentally invalidate dedup on re-import of a richer file.
+      const bare = buildRoundTrips([
+        exec({ trade_id: 'T1', order_id: 'O1', symbol: 'AAPL', side: 'B', qty: 100, price: 150, time: '2026-05-15T09:30:00' }),
+        exec({ trade_id: 'T2', order_id: 'O2', symbol: 'AAPL', side: 'S', qty: 100, price: 151, time: '2026-05-15T09:31:00' }),
+      ])
+      idCounter = 0
+      const rich = buildRoundTrips([
+        exec({ trade_id: 'T1', order_id: 'O1', symbol: 'AAPL', side: 'B', qty: 100, price: 150, time: '2026-05-15T09:30:00', route: 'ARCA', broker_pnl: 0 }),
+        exec({ trade_id: 'T2', order_id: 'O2', symbol: 'AAPL', side: 'S', qty: 100, price: 151, time: '2026-05-15T09:31:00', route: 'NSDQ', broker_pnl: 100 }),
+      ])
+      expect(bare[0].exec_hash).toBe(rich[0].exec_hash)
+    })
   })
 
   it('hash collapses to v0.1.6 shape when account_name is unset (decision D — upgrade compat)', () => {
