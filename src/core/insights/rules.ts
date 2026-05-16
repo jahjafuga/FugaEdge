@@ -458,7 +458,9 @@ function dowName(date: string | null | undefined): string | null {
   if (!date) return null
   const d = new Date(date + 'T12:00:00Z')
   if (Number.isNaN(d.getTime())) return null
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] ?? null
+  // Full names so templated copy that appends "s" reads correctly
+  // ("Thursdays are your strongest day", not "Thus are your strongest day").
+  return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()] ?? null
 }
 
 export function runDayOfWeek(input: InsightInput): InsightResult | null {
