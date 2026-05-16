@@ -174,9 +174,17 @@ function PreviewPanel({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  // Per-batch UI gate (Track C / Decision 11). v0.2.0 disables Import on
+  // 'paper' so the value never reaches IPC — the toggle's only effect is
+  // the button cascade below. v0.3.0 ticket [[paper-account-import-and-filtering]]
+  // wires this end-to-end once the aggregation paths can filter paper trades
+  // out of real-account stats.
+  const [accountType, setAccountType] = useState<'real' | 'paper'>('real')
+
   const hasUsableContent =
     data.summary.newTrips > 0 || data.summary.newFeeRows > 0 || data.summary.replaceFeeRows > 0
   const blockingNeedsDate = data.needsDate && !dateOverride
+  const blockedByPaper = accountType === 'paper'
 
   return (
     <div className="space-y-5">
@@ -242,6 +250,42 @@ function PreviewPanel({
         <FeesPreviewTable fees={data.fees} dateOverride={dateOverride} />
       )}
 
+      <div className="rounded-md border border-border/60 bg-panel/40 px-4 py-3">
+        <div className="text-[10px] uppercase tracking-wider text-muted">
+          Account type
+        </div>
+        <div className="mt-2 flex flex-col gap-1.5">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-text">
+            <input
+              type="radio"
+              name="account-type"
+              value="real"
+              checked={accountType === 'real'}
+              onChange={() => setAccountType('real')}
+              className="accent-gold"
+            />
+            Real account
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-text">
+            <input
+              type="radio"
+              name="account-type"
+              value="paper"
+              checked={accountType === 'paper'}
+              onChange={() => setAccountType('paper')}
+              className="accent-gold"
+            />
+            Paper / simulated
+          </label>
+        </div>
+        {blockedByPaper && (
+          <p className="mt-3 text-xs text-subtle">
+            Paper-account imports arrive in v0.3.0 — they&rsquo;ll be tracked
+            separately from your real-account stats.
+          </p>
+        )}
+      </div>
+
       <div className="flex items-center justify-between">
         <button
           type="button"
@@ -253,14 +297,16 @@ function PreviewPanel({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!hasUsableContent || blockingNeedsDate}
+          disabled={!hasUsableContent || blockingNeedsDate || blockedByPaper}
           className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
         >
           {!hasUsableContent
             ? 'Nothing new to import'
             : blockingNeedsDate
               ? 'Pick a date to continue'
-              : confirmLabel(data)}
+              : blockedByPaper
+                ? 'Paper imports arrive in v0.3.0'
+                : confirmLabel(data)}
         </button>
       </div>
     </div>
