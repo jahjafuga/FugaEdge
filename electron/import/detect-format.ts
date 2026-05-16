@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 
-export type CsvFormat = 'executions' | 'daily-summary' | 'unknown'
+export type CsvFormat = 'executions' | 'tradehistory' | 'daily-summary' | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
 // We parse via PapaParse so quoted multi-line cells (which DAS uses for the
@@ -21,9 +21,27 @@ export function detectFormat(csvText: string): CsvFormat {
   if (!row1 || row1.length === 0) return 'unknown'
 
   const first = (row1[0] || '').trim().toLowerCase()
+  const normalizedHeaders = row1.map((c) => (c || '').trim().toLowerCase())
+  const has = (h: string) => normalizedHeaders.includes(h)
 
   // Executions file (Trades.csv) — first column is TradeID.
   if (first === 'tradeid') return 'executions'
+
+  // TradeHistory / DAS Trades window export — first column is Date, with
+  // separate Time + Symbol + Side + Quantity + Price columns. Header check
+  // is strict enough to avoid colliding with other date-first formats we
+  // might encounter later (e.g. Webull mobile, which starts with a "Name"
+  // or "Filled Time" column, not "Date").
+  if (
+    first === 'date' &&
+    has('time') &&
+    has('symbol') &&
+    has('side') &&
+    (has('quantity') || has('qty')) &&
+    has('price')
+  ) {
+    return 'tradehistory'
+  }
 
   // Daily summary — first column is Symbol. Verify with fee/aggregate markers
   // in either row 1 (single-line or embedded-newline headers) or row 2

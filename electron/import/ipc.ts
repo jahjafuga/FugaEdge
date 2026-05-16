@@ -12,6 +12,7 @@ import type {
 } from '@shared/import-types'
 import { detectFormat } from './detect-format'
 import { parseExecutionsCsv } from './parse-executions'
+import { parseTradeHistoryCsv } from './parse-tradehistory'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
@@ -49,6 +50,26 @@ export function registerImportIpc(): void {
             rowCount: parsed.executions.length,
           })
 
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
+        } else if (fmt === 'tradehistory') {
+          const parsed = parseTradeHistoryCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
+          allExecutions.push(...parsed.executions)
+          fileInfos.push({
+            filename: f.filename,
+            format: 'tradehistory',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
           for (const t of parsed.trace) {
             if (t.outcome === 'skipped') {
               console.info(
@@ -103,7 +124,9 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: 0,
           })
-          warnings.push(`${f.filename}: format not recognized (expected Trades.csv or daily summary)`)
+          warnings.push(
+            `${f.filename}: format not recognized (expected DAS Trades.csv, DAS Trades-window export, or DAS daily summary)`,
+          )
         }
       }
 
