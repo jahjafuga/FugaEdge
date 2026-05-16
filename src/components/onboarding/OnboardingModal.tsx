@@ -431,7 +431,9 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
   const [importing, setImporting] = useState(false)
   const [importedCount, setImportedCount] = useState<number | null>(null)
 
-  const handleFiles = async (files: { name: string; text: string }[]) => {
+  const handleFiles = async (
+    files: { name: string; text?: string; bytes?: Uint8Array }[],
+  ) => {
     onError(null)
     setImporting(true)
     try {
@@ -441,6 +443,7 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
       const inputs: PreviewInputFile[] = files.map((f) => ({
         filename: f.name,
         text: f.text,
+        bytes: f.bytes,
       }))
       const preview = await ipc.importPreview(inputs)
       const result = await ipc.importCommit({
