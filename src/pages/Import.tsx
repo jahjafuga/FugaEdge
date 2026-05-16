@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import DropZone from '@/components/import/DropZone'
 import ImportSummary from '@/components/import/ImportSummary'
@@ -83,7 +83,8 @@ export default function Import() {
       )}
 
       {phase.kind === 'committing' && (
-        <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+        <div className="flex flex-col items-center justify-center rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+          <Loader2 size={24} strokeWidth={1.75} className="mb-3 animate-spin text-gold/70" />
           Saving to database…
         </div>
       )}
