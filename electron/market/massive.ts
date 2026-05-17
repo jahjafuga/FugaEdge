@@ -20,10 +20,27 @@ export class MassiveError extends Error {
     message: string,
     public readonly status: number,
     public readonly path: string,
+    /** Parsed `Retry-After` header (in ms) when the server sent one — only
+     *  populated on 429 responses today, since that's the only place rate
+     *  limiters set it. Null otherwise. Honored by withRateLimitRetry. */
+    public readonly retryAfterMs: number | null = null,
   ) {
     super(message)
     this.name = 'MassiveError'
   }
+}
+
+/** Parse an HTTP `Retry-After` header value. RFC 7231 allows either a
+ *  delta-seconds integer or an HTTP-date; Polygon sends delta-seconds, so
+ *  we only support that form. Returns ms or null if the value can't be
+ *  parsed. Exported for direct unit testing. */
+export function parseRetryAfterHeader(raw: string | null): number | null {
+  if (raw == null) return null
+  const trimmed = raw.trim()
+  if (trimmed === '') return null
+  const n = Number(trimmed)
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n * 1000)
 }
 
 async function massiveGet<T>(apiKey: string, path: string): Promise<T> {
@@ -45,10 +62,13 @@ async function massiveGet<T>(apiKey: string, path: string): Promise<T> {
     } catch {
       // ignore
     }
+    const retryAfterMs =
+      res.status === 429 ? parseRetryAfterHeader(res.headers.get('Retry-After')) : null
     throw new MassiveError(
       `${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 180)}` : ''}`,
       res.status,
       path,
+      retryAfterMs,
     )
   }
   return (await res.json()) as T

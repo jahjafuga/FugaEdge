@@ -409,8 +409,10 @@ export function registerImportIpc(): void {
       let countriesUnknown = 0
       let floatFetched = 0
       let floatMissing = 0
+      let floatErrored = 0
       let aggregatesFetched = 0
       let aggregatesEmpty = 0
+      let aggregatesErrored = 0
       if (out.insertedTrips > 0 && newSymbols.length > 0) {
         const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
         const enriched = await enrichAfterCommit({
@@ -426,8 +428,10 @@ export function registerImportIpc(): void {
         countriesUnknown = enriched.country.unknown
         floatFetched = enriched.float.fetched
         floatMissing = enriched.float.missing
+        floatErrored = enriched.float.errored
         aggregatesFetched = enriched.aggregates.fetched
         aggregatesEmpty = enriched.aggregates.empty
+        aggregatesErrored = enriched.aggregates.errored
         if (enriched.country.errors.length > 0) {
           console.info(
             `[FE import] country resolution errors: ` +
@@ -472,11 +476,17 @@ export function registerImportIpc(): void {
           `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
           `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
           `country_resolved=${countriesResolved} country_unknown=${countriesUnknown} ` +
-          `float_fetched=${floatFetched} float_missing=${floatMissing} ` +
-          `aggregates_fetched=${aggregatesFetched} aggregates_empty=${aggregatesEmpty}`,
+          `float_fetched=${floatFetched} float_missing=${floatMissing} float_errored=${floatErrored} ` +
+          `aggregates_fetched=${aggregatesFetched} aggregates_empty=${aggregatesEmpty} aggregates_errored=${aggregatesErrored}`,
       )
 
-      return { ...out, countriesResolved, countriesUnknown }
+      return {
+        ...out,
+        countriesResolved,
+        countriesUnknown,
+        floatErrored,
+        aggregatesErrored,
+      }
     },
   )
 }

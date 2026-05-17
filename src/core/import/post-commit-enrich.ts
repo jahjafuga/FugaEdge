@@ -76,8 +76,8 @@ export interface PostCommitEnrichResult {
 }
 
 const EMPTY_COUNTRY: ImportResolveResult = { resolved: 0, unknown: 0, errors: [] }
-const EMPTY_FLOAT: EnrichFloatResult = { fetched: 0, missing: 0, errors: [] }
-const EMPTY_AGGREGATES: EnrichAggregatesResult = { fetched: 0, empty: 0, errors: [] }
+const EMPTY_FLOAT: EnrichFloatResult = { fetched: 0, missing: 0, errored: 0, errors: [] }
+const EMPTY_AGGREGATES: EnrichAggregatesResult = { fetched: 0, empty: 0, errored: 0, errors: [] }
 
 export async function enrichAfterCommit(
   deps: EnrichAfterCommitDeps,
@@ -114,6 +114,7 @@ export async function enrichAfterCommit(
     float = {
       fetched: 0,
       missing: 0,
+      errored: deps.newSymbols.length,
       errors: [{ symbol: '*', message }],
     }
   }
@@ -127,7 +128,8 @@ export async function enrichAfterCommit(
     const message = e instanceof Error ? e.message : String(e)
     aggregates = {
       fetched: 0,
-      empty: deps.newSymbols.length,
+      empty: 0,
+      errored: deps.newSymbols.length,
       errors: [{ symbol: '*', message }],
     }
   }

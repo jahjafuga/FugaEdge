@@ -7,6 +7,7 @@ import {
   MassiveError,
   type IntradayBar,
 } from './massive'
+import { withRateLimitRetry } from './rate-limit'
 import {
   getIntradayRow,
   intradayPairsNeedingFetch,
@@ -17,7 +18,6 @@ import {
 
 const REQUEST_SPACING_MS = 350
 const MAX_CONCURRENT = 2
-const RETRY_BACKOFF_MS = 12_000
 
 export interface IntradayRefreshResult {
   attempted: number
@@ -103,17 +103,9 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   const fetchOne = async (symbol: string, date: string): Promise<void> => {
     try {
       await respectSpacing()
-      let bars
-      try {
-        bars = await fetchIntradayMinutes(polygon_api_key, symbol, date)
-      } catch (e) {
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          bars = await fetchIntradayMinutes(polygon_api_key, symbol, date)
-        } else {
-          throw e
-        }
-      }
+      const bars = await withRateLimitRetry(() =>
+        fetchIntradayMinutes(polygon_api_key, symbol, date),
+      )
       upsertIntradayRow({
         symbol,
         date,
