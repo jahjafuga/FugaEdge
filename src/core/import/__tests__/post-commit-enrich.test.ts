@@ -14,13 +14,13 @@ describe('enrichAfterCommit', () => {
       calls.push('float:start')
       await new Promise((r) => setTimeout(r, 1))
       calls.push('float:end')
-      return { fetched: 2, missing: 0, errors: [] }
+      return { fetched: 2, missing: 0, errored: 0, errors: [] }
     })
     const aggregates = vi.fn(async () => {
       calls.push('aggregates:start')
       await new Promise((r) => setTimeout(r, 1))
       calls.push('aggregates:end')
-      return { fetched: 2, empty: 0, errors: [] }
+      return { fetched: 2, empty: 0, errored: 0, errors: [] }
     })
 
     const result = await enrichAfterCommit({
@@ -49,8 +49,8 @@ describe('enrichAfterCommit', () => {
   })
 
   it('still runs float + aggregates when country throws — failure isolation', async () => {
-    const float = vi.fn(async () => ({ fetched: 1, missing: 0, errors: [] }))
-    const aggregates = vi.fn(async () => ({ fetched: 1, empty: 0, errors: [] }))
+    const float = vi.fn(async () => ({ fetched: 1, missing: 0, errored: 0, errors: [] }))
+    const aggregates = vi.fn(async () => ({ fetched: 1, empty: 0, errored: 0, errors: [] }))
     const result = await enrichAfterCommit({
       newSymbols: ['AAA'],
       country: async () => {
@@ -73,7 +73,7 @@ describe('enrichAfterCommit', () => {
   })
 
   it('still runs aggregates when float throws — symmetric failure isolation', async () => {
-    const aggregates = vi.fn(async () => ({ fetched: 1, empty: 0, errors: [] }))
+    const aggregates = vi.fn(async () => ({ fetched: 1, empty: 0, errored: 0, errors: [] }))
     const result = await enrichAfterCommit({
       newSymbols: ['AAA'],
       country: async () => ({ resolved: 1, unknown: 0, errors: [] }),
@@ -97,7 +97,7 @@ describe('enrichAfterCommit', () => {
     const result = await enrichAfterCommit({
       newSymbols: ['AAA', 'BBB'],
       country: async () => ({ resolved: 2, unknown: 0, errors: [] }),
-      float: async () => ({ fetched: 2, missing: 0, errors: [] }),
+      float: async () => ({ fetched: 2, missing: 0, errored: 0, errors: [] }),
       aggregates: async () => {
         throw new Error('aggregates endpoint down')
       },
@@ -106,7 +106,10 @@ describe('enrichAfterCommit', () => {
     expect(result.country.resolved).toBe(2)
     expect(result.float.fetched).toBe(2)
     expect(result.aggregates.fetched).toBe(0)
-    expect(result.aggregates.empty).toBe(2)
+    expect(result.aggregates.empty).toBe(0)
+    // Runner-level throw routes to `errored` — distinct from `empty`
+    // which means Polygon returned zero bars on a successful call.
+    expect(result.aggregates.errored).toBe(2)
     expect(result.aggregates.errors).toEqual([
       { symbol: '*', message: 'aggregates endpoint down' },
     ])
@@ -114,8 +117,8 @@ describe('enrichAfterCommit', () => {
 
   it('is a fast no-op when newSymbols is empty', async () => {
     const country = vi.fn(async () => ({ resolved: 99, unknown: 0, errors: [] }))
-    const float = vi.fn(async () => ({ fetched: 99, missing: 0, errors: [] }))
-    const aggregates = vi.fn(async () => ({ fetched: 99, empty: 0, errors: [] }))
+    const float = vi.fn(async () => ({ fetched: 99, missing: 0, errored: 0, errors: [] }))
+    const aggregates = vi.fn(async () => ({ fetched: 99, empty: 0, errored: 0, errors: [] }))
 
     const result = await enrichAfterCommit({
       newSymbols: [],
@@ -129,8 +132,8 @@ describe('enrichAfterCommit', () => {
     expect(aggregates).not.toHaveBeenCalled()
     expect(result).toEqual({
       country: { resolved: 0, unknown: 0, errors: [] },
-      float: { fetched: 0, missing: 0, errors: [] },
-      aggregates: { fetched: 0, empty: 0, errors: [] },
+      float: { fetched: 0, missing: 0, errored: 0, errors: [] },
+      aggregates: { fetched: 0, empty: 0, errored: 0, errors: [] },
     })
   })
 
@@ -144,11 +147,11 @@ describe('enrichAfterCommit', () => {
       },
       float: async (_s, onProgress) => {
         onProgress?.({ current: 1, total: 1, symbol: 'AAA' })
-        return { fetched: 1, missing: 0, errors: [] }
+        return { fetched: 1, missing: 0, errored: 0, errors: [] }
       },
       aggregates: async (_s, onProgress) => {
         onProgress?.({ current: 1, total: 1, symbol: 'AAA' })
-        return { fetched: 1, empty: 0, errors: [] }
+        return { fetched: 1, empty: 0, errored: 0, errors: [] }
       },
       emitProgress: (e) => events.push(e),
     })

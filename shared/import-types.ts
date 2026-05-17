@@ -246,4 +246,14 @@ export interface CommitResult {
    *  API key wasn't configured). These trades save with country=NULL and
    *  source='unknown' so a later Backfill in Settings can retry. */
   countriesUnknown: number
+  /** Newly-imported symbols whose float fetch threw (Polygon rate-limit
+   *  exhaustion, network error, malformed response). Distinct from
+   *  "Polygon returned null float" which is a legitimate outcome. The
+   *  v0.3.0 import-progress UI ticket will surface this — until then,
+   *  shipped for log + future-renderer parity. */
+  floatErrored: number
+  /** Newly-imported symbols whose daily-aggregates fetch threw. Same
+   *  semantics as floatErrored — distinct from "Polygon returned zero
+   *  bars" (which is captured separately at log level). */
+  aggregatesErrored: number
 }

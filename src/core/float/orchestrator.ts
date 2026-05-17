@@ -56,13 +56,19 @@ export interface EnrichFloatDeps {
 export interface EnrichFloatResult {
   fetched: number
   missing: number
+  /** Symbols whose fetch threw (after all retries exhausted). Distinct
+   *  from `missing` (which means Polygon returned null, a legitimate
+   *  answer). Length matches `errors.length` — kept as its own counter
+   *  so the log line and renderer toast can read a number without
+   *  reaching into the errors array. */
+  errored: number
   errors: { symbol: string; message: string }[]
 }
 
 export async function enrichFloatForSymbols(
   deps: EnrichFloatDeps,
 ): Promise<EnrichFloatResult> {
-  const out: EnrichFloatResult = { fetched: 0, missing: 0, errors: [] }
+  const out: EnrichFloatResult = { fetched: 0, missing: 0, errored: 0, errors: [] }
   if (deps.symbols.length === 0) return out
 
   const spacing = deps.spacingMs ?? 0
@@ -84,6 +90,7 @@ export async function enrichFloatForSymbols(
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       out.errors.push({ symbol, message })
+      out.errored++
     }
     deps.emitProgress?.({ current: i + 1, total, symbol })
   }

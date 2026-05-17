@@ -53,13 +53,18 @@ export interface EnrichAggregatesDeps {
 export interface EnrichAggregatesResult {
   fetched: number
   empty: number
+  /** Symbols whose fetch threw (after all retries exhausted). Distinct
+   *  from `empty` (which means Polygon returned zero bars for the range,
+   *  a legitimate answer for delisted tickers or trade dates outside
+   *  the market calendar). Length matches `errors.length`. */
+  errored: number
   errors: { symbol: string; message: string }[]
 }
 
 export async function enrichAggregatesForSymbols(
   deps: EnrichAggregatesDeps,
 ): Promise<EnrichAggregatesResult> {
-  const out: EnrichAggregatesResult = { fetched: 0, empty: 0, errors: [] }
+  const out: EnrichAggregatesResult = { fetched: 0, empty: 0, errored: 0, errors: [] }
   if (deps.symbols.length === 0) return out
 
   const spacing = deps.spacingMs ?? 0
@@ -81,6 +86,7 @@ export async function enrichAggregatesForSymbols(
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       out.errors.push({ symbol, message })
+      out.errored++
     }
     deps.emitProgress?.({ current: i + 1, total, symbol })
   }

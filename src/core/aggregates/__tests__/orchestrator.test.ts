@@ -25,6 +25,7 @@ describe('enrichAggregatesForSymbols', () => {
 
     expect(result.fetched).toBe(1)
     expect(result.empty).toBe(1)
+    expect(result.errored).toBe(0)
     expect(result.errors).toEqual([])
 
     // Both symbols must persist — even the empty payload writes through so
@@ -48,6 +49,7 @@ describe('enrichAggregatesForSymbols', () => {
 
     expect(result.fetched).toBe(0)
     expect(result.empty).toBe(0)
+    expect(result.errored).toBe(1)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatchObject({ symbol: 'OOPS', message: '500 internal' })
     expect(writes).toEqual([])
@@ -65,7 +67,7 @@ describe('enrichAggregatesForSymbols', () => {
       emitProgress,
     })
 
-    expect(result).toEqual({ fetched: 0, empty: 0, errors: [] })
+    expect(result).toEqual({ fetched: 0, empty: 0, errored: 0, errors: [] })
     expect(fetchAggregates).not.toHaveBeenCalled()
     expect(persistAggregates).not.toHaveBeenCalled()
     expect(emitProgress).not.toHaveBeenCalled()

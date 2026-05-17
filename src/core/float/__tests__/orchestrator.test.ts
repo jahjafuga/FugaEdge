@@ -20,6 +20,7 @@ describe('enrichFloatForSymbols', () => {
 
     expect(result.fetched).toBe(1)
     expect(result.missing).toBe(1)
+    expect(result.errored).toBe(0)
     expect(result.errors).toEqual([])
 
     expect(writes).toEqual([
@@ -40,6 +41,7 @@ describe('enrichFloatForSymbols', () => {
 
     expect(result.fetched).toBe(0)
     expect(result.missing).toBe(0)
+    expect(result.errored).toBe(1)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toMatchObject({ symbol: 'OOPS', message: '429 rate limit' })
     // Persist must not run when the fetch failed — leave the prior row
@@ -59,7 +61,7 @@ describe('enrichFloatForSymbols', () => {
       emitProgress,
     })
 
-    expect(result).toEqual({ fetched: 0, missing: 0, errors: [] })
+    expect(result).toEqual({ fetched: 0, missing: 0, errored: 0, errors: [] })
     expect(fetchFloat).not.toHaveBeenCalled()
     expect(persistFloat).not.toHaveBeenCalled()
     expect(emitProgress).not.toHaveBeenCalled()

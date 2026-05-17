@@ -10,7 +10,8 @@
 // reads those fields.
 
 import { getSettings } from '../settings/repo'
-import { MassiveError, fetchTickerDetails } from '../market/massive'
+import { fetchTickerDetails } from '../market/massive'
+import { withRateLimitRetry } from '../market/rate-limit'
 import { getMarketRow, upsertMarketRow } from '../market/repo'
 import { backfillFloatShares } from './repo'
 import {
@@ -19,7 +20,6 @@ import {
 } from '@/core/float/orchestrator'
 
 const REQUEST_SPACING_MS = 350
-const RETRY_BACKOFF_MS = 12_000
 
 /** Fetch ticker details (float + market_cap + sector from one Polygon
  *  call) for each newly-imported symbol, upsert the market_data row, and
@@ -33,38 +33,26 @@ export async function enrichFloatForImportedSymbols(
   onProgress?: (p: { current: number; total: number; symbol: string }) => void,
 ): Promise<EnrichFloatResult> {
   if (symbols.length === 0) {
-    return { fetched: 0, missing: 0, errors: [] }
+    return { fetched: 0, missing: 0, errored: 0, errors: [] }
   }
   const { polygon_api_key } = getSettings().values
   if (!polygon_api_key) {
     // No key → can't fetch. Count as missing so the toast can nudge the
     // user toward Settings → API key. Mirrors the country-side handling.
-    return { fetched: 0, missing: symbols.length, errors: [] }
+    return { fetched: 0, missing: symbols.length, errored: 0, errors: [] }
   }
 
   return enrichFloatForSymbols({
     symbols,
-    fetchFloat: async (symbol) => {
-      const fetchOnce = async () => {
+    fetchFloat: (symbol) =>
+      withRateLimitRetry(async () => {
         const d = await fetchTickerDetails(polygon_api_key, symbol)
         return {
           float: d.shares_outstanding,
           market_cap: d.market_cap,
           sector: d.sector,
         }
-      }
-      try {
-        return await fetchOnce()
-      } catch (e) {
-        // Single soft retry on rate-limit, matching resolve-countries.ts
-        // and runRefresh's pattern.
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          return fetchOnce()
-        }
-        throw e
-      }
-    },
+      }),
     persistFloat: (symbol, result) => {
       // Update the market_data cache so a later refresh sees the values.
       // Country fields written by the country phase in the prior step are
