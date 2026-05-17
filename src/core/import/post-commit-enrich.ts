@@ -1,5 +1,16 @@
 // Pure post-commit enrichment composer.
 //
+// NOTE — as of Day 7A commit 5.76 (Patch A), the Electron IPC handler
+// no longer calls enrichAfterCommit. It awaits country resolution
+// directly and fires the float + aggregates wrappers as background
+// promises, because awaiting all three phases was forcing the IPC
+// response to wait 10-30 minutes under Polygon free-tier rate-limit
+// pressure (see commit 5.76 message for the smoke-test trace). This
+// file is retained because v0.3.0's renderer-side IMPORT_PROGRESS
+// consumer is the natural caller — the composer's per-phase progress
+// tagging and failure-isolation contract are exactly what the
+// renderer needs once it can display per-phase counters live.
+//
 // Sequences the three import-time orchestrators that run AFTER trips have
 // been committed to the trades table:
 //   1. country resolution   — writes the market_data row (sets country +
