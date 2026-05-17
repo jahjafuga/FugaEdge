@@ -1,17 +1,21 @@
 import { describe, it, expect, vi } from 'vitest'
-import { enrichFloatForSymbols } from '../orchestrator'
+import { enrichFloatForSymbols, type FloatFetchResult } from '../orchestrator'
 
 describe('enrichFloatForSymbols', () => {
-  it('persists each fetched float and counts fetched vs missing per symbol', async () => {
-    // AAA returns a number → fetched
-    // BBB returns null (Polygon has no shares_outstanding) → missing
-    const floats: Record<string, number | null> = { AAA: 12_000_000, BBB: null }
-    const writes: { symbol: string; float: number | null }[] = []
+  it('persists each fetched payload (float + passengers) and counts by float', async () => {
+    // AAA returns a numeric float → fetched
+    // BBB returns null float (Polygon has no shares_outstanding) → missing
+    // Both carry market_cap + sector passengers that must persist as-is.
+    const fetches: Record<string, FloatFetchResult> = {
+      AAA: { float: 12_000_000, market_cap: 50_000_000, sector: 'Biotech' },
+      BBB: { float: null, market_cap: null, sector: null },
+    }
+    const writes: { symbol: string; result: FloatFetchResult }[] = []
 
     const result = await enrichFloatForSymbols({
       symbols: ['AAA', 'BBB'],
-      fetchFloat: async (s) => floats[s],
-      persistFloat: (symbol, float) => writes.push({ symbol, float }),
+      fetchFloat: async (s) => fetches[s],
+      persistFloat: (symbol, r) => writes.push({ symbol, result: r }),
     })
 
     expect(result.fetched).toBe(1)
@@ -19,8 +23,8 @@ describe('enrichFloatForSymbols', () => {
     expect(result.errors).toEqual([])
 
     expect(writes).toEqual([
-      { symbol: 'AAA', float: 12_000_000 },
-      { symbol: 'BBB', float: null },
+      { symbol: 'AAA', result: fetches.AAA },
+      { symbol: 'BBB', result: fetches.BBB },
     ])
   })
 
@@ -44,7 +48,7 @@ describe('enrichFloatForSymbols', () => {
   })
 
   it('is a fast no-op on an empty symbol list', async () => {
-    const fetchFloat = vi.fn(async () => 1)
+    const fetchFloat = vi.fn(async () => ({ float: 1, market_cap: null, sector: null }))
     const persistFloat = vi.fn()
     const emitProgress = vi.fn()
 
@@ -65,7 +69,7 @@ describe('enrichFloatForSymbols', () => {
     const events: { current: number; total: number; symbol: string }[] = []
     await enrichFloatForSymbols({
       symbols: ['A', 'B', 'C'],
-      fetchFloat: async () => 1,
+      fetchFloat: async () => ({ float: 1, market_cap: null, sector: null }),
       persistFloat: () => {},
       emitProgress: (p) => events.push(p),
     })
