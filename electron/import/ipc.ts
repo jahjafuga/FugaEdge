@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
   CommitInput,
@@ -19,11 +19,12 @@ import { parseWebullMobileCsv } from './parse-webull-mobile'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
-import { annotateFeeStatus, annotateTripStatus, backfillFloatShares, backfillTradeCountriesFromMarket, commit } from './repo'
-import { refreshMarketData } from '../market/fetch'
+import { annotateFeeStatus, annotateTripStatus, commit } from './repo'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
+import { enrichFloatForImportedSymbols } from './enrich-float'
+import { enrichAfterCommit } from '@/core/import/post-commit-enrich'
 
 export function registerImportIpc(): void {
   ipcMain.handle(
@@ -372,7 +373,7 @@ export function registerImportIpc(): void {
 
   ipcMain.handle(
     IPC.IMPORT_COMMIT,
-    async (_e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
+    async (e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
       // Apply the date override to any fee row missing a date.
       const finalFees: DaySummaryFeeRow[] = fees.map((f) =>
         f.date ? f : { ...f, date: feeDateOverride ?? '' },
@@ -390,75 +391,68 @@ export function registerImportIpc(): void {
       // new trips — fees still affect every aggregate).
       bumpDataVersion()
 
-      // Auto-detect country per newly-inserted symbol using the same Polygon
-      // ticker reference the float fetch uses. Awaited so the import-complete
-      // toast can report a gap (vs. v0.1.2's fire-and-forget refresh, which
-      // left trades at country=NULL until the user clicked Backfill).
-      // Errors are recorded as `countriesUnknown`; the import itself never
-      // blocks on a Polygon failure.
+      // Post-commit enrichment for newly-imported symbols. The composer
+      // sequences country resolution first, then float enrichment — both
+      // phases upsert the same market_data row, so parallel would race.
+      // One orchestrator throwing does not block the other (see
+      // src/core/import/post-commit-enrich.ts). The float orchestrator
+      // takes an EXPLICIT symbol list and bypasses the symbolsNeedingFetch
+      // 7-day TTL gate that previously silently no-op'd first-time symbols
+      // on every import path.
       const newSymbols = Array.from(
         new Set(toInsertTrips.map((t) => t.symbol)),
       ).sort()
       let countriesResolved = 0
       let countriesUnknown = 0
+      let floatFetched = 0
+      let floatMissing = 0
       if (out.insertedTrips > 0 && newSymbols.length > 0) {
-        try {
-          const r = await resolveCountriesForImportedSymbols(newSymbols)
-          countriesResolved = r.resolved
-          countriesUnknown = r.unknown
-          if (r.errors.length > 0) {
-            console.info(
-              `[FE import] country resolution errors: ` +
-                r.errors.map((e) => `${e.symbol}=${e.message}`).join(', '),
-            )
-          }
-          if (countriesResolved > 0) bumpDataVersion()
-        } catch (e) {
-          // Should never throw — the orchestrator catches per-symbol — but
-          // guard the import either way.
+        const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
+        const enriched = await enrichAfterCommit({
+          newSymbols,
+          country: resolveCountriesForImportedSymbols,
+          float: enrichFloatForImportedSymbols,
+          emitProgress: wc
+            ? (p) => wc.send(IPC.IMPORT_PROGRESS, p)
+            : undefined,
+        })
+        countriesResolved = enriched.country.resolved
+        countriesUnknown = enriched.country.unknown
+        floatFetched = enriched.float.fetched
+        floatMissing = enriched.float.missing
+        if (enriched.country.errors.length > 0) {
           console.info(
-            `[FE import] country resolution unexpected error: ${e instanceof Error ? e.message : String(e)}`,
+            `[FE import] country resolution errors: ` +
+              enriched.country.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
           )
-          countriesUnknown = newSymbols.length
+        }
+        if (enriched.float.errors.length > 0) {
+          console.info(
+            `[FE import] float enrichment errors: ` +
+              enriched.float.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+          )
+        }
+        // Bump on any visible state change — new country on trades OR new
+        // float on trade cards. Either invalidates analytics caches.
+        if (countriesResolved > 0 || floatFetched > 0) {
+          bumpDataVersion()
         }
       }
 
-      // Fire-and-forget: pull market data for any newly-touched symbols, and
-      // intraday bars for the new (symbol, date) pairs. The renderer doesn't
-      // wait — Reports/Analytics shows whatever is cached and updates next
-      // visit. Errors are logged inside each refresh function.
+      // Fire-and-forget intraday bars for the new (symbol, date) pairs.
+      // The renderer doesn't wait — chart placeholders show whatever is
+      // cached and update next visit.
+      //
+      // NOTE — aggregates / daily_volumes / sector / market_cap that used
+      // to be pulled here via refreshMarketData() are now deferred to the
+      // next Settings → Refresh Market Data. The import path no longer
+      // routes through refreshMarketData, which kills the singleton-lock
+      // race that previously skipped first-time symbols' float fetch as
+      // a side effect.
       if (out.insertedTrips > 0) {
-        refreshMarketData()
-          .then(() => {
-            // Backfill float_shares for symbols market_data didn't have at
-            // commit time but now does after the refresh. Silent on any
-            // error — the modal Float field is editable as a fallback.
-            try {
-              const filled = backfillFloatShares()
-              if (filled > 0) {
-                console.info(`[FE import] backfilled float_shares for ${filled} trades`)
-              }
-              // Country was resolved per-ticker during refreshMarketData and
-              // cached on market_data; copy it onto the new trades the same
-              // way float is copied. Pure SQL — no extra Polygon calls.
-              const countryFilled = backfillTradeCountriesFromMarket()
-              if (countryFilled > 0) {
-                console.info(`[FE import] backfilled country for ${countryFilled} trades`)
-              }
-            } catch (e) {
-              console.info(
-                `[FE float] backfill error: ${e instanceof Error ? e.message : String(e)}`,
-              )
-            }
-          })
-          .catch((e) => {
-            console.info(
-              `[FE market] background refresh error: ${e instanceof Error ? e.message : String(e)}`,
-            )
-          })
-        refreshIntraday().catch((e) => {
+        refreshIntraday().catch((err) => {
           console.info(
-            `[FE intraday] background refresh error: ${e instanceof Error ? e.message : String(e)}`,
+            `[FE intraday] background refresh error: ${err instanceof Error ? err.message : String(err)}`,
           )
         })
       }
@@ -469,7 +463,8 @@ export function registerImportIpc(): void {
           `inserted_trips=${out.insertedTrips} skipped_trips=${out.skippedTrips} ` +
           `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
           `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
-          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown}`,
+          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown} ` +
+          `float_fetched=${floatFetched} float_missing=${floatMissing}`,
       )
 
       return { ...out, countriesResolved, countriesUnknown }
