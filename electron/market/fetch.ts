@@ -35,6 +35,25 @@ interface RefreshOptions {
 
 let inFlight: Promise<RefreshResult> | null = null
 
+/** Fetch shares_outstanding (float) for a single symbol via Polygon's
+ *  /v3/reference/tickers endpoint. Returns null when Polygon has no
+ *  shares_outstanding value on the ticker (delisted, non-equity, etc.).
+ *
+ *  Does NOT consult cache, staleness, or singleton lock — caller is
+ *  responsible for upserting onto market_data and for any caching
+ *  policy. Used by the import-time float orchestrator (which passes an
+ *  EXPLICIT symbol list it has already decided needs a fetch); runRefresh
+ *  keeps its own internal path that bundles reference + aggregates
+ *  together for the Settings → Refresh Market Data flow. */
+export async function fetchFloatForSymbol(
+  apiKey: string,
+  symbol: string,
+): Promise<number | null> {
+  const ref = await fetchTickerReference(apiKey, symbol)
+  const details = extractTickerDetails(symbol, ref)
+  return details.shares_outstanding
+}
+
 // Public entrypoint. Locks behind a singleton promise so concurrent callers
 // (manual button + import-time auto-refresh racing) share one run.
 export function refreshMarketData(opts: RefreshOptions = {}): Promise<RefreshResult> {
