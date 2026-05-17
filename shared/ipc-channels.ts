@@ -5,6 +5,7 @@ export const IPC = {
   DB_HEALTHCHECK: 'db:healthcheck',
   IMPORT_PREVIEW: 'import:preview',
   IMPORT_COMMIT: 'import:commit',
+  IMPORT_PROGRESS: 'import:progress',
   DASHBOARD_GET: 'dashboard:get',
   TRADES_LIST: 'trades:list',
   TRADE_NOTE_SAVE: 'trade:noteSave',
