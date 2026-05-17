@@ -24,6 +24,7 @@ import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
+import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { enrichAfterCommit } from '@/core/import/post-commit-enrich'
 
 export function registerImportIpc(): void {
@@ -392,13 +393,15 @@ export function registerImportIpc(): void {
       bumpDataVersion()
 
       // Post-commit enrichment for newly-imported symbols. The composer
-      // sequences country resolution first, then float enrichment — both
-      // phases upsert the same market_data row, so parallel would race.
-      // One orchestrator throwing does not block the other (see
-      // src/core/import/post-commit-enrich.ts). The float orchestrator
-      // takes an EXPLICIT symbol list and bypasses the symbolsNeedingFetch
-      // 7-day TTL gate that previously silently no-op'd first-time symbols
-      // on every import path.
+      // sequences three phases — country resolution, float (+ market_cap
+      // + sector free-riders from the same Polygon ticker reference
+      // call), then aggregates (daily_volumes + avg_volume, the RVOL
+      // inputs for v0.3.0 Pillars). All three upsert the same market_data
+      // row, so parallel would race. One phase throwing does not block
+      // the others (see src/core/import/post-commit-enrich.ts). Each
+      // orchestrator takes an EXPLICIT symbol list and bypasses the
+      // symbolsNeedingFetch 7-day TTL gate that previously silently
+      // no-op'd first-time symbols on every import path.
       const newSymbols = Array.from(
         new Set(toInsertTrips.map((t) => t.symbol)),
       ).sort()
@@ -406,12 +409,15 @@ export function registerImportIpc(): void {
       let countriesUnknown = 0
       let floatFetched = 0
       let floatMissing = 0
+      let aggregatesFetched = 0
+      let aggregatesEmpty = 0
       if (out.insertedTrips > 0 && newSymbols.length > 0) {
         const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
         const enriched = await enrichAfterCommit({
           newSymbols,
           country: resolveCountriesForImportedSymbols,
           float: enrichFloatForImportedSymbols,
+          aggregates: enrichAggregatesForImportedSymbols,
           emitProgress: wc
             ? (p) => wc.send(IPC.IMPORT_PROGRESS, p)
             : undefined,
@@ -420,6 +426,8 @@ export function registerImportIpc(): void {
         countriesUnknown = enriched.country.unknown
         floatFetched = enriched.float.fetched
         floatMissing = enriched.float.missing
+        aggregatesFetched = enriched.aggregates.fetched
+        aggregatesEmpty = enriched.aggregates.empty
         if (enriched.country.errors.length > 0) {
           console.info(
             `[FE import] country resolution errors: ` +
@@ -432,9 +440,16 @@ export function registerImportIpc(): void {
               enriched.float.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
           )
         }
-        // Bump on any visible state change — new country on trades OR new
-        // float on trade cards. Either invalidates analytics caches.
-        if (countriesResolved > 0 || floatFetched > 0) {
+        if (enriched.aggregates.errors.length > 0) {
+          console.info(
+            `[FE import] aggregates enrichment errors: ` +
+              enriched.aggregates.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+          )
+        }
+        // Bump on any visible state change — new country on trades, new
+        // float on trade cards, or new RVOL data on the Volume tab. Any
+        // of these invalidates analytics caches.
+        if (countriesResolved > 0 || floatFetched > 0 || aggregatesFetched > 0) {
           bumpDataVersion()
         }
       }
@@ -442,13 +457,6 @@ export function registerImportIpc(): void {
       // Fire-and-forget intraday bars for the new (symbol, date) pairs.
       // The renderer doesn't wait — chart placeholders show whatever is
       // cached and update next visit.
-      //
-      // NOTE — aggregates / daily_volumes / sector / market_cap that used
-      // to be pulled here via refreshMarketData() are now deferred to the
-      // next Settings → Refresh Market Data. The import path no longer
-      // routes through refreshMarketData, which kills the singleton-lock
-      // race that previously skipped first-time symbols' float fetch as
-      // a side effect.
       if (out.insertedTrips > 0) {
         refreshIntraday().catch((err) => {
           console.info(
@@ -464,7 +472,8 @@ export function registerImportIpc(): void {
           `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
           `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
           `country_resolved=${countriesResolved} country_unknown=${countriesUnknown} ` +
-          `float_fetched=${floatFetched} float_missing=${floatMissing}`,
+          `float_fetched=${floatFetched} float_missing=${floatMissing} ` +
+          `aggregates_fetched=${aggregatesFetched} aggregates_empty=${aggregatesEmpty}`,
       )
 
       return { ...out, countriesResolved, countriesUnknown }

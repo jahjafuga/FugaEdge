@@ -2,10 +2,15 @@
 // Mirrors electron/import/resolve-countries.ts: pulls the API key + DB
 // writers in here so src/core/float/orchestrator.ts can stay portable per
 // ARCHITECTURE.md.
+//
+// The orchestrator's fetchFloat returns FloatFetchResult ({float,
+// market_cap, sector}) — all three come back in the same Polygon ticker
+// reference call, so persisting market_cap + sector alongside float costs
+// zero extra API spend. v0.3.0 Pillars work (small-cap / sector pillars)
+// reads those fields.
 
 import { getSettings } from '../settings/repo'
-import { MassiveError } from '../market/massive'
-import { fetchFloatForSymbol } from '../market/fetch'
+import { MassiveError, fetchTickerDetails } from '../market/massive'
 import { getMarketRow, upsertMarketRow } from '../market/repo'
 import { backfillFloatShares } from './repo'
 import {
@@ -16,12 +21,13 @@ import {
 const REQUEST_SPACING_MS = 350
 const RETRY_BACKOFF_MS = 12_000
 
-/** Fetch float for each newly-imported symbol, upsert the market_data row,
- *  and propagate the value to trades.float_shares via a per-symbol
- *  backfill. Bypasses the symbolsNeedingFetch 7-day TTL gate entirely —
- *  the import flow already knows these symbols are new and must be fetched.
- *  Awaited by the post-commit-enrich composer so the toast can report a
- *  consistent post-enrichment state. */
+/** Fetch ticker details (float + market_cap + sector from one Polygon
+ *  call) for each newly-imported symbol, upsert the market_data row, and
+ *  propagate float to trades.float_shares via a per-symbol backfill.
+ *  Bypasses the symbolsNeedingFetch 7-day TTL gate entirely — the import
+ *  flow already knows these symbols are new and must be fetched. Awaited
+ *  by the post-commit-enrich composer so the toast can report a consistent
+ *  post-enrichment state. */
 export async function enrichFloatForImportedSymbols(
   symbols: string[],
   onProgress?: (p: { current: number; total: number; symbol: string }) => void,
@@ -39,29 +45,39 @@ export async function enrichFloatForImportedSymbols(
   return enrichFloatForSymbols({
     symbols,
     fetchFloat: async (symbol) => {
+      const fetchOnce = async () => {
+        const d = await fetchTickerDetails(polygon_api_key, symbol)
+        return {
+          float: d.shares_outstanding,
+          market_cap: d.market_cap,
+          sector: d.sector,
+        }
+      }
       try {
-        return await fetchFloatForSymbol(polygon_api_key, symbol)
+        return await fetchOnce()
       } catch (e) {
         // Single soft retry on rate-limit, matching resolve-countries.ts
         // and runRefresh's pattern.
         if (e instanceof MassiveError && e.status === 429) {
           await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          return fetchFloatForSymbol(polygon_api_key, symbol)
+          return fetchOnce()
         }
         throw e
       }
     },
-    persistFloat: (symbol, float) => {
-      // Update the market_data cache so a later refresh sees the value.
+    persistFloat: (symbol, result) => {
+      // Update the market_data cache so a later refresh sees the values.
       // Country fields written by the country phase in the prior step are
       // preserved by upsertMarketRow's COALESCE on country/country_name/
       // region — passing the existing row's values is belt-and-suspenders.
+      // Aggregates fields (daily_volumes / avg_volume) are preserved here
+      // too — they're written by the aggregates phase that runs next.
       const existing = getMarketRow(symbol)
       upsertMarketRow({
         symbol,
-        float,
-        market_cap: existing?.market_cap ?? null,
-        sector: existing?.sector ?? null,
+        float: result.float,
+        market_cap: result.market_cap,
+        sector: result.sector,
         avg_volume: existing?.avg_volume ?? null,
         daily_volumes: existing?.daily_volumes ?? {},
         country: existing?.country ?? null,

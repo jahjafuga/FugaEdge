@@ -35,23 +35,22 @@ interface RefreshOptions {
 
 let inFlight: Promise<RefreshResult> | null = null
 
-/** Fetch shares_outstanding (float) for a single symbol via Polygon's
- *  /v3/reference/tickers endpoint. Returns null when Polygon has no
- *  shares_outstanding value on the ticker (delisted, non-equity, etc.).
- *
- *  Does NOT consult cache, staleness, or singleton lock — caller is
- *  responsible for upserting onto market_data and for any caching
- *  policy. Used by the import-time float orchestrator (which passes an
- *  EXPLICIT symbol list it has already decided needs a fetch); runRefresh
- *  keeps its own internal path that bundles reference + aggregates
- *  together for the Settings → Refresh Market Data flow. */
-export async function fetchFloatForSymbol(
+/** Fetch daily aggregates (date → volume map + avg) for a single symbol
+ *  over an explicit date range. Mirrors the aggregates-fetch portion of
+ *  runRefresh's fetchOne but as a standalone primitive the import-time
+ *  aggregates orchestrator can call without going through the singleton
+ *  lock. Does NOT consult cache or staleness — caller owns those. */
+export async function fetchAggregatesForSymbol(
   apiKey: string,
   symbol: string,
-): Promise<number | null> {
-  const ref = await fetchTickerReference(apiKey, symbol)
-  const details = extractTickerDetails(symbol, ref)
-  return details.shares_outstanding
+  from: string,
+  to: string,
+): Promise<{ daily_volumes: Record<string, number>; avg_volume: number | null }> {
+  const aggs = await fetchDailyAggregates(apiKey, symbol, from, to)
+  const daily_volumes: Record<string, number> = {}
+  for (const a of aggs) daily_volumes[a.date] = a.volume
+  const avg = aggs.length > 0 ? avgVolume(aggs.map((a) => a.volume)) : null
+  return { daily_volumes, avg_volume: avg }
 }
 
 // Public entrypoint. Locks behind a singleton promise so concurrent callers
