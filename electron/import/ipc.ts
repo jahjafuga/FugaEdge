@@ -25,7 +25,6 @@ import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
-import { enrichAfterCommit } from '@/core/import/post-commit-enrich'
 
 export function registerImportIpc(): void {
   ipcMain.handle(
@@ -392,75 +391,109 @@ export function registerImportIpc(): void {
       // new trips — fees still affect every aggregate).
       bumpDataVersion()
 
-      // Post-commit enrichment for newly-imported symbols. The composer
-      // sequences three phases — country resolution, float (+ market_cap
-      // + sector free-riders from the same Polygon ticker reference
-      // call), then aggregates (daily_volumes + avg_volume, the RVOL
-      // inputs for v0.3.0 Pillars). All three upsert the same market_data
-      // row, so parallel would race. One phase throwing does not block
-      // the others (see src/core/import/post-commit-enrich.ts). Each
-      // orchestrator takes an EXPLICIT symbol list and bypasses the
-      // symbolsNeedingFetch 7-day TTL gate that previously silently
-      // no-op'd first-time symbols on every import path.
+      // Post-commit enrichment for newly-imported symbols.
+      //
+      // Patch A (Day 7A commit 5.76): split the await pattern. Country
+      // is awaited because the import-complete toast displays
+      // countriesUnknown synchronously. Float + aggregates are fired
+      // forget — their wrappers run in the background and log results
+      // when they finish. This restores the pre-Commit-5 UX where the
+      // IPC handler returns within ~10s of import-complete; without
+      // the split, withRateLimitRetry's deeper backoff could keep the
+      // handler awaiting for 10-30 minutes under free-tier rate-limit
+      // pressure (Day 7A commit 5.75 smoke-test regression).
+      //
+      // floatErrored / aggregatesErrored counters on CommitResult are
+      // always 0 here — the values aren't known when the handler
+      // returns. The v0.3.0 import-progress UI ticket will switch to
+      // a renderer-side subscriber on IMPORT_PROGRESS for live counts;
+      // src/core/import/post-commit-enrich.ts (the 3-phase composer)
+      // is kept for that future re-wire.
       const newSymbols = Array.from(
         new Set(toInsertTrips.map((t) => t.symbol)),
       ).sort()
       let countriesResolved = 0
       let countriesUnknown = 0
-      let floatFetched = 0
-      let floatMissing = 0
-      let floatErrored = 0
-      let aggregatesFetched = 0
-      let aggregatesEmpty = 0
-      let aggregatesErrored = 0
       if (out.insertedTrips > 0 && newSymbols.length > 0) {
         const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
-        const enriched = await enrichAfterCommit({
-          newSymbols,
-          country: resolveCountriesForImportedSymbols,
-          float: enrichFloatForImportedSymbols,
-          aggregates: enrichAggregatesForImportedSymbols,
-          emitProgress: wc
-            ? (p) => wc.send(IPC.IMPORT_PROGRESS, p)
-            : undefined,
-        })
-        countriesResolved = enriched.country.resolved
-        countriesUnknown = enriched.country.unknown
-        floatFetched = enriched.float.fetched
-        floatMissing = enriched.float.missing
-        floatErrored = enriched.float.errored
-        aggregatesFetched = enriched.aggregates.fetched
-        aggregatesEmpty = enriched.aggregates.empty
-        aggregatesErrored = enriched.aggregates.errored
-        if (enriched.country.errors.length > 0) {
+        const sendProgress = wc
+          ? (phase: 'country' | 'float' | 'aggregates') =>
+              (p: { current: number; total: number; symbol: string }) =>
+                wc.send(IPC.IMPORT_PROGRESS, { phase, ...p })
+          : null
+
+        // ── Awaited: country (toast reads countriesUnknown sync) ──
+        // Country wrapper doesn't accept onProgress today — country
+        // orchestrator has no emitProgress hook. Extending both is
+        // bundled into the v0.3.0 import-progress UI ticket since
+        // that's the consumer; float + aggregates phases emit
+        // progress events already so the channel isn't dead.
+        try {
+          const country = await resolveCountriesForImportedSymbols(newSymbols)
+          countriesResolved = country.resolved
+          countriesUnknown = country.unknown
+          if (country.errors.length > 0) {
+            console.info(
+              `[FE import] country resolution errors: ` +
+                country.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+            )
+          }
+          if (countriesResolved > 0) bumpDataVersion()
+        } catch (err) {
+          // resolveCountriesForImport's per-symbol catch means this
+          // shouldn't fire, but guard the import either way.
           console.info(
-            `[FE import] country resolution errors: ` +
-              enriched.country.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+            `[FE import] country resolution unexpected error: ` +
+              `${err instanceof Error ? err.message : String(err)}`,
           )
+          countriesUnknown = newSymbols.length
         }
-        if (enriched.float.errors.length > 0) {
-          console.info(
-            `[FE import] float enrichment errors: ` +
-              enriched.float.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
-          )
-        }
-        if (enriched.aggregates.errors.length > 0) {
-          console.info(
-            `[FE import] aggregates enrichment errors: ` +
-              enriched.aggregates.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
-          )
-        }
-        // Bump on any visible state change — new country on trades, new
-        // float on trade cards, or new RVOL data on the Volume tab. Any
-        // of these invalidates analytics caches.
-        if (countriesResolved > 0 || floatFetched > 0 || aggregatesFetched > 0) {
-          bumpDataVersion()
-        }
+
+        // ── Fire-and-forget: float (trade cards) ──
+        enrichFloatForImportedSymbols(newSymbols, sendProgress?.('float'))
+          .then((r) => {
+            console.info(
+              `[FE import] float fetched=${r.fetched} missing=${r.missing} errored=${r.errored}`,
+            )
+            if (r.errors.length > 0) {
+              console.info(
+                `[FE import] float enrichment errors: ` +
+                  r.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+              )
+            }
+            if (r.fetched > 0) bumpDataVersion()
+          })
+          .catch((err) => {
+            console.info(
+              `[FE import] float background error: ` +
+                `${err instanceof Error ? err.message : String(err)}`,
+            )
+          })
+
+        // ── Fire-and-forget: aggregates (RVOL inputs) ──
+        enrichAggregatesForImportedSymbols(newSymbols, sendProgress?.('aggregates'))
+          .then((r) => {
+            console.info(
+              `[FE import] aggregates fetched=${r.fetched} empty=${r.empty} errored=${r.errored}`,
+            )
+            if (r.errors.length > 0) {
+              console.info(
+                `[FE import] aggregates enrichment errors: ` +
+                  r.errors.map((err) => `${err.symbol}=${err.message}`).join(', '),
+              )
+            }
+            if (r.fetched > 0) bumpDataVersion()
+          })
+          .catch((err) => {
+            console.info(
+              `[FE import] aggregates background error: ` +
+                `${err instanceof Error ? err.message : String(err)}`,
+            )
+          })
       }
 
       // Fire-and-forget intraday bars for the new (symbol, date) pairs.
-      // The renderer doesn't wait — chart placeholders show whatever is
-      // cached and update next visit.
+      // Chart placeholders show whatever is cached and update next visit.
       if (out.insertedTrips > 0) {
         refreshIntraday().catch((err) => {
           console.info(
@@ -469,23 +502,27 @@ export function registerImportIpc(): void {
         })
       }
 
+      // [FJ commit] log fires before float/aggregates finish — those
+      // counters land in their own [FE import] log lines as each
+      // background phase completes.
       console.info(
         `[FJ commit] trips_in=${trips.length}(insert=${toInsertTrips.length}) ` +
           `fees_in=${fees.length} (dropped_no_date=${droppedNoDate}) ` +
           `inserted_trips=${out.insertedTrips} skipped_trips=${out.skippedTrips} ` +
           `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
           `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
-          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown} ` +
-          `float_fetched=${floatFetched} float_missing=${floatMissing} float_errored=${floatErrored} ` +
-          `aggregates_fetched=${aggregatesFetched} aggregates_empty=${aggregatesEmpty} aggregates_errored=${aggregatesErrored}`,
+          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown}`,
       )
 
       return {
         ...out,
         countriesResolved,
         countriesUnknown,
-        floatErrored,
-        aggregatesErrored,
+        // Fire-and-forget — not knowable at return time. v0.3.0 ticket
+        // import-progress-ui-renderer-consumer will populate via IPC
+        // progress events instead.
+        floatErrored: 0,
+        aggregatesErrored: 0,
       }
     },
   )
