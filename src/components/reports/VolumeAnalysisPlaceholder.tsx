@@ -41,9 +41,9 @@ export default function VolumeAnalysisPlaceholder({ data }: VolumeAnalysisPlaceh
 
       <Section title="P&L by shares outstanding" subtitle="Bucketed by share_class_shares_outstanding from Massive.">
         {data.byFloat.length === 0 ? (
-          <EmptyMini text="No float data — refresh market data or check Settings." />
+          <EmptyMini text="No shares-out data — refresh market data or check Settings." />
         ) : (
-          <ReportBucketTable keyHeader="Float" buckets={data.byFloat} />
+          <ReportBucketTable keyHeader="Shares Out" buckets={data.byFloat} />
         )}
       </Section>
 

@@ -49,7 +49,7 @@ export default function VolumeTab({ data }: VolumeTabProps) {
               <span className="font-mono text-fg-primary">{int(va.trades_analyzed)}</span>{' '}
               <span className="text-fg-tertiary">of</span>{' '}
               <span className="font-mono text-fg-primary">{int(coverage)}</span>{' '}
-              <span className="text-fg-tertiary">trades have float & RVOL data</span>
+              <span className="text-fg-tertiary">trades have shares outstanding & RVOL data</span>
             </div>
           </div>
           {va.trades_missing_data > 0 && (
@@ -68,7 +68,7 @@ export default function VolumeTab({ data }: VolumeTabProps) {
       </Card>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card title="P&L by shares outstanding" subtitle="Float proxy: share_class_shares_outstanding." padded={false} hover>
+        <Card title="P&L by shares outstanding" subtitle="Note: shares outstanding is a rough proxy for tradable float — true float coming in v0.3.0" padded={false} hover>
           <HorizontalBarChart buckets={va.byFloat} />
           <BucketSummary buckets={va.byFloat} />
         </Card>

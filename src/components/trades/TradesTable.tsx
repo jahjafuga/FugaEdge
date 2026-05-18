@@ -41,7 +41,7 @@ interface TradesTableProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
-  /** Show the Float column. Off by default to keep the table dense. */
+  /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
   showCountryColumn?: boolean
@@ -135,7 +135,7 @@ export default function TradesTable({
     })
     const floatColumn = col.accessor('float_shares', {
       id: 'float',
-      header: () => <span className="block text-right">Float</span>,
+      header: () => <span className="block text-right">Shares Out</span>,
       size: COLUMN_WIDTHS.float,
       cell: (info) => (
         <div className="text-right font-mono text-fg-secondary tnum">

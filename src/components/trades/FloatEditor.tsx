@@ -61,7 +61,7 @@ export default function FloatEditor({ value, onChange }: FloatEditorProps) {
         }
       }}
       placeholder="e.g. 1.2M"
-      aria-label="Float shares"
+      aria-label="Shares outstanding"
       className="h-8 w-full rounded-md border border-border-subtle bg-bg-1 px-2.5 font-mono text-sm text-fg-primary placeholder:text-fg-muted transition-colors duration-150 focus:border-gold focus:outline-none"
     />
   )

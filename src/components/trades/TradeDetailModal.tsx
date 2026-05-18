@@ -324,7 +324,7 @@ function OverviewTab({
             }
           />
         </FieldRow>
-        <FieldRow label="Float">
+        <FieldRow label="Shares Out">
           <FloatEditor
             value={t.float_shares}
             onChange={(next) =>

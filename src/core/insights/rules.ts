@@ -365,6 +365,11 @@ export function runMistakePattern(input: InsightInput): InsightResult | null {
 
 // ── 9. FLOAT SWEET SPOT ──────────────────────────────────────────────────
 // Best / worst float bucket. Requires 3+ trades in at least 2 buckets.
+//
+// DISABLED for v0.2.0 — bucketing reads share_class_shares_outstanding,
+// not true free float, so the analytic claim was misleading. Function
+// retained for v0.3.0 re-wire with point-in-time float (registration in
+// src/core/insights/index.ts is commented out, not deleted).
 
 export function runFloatSweetSpot(input: InsightInput): InsightResult | null {
   const buckets = groupBy(input.trades, (t) => floatBucket(t.float_shares))
@@ -430,7 +435,7 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
       body:
         `${fmtMoney(best.agg.net_pnl)} over ${best.agg.trade_count} round trips ` +
         `(${fmtPct(best.agg.win_rate ?? 0)} win). Track what makes this ticker work — ` +
-        `float, sector, time of day, your familiarity.`,
+        `sector, time of day, your familiarity.`,
       metric: fmtMoney(best.agg.net_pnl),
       priority: Math.abs(best.agg.net_pnl) + best.agg.trade_count * 10,
     })

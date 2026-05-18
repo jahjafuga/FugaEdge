@@ -16,7 +16,7 @@ import {
   runEma9Chasing,
   runExpectancy,
   runFirstThirtyMinutes,
-  runFloatSweetSpot,
+  // runFloatSweetSpot, // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float (see rules.ts).
   runHoldTimeFlipped,
   runMistakeInLosers,
   runMistakePattern,
@@ -41,7 +41,7 @@ const SINGLE_RULES: SingleRule[] = [
   runPlaybookPerformance,
   runTimeOfDay,
   runMistakePattern,
-  runFloatSweetSpot,
+  // runFloatSweetSpot, // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
   runDisciplineStreakMilestone,
   runDayOfWeek,
   runExpectancy,
