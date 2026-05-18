@@ -30,3 +30,4 @@ docs/superpowers/
 _verify_quotes.js
 # Test fixtures (contains real user trading data — local only, never commit)
 test-fixtures/
+.agents/
