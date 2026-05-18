@@ -361,7 +361,7 @@ export default function Playbook() {
                       setEditor({ ...editor, ideal_conditions: e.target.value })
                     }
                     rows={4}
-                    placeholder={`Time of day, RVOL, news catalyst, float, daily range, etc.`}
+                    placeholder={`Time of day, RVOL, news catalyst, daily range, etc.`}
                     className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
                   />
                 </Field>

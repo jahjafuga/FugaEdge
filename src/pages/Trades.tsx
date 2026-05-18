@@ -253,7 +253,7 @@ export default function Trades() {
             View
           </div>
           <div className="flex items-center gap-2">
-            {/* Column-visibility toggle. The Float column is off by default
+            {/* Column-visibility toggle. The Shares Out column is off by default
                 to keep the table dense — most users only care about it
                 during specific symbol research. Preference persists. */}
             <button
@@ -265,9 +265,9 @@ export default function Trades() {
                   ? 'border-gold/50 bg-gold/[0.10] text-gold'
                   : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
               }`}
-              title="Show / hide the Float column"
+              title="Show / hide the Shares Out column"
             >
-              Float col
+              Shares Out col
             </button>
             <button
               type="button"

@@ -1,7 +1,8 @@
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import SymbolPerformance from '@/components/analytics/SymbolPerformance'
-import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
+// DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
+// import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
 import { int, money, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { BucketStats, ReportsData } from '@shared/reports-types'
@@ -21,7 +22,8 @@ export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
 
       <SymbolPerformance best={data.bestSymbols} worst={data.worstSymbols} />
 
-      <FloatBreakdownCard data={data.float} />
+      {/* DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float. */}
+      {/* <FloatBreakdownCard data={data.float} /> */}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="P&L by price range" subtitle="Bucketed by avg buy price.">
