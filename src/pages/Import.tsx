@@ -49,6 +49,7 @@ export default function Import() {
         fees: phase.data.fees,
         feeDateOverride: phase.dateOverride,
       })
+      console.log('[renderer commit received]', { at: new Date().toISOString() })
       setPhase({ kind: 'done', result })
     } catch (e) {
       setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })

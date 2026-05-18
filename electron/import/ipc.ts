@@ -514,6 +514,11 @@ export function registerImportIpc(): void {
           `country_resolved=${countriesResolved} country_unknown=${countriesUnknown}`,
       )
 
+      console.log('[FJ commit return]', {
+        at: new Date().toISOString(),
+        inserted_trips: out.insertedTrips,
+      })
+
       return {
         ...out,
         countriesResolved,
