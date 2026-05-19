@@ -31,7 +31,7 @@ export default function FloatBreakdownCard({ data }: FloatBreakdownCardProps) {
         <Tooltip
           content={
             <>
-              Float is auto-fetched from Polygon ticker details on import
+              Float is auto-fetched from Massive ticker details on import
               (share_class_shares_outstanding). The trade detail modal's
               Float field lets you override per-trade values. Trades without
               a float value (no market data yet) roll up into "Unset".

@@ -263,8 +263,7 @@ export default function Settings() {
                 className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
               />
               <div className="mt-1.5 text-xs text-fg-tertiary">
-                Cached in SQLite at <span className="font-mono">settings.polygon_api_key</span>.
-                Never logged. Save before refreshing.
+                Cached locally. Never logged. Save before refreshing.
               </div>
             </div>
 

@@ -29,7 +29,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
     try {
       const r = await ipc.countryBackfill(force)
       if (r.apiKeyMissing) {
-        setErr('Set your Polygon / Massive API key in the Market data card first.')
+        setErr('Set your Massive API key in the Market data card first.')
       } else {
         setResult({ updated: r.updated, skipped: r.skipped, failed: r.failed })
         const iso = new Date().toISOString()
@@ -50,7 +50,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
   return (
     <Card
       title="Data backfill"
-      subtitle="Backfill missing country data from Polygon for trades you imported before this feature existed."
+      subtitle="Backfill missing country data from Massive for trades you imported before this feature existed."
     >
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-4">
@@ -73,7 +73,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
             onChange={(e) => setForce(e.target.checked)}
             className="accent-gold"
           />
-          Force re-fetch (overwrites Polygon-sourced values, keeps manual edits)
+          Force re-fetch (overwrites Massive-sourced values, keeps manual edits)
         </label>
         {progress && (
           <div>

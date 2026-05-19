@@ -47,7 +47,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Bring in your trades',
     body:
       'Drop your DAS Trader CSVs — both the Trades.csv and the daily summary. ' +
-      'We auto-fetch shares outstanding, EMA9 distance, and intraday bars from Polygon. ' +
+      'We auto-fetch shares outstanding, EMA9 distance, and intraday bars from Massive. ' +
       'True point-in-time float is coming in a future release. ' +
       'Lightspeed and Webull support coming soon.',
   },
