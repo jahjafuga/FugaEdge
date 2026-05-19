@@ -22,5 +22,5 @@ export const ONBOARDING_FLAG_KEY = 'fugaedge-onboarding-complete'
 export const ONBOARDING_FORCE_KEY = 'fugaedge-onboarding-force'
 export const DEFAULT_ACCOUNT_SIZE = 1000
 export const DEFAULT_MAX_DAILY_LOSS = 20
-export const ONBOARDING_STEPS = ['welcome', 'account', 'style', 'import'] as const
+export const ONBOARDING_STEPS = ['welcome', 'account', 'style', 'import', 'api-key'] as const
 export type OnboardingStepName = (typeof ONBOARDING_STEPS)[number]

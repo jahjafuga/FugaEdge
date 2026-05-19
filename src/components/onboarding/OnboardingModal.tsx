@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   Lightbulb,
   Target,
@@ -18,6 +19,7 @@ import {
   ONBOARDING_STEPS,
   cleanAmount,
   emptyOnboardingState,
+  isPlausibleApiKey,
   templatesForStyle,
   type OnboardingState,
   type TradingStyle,
@@ -138,6 +140,12 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
               onError={setError}
             />
           )}
+          {state.step === 4 && (
+            <ApiKeyStep
+              onError={setError}
+              onComplete={commitAndClose}
+            />
+          )}
         </div>
 
         {error && (
@@ -167,7 +175,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 Back
               </button>
             )}
-            {isLast ? (
+            {state.step !== 4 && (isLast ? (
               <button
                 type="button"
                 onClick={commitAndClose}
@@ -187,7 +195,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 {state.step === 0 ? "Let's go" : 'Continue'}
                 <ArrowRight size={13} strokeWidth={2.25} />
               </button>
-            )}
+            ))}
           </div>
         </footer>
       </div>
@@ -495,6 +503,96 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
           started" to open the dashboard.
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Step 5 — Massive API key (optional) ────────────────────────────────
+
+function ApiKeyStep({
+  onError,
+  onComplete,
+}: {
+  onError: (msg: string | null) => void
+  onComplete: () => Promise<void>
+}) {
+  const [value, setValue] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const openSignup = () => {
+    void ipc.openExternal(
+      'https://massive.com/dashboard/signup?redirect=%2Fdashboard%2Fkeys',
+    )
+  }
+
+  const handleSave = async () => {
+    if (saving || !isPlausibleApiKey(value)) return
+    onError(null)
+    setSaving(true)
+    try {
+      await ipc.settingsSave({ polygon_api_key: value.trim() })
+      await onComplete()
+      // Modal unmounts on success — no setSaving(false) here.
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+      setSaving(false)
+    }
+  }
+
+  const canSave = !saving && isPlausibleApiKey(value)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <header>
+        <h2
+          id="onboarding-title"
+          className="text-xl font-semibold tracking-tight text-fg-primary"
+        >
+          Connect Massive (optional)
+        </h2>
+        <p className="mt-1 text-sm text-fg-tertiary">
+          FugaEdge uses Massive to auto-fetch country, shares outstanding,
+          and intraday chart data for the tickers you trade. Without an API
+          key these features stay unavailable until you add one in Settings.
+        </p>
+      </header>
+
+      <button
+        type="button"
+        onClick={openSignup}
+        className="inline-flex h-8 cursor-pointer items-center gap-1.5 self-start rounded-md border border-border-strong bg-bg-1 px-3 text-xs font-semibold text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+      >
+        Get a free Massive API key
+        <ArrowUpRight size={12} strokeWidth={2.25} />
+      </button>
+
+      <label className="block">
+        <span className="block text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          API key
+        </span>
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="paste your massive.com API key"
+          disabled={saving}
+          className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold disabled:opacity-50"
+        />
+      </label>
+
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!canSave}
+          className="inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 self-start rounded-md bg-gold px-4 text-[11px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : 'Save and finish'}
+        </button>
+        <p className="text-xs text-fg-tertiary">
+          You can add or change this anytime in Settings.
+        </p>
+      </div>
     </div>
   )
 }
