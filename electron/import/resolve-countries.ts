@@ -22,13 +22,14 @@ export async function resolveCountriesForImportedSymbols(
   symbols: string[],
 ): Promise<ImportResolveResult> {
   if (symbols.length === 0) {
-    return { resolved: 0, unknown: 0, errors: [] }
+    return { resolved: 0, unknown: 0, errors: [], apiKeyMissing: false }
   }
   const { polygon_api_key } = getSettings().values
   if (!polygon_api_key) {
-    // No key → can't resolve. Treat all as unknown so the toast nudges the
-    // user to set up Backfill (which itself prompts for an API key).
-    return { resolved: 0, unknown: symbols.length, errors: [] }
+    // No key → can't resolve. Flag it so the renderer can surface a
+    // specific "API key missing" banner instead of the generic
+    // "N tickers unknown" line.
+    return { resolved: 0, unknown: symbols.length, errors: [], apiKeyMissing: true }
   }
 
   return resolveCountriesForImport({

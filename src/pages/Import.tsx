@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import DropZone from '@/components/import/DropZone'
 import ImportSummary from '@/components/import/ImportSummary'
@@ -18,6 +19,7 @@ type Phase =
   | { kind: 'error'; message: string }
 
 export default function Import() {
+  const navigate = useNavigate()
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
 
   const handleFiles = useCallback(
@@ -92,6 +94,31 @@ export default function Import() {
 
       {phase.kind === 'done' && (
         <div className="space-y-4">
+          {phase.result.countryApiKeyMissing && (
+            <div
+              role="status"
+              className="flex items-start gap-3 rounded-md border border-gold/40 bg-gold/[0.06] p-4"
+            >
+              <KeyRound size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-gold" />
+              <div className="flex-1 text-sm text-fg-secondary">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
+                  Country data couldn&apos;t be fetched
+                </div>
+                <div className="mt-1">
+                  Your Polygon API key isn&apos;t set, so per-ticker country
+                  lookups were skipped. Add a key in Settings and run Backfill
+                  to enrich these trades.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/settings')}
+                  className="mt-2 inline-flex h-8 cursor-pointer items-center rounded-md border border-gold/60 bg-gold/[0.08] px-3 text-[11px] font-semibold uppercase tracking-wider text-gold transition-colors duration-150 hover:bg-gold/[0.16]"
+                >
+                  Open Settings
+                </button>
+              </div>
+            </div>
+          )}
           <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
             <div className="text-[10px] uppercase tracking-wider text-win">
               Import complete
@@ -116,7 +143,7 @@ export default function Import() {
                   </span>
                 </>
               )}
-              {phase.result.countriesUnknown > 0 && (
+              {!phase.result.countryApiKeyMissing && phase.result.countriesUnknown > 0 && (
                 <>
                   {' '}
                   <span className="text-subtle">

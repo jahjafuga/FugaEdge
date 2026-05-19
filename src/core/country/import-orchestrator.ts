@@ -29,12 +29,16 @@ export interface ImportResolveResult {
   resolved: number
   unknown: number
   errors: { symbol: string; message: string }[]
+  /** True when the Electron wrapper short-circuited because no Polygon
+   *  API key is configured. The pure orchestrator never sets this — it
+   *  receives a fetchRef callback and has no concept of credentials. */
+  apiKeyMissing: boolean
 }
 
 export async function resolveCountriesForImport(
   deps: ImportResolveDeps,
 ): Promise<ImportResolveResult> {
-  const out: ImportResolveResult = { resolved: 0, unknown: 0, errors: [] }
+  const out: ImportResolveResult = { resolved: 0, unknown: 0, errors: [], apiKeyMissing: false }
   const spacing = deps.spacingMs ?? 0
   let lastAt = 0
 

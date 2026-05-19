@@ -414,6 +414,7 @@ export function registerImportIpc(): void {
       ).sort()
       let countriesResolved = 0
       let countriesUnknown = 0
+      let countryApiKeyMissing = false
       if (out.insertedTrips > 0 && newSymbols.length > 0) {
         const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
         const sendProgress = wc
@@ -432,6 +433,7 @@ export function registerImportIpc(): void {
           const country = await resolveCountriesForImportedSymbols(newSymbols)
           countriesResolved = country.resolved
           countriesUnknown = country.unknown
+          countryApiKeyMissing = country.apiKeyMissing
           if (country.errors.length > 0) {
             console.info(
               `[FE import] country resolution errors: ` +
@@ -523,6 +525,7 @@ export function registerImportIpc(): void {
         ...out,
         countriesResolved,
         countriesUnknown,
+        countryApiKeyMissing,
         // Fire-and-forget — not knowable at return time. v0.3.0 ticket
         // import-progress-ui-renderer-consumer will populate via IPC
         // progress events instead.
