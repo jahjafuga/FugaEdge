@@ -8,7 +8,7 @@ describe('enrichAfterCommit', () => {
       calls.push('country:start')
       await new Promise((r) => setTimeout(r, 1))
       calls.push('country:end')
-      return { resolved: 2, unknown: 0, errors: [] }
+      return { resolved: 2, unknown: 0, errors: [], apiKeyMissing: false }
     })
     const float = vi.fn(async () => {
       calls.push('float:start')
@@ -76,7 +76,7 @@ describe('enrichAfterCommit', () => {
     const aggregates = vi.fn(async () => ({ fetched: 1, empty: 0, errored: 0, errors: [] }))
     const result = await enrichAfterCommit({
       newSymbols: ['AAA'],
-      country: async () => ({ resolved: 1, unknown: 0, errors: [] }),
+      country: async () => ({ resolved: 1, unknown: 0, errors: [], apiKeyMissing: false }),
       float: async () => {
         throw new Error('polygon 500')
       },
@@ -96,7 +96,7 @@ describe('enrichAfterCommit', () => {
   it('returns earlier results when aggregates throws — last-phase isolation', async () => {
     const result = await enrichAfterCommit({
       newSymbols: ['AAA', 'BBB'],
-      country: async () => ({ resolved: 2, unknown: 0, errors: [] }),
+      country: async () => ({ resolved: 2, unknown: 0, errors: [], apiKeyMissing: false }),
       float: async () => ({ fetched: 2, missing: 0, errored: 0, errors: [] }),
       aggregates: async () => {
         throw new Error('aggregates endpoint down')
@@ -116,7 +116,7 @@ describe('enrichAfterCommit', () => {
   })
 
   it('is a fast no-op when newSymbols is empty', async () => {
-    const country = vi.fn(async () => ({ resolved: 99, unknown: 0, errors: [] }))
+    const country = vi.fn(async () => ({ resolved: 99, unknown: 0, errors: [], apiKeyMissing: false }))
     const float = vi.fn(async () => ({ fetched: 99, missing: 0, errored: 0, errors: [] }))
     const aggregates = vi.fn(async () => ({ fetched: 99, empty: 0, errored: 0, errors: [] }))
 
@@ -131,7 +131,7 @@ describe('enrichAfterCommit', () => {
     expect(float).not.toHaveBeenCalled()
     expect(aggregates).not.toHaveBeenCalled()
     expect(result).toEqual({
-      country: { resolved: 0, unknown: 0, errors: [] },
+      country: { resolved: 0, unknown: 0, errors: [], apiKeyMissing: false },
       float: { fetched: 0, missing: 0, errored: 0, errors: [] },
       aggregates: { fetched: 0, empty: 0, errored: 0, errors: [] },
     })
@@ -143,7 +143,7 @@ describe('enrichAfterCommit', () => {
       newSymbols: ['AAA'],
       country: async (_s, onProgress) => {
         onProgress?.({ current: 1, total: 1, symbol: 'AAA' })
-        return { resolved: 1, unknown: 0, errors: [] }
+        return { resolved: 1, unknown: 0, errors: [], apiKeyMissing: false }
       },
       float: async (_s, onProgress) => {
         onProgress?.({ current: 1, total: 1, symbol: 'AAA' })

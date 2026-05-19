@@ -246,6 +246,12 @@ export interface CommitResult {
    *  API key wasn't configured). These trades save with country=NULL and
    *  source='unknown' so a later Backfill in Settings can retry. */
   countriesUnknown: number
+  /** True when country resolution was skipped because no Polygon API key
+   *  is configured. Lets the renderer show a specific "set your key"
+   *  banner instead of the generic "N tickers unknown" line, since when
+   *  this is true every ticker in `countriesUnknown` is a missed call,
+   *  not a Polygon-side gap. */
+  countryApiKeyMissing: boolean
   /** Newly-imported symbols whose float fetch threw (Polygon rate-limit
    *  exhaustion, network error, malformed response). Distinct from
    *  "Polygon returned null float" which is a legitimate outcome. The
