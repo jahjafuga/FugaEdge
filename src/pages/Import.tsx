@@ -105,7 +105,7 @@ export default function Import() {
                   Country data couldn&apos;t be fetched
                 </div>
                 <div className="mt-1">
-                  Your Polygon API key isn&apos;t set, so per-ticker country
+                  Your Massive API key isn&apos;t set, so per-ticker country
                   lookups were skipped. Add a key in Settings and run Backfill
                   to enrich these trades.
                 </div>

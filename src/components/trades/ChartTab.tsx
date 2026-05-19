@@ -251,7 +251,7 @@ function PlanRestrictedState() {
     const api = (window as unknown as { api?: { openExternal?: (url: string) => Promise<void> | void } }).api
     if (api?.openExternal) {
       e.preventDefault()
-      void api.openExternal('https://polygon.io/pricing')
+      void api.openExternal('https://massive.com/pricing')
     }
   }, [])
   return (
@@ -264,17 +264,17 @@ function PlanRestrictedState() {
         Intraday chart unavailable
       </div>
       <div className="mx-auto mt-1 max-w-sm text-sm text-fg-tertiary">
-        Your Polygon plan doesn&apos;t include this timeframe&apos;s intraday data.
+        Your Massive plan doesn&apos;t include this timeframe&apos;s intraday data.
         Real-time and recent intraday bars are available on paid plans starting at $29/mo.
       </div>
       <a
-        href="https://polygon.io/pricing"
+        href="https://massive.com/pricing"
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleUpgrade}
         className="mt-5 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-xs font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
       >
-        Upgrade Polygon Plan
+        Upgrade Massive Plan
         <ExternalLink size={12} strokeWidth={2.25} />
       </a>
       <button
@@ -290,8 +290,8 @@ function PlanRestrictedState() {
       </button>
       {showWhy && (
         <div className="mx-auto mt-3 max-w-md rounded-md border border-border-subtle bg-bg-3 p-3 text-left text-xs leading-relaxed text-fg-tertiary">
-          Polygon&apos;s free tier only provides delayed market data (typically 15 minutes
-          for stocks, 2 years for full historical). FugaEdge uses Polygon to render
+          Massive&apos;s free tier only provides delayed market data (typically 15 minutes
+          for stocks, 2 years for full historical). FugaEdge uses Massive to render
           intraday charts on every trade so you can review entries and exits against
           the EMA9, EMA20, and VWAP. Without a paid plan, this view is unavailable.
           Stats, journaling, and trade tracking still work normally.
