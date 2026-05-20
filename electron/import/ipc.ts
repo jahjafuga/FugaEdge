@@ -25,6 +25,8 @@ import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
+import { backupBeforeImport } from '@/core/import/backup'
+import { electronBackupStorage } from '../db/backup'
 
 export function registerImportIpc(): void {
   ipcMain.handle(
@@ -374,6 +376,15 @@ export function registerImportIpc(): void {
   ipcMain.handle(
     IPC.IMPORT_COMMIT,
     async (e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
+      // Day 7.5: snapshot the DB before any executions / round_trips are
+      // written. backupBeforeImport rejects if the backup write fails — the
+      // rejection propagates out of this handler, aborting the import with a
+      // clear error and leaving the database untouched.
+      const backup = await backupBeforeImport(electronBackupStorage)
+      console.info(
+        `[FJ backup] pre-import backup → ${backup.path} (${backup.bytes} bytes)`,
+      )
+
       // Apply the date override to any fee row missing a date.
       const finalFees: DaySummaryFeeRow[] = fees.map((f) =>
         f.date ? f : { ...f, date: feeDateOverride ?? '' },
