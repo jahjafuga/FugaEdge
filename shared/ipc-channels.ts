@@ -16,6 +16,7 @@ export const IPC = {
   JOURNAL_SAVE: 'journal:save',
   SETTINGS_GET: 'settings:get',
   SETTINGS_SAVE: 'settings:save',
+  SETTINGS_TEST_MASSIVE_KEY: 'settings:testMassiveKey',
   EXPORT_TRADES: 'export:trades',
   EXPORT_JOURNAL: 'export:journal',
   EXPORT_DATABASE: 'export:database',

@@ -66,6 +66,7 @@ export const ipc = {
   journalSave: (input: SaveJournalInput) => window.api.journalSave(input),
   settingsGet: () => window.api.settingsGet(),
   settingsSave: (input: SettingsUpdate) => window.api.settingsSave(input),
+  testMassiveKey: (apiKey: string) => window.api.testMassiveKey(apiKey),
   exportTrades: () => window.api.exportTrades(),
   exportJournal: () => window.api.exportJournal(),
   exportDatabase: () => window.api.exportDatabase(),

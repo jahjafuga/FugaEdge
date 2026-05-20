@@ -41,6 +41,7 @@ import type {
   SettingsPayload,
   SettingsUpdate,
 } from '@shared/settings-types'
+import type { MassiveKeyStatus } from '@shared/massive-types'
 import type {
   IntradayBarsPayload,
   IntradayRefreshResult,
@@ -127,6 +128,8 @@ const api = {
   settingsGet: (): Promise<SettingsPayload> => ipcRenderer.invoke(IPC.SETTINGS_GET),
   settingsSave: (input: SettingsUpdate): Promise<SettingsPayload> =>
     ipcRenderer.invoke(IPC.SETTINGS_SAVE, input),
+  testMassiveKey: (apiKey: string): Promise<MassiveKeyStatus> =>
+    ipcRenderer.invoke(IPC.SETTINGS_TEST_MASSIVE_KEY, apiKey),
   exportTrades: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_TRADES),
   exportJournal: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_JOURNAL),
   exportDatabase: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_DATABASE),

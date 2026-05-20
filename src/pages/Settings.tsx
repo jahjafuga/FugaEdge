@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
@@ -18,6 +18,7 @@ import type {
   SettingsValues,
 } from '@shared/settings-types'
 import type { IntradayRefreshResult, MarketRefreshResult } from '@shared/market-types'
+import type { MassiveKeyStatus } from '@shared/massive-types'
 
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
@@ -50,6 +51,7 @@ export default function Settings() {
   const [snapshot, setSnapshot] = useState<SettingsValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [keyStatus, setKeyStatus] = useState<MassiveKeyStatus | null>(null)
 
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
@@ -82,18 +84,30 @@ export default function Settings() {
   }, [])
 
   const handleSave = useCallback(async () => {
-    if (saving || !editor) return
+    if (saving || !editor || !snapshot) return
     setSaving(true)
+    setKeyStatus(null) // clear any prior validity result before this save
     try {
       const updated = await ipc.settingsSave(editor)
       setPayload(updated)
       setEditor(updated.values)
       setSnapshot(updated.values)
       setSavedAt(Date.now())
+
+      // Save-then-verify: the key is already persisted by this point, so
+      // every keyStatus outcome below describes a key that IS saved. Ping
+      // Massive only when the key field actually changed in this save and
+      // is non-empty — don't hit the network on unrelated settings saves.
+      const keyChanged = editor.polygon_api_key !== snapshot.polygon_api_key
+      const keyPresent = editor.polygon_api_key.trim().length > 0
+      if (keyChanged && keyPresent) {
+        const status = await ipc.testMassiveKey(editor.polygon_api_key.trim())
+        setKeyStatus(status)
+      }
     } finally {
       setSaving(false)
     }
-  }, [editor, saving])
+  }, [editor, saving, snapshot])
 
   const runRefresh = useCallback(async () => {
     if (refreshing) return
@@ -249,6 +263,18 @@ export default function Settings() {
           subtitle="Massive.com REST API. Powers the Reports volume analysis and the Momentum EMA9 distance."
         >
           <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() =>
+                void ipc.openExternal(
+                  'https://massive.com/dashboard/signup?redirect=%2Fdashboard%2Fkeys',
+                )
+              }
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 self-start rounded-md border border-border-strong bg-bg-1 px-3 text-xs font-semibold text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+            >
+              Get a free Massive API key
+              <ArrowUpRight size={12} strokeWidth={2.25} />
+            </button>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
                 API key
@@ -265,6 +291,25 @@ export default function Settings() {
               <div className="mt-1.5 text-xs text-fg-tertiary">
                 Cached locally. Never logged. Save before refreshing.
               </div>
+              {keyStatus && (
+                <div
+                  className={`mt-1.5 text-xs ${
+                    keyStatus.kind === 'valid'
+                      ? 'text-win'
+                      : keyStatus.kind === 'invalid'
+                        ? 'text-danger'
+                        : 'text-warning'
+                  }`}
+                >
+                  {keyStatus.kind === 'valid' && '✓ Key verified.'}
+                  {keyStatus.kind === 'invalid' &&
+                    "✗ Massive didn't accept that key. Double-check the value and try saving again."}
+                  {keyStatus.kind === 'rate-limited' &&
+                    "Key saved. Couldn't fully verify right now — Massive's rate limit was hit. Try Save again in a minute to verify."}
+                  {keyStatus.kind === 'network-error' &&
+                    "Key saved. Couldn't reach Massive — check your connection and try Save again to verify."}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4">
