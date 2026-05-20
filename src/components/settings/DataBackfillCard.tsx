@@ -1,19 +1,28 @@
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
+import BackfillKeyModal from '@/components/settings/BackfillKeyModal'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
 
 interface DataBackfillCardProps {
   lastRun: string | null
   onLastRunChange: (iso: string) => void
+  /** Fired after the no-key modal persists a key — lets Settings re-sync its
+   *  Market data input. Optional so non-Settings callers can omit it. */
+  onApiKeySaved?: () => void
 }
 
-export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackfillCardProps) {
+export default function DataBackfillCard({
+  lastRun,
+  onLastRunChange,
+  onApiKeySaved,
+}: DataBackfillCardProps) {
   const [running, setRunning] = useState(false)
   const [force, setForce] = useState(false)
   const [progress, setProgress] = useState<{ current: number; total: number; symbol: string } | null>(null)
   const [result, setResult] = useState<{ updated: number; skipped: number; failed: number } | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
   useEffect(() => {
     const off = ipc.countryOnBackfillProgress((p) => setProgress(p))
@@ -29,7 +38,7 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
     try {
       const r = await ipc.countryBackfill(force)
       if (r.apiKeyMissing) {
-        setErr('Set your Massive API key in the Market data card first.')
+        setModalOpen(true)
       } else {
         setResult({ updated: r.updated, skipped: r.skipped, failed: r.failed })
         const iso = new Date().toISOString()
@@ -96,6 +105,22 @@ export default function DataBackfillCard({ lastRun, onLastRunChange }: DataBackf
           <div className="text-xs text-loss">{err}</div>
         )}
       </div>
+      <BackfillKeyModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onKeySaved={(status) => {
+          // The key is persisted to the DB before verification runs, so
+          // every outcome — including a Massive rejection — means a key
+          // was saved. Notify Settings to re-sync its Market data input.
+          onApiKeySaved?.()
+          if (status?.kind === 'valid') {
+            setModalOpen(false)
+            void run() // auto-retry the backfill with the preserved `force`
+          }
+          // invalid / rate-limited / network-error: modal stays open;
+          // ApiKeyEntry's inline 4-state message explains what happened.
+        }}
+      />
     </Card>
   )
 }

@@ -209,7 +209,9 @@ export default function Settings() {
               hint="Dashboard banner fires when today's net P&L falls below the negative of this value."
               value={editor.max_daily_loss}
               onChange={(v) =>
-                setEditor({ ...editor, max_daily_loss: v })
+                setEditor((prev) =>
+                  prev ? { ...prev, max_daily_loss: v } : prev,
+                )
               }
             />
             <NumberField
@@ -217,7 +219,11 @@ export default function Settings() {
               suffix={money(editor.account_size).replace('$', '$ ')}
               hint="Used as the reference equity for percentage-based stats."
               value={editor.account_size}
-              onChange={(v) => setEditor({ ...editor, account_size: v })}
+              onChange={(v) =>
+                setEditor((prev) =>
+                  prev ? { ...prev, account_size: v } : prev,
+                )
+              }
             />
           </div>
         </Card>
@@ -230,7 +236,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.journal_rules}
-            onChange={(next) => setEditor({ ...editor, journal_rules: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, journal_rules: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -242,7 +252,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.mistake_list}
-            onChange={(next) => setEditor({ ...editor, mistake_list: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, mistake_list: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -254,7 +268,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.day_tag_list}
-            onChange={(next) => setEditor({ ...editor, day_tag_list: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, day_tag_list: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -283,7 +301,9 @@ export default function Settings() {
                 type="password"
                 value={editor.polygon_api_key}
                 onChange={(e) =>
-                  setEditor({ ...editor, polygon_api_key: e.target.value })
+                  setEditor((prev) =>
+                    prev ? { ...prev, polygon_api_key: e.target.value } : prev,
+                  )
                 }
                 placeholder="paste your massive.com API key"
                 className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
@@ -424,8 +444,33 @@ export default function Settings() {
         <DataBackfillCard
           lastRun={editor.last_country_backfill}
           onLastRunChange={(iso) =>
-            setEditor({ ...editor, last_country_backfill: iso })
+            setEditor((prev) =>
+              prev ? { ...prev, last_country_backfill: iso } : prev,
+            )
           }
+          onApiKeySaved={() => {
+            // The backfill modal saved a key straight to the DB, bypassing
+            // this page's editor state. Re-read and patch ONLY
+            // polygon_api_key into both editor and snapshot — editor so the
+            // Market data input reflects it, snapshot so isDirty stays false
+            // (no spurious "Save settings" prompt).
+            void ipc.settingsGet().then((p) => {
+              // Guard `prev` so the spread keeps every field required —
+              // spreading `SettingsValues | null` would mark them optional.
+              // (prev is non-null in practice: this card only renders once
+              // Settings is past its loading gate.)
+              setEditor((prev) =>
+                prev
+                  ? { ...prev, polygon_api_key: p.values.polygon_api_key }
+                  : prev,
+              )
+              setSnapshot((prev) =>
+                prev
+                  ? { ...prev, polygon_api_key: p.values.polygon_api_key }
+                  : prev,
+              )
+            })
+          }}
         />
 
         <Card title="Data" subtitle="Export and back up your local database.">
