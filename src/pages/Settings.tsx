@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
+import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
@@ -52,6 +53,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [keyStatus, setKeyStatus] = useState<MassiveKeyStatus | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
@@ -531,7 +533,22 @@ export default function Settings() {
                 Export failed: {exportError}
               </div>
             )}
+
+            <div className="border-t border-border-subtle pt-4">
+              <button
+                type="button"
+                onClick={() => setResetOpen(true)}
+                className="rounded-md border border-loss/50 bg-bg-1 px-4 py-2 text-sm text-loss transition-colors duration-150 hover:border-loss hover:bg-loss/[0.06]"
+              >
+                Reset journal
+              </button>
+              <p className="mt-1.5 text-xs text-fg-tertiary">
+                Saves the current journal aside as a dated file and starts
+                fresh. FugaEdge restarts. Recovery is manual.
+              </p>
+            </div>
           </div>
+          <ResetJournalModal open={resetOpen} onClose={() => setResetOpen(false)} />
         </Card>
 
         <Card

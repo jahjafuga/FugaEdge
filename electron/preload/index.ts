@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type DbHealthcheck } from '@shared/ipc-channels'
+import { IPC, type DbHealthcheck, type DbResetResult } from '@shared/ipc-channels'
 import type {
   CommitInput,
   CommitResult,
@@ -64,6 +64,7 @@ const api = {
   openExternal: (url: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.APP_OPEN_EXTERNAL, url),
   dbHealthcheck: (): Promise<DbHealthcheck> => ipcRenderer.invoke(IPC.DB_HEALTHCHECK),
+  resetDatabase: (): Promise<DbResetResult> => ipcRenderer.invoke(IPC.DB_RESET),
   importPreview: (files: PreviewInputFile[]): Promise<PreviewResult> =>
     ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files),
   importCommit: (input: CommitInput): Promise<CommitResult> =>

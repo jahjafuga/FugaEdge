@@ -3,6 +3,7 @@ export const IPC = {
   APP_GET_VERSION: 'app:getVersion',
   APP_OPEN_EXTERNAL: 'app:openExternal',
   DB_HEALTHCHECK: 'db:healthcheck',
+  DB_RESET: 'db:reset',
   IMPORT_PREVIEW: 'import:preview',
   IMPORT_COMMIT: 'import:commit',
   IMPORT_PROGRESS: 'import:progress',
@@ -61,4 +62,9 @@ export interface DbHealthcheck {
   ok: boolean
   path: string
   tables: string[]
+}
+
+export interface DbResetResult {
+  /** Absolute path of the renamed-aside fugaedge-reset-<ts>.db safety file. */
+  resetPath: string
 }

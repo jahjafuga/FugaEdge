@@ -29,6 +29,7 @@ export const ipc = {
   getVersion: () => window.api.getVersion(),
   openExternal: (url: string) => window.api.openExternal(url),
   dbHealthcheck: () => window.api.dbHealthcheck(),
+  resetDatabase: () => window.api.resetDatabase(),
   importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
