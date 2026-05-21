@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
+import { useAppVersion } from '@/lib/useAppVersion'
 import BrandMark from './BrandMark'
 
 interface NavItem {
@@ -43,6 +44,7 @@ interface SidebarProps {
 
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const [streak, setStreak] = useState<number | null>(null)
+  const version = useAppVersion()
 
   useEffect(() => {
     let cancelled = false
@@ -194,7 +196,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         ) : null}
         {!collapsed && (
           <div className="mt-2 px-1 text-[10px] uppercase tracking-wider text-fg-muted">
-            v0.1.0
+            {version === 'dev' ? 'dev' : `v${version}`}
           </div>
         )}
       </div>
