@@ -1,5 +1,13 @@
-// Display helpers for money / counts. All numbers should pass through these
-// before hitting the DOM so we stay consistent with sign + decimals.
+// format.ts — display and conversion helpers shared across the app.
+//
+// Two families live here, both pure (no DOM, no React) so they run in the
+// renderer and the Electron main process alike:
+//   • compact-display helpers — money / int / price / percent / compactShares
+//     / longDate / shortDate / duration. Numbers pass through these before
+//     hitting the DOM so sign and decimals stay consistent.
+//   • timezone helpers (Day 8.5) — easternToUtc / localEasternToUtc convert
+//     broker wall-clock to stored UTC; formatEastern renders UTC back to
+//     Eastern for display. See the section at the foot of this file.
 
 const usdFmt = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -107,4 +115,108 @@ export function duration(seconds: number | null | undefined): string {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+// ── Timezone helpers (Day 8.5) ────────────────────────────────────────────
+//
+// FugaEdge's import parsers receive broker timestamps in US/Eastern wall-clock
+// and (as of Day 8.5) store true UTC. These helpers are that conversion
+// boundary. All pure (Intl only) — no new dependency, runs in both processes.
+
+const EASTERN_TZ = 'America/New_York'
+
+// Eastern wall-clock → UTC ISO 8601 (with Z), given the UTC offset in minutes.
+// `offsetMinutes` is the minutes to ADD to UTC to reach local — EDT = -240,
+// EST = -300. The Webull Mobile parser passes this straight from the file's
+// literal EDT/EST suffix, skipping DST inference entirely.
+export function easternToUtc(
+  date: string,
+  time: string,
+  offsetMinutes: number,
+): string {
+  const localMs = Date.parse(`${date}T${time}Z`)
+  if (Number.isNaN(localMs)) {
+    throw new Error(`easternToUtc: unparseable date/time "${date}T${time}"`)
+  }
+  const utcMs = localMs - offsetMinutes * 60_000
+  // toISOString() is always YYYY-MM-DDTHH:MM:SS.sssZ; inputs are second-
+  // precision so .sss is always .000 — drop it for a clean stored value.
+  return `${new Date(utcMs).toISOString().slice(0, 19)}Z`
+}
+
+// The America/New_York UTC offset (minutes) in effect at a real UTC instant.
+// Read from Intl's IANA data via the shortOffset name ("GMT-4" / "GMT-5"), so
+// DST — and any future change to US DST rules — needs no code change.
+function easternOffsetAtUtc(utcMs: number): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TZ,
+    timeZoneName: 'shortOffset',
+  }).formatToParts(new Date(utcMs))
+  const raw = parts.find((p) => p.type === 'timeZoneName')?.value ?? ''
+  const m = raw.match(/GMT([+-]\d{1,2})(?::?(\d{2}))?/)
+  if (!m) throw new Error(`easternOffsetAtUtc: could not parse offset "${raw}"`)
+  const hours = Number(m[1])
+  const mins = m[2] ? Number(m[2]) : 0
+  return hours * 60 + (hours < 0 ? -mins : mins)
+}
+
+// Eastern wall-clock → UTC ISO 8601 (with Z), inferring the EDT/EST offset for
+// the date. Used by the three DAS parsers, whose timestamps carry no offset.
+//
+// DST is handled by a two-step fixed point: probe the offset at the
+// provisional instant, then re-probe at the computed instant. The re-probe
+// matters — a single probe is wrong when the provisional-as-UTC instant and
+// the real instant straddle a transition (e.g. 04:00 ET pre-market on
+// spring-forward day: 04:00 is unambiguously EDT, but 04:00-as-UTC lands
+// before the 07:00-UTC transition and would probe as EST).
+//
+// The only inputs with no single correct answer are wall-clock times that do
+// not exist (02:00-02:59 on spring-forward day) or occur twice (01:00-01:59 on
+// fall-back day); for those this resolves to the offset just after the gap /
+// the second occurrence — deterministic and documented. It is also unreachable
+// in practice: US DST transitions are always a Sunday, when the equity market
+// (incl. 04:00-20:00 ET extended hours) is closed, so no real trade timestamp
+// lands there.
+export function localEasternToUtc(date: string, time: string): string {
+  const provisionalMs = Date.parse(`${date}T${time}Z`)
+  if (Number.isNaN(provisionalMs)) {
+    throw new Error(`localEasternToUtc: unparseable date/time "${date}T${time}"`)
+  }
+  const firstGuess = easternOffsetAtUtc(provisionalMs)
+  const refined = easternOffsetAtUtc(provisionalMs - firstGuess * 60_000)
+  return easternToUtc(date, time, refined)
+}
+
+// UTC ISO → Eastern wall-clock string. Default returns "HH:MM:SS"; pass
+// { withDate: true } for "YYYY-MM-DDTHH:MM:SS". The inverse of
+// localEasternToUtc. Returns "—" for an unparseable input.
+//
+// TODO(timezone-preference): the zone is hard-coded to America/New_York for
+// the US-market-hours convention. A future Settings preference would replace
+// EASTERN_TZ with the user's choice.
+export function formatEastern(
+  utcIso: string,
+  opts?: { withDate?: boolean },
+): string {
+  const ms = Date.parse(utcIso)
+  if (Number.isNaN(ms)) return '—'
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: EASTERN_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(ms))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
+  // Some Intl implementations emit "24" for midnight — normalize to "00".
+  let hh = get('hour')
+  if (hh === '24') hh = '00'
+  const time = `${hh}:${get('minute')}:${get('second')}`
+  if (opts?.withDate) {
+    return `${get('year')}-${get('month')}-${get('day')}T${time}`
+  }
+  return time
 }

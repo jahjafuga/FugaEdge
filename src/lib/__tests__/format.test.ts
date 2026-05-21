@@ -9,9 +9,21 @@
 //
 // The percent block covers percent() — the 0..1-fraction → percent-string
 // helper, with the 1-decimal default and the decimals override.
+//
+// The timezone block covers easternToUtc / localEasternToUtc / formatEastern —
+// the Day 8.5 Eastern↔UTC conversion helpers (DST inference, pre-market,
+// after-hours date-rollover, and the localEasternToUtc⇄formatEastern round
+// trip). No callers are wired yet — the parsers flip in Day 8.5 Commit B.
 
 import { describe, expect, it } from 'vitest'
-import { compactShares, int, percent } from '../format'
+import {
+  compactShares,
+  easternToUtc,
+  formatEastern,
+  int,
+  localEasternToUtc,
+  percent,
+} from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
 
 describe('compactShares — bucket boundaries and decimals', () => {
@@ -84,6 +96,88 @@ describe('percent — 0..1 fraction to percent string', () => {
     expect(percent(undefined)).toBe('—')
     expect(percent(Number.NaN)).toBe('—')
     expect(percent(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
+
+describe('easternToUtc — Eastern wall-clock + explicit offset → UTC ISO', () => {
+  it('applies the EDT offset (-240)', () => {
+    expect(easternToUtc('2026-07-15', '09:30:00', -240)).toBe('2026-07-15T13:30:00Z')
+    expect(easternToUtc('2026-05-14', '06:54:05', -240)).toBe('2026-05-14T10:54:05Z')
+  })
+
+  it('applies the EST offset (-300)', () => {
+    expect(easternToUtc('2026-12-15', '09:30:00', -300)).toBe('2026-12-15T14:30:00Z')
+  })
+
+  it('rolls the date forward when the offset crosses midnight UTC', () => {
+    expect(easternToUtc('2026-07-15', '20:00:00', -240)).toBe('2026-07-16T00:00:00Z')
+  })
+})
+
+describe('localEasternToUtc — Eastern wall-clock → UTC ISO, DST inferred', () => {
+  it('converts ordinary market hours (summer EDT / winter EST)', () => {
+    expect(localEasternToUtc('2026-07-15', '09:30:00')).toBe('2026-07-15T13:30:00Z')
+    expect(localEasternToUtc('2026-01-15', '09:30:00')).toBe('2026-01-15T14:30:00Z')
+  })
+
+  it('converts pre-market hours', () => {
+    expect(localEasternToUtc('2026-07-15', '04:00:00')).toBe('2026-07-15T08:00:00Z')
+    expect(localEasternToUtc('2026-01-15', '04:00:00')).toBe('2026-01-15T09:00:00Z')
+  })
+
+  it('rolls the date forward for after-hours times', () => {
+    expect(localEasternToUtc('2026-07-15', '20:00:00')).toBe('2026-07-16T00:00:00Z')
+  })
+
+  it('picks the correct offset on DST-transition dates', () => {
+    // 2026-03-08 spring-forward, 2026-11-01 fall-back — both Sundays (markets
+    // closed), so this is correctness hygiene, not a real-data path. 14:00 is
+    // unambiguously EDT / EST respectively.
+    expect(localEasternToUtc('2026-03-08', '14:00:00')).toBe('2026-03-08T18:00:00Z')
+    expect(localEasternToUtc('2026-11-01', '14:00:00')).toBe('2026-11-01T19:00:00Z')
+    // Pre-market on spring-forward day: 04:00 ET is already EDT (the 02:00→
+    // 03:00 jump is past). The provisional-as-UTC instant lands before the
+    // transition — this exercises the two-step offset re-probe.
+    expect(localEasternToUtc('2026-03-08', '04:00:00')).toBe('2026-03-08T08:00:00Z')
+  })
+})
+
+describe('formatEastern — UTC ISO → Eastern wall-clock string', () => {
+  it('renders time-only by default', () => {
+    expect(formatEastern('2026-07-15T13:30:00Z')).toBe('09:30:00')
+    expect(formatEastern('2026-01-15T14:30:00Z')).toBe('09:30:00')
+  })
+
+  it('renders date + time with { withDate: true }', () => {
+    expect(formatEastern('2026-07-15T13:30:00Z', { withDate: true })).toBe(
+      '2026-07-15T09:30:00',
+    )
+  })
+
+  it('un-wraps a UTC date rollover back to the Eastern day', () => {
+    // 00:00 UTC 2026-07-16 is 20:00 EDT 2026-07-15.
+    expect(formatEastern('2026-07-16T00:00:00Z', { withDate: true })).toBe(
+      '2026-07-15T20:00:00',
+    )
+  })
+
+  it('round-trips localEasternToUtc', () => {
+    const cases = [
+      ['2026-07-15', '09:30:00'],
+      ['2026-01-15', '14:45:30'],
+      ['2026-07-15', '20:00:00'],
+      ['2026-03-08', '04:00:00'],
+    ] as const
+    for (const [date, time] of cases) {
+      expect(formatEastern(localEasternToUtc(date, time))).toBe(time)
+      expect(
+        formatEastern(localEasternToUtc(date, time), { withDate: true }),
+      ).toBe(`${date}T${time}`)
+    }
+  })
+
+  it('returns the em-dash sentinel for unparseable input', () => {
+    expect(formatEastern('not-a-timestamp')).toBe('—')
   })
 })
 
