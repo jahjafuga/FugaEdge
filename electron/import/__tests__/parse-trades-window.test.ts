@@ -36,7 +36,8 @@ describe('parseTradesWindowCsv — happy path with filename date', () => {
     expect(r.executions[0].side).toBe('B')
     expect(r.executions[0].qty).toBe(100)
     expect(r.executions[0].price).toBe(10)
-    expect(r.executions[0].time).toBe('2026-04-02T09:30:00')
+    // 09:30 ET (EDT) → 13:30 UTC. `date` stays the Eastern trading day.
+    expect(r.executions[0].time).toBe('2026-04-02T13:30:00Z')
     expect(r.executions[0].date).toBe('2026-04-02')
   })
 

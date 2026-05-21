@@ -2,6 +2,7 @@
 // — no DOM, no IO, no electron. Safe to import from any environment.
 
 import type { TradeListRow } from '@shared/trades-types'
+import { utcToEasternParts } from '@/lib/format'
 
 const USD = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -130,15 +131,13 @@ export const FLOAT_BUCKET_LABEL: Record<FloatBucket, string> = {
   unset: 'Unset',
 }
 
-/** Return the local-time hour (0..23) at which the trade was entered.
- *  Open_time is ISO without timezone (market-local). Returns null on
+/** Return the Eastern-time hour (0..23) at which the trade was entered.
+ *  open_time is true UTC (Day 8.5 Commit B); this converts to US-market
+ *  wall-clock so hour-of-day insights stay aligned. Returns null on
  *  unparseable input. */
 export function entryHour(t: TradeListRow): number | null {
   if (!t.open_time) return null
-  const parts = t.open_time.split('T')
-  if (parts.length !== 2) return null
-  const hh = Number.parseInt(parts[1].slice(0, 2), 10)
-  return Number.isFinite(hh) ? hh : null
+  return utcToEasternParts(t.open_time)?.hour ?? null
 }
 
 // ── Pretty labels ─────────────────────────────────────────────────────────

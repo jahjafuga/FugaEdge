@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
+import { utcToEasternParts } from '@/lib/format'
 import type {
   AnalyticsData,
   CatalystAnalytics,
@@ -330,16 +331,12 @@ function pad2(n: number): string {
 }
 
 function bucketWindow(iso: string): string | null {
-  // ISO is local-ish ("YYYY-MM-DDTHH:MM:SS"); split rather than Date-parse
-  // so we don't drift from the timestamp the user actually sees.
-  const t = iso.split('T')[1]
-  if (!t) return null
-  const [hh, mm] = t.split(':')
-  const h = Number(hh)
-  const m = Number(mm)
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
-  const halfHour = m < 30 ? '00' : '30'
-  return `${pad2(h)}:${halfHour}`
+  // `iso` is true UTC (Day 8.5 Commit B) — bucket by Eastern wall-clock so
+  // the half-hour windows line up with US market hours.
+  const p = utcToEasternParts(iso)
+  if (!p) return null
+  const halfHour = p.minute < 30 ? '00' : '30'
+  return `${pad2(p.hour)}:${halfHour}`
 }
 
 function computeVolumeByTimeOfDay(rows: TradeRow[]): VolumeByTimeBucket[] {

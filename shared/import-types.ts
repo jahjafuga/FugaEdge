@@ -43,8 +43,8 @@ export interface Execution {
   is_short: boolean
   qty: number
   price: number
-  time: string // ISO YYYY-MM-DDTHH:MM:SS
-  date: string // YYYY-MM-DD
+  time: string // ISO 8601 UTC, e.g. 2026-05-14T13:30:00Z (Day 8.5 Commit B)
+  date: string // YYYY-MM-DD Eastern trading day (NOT the UTC day of `time`)
 
   // v0.2.0 universal-model additions (all optional).
   source_broker?: SourceBroker
@@ -99,6 +99,7 @@ export interface RoundTripExecution {
   side: ExecSide
   qty: number
   price: number
+  /** ISO 8601 UTC with a Z suffix (Day 8.5 Commit B). */
   time: string
 
   // v0.2.0 Day 2 additions (all optional). Travel through executions_json
@@ -114,10 +115,14 @@ export interface RoundTripExecution {
 }
 
 export interface RoundTrip {
+  /** Eastern trading day (YYYY-MM-DD). Deliberately NOT the UTC day of
+   *  open_time — see the timezone footgun note in electron/db/schema.ts. */
   date: string
   symbol: string
   side: 'long' | 'short'
+  /** ISO 8601 UTC with a Z suffix (Day 8.5 Commit B). */
   open_time: string
+  /** ISO 8601 UTC with a Z suffix; null when is_open. */
   close_time: string | null
   is_open: boolean
   shares_bought: number

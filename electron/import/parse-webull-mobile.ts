@@ -1,6 +1,7 @@
 import Papa from 'papaparse'
 import { createHash } from 'node:crypto'
 import type { Execution } from '@shared/import-types'
+import { easternToUtc } from '@/lib/format'
 
 // Webull Mobile CSV export. Header:
 //   Name, Symbol, Side, Status, Filled, Total Qty, Price, Avg Price,
@@ -13,12 +14,10 @@ import type { Execution } from '@shared/import-types'
 //   - Timestamps are "MM/DD/YYYY HH:MM:SS EDT|EST" — literal TZ abbr
 //   - No per-fill ID; synthesize wbm-<sha1[0..12]> from the row tuple
 //
-// Per the v0.2.0 Day 4 decision: drop the EDT/EST literal and store the
-// bare local-Eastern time as ISO YYYY-MM-DDTHH:MM:SS. This matches the
-// four DAS parsers (parse-executions, parse-tradehistory, parse-trades-
-// window, parse-daily-summary) — none of them store true UTC despite
-// the executions.timestamp_utc column name. The v0.3.0 ticket
-// [[store-true-utc-timestamps]] handles the cross-codebase cleanup.
+// Per Day 8.5 Commit B: the literal EDT/EST suffix picks the UTC offset and
+// the stored Execution.time is true UTC (ISO 8601 with a Z suffix). The
+// synthetic ID is still built from the bare-local-Eastern timestamp so
+// exec_hash stays stable when a pre-Commit-B file is re-imported.
 
 const COL = {
   symbol: 'Symbol',
@@ -81,10 +80,10 @@ export function normalizeWebullSide(raw: string): 'B' | 'S' | null {
 
 // "05/14/2026 06:54:05 EDT" → { date: "2026-05-14", time: "2026-05-14T06:54:05", tz: "EDT" }
 //
-// The EDT|EST suffix is parsed for validation only — we store bare local
-// Eastern per the v0.2.0 convention (see file header). Returns null on
-// any format deviation so the row gets skipped with a clear trace
-// reason rather than silently losing data.
+// `time` is the bare-local-Eastern wall clock (feeds synthId); `tz` is the
+// literal EDT/EST suffix the parser uses to convert that wall clock to true
+// UTC for the stored Execution.time. Returns null on any format deviation so
+// the row gets skipped with a clear trace reason rather than losing data.
 export function parseWebullMobileTimestamp(
   raw: string,
 ): { date: string; time: string; tz: 'EDT' | 'EST' } | null {
@@ -225,6 +224,14 @@ export function parseWebullMobileCsv(
 
     const qtyRounded = Math.round(qty)
     const synth = synthId(ts.date, ts.time, symbol, side, qtyRounded, price)
+    // Day 8.5 Commit B — store true UTC, derived from the file's literal
+    // EDT/EST suffix (no DST inference needed). synthId above still receives
+    // the bare-local `ts.time` so exec_hash is stable across the flip.
+    const timeUtc = easternToUtc(
+      ts.date,
+      ts.time.slice(11, 19),
+      ts.tz === 'EDT' ? -240 : -300,
+    )
 
     executions.push({
       // No per-fill ID in the source — both trade_id and order_id
@@ -241,7 +248,7 @@ export function parseWebullMobileCsv(
       is_short: false,
       qty: qtyRounded,
       price,
-      time: ts.time,
+      time: timeUtc,
       date: ts.date,
       source_broker: 'Webull',
       // 'orders' is the SourceFormat slot for Webull Mobile per

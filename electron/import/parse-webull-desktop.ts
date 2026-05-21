@@ -21,12 +21,11 @@ import type { Execution } from '@shared/import-types'
 //   - Synthetic ID prefix is wbd- (mobile: wbm-) — useful for forensic
 //     ID tracing back to source format
 //
-// Per the v0.2.0 Day 4 decision (Option I): convert UTC → America/
-// New_York local wall-clock via Intl.DateTimeFormat, then store as bare
-// ISO without the Z/offset. Matches the existing DAS-parser convention
-// and the sibling Webull Mobile parser. v0.3.0 ticket
-// [[store-true-utc-timestamps]] flips this to true UTC across all six
-// parsers in one go (cross-codebase audit deferred).
+// Per Day 8.5 Commit B: the source already gives true UTC, so the stored
+// Execution.time is that UTC value, normalised to a Z suffix at second
+// precision. utcIsoToBareEastern is still used — it derives the Eastern
+// `date` field (the trading day) and the bare-local clock fed to synthId,
+// so exec_hash stays stable when a pre-Commit-B file is re-imported.
 //
 // Cell-type note: exceljs preserves source cell types. Total Qty and
 // Filled Qty come through as JS numbers (XLSX numeric cells); Average
@@ -270,6 +269,13 @@ export async function parseWebullDesktopXlsx(
 
     const qtyRounded = Math.round(qty)
     const synth = synthId(ts.date, ts.time, symbol, side, qtyRounded, price)
+    // Day 8.5 Commit B — store the source's true UTC, normalised to a Z
+    // suffix at second precision. filledTimeRaw parsed clean above (ts is
+    // non-null), so Date.parse here cannot be NaN. synthId above still
+    // receives the bare-local-Eastern ts.time so exec_hash is stable.
+    const timeUtc = `${new Date(Date.parse(filledTimeRaw))
+      .toISOString()
+      .slice(0, 19)}Z`
 
     executions.push({
       // No per-fill ID in the source — both trade_id and order_id
@@ -285,7 +291,7 @@ export async function parseWebullDesktopXlsx(
       is_short: false,
       qty: qtyRounded,
       price,
-      time: ts.time,
+      time: timeUtc,
       date: ts.date,
       source_broker: 'Webull',
       // 'xlsx' is the SourceFormat slot for Webull Desktop per

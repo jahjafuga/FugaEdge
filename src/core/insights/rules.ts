@@ -12,6 +12,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import type { InsightInput, InsightResult } from './types'
+import { utcToEasternParts } from '@/lib/format'
 import {
   aggregate,
   entryHour,
@@ -713,9 +714,10 @@ export function runMistakeInLosers(input: InsightInput): InsightResult[] {
 // either jumping at noise or trading without confirmation.
 
 function parseHourMinute(timestamp: string): { hour: number; minute: number } | null {
-  const m = timestamp.match(/[T ](\d{2}):(\d{2})/)
-  if (!m) return null
-  return { hour: Number(m[1]), minute: Number(m[2]) }
+  // `timestamp` is true UTC (Day 8.5 Commit B) — convert to Eastern so the
+  // 9:30–10:00 ET window check below compares like-for-like.
+  const p = utcToEasternParts(timestamp)
+  return p ? { hour: p.hour, minute: p.minute } : null
 }
 
 export function runFirstThirtyMinutes(input: InsightInput): InsightResult | null {

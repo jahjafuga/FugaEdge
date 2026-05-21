@@ -7,6 +7,7 @@ import {
   normalizeWebullDesktopSide,
   utcIsoToBareEastern,
 } from '../parse-webull-desktop'
+import { formatEastern } from '@/lib/format'
 
 // All 19 columns of the Webull Desktop XLSX, in the same order the
 // audit observed in the real fixture. Used by makeXlsx() to assemble
@@ -89,8 +90,9 @@ describe('parseWebullDesktopXlsx — happy path', () => {
     expect(r.executions[0].side).toBe('B')
     expect(r.executions[0].qty).toBe(100)
     expect(r.executions[0].price).toBe(10)
-    // 10:37:03 UTC in EDT = 06:37:03 Eastern
-    expect(r.executions[0].time).toBe('2026-05-14T06:37:03')
+    // Source Filled Time is 10:37:03 UTC — stored as true UTC. `date` is the
+    // Eastern trading day (06:37:03 ET — same calendar day for this fixture).
+    expect(r.executions[0].time).toBe('2026-05-14T10:37:03Z')
     expect(r.executions[0].date).toBe('2026-05-14')
   })
 
@@ -395,13 +397,17 @@ describe('Webull desktop real fixture — generic invariants only', () => {
     expect(ids.size).toBe(r.executions.length)
   })
 
-  it('every timestamp is converted to local Eastern (no Z, no +0000)', async () => {
+  it('every timestamp is stored as true UTC whose Eastern day matches `date`', async () => {
     const r = await parseWebullDesktopXlsx(buffer)
     for (const e of r.executions) {
-      // Bare ISO YYYY-MM-DDTHH:MM:SS — no trailing Z, no offset.
-      expect(e.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/)
+      // Day 8.5 Commit B — Execution.time is true UTC (ISO 8601, Z suffix).
+      expect(e.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
       expect(e.date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(e.date).toBe(e.time.slice(0, 10))
+      // `date` is the Eastern trading day. The naive time.slice(0,10) === date
+      // invariant no longer holds — UTC and Eastern calendar days can differ
+      // (an after-hours fill rolls into the next UTC day). The real invariant:
+      // the Eastern calendar day of the UTC time reproduces `date`.
+      expect(formatEastern(e.time, { withDate: true }).slice(0, 10)).toBe(e.date)
     }
   })
 

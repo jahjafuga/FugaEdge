@@ -5,18 +5,27 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-export const SCHEMA_VERSION = '18'
+// Bumped to 19 for Day 8.5 Commit B: timestamps flipped from bare-local
+// Eastern to true UTC. No table-shape change — the bump is the one-shot
+// trigger for the migrateTimestampsToUtc data migration (see migrate-tz-utc.ts).
+export const SCHEMA_VERSION = '19'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
 
+-- TIMEZONE FOOTGUN (Day 8.5 Commit B): open_time / close_time are true UTC
+-- (ISO 8601 with a Z suffix). \`date\` is the Eastern TRADING DAY and
+-- deliberately does NOT track the UTC calendar day — an after-hours fill
+-- (20:00 ET) has an open_time on the next UTC day while \`date\` stays the
+-- Eastern day. Bucket P&L / calendar / day-of-week by \`date\`; never derive
+-- the trading day from open_time.slice(0,10).
 CREATE TABLE IF NOT EXISTS trades (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  date            TEXT    NOT NULL,                           -- YYYY-MM-DD of open_time
+  date            TEXT    NOT NULL,                           -- Eastern trading day YYYY-MM-DD (see footgun note above)
   symbol          TEXT    NOT NULL,
   side            TEXT    NOT NULL CHECK (side IN ('long','short')),
-  open_time       TEXT    NOT NULL,                           -- ISO YYYY-MM-DDTHH:MM:SS
-  close_time      TEXT,                                       -- null if is_open = 1
+  open_time       TEXT    NOT NULL,                           -- ISO 8601 UTC, e.g. 2026-05-14T13:30:00Z
+  close_time      TEXT,                                       -- ISO 8601 UTC; null if is_open = 1
   is_open         INTEGER NOT NULL DEFAULT 0,                 -- 1 if position never returned to 0
   shares_bought   INTEGER NOT NULL DEFAULT 0,
   avg_buy_price   REAL    NOT NULL DEFAULT 0,
@@ -66,7 +75,7 @@ CREATE TABLE IF NOT EXISTS executions (
   side            TEXT    NOT NULL CHECK (side IN ('B','S')),
   quantity        INTEGER NOT NULL,
   price           REAL    NOT NULL,
-  timestamp_utc   TEXT    NOT NULL,                          -- ISO YYYY-MM-DDTHH:MM:SS
+  timestamp_utc   TEXT    NOT NULL,                          -- ISO 8601 UTC, e.g. 2026-05-14T13:30:00Z
   source_broker   TEXT    NOT NULL,                          -- 'DAS' | 'Webull' | ...
   source_format   TEXT    NOT NULL,                          -- 'execution' | 'summary' | ...
   source_file     TEXT,

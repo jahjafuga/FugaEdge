@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { TradeListRow } from '@shared/trades-types'
-import { signed, money } from '@/lib/format'
+import { signed, money, formatEastern } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 
@@ -42,10 +42,6 @@ interface CurvePoint {
   label: string
 }
 
-function pad(n: number): string {
-  return n < 10 ? `0${n}` : String(n)
-}
-
 function buildCurve(trades: TradeListRow[]): CurvePoint[] {
   // Collect every closing fill with its prorated P&L portion.
   const closings: { t: number; pnlPortion: number }[] = []
@@ -56,6 +52,9 @@ function buildCurve(trades: TradeListRow[]): CurvePoint[] {
     const totalQty = closingFills.reduce((s, f) => s + f.qty, 0)
     if (totalQty <= 0) continue
     for (const f of closingFills) {
+      // f.time is true UTC with a Z suffix (Day 8.5 Commit B). The
+      // includes('Z') guard is kept deliberately — it tolerates either form;
+      // do NOT simplify to a hard `${...}Z` append (would double the Z → NaN).
       const epoch = Date.parse(f.time.includes('Z') ? f.time : `${f.time}Z`)
       if (!Number.isFinite(epoch)) continue
       closings.push({
@@ -82,8 +81,10 @@ function buildCurve(trades: TradeListRow[]): CurvePoint[] {
 }
 
 function timeOf(epochMs: number): string {
-  const d = new Date(epochMs)
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  // epochMs is a true UTC instant — render the Eastern wall-clock HH:MM for
+  // the axis label. Day 8.5 Commit B: was machine-local getHours(), which
+  // mislabeled the axis for any user not in US/Eastern.
+  return formatEastern(new Date(epochMs).toISOString()).slice(0, 5)
 }
 
 export default function IntradayPnLChart({ trades, date, height = 160 }: IntradayPnLChartProps) {

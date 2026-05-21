@@ -23,6 +23,7 @@ import {
   int,
   localEasternToUtc,
   percent,
+  utcToEasternParts,
 } from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
 
@@ -178,6 +179,40 @@ describe('formatEastern — UTC ISO → Eastern wall-clock string', () => {
 
   it('returns the em-dash sentinel for unparseable input', () => {
     expect(formatEastern('not-a-timestamp')).toBe('—')
+  })
+})
+
+describe('utcToEasternParts — UTC ISO → numeric Eastern wall-clock parts', () => {
+  it('converts ordinary EDT market hours', () => {
+    expect(utcToEasternParts('2026-07-15T13:30:00Z')).toEqual({
+      year: 2026, month: 7, day: 15, hour: 9, minute: 30, second: 0,
+    })
+  })
+
+  it('converts ordinary EST market hours', () => {
+    expect(utcToEasternParts('2026-01-15T14:30:00Z')).toEqual({
+      year: 2026, month: 1, day: 15, hour: 9, minute: 30, second: 0,
+    })
+  })
+
+  it('rolls back to the previous Eastern day for an after-hours UTC instant', () => {
+    // 00:00 UTC 2026-07-16 is 20:00 EDT 2026-07-15 — the date part must
+    // resolve to the Eastern calendar day, not the UTC one.
+    expect(utcToEasternParts('2026-07-16T00:00:00Z')).toEqual({
+      year: 2026, month: 7, day: 15, hour: 20, minute: 0, second: 0,
+    })
+  })
+
+  it('returns null for unparseable input', () => {
+    expect(utcToEasternParts('not-a-timestamp')).toBeNull()
+    expect(utcToEasternParts('')).toBeNull()
+  })
+
+  it('agrees with formatEastern (the string wrapper builds on it)', () => {
+    const p = utcToEasternParts('2026-07-15T13:30:00Z')!
+    expect(formatEastern('2026-07-15T13:30:00Z')).toBe(
+      `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}:${String(p.second).padStart(2, '0')}`,
+    )
   })
 })
 

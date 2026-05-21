@@ -12,7 +12,7 @@ import {
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
-import { int, money, signed } from '@/lib/format'
+import { int, money, signed, formatEastern } from '@/lib/format'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -488,10 +488,19 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
             borderColor: COLOR_BORDER,
             scaleMargins: { top: 0.05, bottom: 0.25 },
           },
+          // Day 8.5 Commit B — candles/markers sit on UTC epochs; render the
+          // axis + crosshair in US/Eastern so the trader reads market
+          // wall-clock, matching their broker / TradingView / Chartswatcher.
+          localization: {
+            timeFormatter: (t: import('lightweight-charts').Time) =>
+              easternAxisLabel(t as number, true),
+          },
           timeScale: {
             borderColor: COLOR_BORDER,
             timeVisible: true,
             secondsVisible: false,
+            tickMarkFormatter: (t: import('lightweight-charts').Time) =>
+              easternAxisLabel(t as number, false),
           },
           crosshair: {
             mode: lc.CrosshairMode.Normal,
@@ -804,7 +813,8 @@ function FitToFillsButton({
     const r = chartRefs.current
     if (!r || bars.length === 0 || trade.executions.length === 0) return
     const fillTimes = trade.executions
-      .map((e) => Date.parse(`${e.time}Z`))
+      // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
+      .map((e) => Date.parse(e.time))
       .filter((t) => Number.isFinite(t))
     if (fillTimes.length === 0) return
     const minFill = Math.min(...fillTimes)
@@ -987,6 +997,16 @@ function secondsTime(epochMs: number): import('lightweight-charts').UTCTimestamp
   return Math.floor(epochMs / 1000) as import('lightweight-charts').UTCTimestamp
 }
 
+// Eastern wall-clock label for a lightweight-charts UTCTimestamp (epoch
+// seconds). Candles, markers, and indicator series all sit on UTC epochs;
+// this renders the time axis + crosshair in US/Eastern (Day 8.5 Commit B) so
+// a US trader reads market wall-clock instead of UTC. `withSeconds` is on for
+// the crosshair tooltip, off (HH:MM) for the denser axis tick labels.
+function easternAxisLabel(timeSec: number, withSeconds: boolean): string {
+  const label = formatEastern(new Date(timeSec * 1000).toISOString())
+  return withSeconds ? label : label.slice(0, 5)
+}
+
 function computeDayStats(bars: IntradayBar[]): DayStats {
   if (bars.length === 0) {
     return { open: null, high: null, low: null, close: null, volume: 0 }
@@ -1081,6 +1101,11 @@ function computeEntryEma9Pct(
   const entrySide = trade.side === 'short' ? 'S' : 'B'
   const entryFill = trade.executions.find((e) => e.side === entrySide)
   if (!entryFill) return null
+  // entryFill.time is true UTC with a Z suffix (Day 8.5 Commit B). The
+  // includes('Z') guard is kept deliberately — it tolerates either form, so
+  // this stays correct even if a caller ever passes a legacy bare-local
+  // string. Do NOT simplify to a hard `${...}Z` append: that would double
+  // the Z on the normal already-UTC path and yield NaN.
   const entryEpoch = Date.parse(
     entryFill.time.includes('Z') ? entryFill.time : `${entryFill.time}Z`,
   )
@@ -1121,7 +1146,10 @@ function buildFillMarkers(
   const barTimesSec = bars.map((b) => Math.floor(b.t / 1000))
   const out: import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] = []
   for (const e of trade.executions) {
-    const epoch = Date.parse(`${e.time}Z`)
+    // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
+    // The pre-Commit-B `${e.time}Z` append now doubles the Z → NaN → the
+    // marker silently vanishes; that bug is what Tester A's chart surfaced.
+    const epoch = Date.parse(e.time)
     if (!Number.isFinite(epoch)) continue
     const sec = Math.floor(epoch / 1000)
     // Snap to nearest bar time so the marker rides the candle exactly.

@@ -1,14 +1,9 @@
 import type { TradeListRow } from '@shared/trades-types'
 import Sparkline from './Sparkline'
-import { int, longDate, money, pnlClass, price, signed } from '@/lib/format'
+import { int, longDate, money, pnlClass, price, signed, formatEastern } from '@/lib/format'
 
 interface TradeChartCardProps {
   trade: TradeListRow
-}
-
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  return t ?? iso
 }
 
 // Large variant — full-width card with a wide sparkline and entry/exit
@@ -44,11 +39,11 @@ export default function TradeChartCard({ trade }: TradeChartCardProps) {
           </div>
           <div className="font-mono text-xs text-subtle">{longDate(trade.date)}</div>
           <div className="font-mono text-xs text-muted">
-            {entryFill && timeOf(entryFill.time)}
+            {entryFill && formatEastern(entryFill.time)}
             {exitFill && exitFill !== entryFill && (
               <>
                 {' → '}
-                {timeOf(exitFill.time)}
+                {formatEastern(exitFill.time)}
               </>
             )}
           </div>

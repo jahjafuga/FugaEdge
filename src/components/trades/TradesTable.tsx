@@ -23,7 +23,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, pnlClass, signed, longDate, compactShares } from '@/lib/format'
+import { money, price, int, pnlClass, signed, longDate, compactShares, formatEastern } from '@/lib/format'
 import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
 import Sparkline from './Sparkline'
@@ -172,7 +172,7 @@ export default function TradesTable({
         size: COLUMN_WIDTHS.open,
         cell: (info) => (
           <span className="whitespace-nowrap font-mono text-xs text-fg-primary tnum">
-            {timeOf(info.getValue() as string)}
+            {formatEastern(info.getValue() as string)}
           </span>
         ),
         sortingFn: 'alphanumeric',
@@ -192,7 +192,7 @@ export default function TradesTable({
           }
           return (
             <span className="whitespace-nowrap font-mono text-xs text-fg-primary tnum">
-              {timeOf(t.close_time)}
+              {formatEastern(t.close_time)}
             </span>
           )
         },
@@ -452,7 +452,3 @@ export default function TradesTable({
   )
 }
 
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  return t ?? iso
-}

@@ -4,6 +4,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SCHEMA_SQL } from './schema'
 import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
+import { migrateTimestampsToUtc } from './migrate-tz-utc'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -11,10 +12,27 @@ import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 const V020_TARGET_SCHEMA_VERSION = 18
 const V020_BACKUP_LATCH_KEY = 'v020_backup_done'
 
+// Latch for the Day 8.5 tz-utc migration's pre-migration backup (schema 18→19).
+const TZ_BACKUP_LATCH_KEY = 'tz_migration_backup_done'
+
 let db: Database.Database | null = null
 
 export function getDbPath(): string {
   return join(app.getPath('userData'), 'fugaedge.db')
+}
+
+// Read the persisted schema version from _meta. Returns 0 for a fresh DB (no
+// _meta row yet) or any read failure. Captured before SCHEMA_SQL re-stamps
+// the value so migrateAfterSchema can tell an upgrading DB from a fresh one.
+function readSchemaVersion(conn: Database.Database): number {
+  try {
+    const row = conn
+      .prepare("SELECT value FROM _meta WHERE key='schema_version'")
+      .get() as { value: string } | undefined
+    return row ? Number.parseInt(row.value, 10) || 0 : 0
+  } catch {
+    return 0
+  }
 }
 
 // One-shot copy of the pre-rebrand DB on first launch under the new product
@@ -67,10 +85,13 @@ export function openDatabase(): Database.Database {
   db.pragma('cache_size = -32000')
   db.pragma('mmap_size = 268435456')
   db.pragma('temp_store = MEMORY')
+  // Capture the on-disk schema version BEFORE SCHEMA_SQL re-stamps it — the
+  // Day 8.5 tz-utc migration is gated on the pre-launch version.
+  const priorVersion = readSchemaVersion(db)
   maybeBackupForV020(db, path)
   migrateBeforeSchema(db)
   db.exec(SCHEMA_SQL)
-  migrateAfterSchema(db)
+  migrateAfterSchema(db, priorVersion, path)
   return db
 }
 
@@ -172,6 +193,58 @@ function maybeBackupForV020(conn: Database.Database, dbPath: string): void {
   }
 }
 
+// Pre-migration backup for the Day 8.5 tz-utc data migration. Passed as the
+// `backup` closure to migrateTimestampsToUtc and invoked once, immediately
+// before the conversion transaction. Mirrors maybeBackupForV020: checkpoint
+// the WAL so the copy is self-contained, then copy the DB file aside.
+//
+// THROWS on copy failure — migrateTimestampsToUtc catches it and aborts the
+// migration rather than mutating data with no safety net. Existing v0.2.0
+// users are already at schema 18, so maybeBackupForV020's latch has fired and
+// this is their only fresh backup before the timestamp rows are rewritten.
+function backupBeforeTzMigration(conn: Database.Database, dbPath: string): void {
+  // Skip if a prior launch already wrote this backup.
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(TZ_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable — fall through and attempt the copy anyway.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `fugaedge.db.pre-v0.2.0-tz-${ts}.bak`)
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(`[FE db] wal_checkpoint before tz-migration backup failed: ${e}`)
+  }
+
+  // Deliberately NOT wrapped — a copy failure must propagate so the migration
+  // aborts instead of mutating data with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] tz-utc pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(`
+        INSERT INTO settings (key, value) VALUES (?, 'true')
+        ON CONFLICT(key) DO UPDATE SET value = 'true'
+      `)
+      .run(TZ_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] tz-migration backup latch write failed: ${e}`)
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -203,7 +276,11 @@ function migrateBeforeSchema(conn: Database.Database): void {
 
 // After-schema migrations are additive (ALTER TABLE … ADD COLUMN). They run
 // every launch and are gated by PRAGMA inspection so they're idempotent.
-function migrateAfterSchema(conn: Database.Database): void {
+function migrateAfterSchema(
+  conn: Database.Database,
+  priorVersion: number,
+  dbPath: string,
+): void {
   const cols = conn.prepare('PRAGMA table_info(trades)').all() as { name: string }[]
   const has = (name: string) => cols.some((c) => c.name === name)
 
@@ -378,6 +455,13 @@ function migrateAfterSchema(conn: Database.Database): void {
 
   seedDefaultPlaybooksOnce(conn)
   seedDefaultPlaybookTiersOnce(conn)
+
+  // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
+  // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the
+  // backup closure is the only fresh safety net for existing v0.2.0 users.
+  migrateTimestampsToUtc(conn, priorVersion, {
+    backup: () => backupBeforeTzMigration(conn, dbPath),
+  })
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

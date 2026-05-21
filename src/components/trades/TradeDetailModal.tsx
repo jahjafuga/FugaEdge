@@ -15,7 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, signed, pnlClass, longDate } from '@/lib/format'
+import { money, price, int, signed, pnlClass, longDate, formatEastern } from '@/lib/format'
 import PlaybookPicker from '@/components/playbook/PlaybookPicker'
 import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
@@ -455,7 +455,7 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
         </div>
         {trade.executions.map((e, i) => (
           <div key={`${e.trade_id}-${e.order_id}-${i}`} className="contents">
-            <div className="text-fg-tertiary tnum">{timeOf(e.time)}</div>
+            <div className="text-fg-tertiary tnum">{formatEastern(e.time)}</div>
             <div className={e.side === 'B' ? 'text-win' : 'text-loss'}>{e.side}</div>
             <div className="text-right text-fg-primary tnum">{int(e.qty)}</div>
             <div className="text-right text-fg-secondary tnum">{price(e.price)}</div>
@@ -465,11 +465,6 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
       </div>
     </div>
   )
-}
-
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  return t ?? iso
 }
 
 // ── Mistakes tab — local state + save button ──

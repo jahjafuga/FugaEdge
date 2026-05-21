@@ -17,7 +17,8 @@ describe('parseExecutionsCsv — happy path', () => {
     expect(first.side).toBe('B')
     expect(first.qty).toBe(100)
     expect(first.price).toBe(150.5)
-    expect(first.time).toBe('2026-05-15T09:30:00')
+    // 09:30 ET (EDT) → 13:30 UTC. `date` stays the Eastern trading day.
+    expect(first.time).toBe('2026-05-15T13:30:00Z')
     expect(first.date).toBe('2026-05-15')
     expect(first.trade_id).toBe('1')
     expect(first.order_id).toBe('A1')
@@ -109,7 +110,7 @@ describe('parseExecutionsCsv — bare-time fallback', () => {
     expect(result.requiresDate).toBe(false)
     expect(result.executions).toHaveLength(2)
     expect(result.executions[0].date).toBe('2026-05-15')
-    expect(result.executions[0].time).toBe('2026-05-15T09:30:00')
+    expect(result.executions[0].time).toBe('2026-05-15T13:30:00Z')
   })
 
   it('uses MM-DD-YYYY filenames via the new parse-filename pattern', () => {

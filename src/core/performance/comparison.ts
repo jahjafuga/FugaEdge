@@ -9,6 +9,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import { parseDate } from './dateUtils'
+import { utcToEasternParts } from '@/lib/format'
 import {
   calendarDayPnLMap,
   computeDailyPnL,
@@ -344,8 +345,9 @@ function dimensionKey(
     case 'dow':
       return dayOfWeek(t.date)
     case 'hour': {
-      const m = t.open_time.match(/[T ](\d{2}):/)
-      return m ? `${parseInt(m[1], 10)}:00` : null
+      // open_time is true UTC (Day 8.5 Commit B) — bucket by Eastern hour.
+      const p = utcToEasternParts(t.open_time)
+      return p ? `${p.hour}:00` : null
     }
     case 'region':
       return t.region ?? 'Unknown'

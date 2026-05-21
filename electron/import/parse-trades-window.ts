@@ -2,6 +2,7 @@ import Papa from 'papaparse'
 import { createHash } from 'node:crypto'
 import type { Execution } from '@shared/import-types'
 import { parseFilenameDate } from './parse-filename'
+import { localEasternToUtc } from '@/lib/format'
 
 // DAS Trades window export — Tester B variant. Columns:
 //   Time, Symbol, Side, Price, Qty, Route, LiqType, Broker, Account, Type, Cloid
@@ -190,9 +191,12 @@ export function parseTradesWindowCsv(
     }
 
     const date = filenameDate
-    const iso = `${date}T${time}`
     const qtyRounded = Math.round(qty)
     const synth = synthId(date, time, symbol, sideRaw, qtyRounded, price)
+    // Day 8.5 Commit B — store true UTC. synthId above still receives the
+    // bare-local `time` so exec_hash is stable across the flip; `date` stays
+    // the Eastern trading day; only `time` becomes UTC.
+    const timeUtc = localEasternToUtc(date, time)
     const cloid = pick(r, COL.cloid).trim()
     const account = pick(r, COL.account).trim()
 
@@ -219,7 +223,7 @@ export function parseTradesWindowCsv(
       is_short: false,
       qty: qtyRounded,
       price,
-      time: iso,
+      time: timeUtc,
       date,
       source_broker: 'DAS',
       source_format: 'trades_window',

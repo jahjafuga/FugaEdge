@@ -69,7 +69,8 @@ describe('parseTradeHistoryCsv — happy path', () => {
     expect(first.side).toBe('B')
     expect(first.qty).toBe(28)
     expect(first.price).toBe(3.3)
-    expect(first.time).toBe('2026-05-01T08:03:35')
+    // 08:03:35 ET (EDT) → 12:03:35 UTC. `date` stays the Eastern trading day.
+    expect(first.time).toBe('2026-05-01T12:03:35Z')
     expect(first.date).toBe('2026-05-01')
   })
 

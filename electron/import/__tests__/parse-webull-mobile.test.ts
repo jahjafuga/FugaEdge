@@ -29,7 +29,8 @@ describe('parseWebullMobileCsv — happy path', () => {
     expect(r.executions[0].side).toBe('B')
     expect(r.executions[0].qty).toBe(100)
     expect(r.executions[0].price).toBe(10)
-    expect(r.executions[0].time).toBe('2026-05-14T06:54:05')
+    // 06:54:05 EDT (literal in the source) → 10:54:05 UTC. `date` stays Eastern.
+    expect(r.executions[0].time).toBe('2026-05-14T10:54:05Z')
     expect(r.executions[0].date).toBe('2026-05-14')
   })
 

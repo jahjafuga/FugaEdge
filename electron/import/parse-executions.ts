@@ -1,6 +1,7 @@
 import Papa from 'papaparse'
 import type { Execution } from '@shared/import-types'
 import { parseFilenameDate } from './parse-filename'
+import { localEasternToUtc } from '@/lib/format'
 
 // DAS Trades.csv columns:
 // TradeID, OrderID, Trader, Account, Branch, route, bkrsym, rrno, B/S, SHORT,
@@ -229,6 +230,11 @@ export function parseExecutionsCsv(
     const brokerPnl =
       numOrUndefined(pick(r, COL.pnl)) ?? numOrUndefined(pick(r, COL.pnlAlt))
 
+    // Day 8.5 Commit B — store true UTC. `iso`/`date` are bare-local Eastern
+    // (DAS Trades.csv carries no offset); localEasternToUtc infers EDT/EST.
+    // `date` stays the Eastern trading day; only `time` becomes UTC.
+    const timeUtc = localEasternToUtc(date, iso.slice(11, 19))
+
     executions.push({
       trade_id: pick(r, COL.tradeId).trim(),
       order_id: pick(r, COL.orderId).trim(),
@@ -239,7 +245,7 @@ export function parseExecutionsCsv(
       is_short: truthy(pick(r, COL.short)),
       qty: Math.round(qty),
       price,
-      time: iso,
+      time: timeUtc,
       date,
       source_broker: 'DAS',
       source_format: 'execution',
