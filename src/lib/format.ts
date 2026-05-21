@@ -61,13 +61,21 @@ export function shortDate(iso: string | null | undefined): string {
   return `${SHORT_MONTH[m - 1]} ${d}`
 }
 
-// Compact share count → "1.2M", "450K", "950". Returns "—" for null/zero.
-// Used by the Float field on trades and any other "shares outstanding"
-// display where the full integer is too noisy.
+// Compact share count → "1.47M", "150M", "2.30B", "450K", "850". Returns "—"
+// for null / zero / invalid. Used by the Float / shares-outstanding display
+// where the full integer is too noisy. Bucket rules (Day 8 number-formatting
+// spec) — the M bucket carries 2 decimals so 1,470,000 reads "1.47M", not a
+// lossy "1.5M":
+//   < 1,000                   → exact integer ("850")
+//   1,000 – 999,999           → whole-number K ("450K")
+//   1,000,000 – 99,999,999    → 2-decimal M ("1.47M")
+//   100,000,000 – 999,999,999 → whole-number M ("150M")
+//   ≥ 1,000,000,000           → 2-decimal B ("2.30B")
 export function compactShares(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n) || n <= 0) return '—'
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
+  if (n >= 100_000_000) return `${(n / 1_000_000).toFixed(0)}M`
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
   return intFmt.format(n)
 }

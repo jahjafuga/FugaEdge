@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { compactShares } from '@/lib/format'
+import { int } from '@/lib/format'
 
 interface FloatEditorProps {
   /** Current persisted float (whole-share count) or null when unset. */
@@ -10,8 +10,9 @@ interface FloatEditorProps {
 }
 
 // Parse "1.2M", "450K", "1.5B", or raw numbers (with optional commas) into
-// a share count. Returns null for empty / unparseable input.
-function parseInput(raw: string): number | null {
+// a share count. Returns null for empty / unparseable input. Exported so the
+// format-then-parse round trip can be unit-tested.
+export function parseInput(raw: string): number | null {
   const cleaned = raw.replace(/[$,\s]/g, '').trim()
   if (cleaned === '') return null
   const m = cleaned.match(/^([0-9]*\.?[0-9]+)([kmbKMB])?$/)
@@ -20,29 +21,29 @@ function parseInput(raw: string): number | null {
   if (!Number.isFinite(num) || num <= 0) return null
   const suffix = m[2]?.toLowerCase()
   const mult = suffix === 'b' ? 1_000_000_000 : suffix === 'm' ? 1_000_000 : suffix === 'k' ? 1_000 : 1
-  return Math.floor(num * mult)
+  return Math.round(num * mult)
 }
 
 export default function FloatEditor({ value, onChange }: FloatEditorProps) {
   // Local draft state — only commits on blur/Enter. This avoids fighting
   // the parent's auth on every keystroke (and prevents the input value from
   // jumping to the formatted value mid-typing).
-  const [draft, setDraft] = useState<string>(value == null ? '' : compactShares(value))
+  const [draft, setDraft] = useState<string>(value == null ? '' : int(value))
 
   // Sync from parent when the underlying value changes (e.g. trade swap).
   useEffect(() => {
-    setDraft(value == null ? '' : compactShares(value))
+    setDraft(value == null ? '' : int(value))
   }, [value])
 
   const commit = () => {
     const parsed = parseInput(draft)
     // No-op if parsing didn't change the effective value (avoid pointless IPC).
     if (parsed === value) {
-      setDraft(value == null ? '' : compactShares(value))
+      setDraft(value == null ? '' : int(value))
       return
     }
     onChange(parsed)
-    setDraft(parsed == null ? '' : compactShares(parsed))
+    setDraft(parsed == null ? '' : int(parsed))
   }
 
   return (
@@ -56,7 +57,7 @@ export default function FloatEditor({ value, onChange }: FloatEditorProps) {
           e.preventDefault()
           ;(e.target as HTMLInputElement).blur()
         } else if (e.key === 'Escape') {
-          setDraft(value == null ? '' : compactShares(value))
+          setDraft(value == null ? '' : int(value))
           ;(e.target as HTMLInputElement).blur()
         }
       }}
