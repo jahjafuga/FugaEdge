@@ -25,6 +25,20 @@ export function price(n: number): string {
   return px2.format(n)
 }
 
+// Fraction (0..1) → percent string. 0.625 → "62.5%". 1-decimal default per
+// the Day 8 number-formatting spec; pass `decimals` to override. Returns "—"
+// for null / undefined / non-finite, consistent with compactShares. The input
+// is a 0..1 fraction (matches win_rate / scratch_pct storage) — not an
+// already-scaled percentage. Out-of-range fractions are not clamped: a 2.5x
+// return formats as "250.0%", a loss as "-25.0%".
+export function percent(
+  fraction: number | null | undefined,
+  decimals = 1,
+): string {
+  if (fraction == null || !Number.isFinite(fraction)) return '—'
+  return `${(fraction * 100).toFixed(decimals)}%`
+}
+
 // Returns the Tailwind class for a P&L value's color. Uses the themed
 // win/loss/muted tokens so the same green/red automatically darkens for
 // light mode (text-win → #16a34a) without each caller knowing.

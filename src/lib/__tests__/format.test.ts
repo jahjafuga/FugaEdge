@@ -6,9 +6,12 @@
 // round-trip block guards FloatEditor, whose editable field is seeded with
 // int(value): a focus+blur with no edit must return the float unchanged —
 // the old compactShares seed silently rounded it on commit.
+//
+// The percent block covers percent() — the 0..1-fraction → percent-string
+// helper, with the 1-decimal default and the decimals override.
 
 import { describe, expect, it } from 'vitest'
-import { compactShares, int } from '../format'
+import { compactShares, int, percent } from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
 
 describe('compactShares — bucket boundaries and decimals', () => {
@@ -55,6 +58,32 @@ describe('compactShares — bucket boundaries and decimals', () => {
     expect(compactShares(-5)).toBe('—')
     expect(compactShares(Number.NaN)).toBe('—')
     expect(compactShares(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
+
+describe('percent — 0..1 fraction to percent string', () => {
+  it('formats a fraction with 1 decimal by default', () => {
+    expect(percent(0)).toBe('0.0%')
+    expect(percent(0.5)).toBe('50.0%')
+    expect(percent(0.625)).toBe('62.5%')
+    expect(percent(1)).toBe('100.0%')
+  })
+
+  it('does not clamp fractions outside 0..1', () => {
+    expect(percent(-0.25)).toBe('-25.0%')
+    expect(percent(2.5)).toBe('250.0%')
+  })
+
+  it('honours the optional decimals override', () => {
+    expect(percent(0.6667, 2)).toBe('66.67%')
+    expect(percent(0.5, 0)).toBe('50%')
+  })
+
+  it('returns the em-dash sentinel for null and invalid input', () => {
+    expect(percent(null)).toBe('—')
+    expect(percent(undefined)).toBe('—')
+    expect(percent(Number.NaN)).toBe('—')
+    expect(percent(Number.POSITIVE_INFINITY)).toBe('—')
   })
 })
 
