@@ -21,3 +21,7 @@ When in doubt: **"Could this exact file run inside a Next.js page without modifi
 ## Honest note on current state
 
 Several existing files in `electron/*/ipc.ts` and `src/*` still mix IPC plumbing with business logic — they predate the architecture rules. **New code must follow the rules even if older code nearby doesn't.** When touching legacy files, extract the pure logic to `/src/core` or `/src/lib` opportunistically; don't replicate the old pattern.
+
+## End-of-session handoff
+
+At the end of any Day N or Day N.5 session that ends with a commit landing, fill out the build-update brief at `docs/posts/BUILD_UPDATE_BRIEF.md` — follow that file's own "Instruction to Claude Code" section for how to fill it and what to output, and output the filled brief in a code block so it can be pasted straight into the Canva post chat. The template file is the source of truth for the format; don't restate its sections here.
