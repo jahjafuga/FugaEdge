@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { AlertCircle, KeyRound, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
+import BrokerExportGuide from '@/components/import/BrokerExportGuide'
 import DropZone from '@/components/import/DropZone'
 import ImportSummary from '@/components/import/ImportSummary'
+import ImportIssues from '@/components/import/ImportIssues'
 import PreviewTable from '@/components/import/PreviewTable'
 import FeesPreviewTable from '@/components/import/FeesPreviewTable'
 import { ipc } from '@/lib/ipc'
@@ -19,8 +20,8 @@ type Phase =
   | { kind: 'error'; message: string }
 
 export default function Import() {
-  const navigate = useNavigate()
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
+  const [guideOpen, setGuideOpen] = useState(false)
 
   const handleFiles = useCallback(
     async (files: { name: string; text?: string; bytes?: Uint8Array }[]) => {
@@ -63,7 +64,20 @@ export default function Import() {
       title="Import"
       subtitle="Drop your broker export file(s) — DAS Trader or Webull. Imports always append; nothing is overwritten."
     >
-      {phase.kind === 'idle' && <DropZone onFiles={handleFiles} />}
+      {phase.kind === 'idle' && (
+        <div className="space-y-3">
+          <DropZone onFiles={handleFiles} />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setGuideOpen(true)}
+              className="cursor-pointer text-xs text-fg-tertiary underline-offset-2 transition-colors duration-150 hover:text-gold hover:underline"
+            >
+              Need help exporting?
+            </button>
+          </div>
+        </div>
+      )}
 
       {phase.kind === 'parsing' && (
         <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
@@ -82,6 +96,7 @@ export default function Import() {
           onDateChange={(d) => setPhase({ ...phase, dateOverride: d })}
           onCancel={reset}
           onConfirm={commit}
+          onShowGuide={() => setGuideOpen(true)}
         />
       )}
 
@@ -93,76 +108,11 @@ export default function Import() {
       )}
 
       {phase.kind === 'done' && (
-        <div className="space-y-4">
-          {phase.result.countryApiKeyMissing && (
-            <div
-              role="status"
-              className="flex items-start gap-3 rounded-md border border-gold/40 bg-gold/[0.06] p-4"
-            >
-              <KeyRound size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-gold" />
-              <div className="flex-1 text-sm text-fg-secondary">
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-gold">
-                  Country data couldn&apos;t be fetched
-                </div>
-                <div className="mt-1">
-                  Your Massive API key isn&apos;t set, so per-ticker country
-                  lookups were skipped. Add a key in Settings and run Backfill
-                  to enrich these trades.
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate('/settings')}
-                  className="mt-2 inline-flex h-8 cursor-pointer items-center rounded-md border border-gold/60 bg-gold/[0.08] px-3 text-[11px] font-semibold uppercase tracking-wider text-gold transition-colors duration-150 hover:bg-gold/[0.16]"
-                >
-                  Open Settings
-                </button>
-              </div>
-            </div>
-          )}
-          <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
-            <div className="text-[10px] uppercase tracking-wider text-win">
-              Import complete
-            </div>
-            <div className="mt-2 text-base text-text">
-              Saved{' '}
-              <span className="font-mono text-win">{int(phase.result.insertedTrips)}</span>{' '}
-              round trip{phase.result.insertedTrips === 1 ? '' : 's'} and{' '}
-              <span className="font-mono text-gold">
-                {int(phase.result.insertedFees + phase.result.replacedFees)}
-              </span>{' '}
-              fee row{phase.result.insertedFees + phase.result.replacedFees === 1 ? '' : 's'}{' '}
-              across{' '}
-              <span className="font-mono">{phase.result.affectedDates.length}</span>{' '}
-              date{phase.result.affectedDates.length === 1 ? '' : 's'}.
-              {phase.result.skippedTrips > 0 && (
-                <>
-                  {' '}
-                  <span className="text-subtle">
-                    Skipped {int(phase.result.skippedTrips)} duplicate
-                    {phase.result.skippedTrips === 1 ? '' : 's'}.
-                  </span>
-                </>
-              )}
-              {!phase.result.countryApiKeyMissing && phase.result.countriesUnknown > 0 && (
-                <>
-                  {' '}
-                  <span className="text-subtle">
-                    <span className="font-mono">{int(phase.result.countriesUnknown)}</span>{' '}
-                    ticker{phase.result.countriesUnknown === 1 ? '' : 's'} couldn&apos;t
-                    auto-detect country — run Backfill in Settings.
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
-          >
-            Import another
-          </button>
-        </div>
+        <DoneView
+          result={phase.result}
+          onReset={reset}
+          onShowGuide={() => setGuideOpen(true)}
+        />
       )}
 
       {phase.kind === 'error' && (
@@ -185,7 +135,91 @@ export default function Import() {
           </button>
         </div>
       )}
+
+      <BrokerExportGuide open={guideOpen} onClose={() => setGuideOpen(false)} />
     </PageShell>
+  )
+}
+
+// Renders the post-commit screen. A backup / commit hard failure comes back
+// as an error-severity issue on the result (the IMPORT_COMMIT handler returns
+// rather than throws) — so the error surface is gated on result.issues, not
+// on a thrown exception reaching the `error` phase.
+function DoneView({
+  result,
+  onReset,
+  onShowGuide,
+}: {
+  result: CommitResult
+  onReset: () => void
+  onShowGuide: () => void
+}) {
+  const hardFailed = result.issues.some((i) => i.severity === 'error')
+
+  if (hardFailed) {
+    return (
+      <div className="space-y-4">
+        <ImportIssues issues={result.issues} onShowGuide={onShowGuide} />
+        <button
+          type="button"
+          onClick={onReset}
+          className="inline-flex h-8 cursor-pointer items-center rounded-md border border-border-subtle bg-bg-2 px-3 text-sm text-fg-secondary transition-colors duration-150 hover:border-border hover:text-fg-primary"
+        >
+          Start over
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
+        <div className="text-[10px] uppercase tracking-wider text-win">
+          Import complete
+        </div>
+        <div className="mt-2 text-base text-text">
+          Saved{' '}
+          <span className="font-mono text-win">{int(result.insertedTrips)}</span>{' '}
+          round trip{result.insertedTrips === 1 ? '' : 's'} and{' '}
+          <span className="font-mono text-gold">
+            {int(result.insertedFees + result.replacedFees)}
+          </span>{' '}
+          fee row{result.insertedFees + result.replacedFees === 1 ? '' : 's'}{' '}
+          across{' '}
+          <span className="font-mono">{result.affectedDates.length}</span>{' '}
+          date{result.affectedDates.length === 1 ? '' : 's'}.
+          {result.skippedTrips > 0 && (
+            <>
+              {' '}
+              <span className="text-subtle">
+                Skipped {int(result.skippedTrips)} duplicate
+                {result.skippedTrips === 1 ? '' : 's'}.
+              </span>
+            </>
+          )}
+          {!result.countryApiKeyMissing && result.countriesUnknown > 0 && (
+            <>
+              {' '}
+              <span className="text-subtle">
+                <span className="font-mono">{int(result.countriesUnknown)}</span>{' '}
+                ticker{result.countriesUnknown === 1 ? '' : 's'} couldn&apos;t
+                auto-detect country — run Backfill in Settings.
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+      {result.issues.length > 0 && (
+        <ImportIssues issues={result.issues} onShowGuide={onShowGuide} />
+      )}
+      <button
+        type="button"
+        onClick={onReset}
+        className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
+      >
+        Import another
+      </button>
+    </div>
   )
 }
 
@@ -195,12 +229,14 @@ function PreviewPanel({
   onDateChange,
   onCancel,
   onConfirm,
+  onShowGuide,
 }: {
   data: PreviewResult
   dateOverride: string
   onDateChange: (d: string) => void
   onCancel: () => void
   onConfirm: () => void
+  onShowGuide: () => void
 }) {
   // Per-batch UI gate (Track C / Decision 11). v0.2.0 disables Import on
   // 'paper' so the value never reaches IPC — the toggle's only effect is
@@ -260,17 +296,8 @@ function PreviewPanel({
         </div>
       )}
 
-      {data.warnings.length > 0 && (
-        <div className="rounded-md border border-gold/40 bg-gold/[0.06] p-3 text-xs text-gold-100">
-          <div className="mb-1 font-semibold uppercase tracking-wider text-gold">
-            Warnings
-          </div>
-          <ul className="list-disc space-y-0.5 pl-5">
-            {data.warnings.map((w, i) => (
-              <li key={i}>{w}</li>
-            ))}
-          </ul>
-        </div>
+      {data.issues.length > 0 && (
+        <ImportIssues issues={data.issues} onShowGuide={onShowGuide} />
       )}
 
       {data.trips.length > 0 && <PreviewTable trips={data.trips} />}

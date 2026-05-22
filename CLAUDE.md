@@ -22,6 +22,16 @@ When in doubt: **"Could this exact file run inside a Next.js page without modifi
 
 Several existing files in `electron/*/ipc.ts` and `src/*` still mix IPC plumbing with business logic — they predate the architecture rules. **New code must follow the rules even if older code nearby doesn't.** When touching legacy files, extract the pure logic to `/src/core` or `/src/lib` opportunistically; don't replicate the old pattern.
 
+## Dev gotchas
+
+**Drag-and-drop into the dev build shows the OS "no-entry" cursor with zero DOM events.** Before touching any drag-and-drop code, check whether the dev shell is running **as Administrator**. Windows UIPI silently blocks drag-and-drop from a normal-privilege File Explorer into an elevated process — the OS rejects the drag before Chromium dispatches any `dragenter`/`dragover`/`drop` event, so it looks like a code regression but is not. Fix: run `npm run dev` from a non-elevated PowerShell. Check the current shell's elevation with:
+
+```
+([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+```
+
+`True` means elevated — that is the bug, not the code. Fuller writeup: the "Windows UIPI dev-shell elevation foot-gun" entry in `docs/plans/v0.3.0-or-later-ideas.md`.
+
 ## End-of-session handoff
 
 At the end of any Day N or Day N.5 session that ends with a commit landing, fill out the build-update brief at `docs/posts/BUILD_UPDATE_BRIEF.md` — follow that file's own "Instruction to Claude Code" section for how to fill it and what to output, and output the filled brief in a code block so it can be pasted straight into the Canva post chat. The template file is the source of truth for the format; don't restate its sections here.

@@ -5,6 +5,7 @@ import type {
   CommitResult,
   DaySummaryFeeRow,
   FileInfo,
+  ImportIssue,
   PreviewInputFile,
   PreviewResult,
   PreviewSummary,
@@ -27,6 +28,19 @@ import { enrichFloatForImportedSymbols } from './enrich-float'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { backupBeforeImport } from '@/core/import/backup'
 import { electronBackupStorage } from '../db/backup'
+import {
+  backupFailed,
+  commitFailed,
+  csvParseIssues,
+  enrichmentFetchFailed,
+  enrichmentNoApiKey,
+  failedCommitResult,
+  feeRowsDropped,
+  fileNotDelivered,
+  unknownFormat,
+  xlsxMissingColumn,
+  xlsxWrongSheet,
+} from '@/core/import/import-errors'
 
 export function registerImportIpc(): void {
   ipcMain.handle(
@@ -35,15 +49,13 @@ export function registerImportIpc(): void {
       const fileInfos: FileInfo[] = []
       const allExecutions = []
       const allFees: DaySummaryFeeRow[] = []
-      const warnings: string[] = []
       let skippedExecutions = 0
       let skippedFeeRows = 0
       let needsDate = false
       let executionFilesPresent = false
       let feeFilesPresent = false
-      // Per-file "requires date" rollup — used to upgrade the per-row trace
-      // into a top-level warning that tells the user what to do.
-      const filesNeedingDate: string[] = []
+      // Day 9 — structured issues, surfaced on PreviewResult.issues.
+      const issues: ImportIssue[] = []
 
       for (const f of files) {
         // XLSX is routed by file extension BEFORE detect-format. XLSX has
@@ -60,17 +72,22 @@ export function registerImportIpc(): void {
               inferredDate: '',
               rowCount: 0,
             })
-            warnings.push(
-              `${f.filename}: XLSX file received but bytes field missing — likely a renderer/IPC mismatch`,
-            )
+            issues.push(fileNotDelivered(f.filename))
             continue
           }
           try {
             executionFilesPresent = true
             const parsed = await parseWebullDesktopXlsx(f.bytes, f.filename)
             skippedExecutions += parsed.skipped
-            warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
             allExecutions.push(...parsed.executions)
+            issues.push(
+              ...csvParseIssues(f.filename, 'xlsx', {
+                kept: parsed.executions.length,
+                skipped: parsed.skipped,
+                malformedRows: parsed.warnings.length,
+                requiresDate: false,
+              }),
+            )
             fileInfos.push({
               filename: f.filename,
               format: 'xlsx',
@@ -100,7 +117,17 @@ export function registerImportIpc(): void {
               inferredDate: '',
               rowCount: 0,
             })
-            warnings.push(`${f.filename}: XLSX parse failed: ${message}`)
+            if (message.includes('expected a sheet named')) {
+              const found = message.split('found:')[1]?.trim() || '(none)'
+              issues.push(xlsxWrongSheet(f.filename, found))
+            } else if (message.includes('missing required column')) {
+              const col =
+                message.match(/missing required column "([^"]*)"/)?.[1] ??
+                '(unknown)'
+              issues.push(xlsxMissingColumn(f.filename, col))
+            } else {
+              issues.push(unknownFormat(f.filename))
+            }
           }
           continue
         }
@@ -115,9 +142,7 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: 0,
           })
-          warnings.push(
-            `${f.filename}: file received but text field missing — likely a renderer issue`,
-          )
+          issues.push(fileNotDelivered(f.filename))
           continue
         }
 
@@ -127,8 +152,15 @@ export function registerImportIpc(): void {
           executionFilesPresent = true
           const parsed = parseExecutionsCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
-          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'executions', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: parsed.requiresDate,
+            }),
+          )
           fileInfos.push({
             filename: f.filename,
             format: 'executions',
@@ -136,10 +168,6 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: parsed.executions.length,
           })
-          if (parsed.requiresDate) {
-            filesNeedingDate.push(f.filename)
-          }
-
           for (const t of parsed.trace) {
             if (t.outcome === 'skipped') {
               console.info(
@@ -152,8 +180,15 @@ export function registerImportIpc(): void {
           executionFilesPresent = true
           const parsed = parseTradeHistoryCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
-          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'tradehistory', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
           fileInfos.push({
             filename: f.filename,
             format: 'tradehistory',
@@ -173,8 +208,15 @@ export function registerImportIpc(): void {
           executionFilesPresent = true
           const parsed = parseTradesWindowCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
-          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'trades_window', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: parsed.requiresDate,
+            }),
+          )
           fileInfos.push({
             filename: f.filename,
             format: 'trades_window',
@@ -182,7 +224,6 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: parsed.executions.length,
           })
-          if (parsed.requiresDate) filesNeedingDate.push(f.filename)
           for (const t of parsed.trace) {
             if (t.outcome === 'skipped') {
               console.info(
@@ -195,8 +236,15 @@ export function registerImportIpc(): void {
           executionFilesPresent = true
           const parsed = parseWebullMobileCsv(f.text, f.filename)
           skippedExecutions += parsed.skipped
-          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'webull_mobile', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
           fileInfos.push({
             filename: f.filename,
             format: 'webull_mobile',
@@ -216,12 +264,19 @@ export function registerImportIpc(): void {
           feeFilesPresent = true
           const parsed = parseDailySummaryCsv(f.text)
           skippedFeeRows += parsed.skipped
-          warnings.push(...parsed.warnings.map((w) => `${f.filename}: ${w}`))
           console.info(
             `[FJ import] ${f.filename} daily-summary headers=[${parsed.headers.join(' | ')}]`,
           )
           const { date, parsed: dateParsed } = parseFilenameDate(f.filename)
           if (!dateParsed) needsDate = true
+          issues.push(
+            ...csvParseIssues(f.filename, 'daily-summary', {
+              kept: parsed.rows.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: !dateParsed,
+            }),
+          )
           fileInfos.push({
             filename: f.filename,
             format: 'daily-summary',
@@ -259,9 +314,7 @@ export function registerImportIpc(): void {
             inferredDate: '',
             rowCount: 0,
           })
-          warnings.push(
-            `${f.filename}: format not recognized. Supported: DAS Trades.csv (TradeID-led), DAS Trades-window (Date+Time+P&L), DAS Trades-window (Cloid+LiqType, bare-time — filename needs a date), DAS daily summary CSV, Webull Mobile (Name-led CSV), and Webull Desktop (XLSX).`,
-          )
+          issues.push(unknownFormat(f.filename))
         }
       }
 
@@ -306,21 +359,6 @@ export function registerImportIpc(): void {
       const openTrips = trips.filter((t) => t.is_open).length
       const newFeeRows = fees.filter((f) => f.status === 'new').length
       const replaceFeeRows = fees.length - newFeeRows
-
-      // Dateless-execution guardrail. When a Trades.csv has rows whose
-      // `time` column lacks a date AND the filename couldn't supply one,
-      // the parser flagged the file in `filesNeedingDate`. Surface that
-      // as a top-level warning the user can actually act on (rename the
-      // file) instead of letting the rows silently disappear.
-      if (filesNeedingDate.length > 0) {
-        for (const name of filesNeedingDate) {
-          warnings.push(
-            `${name}: rows lacked a date and the filename couldn't supply one. ` +
-              `Rename to include a date (e.g. trades_2026-05-15.csv) or ` +
-              `use an export that includes a Date column.`,
-          )
-        }
-      }
 
       // Executions present but no companion fee file → UI banner suggests
       // dropping the Account Report. Import still proceeds; trips carry
@@ -368,7 +406,7 @@ export function registerImportIpc(): void {
         feesUnavailable,
         dateRange,
         summary,
-        warnings,
+        issues,
       }
     },
   )
@@ -377,13 +415,24 @@ export function registerImportIpc(): void {
     IPC.IMPORT_COMMIT,
     async (e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
       // Day 7.5: snapshot the DB before any executions / round_trips are
-      // written. backupBeforeImport rejects if the backup write fails — the
-      // rejection propagates out of this handler, aborting the import with a
-      // clear error and leaving the database untouched.
-      const backup = await backupBeforeImport(electronBackupStorage)
-      console.info(
-        `[FJ backup] pre-import backup → ${backup.path} (${backup.bytes} bytes)`,
-      )
+      // written. Day 9: a backup failure is caught and returned as a
+      // structured BACKUP_FAILED issue — a thrown error's custom fields don't
+      // survive the IPC boundary, so the failure must travel back as data.
+      // The import still aborts; the database is untouched.
+      const issues: ImportIssue[] = []
+      try {
+        const backup = await backupBeforeImport(electronBackupStorage)
+        console.info(
+          `[FJ backup] pre-import backup → ${backup.path} (${backup.bytes} bytes)`,
+        )
+      } catch (err) {
+        console.error(
+          `[FJ backup] pre-import backup failed, import aborted: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        )
+        return failedCommitResult([backupFailed()])
+      }
 
       // Apply the date override to any fee row missing a date.
       const finalFees: DaySummaryFeeRow[] = fees.map((f) =>
@@ -395,7 +444,18 @@ export function registerImportIpc(): void {
 
       const reAnnotatedFees = annotateFeeStatus(usableFees)
       const toInsertTrips: RoundTrip[] = trips.filter((t) => t.status !== 'duplicate')
-      const out = commit(toInsertTrips, reAnnotatedFees, '')
+      let out: ReturnType<typeof commit>
+      try {
+        out = commit(toInsertTrips, reAnnotatedFees, '')
+      } catch (err) {
+        console.error(
+          `[FJ commit] commit failed and rolled back: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        )
+        return failedCommitResult([commitFailed()])
+      }
+      if (droppedNoDate > 0) issues.push(feeRowsDropped(droppedNoDate))
 
       // Any successful commit invalidates analytics/reports caches.
       // Bump even on zero-insert (caller may have edited fees-only without
@@ -445,6 +505,23 @@ export function registerImportIpc(): void {
           countriesResolved = country.resolved
           countriesUnknown = country.unknown
           countryApiKeyMissing = country.apiKeyMissing
+          // Day 9 — surface enrichment state as structured issues. No API
+          // key is fully knowable here (sync settings read); a country fetch
+          // failure is too, because country is awaited. Float/aggregates run
+          // fire-and-forget below, so their fetch failures are NOT knowable
+          // at return time — they stay log-only until the v0.3.0
+          // IMPORT_PROGRESS renderer subscriber lands.
+          if (country.apiKeyMissing) {
+            issues.push(enrichmentNoApiKey())
+          } else if (country.errors.length > 0) {
+            const errText = country.errors.map((x) => x.message).join(' ')
+            const reason = errText.includes('429')
+              ? 'rate limit'
+              : errText.includes('403')
+                ? 'plan limit'
+                : 'network or API error'
+            issues.push(enrichmentFetchFailed(country.errors.length, reason))
+          }
           if (country.errors.length > 0) {
             console.info(
               `[FE import] country resolution errors: ` +
@@ -542,6 +619,7 @@ export function registerImportIpc(): void {
         // progress events instead.
         floatErrored: 0,
         aggregatesErrored: 0,
+        issues,
       }
     },
   )

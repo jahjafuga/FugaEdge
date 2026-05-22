@@ -1,5 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { Download } from 'lucide-react'
+import type { ImportIssue } from '@shared/import-types'
+import { fileReadFailed, unsupportedFileType } from '@/core/import/import-errors'
+import ImportIssues from '@/components/import/ImportIssues'
 
 // Mirrors the upstream PreviewInputFile shape: CSV files carry `text`,
 // XLSX files carry `bytes`. Mutually exclusive at runtime; the IPC
@@ -26,16 +29,16 @@ function isCsvName(name: string): boolean {
 export default function DropZone({ onFiles, disabled }: DropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [over, setOver] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [issue, setIssue] = useState<ImportIssue | null>(null)
 
   const handleFiles = useCallback(
     async (fileList: FileList | File[]) => {
-      setError(null)
+      setIssue(null)
       const files = Array.from(fileList)
       if (files.length === 0) return
       const bad = files.find((f) => !isCsvName(f.name) && !isXlsxName(f.name))
       if (bad) {
-        setError(`Only .csv and .xlsx files are supported (got "${bad.name}").`)
+        setIssue(unsupportedFileType(bad.name))
         return
       }
       try {
@@ -52,8 +55,8 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
           }),
         )
         onFiles(read)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to read file.')
+      } catch {
+        setIssue(fileReadFailed(files.map((f) => f.name).join(', ')))
       }
     },
     [onFiles],
@@ -112,9 +115,9 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
         }}
       />
 
-      {error && (
-        <div className="mt-3 rounded-md border border-loss/40 bg-loss-soft px-4 py-2 text-sm text-loss">
-          {error}
+      {issue && (
+        <div className="mt-3">
+          <ImportIssues issues={[issue]} />
         </div>
       )}
     </div>

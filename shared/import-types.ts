@@ -187,6 +187,51 @@ export interface FileInfo {
   rowCount: number
 }
 
+// ── Structured import errors (Day 9) ──────────────────────────────────────
+// Every user-facing import problem is one ImportIssue. Built by the catalog
+// in src/core/import/import-errors.ts, carried on PreviewResult.issues and
+// CommitResult.issues, rendered by the import UI. No i18n yet (v0.3.0).
+
+export type ImportErrorCode =
+  | 'UNKNOWN_FORMAT'
+  | 'EMPTY_FILE'
+  | 'UNSUPPORTED_FILE_TYPE'
+  | 'FILE_READ_FAILED'
+  | 'XLSX_WRONG_SHEET'
+  | 'XLSX_MISSING_COLUMN'
+  | 'NO_USABLE_ROWS'
+  | 'BACKUP_FAILED'
+  | 'COMMIT_FAILED'
+  | 'FILE_NOT_DELIVERED'
+  | 'ROWS_SKIPPED'
+  | 'MALFORMED_CSV'
+  | 'DATE_REQUIRED'
+  | 'FEE_ROWS_DROPPED'
+  | 'ENRICHMENT_NO_API_KEY'
+  | 'ENRICHMENT_FETCH_FAILED'
+
+/** Which prefilled GitHub template the "request" affordance opens. Only
+ *  meaningful when `requestBroker` is true. */
+export type ImportRequestKind = 'broker' | 'bug'
+
+export interface ImportIssue {
+  code: ImportErrorCode
+  /** Plain-English statement of what happened. */
+  message: string
+  /** Plain-English statement of what the user should do next. */
+  actionable: string
+  /** 'error' blocks the affected file / import; 'warning' is informational —
+   *  the import still proceeds. */
+  severity: 'error' | 'warning'
+  /** Human-readable detected format, when known (e.g. "Webull Desktop"). */
+  format?: string
+  /** When true, the renderer shows a GitHub request/report button. */
+  requestBroker?: boolean
+  /** Picks the prefilled GitHub template + button label. Only read when
+   *  `requestBroker` is true. */
+  requestKind?: ImportRequestKind
+}
+
 export interface PreviewSummary {
   totalExecutions: number
   totalTrips: number
@@ -213,7 +258,8 @@ export interface PreviewResult {
   feesUnavailable: boolean
   dateRange: { from: string; to: string } | null
   summary: PreviewSummary
-  warnings: string[]
+  /** Structured import issues (Day 9). */
+  issues: ImportIssue[]
 }
 
 export interface PreviewInputFile {
@@ -267,4 +313,7 @@ export interface CommitResult {
    *  semantics as floatErrored — distinct from "Polygon returned zero
    *  bars" (which is captured separately at log level). */
   aggregatesErrored: number
+  /** Structured import issues (Day 9): hard failures (backup / commit),
+   *  dropped fee rows, and post-commit enrichment problems. */
+  issues: ImportIssue[]
 }
