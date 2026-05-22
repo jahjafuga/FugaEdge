@@ -128,6 +128,22 @@ export default function Playbook() {
     }
   }, [editor, saving, selected])
 
+  // Archive must persist immediately. Previously the button only flipped
+  // local editor state, so the change was lost on navigation away/back.
+  const handleArchiveToggle = useCallback(async () => {
+    if (!selected || !editor) return
+    const nextArchived = !editor.archived
+    try {
+      await ipc.playbookUpdate({ id: selected.id, archived: nextArchived })
+      invalidatePlaybookCache()
+      const fresh = await ipc.playbooksList()
+      setList(fresh)
+      setEditor({ ...editor, archived: nextArchived })
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e))
+    }
+  }, [editor, selected])
+
   const handleDelete = useCallback(async () => {
     if (!selected) return
     const ok = window.confirm(
@@ -316,9 +332,7 @@ export default function Playbook() {
                   )}
                   <button
                     type="button"
-                    onClick={() =>
-                      setEditor({ ...editor, archived: !editor.archived })
-                    }
+                    onClick={handleArchiveToggle}
                     className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
                   >
                     {editor.archived ? 'restore' : 'archive'}
