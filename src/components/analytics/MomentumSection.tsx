@@ -40,7 +40,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
           Momentum-specific
         </h2>
         <div className="text-xs text-fg-tertiary">
-          EMA9 coverage:{' '}
+          9EMA coverage:{' '}
           <span className="font-mono text-fg-primary">
             {int(ema9Coverage)}/{int(totalTrades)}
           </span>{' '}
@@ -73,7 +73,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
         </Card>
 
         <Card
-          title="By entry distance from EMA9"
+          title="By entry distance from 9EMA (1m)"
           subtitle="How extended was the price when you got in?"
           hover
           right={
@@ -118,7 +118,7 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
 
       <Card
         title="Extended entries vs clean entries"
-        subtitle="Trades entered >5% from EMA9 vs those at or near it."
+        subtitle="Trades entered >5% from 9EMA vs those at or near it."
         hover
         right={
           <Tooltip content="Anything beyond 5% from the 9-period EMA at entry is flagged 'extended'. Compare net P&L and win rate to see if you're chasing.">
@@ -307,14 +307,14 @@ function PnlBar({ value, absMax }: { value: number; absMax: number }) {
 function ExtendedCompare({ data }: { data: ExtendedEntryCompare }) {
   if (data.trades_with_data === 0) {
     return (
-      <NoData reason="Need EMA9 distance — refresh intraday data from Settings, or wait for the background fetch." />
+      <NoData reason="Need 9EMA distance — refresh intraday data from Settings, or wait for the background fetch." />
     )
   }
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Side
         label="Clean entries"
-        sublabel="|distance from EMA9| ≤ 5%"
+        sublabel="|distance from 9EMA| ≤ 5%"
         count={data.clean_count}
         netPnl={data.clean_net_pnl}
         winRate={data.clean_win_rate}
@@ -322,7 +322,7 @@ function ExtendedCompare({ data }: { data: ExtendedEntryCompare }) {
       />
       <Side
         label="Extended entries"
-        sublabel="|distance from EMA9| > 5% — momentum chase"
+        sublabel="|distance from 9EMA| > 5% — momentum chase"
         count={data.extended_count}
         netPnl={data.extended_net_pnl}
         winRate={data.extended_win_rate}
@@ -331,7 +331,7 @@ function ExtendedCompare({ data }: { data: ExtendedEntryCompare }) {
       {data.trades_missing_data > 0 && (
         <div className="col-span-full text-xs text-fg-tertiary">
           {int(data.trades_missing_data)} trade
-          {data.trades_missing_data === 1 ? '' : 's'} missing EMA9 data — refresh
+          {data.trades_missing_data === 1 ? '' : 's'} missing 9EMA data — refresh
           intraday from Settings.
         </div>
       )}

@@ -343,7 +343,7 @@ function OverviewTab({
             }
           />
         </FieldRow>
-        <FieldRow label="Entry vs EMA9">
+        <FieldRow label="Entry vs 9EMA (1m)">
           <Ema9Readout pct={t.entry_ema9_distance_pct} />
         </FieldRow>
       </div>
@@ -417,7 +417,7 @@ function Ema9Readout({ pct }: { pct: number | null }) {
   return (
     <span
       className={`inline-flex items-center gap-2 font-mono text-sm font-semibold tnum ${tone}`}
-      title="Entry distance from EMA9 over 1-minute bars"
+      title="Entry distance from 9EMA over 1-minute bars"
     >
       {pct >= 0 ? '+' : ''}
       {pct.toFixed(2)}%

@@ -375,7 +375,7 @@ function ChartCanvas({
         <TimeframeToggle value={tf} onChange={onChangeTf} />
         <div className="flex items-center gap-2">
           <IndicatorToggle
-            label={`EMA9 (${tfLabel})`}
+            label={`9EMA (${tfLabel})`}
             color={COLOR_GOLD}
             active={showEma9}
             onClick={onToggleEma9}
@@ -964,7 +964,7 @@ function ContextBar({
       <Pair label="Close" value={stats.close == null ? '—' : `$${stats.close.toFixed(2)}`} />
       <Pair label="Day volume" value={int(stats.volume)} />
       <Pair
-        label={`Entry vs EMA9 (${tfLabel})`}
+        label={`Entry vs 9EMA (${tfLabel})`}
         value={
           ema9Pct == null
             ? '—'
