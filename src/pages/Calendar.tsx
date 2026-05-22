@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CalendarDays, Upload } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
@@ -51,6 +51,9 @@ export default function Calendar() {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [dayTrades, setDayTrades] = useState<TradeListRow[] | null>(null)
+  // Wraps DayTradesPanel so the trades-fetch effect can scroll it into view —
+  // on laptop screens the panel renders below the fold under the calendar grid.
+  const dayPanelRef = useRef<HTMLDivElement>(null)
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null)
   // Clicking an empty in-month cell (no trades) opens the quick sit-out
   // modal instead of the full day-trades panel.
@@ -109,6 +112,9 @@ export default function Calendar() {
     if (!selectedDate) return
     let cancelled = false
     setDayTrades(null)
+    // The panel renders inline below the ~660px calendar grid; on a laptop
+    // viewport it lands below the fold, so bring it into view on open.
+    dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     ipc
       .tradesList({ date: selectedDate })
       .then((list) => {
@@ -444,25 +450,27 @@ export default function Calendar() {
         })()}
 
         {selectedDate && (
-          <DayTradesPanel
-            date={selectedDate}
-            trades={dayTrades}
-            dayTags={
-              data.days.find((d) => d.date === selectedDate)?.day_tags ?? []
-            }
-            onSaveDayTags={handleSaveDayTags}
-            onClose={() => setSelectedDate(null)}
-            onSaveNote={handleSaveNote}
-            onSaveTimeframe={handleSaveTimeframe}
-            onSavePlaybook={handleSavePlaybook}
-            onSaveConfidence={handleSaveConfidence}
-            onSaveMistakes={handleSaveMistakes}
-            onSavePlannedRisk={handleSavePlannedRisk}
-            onSavePlannedStopLoss={handleSavePlannedStopLoss}
-            onSaveFloat={handleSaveFloat}
-            onSaveCatalyst={handleSaveCatalyst}
-            onSaveCountry={handleSaveCountry}
-          />
+          <div ref={dayPanelRef}>
+            <DayTradesPanel
+              date={selectedDate}
+              trades={dayTrades}
+              dayTags={
+                data.days.find((d) => d.date === selectedDate)?.day_tags ?? []
+              }
+              onSaveDayTags={handleSaveDayTags}
+              onClose={() => setSelectedDate(null)}
+              onSaveNote={handleSaveNote}
+              onSaveTimeframe={handleSaveTimeframe}
+              onSavePlaybook={handleSavePlaybook}
+              onSaveConfidence={handleSaveConfidence}
+              onSaveMistakes={handleSaveMistakes}
+              onSavePlannedRisk={handleSavePlannedRisk}
+              onSavePlannedStopLoss={handleSavePlannedStopLoss}
+              onSaveFloat={handleSaveFloat}
+              onSaveCatalyst={handleSaveCatalyst}
+              onSaveCountry={handleSaveCountry}
+            />
+          </div>
         )}
       </div>
     </PageShell>
