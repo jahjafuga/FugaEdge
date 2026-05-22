@@ -314,7 +314,10 @@ function PreviewPanel({
         )}
       </div>
 
-      <div className="flex items-center justify-between">
+      {/* Sticky so Cancel + the primary action stay visible regardless of
+          how far the preview content scrolls — on laptop screens the bar
+          otherwise falls below the fold. */}
+      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-border/60 bg-bg-0 py-3">
         <button
           type="button"
           onClick={onCancel}
