@@ -478,17 +478,29 @@ function MistakesTab({
 }) {
   const [selected, setSelected] = useState<string[]>(trade.mistakes)
   const [saving, setSaving] = useState(false)
+  // Transient "saved" confirmation — mirrors the Playbook editor's savedAt
+  // pill so the user gets visible feedback that the save landed.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   const dirty = !sameArray(selected, trade.mistakes)
 
   useEffect(() => {
     setSelected(trade.mistakes)
+    setSavedAt(null)
   }, [trade.id])
+
+  // Auto-clear the confirmation after 1.5s so it reads as a transient pill.
+  useEffect(() => {
+    if (savedAt == null) return
+    const t = setTimeout(() => setSavedAt(null), 1500)
+    return () => clearTimeout(t)
+  }, [savedAt])
 
   const save = async () => {
     if (saving) return
     setSaving(true)
     try {
       await onSaveMistakes({ trade_id: trade.id, mistakes: selected })
+      setSavedAt(Date.now())
     } finally {
       setSaving(false)
     }
@@ -505,7 +517,12 @@ function MistakesTab({
         </p>
       </div>
       <MistakesChecklist selected={selected} onChange={setSelected} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {savedAt && (
+          <span className="text-[10px] uppercase tracking-wider text-win">
+            saved
+          </span>
+        )}
         <button
           type="button"
           onClick={save}
