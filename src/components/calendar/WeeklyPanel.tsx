@@ -1,6 +1,6 @@
 import { Pencil, X as XIcon } from 'lucide-react'
 import type { WeeklySummary } from '@shared/calendar-types'
-import { int, money, signed } from '@/lib/format'
+import { int, money, percent, signed } from '@/lib/format'
 
 interface WeeklyPanelProps {
   summary: WeeklySummary
@@ -80,7 +80,7 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
         {summary.win_rate != null && (
           <>
             <span className="text-fg-tertiary"> · </span>
-            <span className="text-gold">{(summary.win_rate * 100).toFixed(0)}%</span>
+            <span className="text-gold">{percent(summary.win_rate, 0)}</span>
           </>
         )}
       </div>

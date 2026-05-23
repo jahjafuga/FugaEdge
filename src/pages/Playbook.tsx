@@ -7,7 +7,7 @@ import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
 import TierBadge from '@/components/playbook/TierBadge'
 import { ipc } from '@/lib/ipc'
-import { int, pnlClass, signed } from '@/lib/format'
+import { int, percent, pnlClass, signed } from '@/lib/format'
 import {
   PLAYBOOK_TIERS,
   type PlaybookTier,
@@ -292,7 +292,7 @@ export default function Playbook() {
                           <>
                             <span>·</span>
                             <span className="text-gold">
-                              {(p.stats.win_rate * 100).toFixed(0)}%
+                              {percent(p.stats.win_rate, 0)}
                             </span>
                           </>
                         )}

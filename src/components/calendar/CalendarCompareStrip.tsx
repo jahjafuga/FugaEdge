@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
-import { signed } from '@/lib/format'
+import { percent, signed } from '@/lib/format'
 import {
   computePeriodMetrics,
   rangeForPreset,
@@ -142,7 +142,7 @@ function CompareSummary({
   const labelB = mode === 'week' ? 'Last week' : 'Last month'
 
   const fmtWR = (w: number | null): string =>
-    w == null ? '—' : `${Math.round(w * 100)}%`
+    w == null ? '—' : percent(w, 0)
 
   const netDelta = a.netPnL - b.netPnL
   const tradesDelta = a.trades - b.trades
@@ -187,7 +187,7 @@ function CompareSummary({
         />
         <DeltaChip
           label="WR"
-          value={wrDelta == null ? '—' : `${wrDelta >= 0 ? '+' : ''}${Math.round(wrDelta * 100)}%`}
+          value={wrDelta == null ? '—' : `${wrDelta >= 0 ? '+' : ''}${percent(wrDelta, 0)}`}
           dir={
             wrDelta == null
               ? 'flat'

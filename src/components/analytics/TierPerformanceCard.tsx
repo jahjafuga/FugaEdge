@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import Card from '@/components/ui/Card'
 import TierBadge from '@/components/playbook/TierBadge'
-import { money, signed, pnlClass } from '@/lib/format'
+import { money, percent, signed, pnlClass } from '@/lib/format'
 import {
   aggregateTierPerformance,
   type TierPerformanceRow,
@@ -80,7 +80,7 @@ function TierRow({ row: r }: { row: TierPerformanceRow }) {
         {r.win_rate == null ? (
           <span className="text-fg-tertiary">—</span>
         ) : (
-          <span className="text-gold">{(r.win_rate * 100).toFixed(0)}%</span>
+          <span className="text-gold">{percent(r.win_rate, 0)}</span>
         )}
       </td>
       <td

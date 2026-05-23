@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ipc } from '@/lib/ipc'
-import { int, longDate, money, pnlClass, signed, formatEastern } from '@/lib/format'
+import { int, longDate, money, percent, pnlClass, signed, formatEastern } from '@/lib/format'
 import type { WeeklySummary } from '@shared/calendar-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -120,7 +120,7 @@ export default function WeeklyReviewModal({
               <Stat label="Trades" value={int(summary.trade_count)} />
               <Stat
                 label="Win rate"
-                value={summary.win_rate == null ? '—' : `${(summary.win_rate * 100).toFixed(0)}%`}
+                value={summary.win_rate == null ? '—' : percent(summary.win_rate, 0)}
               />
               <Stat
                 label="Profit factor"

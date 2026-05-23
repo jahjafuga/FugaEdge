@@ -17,7 +17,7 @@ import type {
   MomentumBucket,
   VolumeByTimeBucket,
 } from '@shared/analytics-types'
-import { int, money, pnlClass, signed } from '@/lib/format'
+import { int, money, percent, pnlClass, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 
@@ -255,7 +255,7 @@ function BucketRows({
                   <span className="font-mono text-fg-tertiary">{DASH}</span>
                 ) : (
                   <span className="font-mono text-gold">
-                    {(b.win_rate * 100).toFixed(0)}%
+                    {percent(b.win_rate, 0)}
                   </span>
                 )}
               </Td>
@@ -373,7 +373,7 @@ function Side({
         <div>
           <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Win rate</div>
           <div className="mt-0.5 font-mono text-lg text-gold">
-            {winRate == null ? DASH : `${(winRate * 100).toFixed(0)}%`}
+            {winRate == null ? DASH : percent(winRate, 0)}
           </div>
         </div>
       </div>

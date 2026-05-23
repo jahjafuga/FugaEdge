@@ -2,7 +2,7 @@ import Card from '@/components/ui/Card'
 import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { MistakesAnalytics } from '@shared/analytics-types'
-import { int, money, pnlClass, signed } from '@/lib/format'
+import { int, money, percent, pnlClass, signed } from '@/lib/format'
 
 interface MistakesCardProps {
   data: MistakesAnalytics
@@ -112,7 +112,7 @@ export default function MistakesCard({ data }: MistakesCardProps) {
                       <span className="font-mono text-fg-tertiary">{DASH}</span>
                     ) : (
                       <span className="font-mono text-gold">
-                        {(m.win_rate * 100).toFixed(0)}%
+                        {percent(m.win_rate, 0)}
                       </span>
                     )}
                   </Td>
@@ -160,7 +160,7 @@ function Side({
         <div>
           <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Win rate</div>
           <div className="mt-0.5 font-mono text-lg text-gold">
-            {winRate == null ? DASH : `${(winRate * 100).toFixed(0)}%`}
+            {winRate == null ? DASH : percent(winRate, 0)}
           </div>
         </div>
       </div>

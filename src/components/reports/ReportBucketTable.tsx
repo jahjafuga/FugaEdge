@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { BucketStats } from '@shared/reports-types'
-import { money, int, signed, pnlClass } from '@/lib/format'
+import { money, int, percent, signed, pnlClass } from '@/lib/format'
 
 interface ReportBucketTableProps {
   keyHeader: string         // column header for the bucket dimension
@@ -77,7 +77,7 @@ export default function ReportBucketTable({
                   <span className="font-mono text-fg-tertiary">{DASH}</span>
                 ) : (
                   <span className="font-mono text-gold">
-                    {(b.win_rate * 100).toFixed(0)}%
+                    {percent(b.win_rate, 0)}
                   </span>
                 )}
               </Td>

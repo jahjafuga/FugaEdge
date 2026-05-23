@@ -12,7 +12,7 @@ import {
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
-import { int, money, signed, formatEastern } from '@/lib/format'
+import { int, money, price, signed, formatEastern } from '@/lib/format'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -750,7 +750,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0, // solid
           axisLabelVisible: true,
-          title: `Entry ${entryAvg.toFixed(2)}`,
+          title: `Entry ${price(entryAvg)}`,
         }),
       )
     }
@@ -762,7 +762,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: `Exit ${exitAvg.toFixed(2)}`,
+          title: `Exit ${price(exitAvg)}`,
         }),
       )
     }
@@ -958,10 +958,10 @@ function ContextBar({
           : 'text-win'
   return (
     <div className="grid grid-cols-2 gap-3 rounded-lg border border-border-subtle bg-bg-2 p-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
-      <Pair label="Open" value={stats.open == null ? '—' : `$${stats.open.toFixed(2)}`} />
-      <Pair label="High" value={stats.high == null ? '—' : `$${stats.high.toFixed(2)}`} tone="text-win" />
-      <Pair label="Low"  value={stats.low  == null ? '—' : `$${stats.low.toFixed(2)}`}  tone="text-loss" />
-      <Pair label="Close" value={stats.close == null ? '—' : `$${stats.close.toFixed(2)}`} />
+      <Pair label="Open" value={stats.open == null ? '—' : `$${price(stats.open)}`} />
+      <Pair label="High" value={stats.high == null ? '—' : `$${price(stats.high)}`} tone="text-win" />
+      <Pair label="Low"  value={stats.low  == null ? '—' : `$${price(stats.low)}`}  tone="text-loss" />
+      <Pair label="Close" value={stats.close == null ? '—' : `$${price(stats.close)}`} />
       <Pair label="Day volume" value={int(stats.volume)} />
       <Pair
         label={`Entry vs 9EMA (${tfLabel})`}

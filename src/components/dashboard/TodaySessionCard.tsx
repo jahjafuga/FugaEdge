@@ -21,7 +21,7 @@ import {
   pickQuoteForContext,
   type TradingQuote,
 } from '@/core/quotes/tradingQuotes'
-import { longDate, money, signed } from '@/lib/format'
+import { longDate, money, percent, signed } from '@/lib/format'
 import { SENTIMENT_LABELS } from '@shared/session-types'
 
 // TODAY'S SESSION CARD
@@ -289,7 +289,7 @@ function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
     // tracked line item. Zero reads as `text-fg-secondary` (de-emphasized);
     // any actual fee burden reads as `text-fg-primary` so the user notices.
     const feesTone = s.totalFees > 0 ? 'text-fg-primary' : 'text-fg-secondary'
-    const wr = s.winRate == null ? '—' : `${Math.round(s.winRate * 100)}% win rate`
+    const wr = s.winRate == null ? '—' : `${percent(s.winRate, 0)} win rate`
     return (
       <>
         <span className="text-fg-primary tnum">{s.trades}</span>{' '}

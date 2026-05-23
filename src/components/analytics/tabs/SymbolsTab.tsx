@@ -3,7 +3,7 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import SymbolPerformance from '@/components/analytics/SymbolPerformance'
 // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
 // import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
-import { int, money, pnlClass, signed } from '@/lib/format'
+import { int, money, percent, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { BucketStats, ReportsData } from '@shared/reports-types'
 
@@ -80,7 +80,7 @@ function BucketTable({
                 {signed(b.net_pnl)}
               </td>
               <td className="px-3 py-2 text-right font-mono text-gold">
-                {b.win_rate == null ? '—' : `${(b.win_rate * 100).toFixed(0)}%`}
+                {b.win_rate == null ? '—' : percent(b.win_rate, 0)}
               </td>
               <td className="px-3 py-2 text-right font-mono text-win">
                 {b.avg_winner == null ? '—' : money(b.avg_winner)}
