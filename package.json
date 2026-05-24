@@ -5,6 +5,9 @@
   "description": "FugaEdge — Made for momentum day-traders",
   "author": "FugaEdge",
   "copyright": "Copyright © 2026 FugaEdge",
+  "repository": "github:jahjafuga/FugaEdge",
+  "homepage": "https://github.com/jahjafuga/FugaEdge#readme",
+  "bugs": "https://github.com/jahjafuga/FugaEdge/issues",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
