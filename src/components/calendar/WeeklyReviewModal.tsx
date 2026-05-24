@@ -150,7 +150,7 @@ export default function WeeklyReviewModal({
                   summary.best_day ? (
                     <span>
                       <span className="font-mono text-fg-primary">{summary.best_day.date}</span>
-                      <span className="ml-2 font-mono text-win">
+                      <span className={`ml-2 font-mono ${pnlClass(summary.best_day.net_pnl)}`}>
                         {signed(summary.best_day.net_pnl)}
                       </span>
                     </span>
@@ -163,7 +163,7 @@ export default function WeeklyReviewModal({
                   summary.worst_day ? (
                     <span>
                       <span className="font-mono text-fg-primary">{summary.worst_day.date}</span>
-                      <span className="ml-2 font-mono text-loss">
+                      <span className={`ml-2 font-mono ${pnlClass(summary.worst_day.net_pnl)}`}>
                         {signed(summary.worst_day.net_pnl)}
                       </span>
                     </span>

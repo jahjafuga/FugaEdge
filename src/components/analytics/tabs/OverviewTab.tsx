@@ -116,8 +116,8 @@ export default function OverviewTab({ data, reports }: OverviewTabProps) {
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="Best day vs worst day" subtitle="Your single-session bookends.">
           <div className="grid grid-cols-2 gap-3">
-            <BookendBlock label="Best day" tone="green" day={best} />
-            <BookendBlock label="Worst day" tone="red" day={worst} />
+            <BookendBlock label="Best day" day={best} />
+            <BookendBlock label="Worst day" day={worst} />
           </div>
         </Card>
 
@@ -140,22 +140,20 @@ export default function OverviewTab({ data, reports }: OverviewTabProps) {
 
 function BookendBlock({
   label,
-  tone,
   day,
 }: {
   label: string
-  tone: 'green' | 'red'
   day: DayPnl | null
 }) {
-  const color = tone === 'green' ? 'text-win' : 'text-loss'
+  const pnl = day?.net_pnl ?? 0
   const borderColor =
-    tone === 'green' ? 'border-win/30' : 'border-loss/30'
+    pnl > 0 ? 'border-win/30' : pnl < 0 ? 'border-loss/30' : 'border-border-subtle/60'
   return (
     <div className={`rounded-md border ${borderColor} bg-bg-1/40 p-4`}>
       <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       {day ? (
         <>
-          <div className={`mt-1 font-mono text-xl font-medium ${color}`}>
+          <div className={`mt-1 font-mono text-xl font-medium ${pnlClass(day.net_pnl)}`}>
             {signed(day.net_pnl)}
           </div>
           <div className="mt-1 text-[11px] text-fg-secondary">{longDate(day.date)}</div>
