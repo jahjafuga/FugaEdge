@@ -5,6 +5,7 @@ interface TooltipProps {
   content: ReactNode
   children: ReactNode
   side?: 'top' | 'bottom'
+  align?: 'start' | 'center' | 'end'
   className?: string
 }
 
@@ -20,16 +21,19 @@ export default function Tooltip({
   content,
   children,
   side = 'top',
+  align = 'center',
   className = '',
 }: TooltipProps) {
   const sideClasses =
     side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'
+  const alignClasses =
+    align === 'start' ? 'left-0' : align === 'end' ? 'right-0' : 'left-1/2 -translate-x-1/2'
   return (
     <span className={`group relative inline-flex ${className}`}>
       {children}
       <span
         role="tooltip"
-        className={`pointer-events-none invisible absolute left-1/2 z-50 -translate-x-1/2 whitespace-normal rounded-md border border-[#2a3142] bg-[#1a1d26]/95 px-3 py-2 text-xs leading-relaxed text-[#f0f2f8] opacity-0 shadow-[0_4px_12px_rgba(0,0,0,0.18)] backdrop-blur transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${sideClasses}`}
+        className={`pointer-events-none invisible absolute z-50 whitespace-normal rounded-md border border-[#2a3142] bg-[#1a1d26]/95 px-3 py-2 text-xs leading-relaxed text-[#f0f2f8] opacity-0 shadow-[0_4px_12px_rgba(0,0,0,0.18)] backdrop-blur transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 ${sideClasses} ${alignClasses}`}
         style={{ maxWidth: 'min(280px, calc(100vw - 32px))' }}
       >
         {content}
