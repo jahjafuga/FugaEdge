@@ -482,20 +482,12 @@ function EditableView({
         )}
       </div>
 
-      {/* Right — sentiment + journal */}
+      {/* Right — sentiment */}
       <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
         <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Market sentiment
         </span>
         <SentimentRow value={sentiment} onChange={onSetSentiment} />
-        <button
-          type="button"
-          onClick={onJournal}
-          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-        >
-          <NotebookPen size={12} strokeWidth={2} />
-          Add journal entry
-        </button>
       </aside>
     </div>
   )
