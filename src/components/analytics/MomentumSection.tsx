@@ -64,12 +64,19 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
           subtitle="What chart timeframe were you watching when you entered?"
           hover
           right={
-            <Tooltip content="Set the timeframe per trade in the Trades page expand row. Trades you haven't tagged show under 'unset'.">
+            <Tooltip content="Set the timeframe per trade in the Trades page expand row. Untagged trades aren't shown here.">
               <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
             </Tooltip>
           }
         >
-          <BucketRows buckets={momentum.byTimeframe} keyHeader="Timeframe" />
+          {momentum.byTimeframe.length > 0 ? (
+            <BucketRows buckets={momentum.byTimeframe} keyHeader="Timeframe" />
+          ) : (
+            <NoData
+              title="No entry timeframes tagged yet"
+              reason="Set the timeframe per trade in the Trades page expand row."
+            />
+          )}
         </Card>
 
         <Card
@@ -112,7 +119,10 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
         {momentum.byConfidence.length > 0 ? (
           <BucketRows buckets={momentum.byConfidence} keyHeader="Rating" />
         ) : (
-          <NoData reason="Rate your trades 1–5 in the Trades page expand row." />
+          <NoData
+            title="No confidences tagged yet"
+            reason="Rate your trades 1–5 in the Trades page expand row."
+          />
         )}
       </Card>
 
@@ -381,11 +391,11 @@ function Side({
   )
 }
 
-function NoData({ reason }: { reason: string }) {
+function NoData({ title = 'Awaiting data', reason }: { title?: string; reason: string }) {
   return (
     <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
       <div className="mb-1 uppercase tracking-wider text-gold">
-        Awaiting data
+        {title}
       </div>
       {reason}
     </div>

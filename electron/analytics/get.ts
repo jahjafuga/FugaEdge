@@ -386,10 +386,11 @@ function bucketStatsFor(trades: TradeRow[], key: string): MomentumBucket {
 }
 
 function computeByTimeframe(rows: TradeRow[]): MomentumBucket[] {
-  const order = ['10s', '1m', '5m', 'unset']
+  const order = ['10s', '1m', '5m']
   const groups = new Map<string, TradeRow[]>()
   for (const t of rows) {
-    const key = t.entry_timeframe ?? 'unset'
+    if (t.entry_timeframe == null) continue
+    const key = t.entry_timeframe
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
@@ -401,17 +402,18 @@ function computeByTimeframe(rows: TradeRow[]): MomentumBucket[] {
 }
 
 function computeByConfidence(rows: TradeRow[]): MomentumBucket[] {
-  const order = ['1', '2', '3', '4', '5', 'unset']
+  const order = ['1', '2', '3', '4', '5']
   const groups = new Map<string, TradeRow[]>()
   for (const t of rows) {
-    const key = t.confidence != null ? String(t.confidence) : 'unset'
+    if (t.confidence == null) continue
+    const key = String(t.confidence)
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
   }
   return order
     .filter((k) => groups.has(k))
-    .map((k) => bucketStatsFor(groups.get(k)!, k === 'unset' ? 'unset' : `${k} dot${k === '1' ? '' : 's'}`))
+    .map((k) => bucketStatsFor(groups.get(k)!, `${k} dot${k === '1' ? '' : 's'}`))
 }
 
 function ema9Bucket(pct: number): string {
