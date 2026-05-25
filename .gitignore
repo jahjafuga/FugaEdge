@@ -31,3 +31,10 @@ _verify_quotes.js
 # Test fixtures (contains real user trading data — local only, never commit)
 test-fixtures/
 .agents/
+
+# Chromium child-process debug logs at repo root.
+# Per v0.3.0 ideas doc ticket 6 (mitigation path c). Electron's
+# main-process --log-file flag is not inherited by renderer/GPU/
+# utility children on Windows GUI builds; they fall back to
+# writing PID-named debug logs to the parent process's cwd.
+/[0-9]*
