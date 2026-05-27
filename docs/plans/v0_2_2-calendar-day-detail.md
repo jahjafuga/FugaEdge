@@ -355,3 +355,83 @@ Next conversations to have:
 - v0.2.3 scope (likely: deferred items from this plan — Attachments, additional polish from beta feedback)
 - v0.2.5 Challenge/Bucket system planning (this is the big one — major feature, deserves its own planning session)
 - v0.3.0 strategic theme decision (was originally foundation work; needs revisit given Challenge moved to v0.2.5)
+
+---
+
+## Day 1 reality reconciliation (added 2026-05-28)
+
+Surveying the codebase before Day 1 surfaced four divergences between this plan and what actually exists. Recording the decisions here so future sessions don't re-litigate them.
+
+### 1. DayDetailModal lives under `src/components/calendar/`
+
+Plan originally said `/src/components/DayDetailModal/`. The existing TradeDetailModal is a single file at `src/components/trades/TradeDetailModal.tsx` (with sibling `ChartTab.tsx` lazy-loaded). For v0.2.2 we adopt a folder layout under the surface that opens the modal:
+
+```
+src/components/calendar/
+  DayDetailModal/
+    index.tsx        # shell, portal, tab strip
+    OverviewTab.tsx  # Day 1
+    TradesTab.tsx    # Day 2
+    ChartTab.tsx     # Day 3
+    NotesTab.tsx     # Day 4
+    MistakesTab.tsx  # Day 4
+```
+
+The folder keeps each tab small (5 tabs would balloon a single file past 600 lines). Lives under `calendar/` because that's the surface that opens it.
+
+### 2. New `/src/data/` layer introduced per ARCHITECTURE.md rule #2
+
+Plan called for `/src/data/dayRepo.ts` + `/src/data/sqlite/dayRepoSqlite.ts`. Reality: no `/src/data/` exists today. Every existing surface keeps its repo at `electron/{surface}/repo.ts` — a known divergence from ARCHITECTURE.md, acknowledged in the CLAUDE.md "honest note."
+
+For v0.2.2 we use the architecture-compliant layout for the NEW code while accepting the legacy layout stays untouched:
+
+```
+src/data/dayRepo.ts         # renderer-side typed client (interface + IPC call)
+electron/day/repo.ts        # SQLite implementation (matches existing electron/{surface}/repo.ts convention)
+electron/day/ipc.ts         # IPC handler that calls electron/day/repo.ts
+shared/day-types.ts         # DayDetail + DayMetrics type definitions
+shared/ipc-channels.ts      # add DAY_GET_DETAIL
+electron/preload/index.ts   # expose window.fugaedge.day.getDetail()
+```
+
+The SQLite implementation stays in `electron/` (not `src/data/sqlite/`) because that's where node-only modules actually load in this build setup. `src/data/dayRepo.ts` is the renderer-side facade — when we port to web, it stops calling IPC and starts calling `fetch()`, which matches ARCHITECTURE.md rule #3.
+
+This is the first surface to use `src/data/`. Other surfaces can migrate opportunistically.
+
+### 3. Money Left on Table is a derivation, not a literal port
+
+Plan said "reused from Deep Analytics → Execution tab." Reality: Execution tab renders `data.exitQuality` as a per-trade table (`ExitQualityTable rows={data.exitQuality}`) — not a scalar. There is no existing `moneyLeftOnTable: number` field anywhere.
+
+For v0.2.2 we compute the day-scoped scalar inside `computeDayMetrics()`:
+
+```typescript
+moneyLeftOnTable: trades
+  .filter(t => t.missedGain != null)
+  .reduce((sum, t) => sum + t.missedGain, 0)
+
+moneyLeftCoverage: {
+  withMfe: trades.filter(t => t.missedGain != null).length,
+  total: trades.length
+}
+```
+
+Honest disclosure of partial coverage matches Decision 3 above ("(N of M trades — intraday data incomplete)"). If `withMfe === 0`, the card shows the "awaiting intraday data" empty state.
+
+### 4. TDD on the pure module
+
+`src/core/analytics/day.ts` is tested test-first via `src/core/analytics/__tests__/day.test.ts`, mirroring the existing `src/core/performance/__tests__/metrics.test.ts` pattern. The repo, IPC layer, and modal don't need TDD — their correctness is verified by integration smoke and the v0.2.1 test suite still passing.
+
+### Day 1 file inventory (locked)
+
+- `shared/day-types.ts` — new
+- `shared/ipc-channels.ts` — add DAY_GET_DETAIL
+- `src/core/analytics/day.ts` — new pure module
+- `src/core/analytics/__tests__/day.test.ts` — new
+- `src/data/dayRepo.ts` — new renderer-side client
+- `electron/day/repo.ts` — new SQLite impl
+- `electron/day/ipc.ts` — new IPC handler
+- `electron/main/index.ts` — register day IPC
+- `electron/preload/index.ts` — expose window.fugaedge.day
+- `src/components/calendar/DayDetailModal/index.tsx` — modal shell
+- `src/components/calendar/DayDetailModal/OverviewTab.tsx` — tab content
+- `src/pages/Journal.tsx` (or wherever Calendar lives) — wire day-click to modal, remove DayTradesPanel inline expansion
