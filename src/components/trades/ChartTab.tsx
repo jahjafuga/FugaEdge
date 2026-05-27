@@ -701,11 +701,14 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     r.markersPlugin.setMarkers(markers)
   }, [trade, bars, chartReady])
 
-  // Entry / Exit price lines. Long trades: entry = buys, exit = sells.
-  // Short trades: entry = sells, exit = buys (the user opens by selling
-  // short and closes by buying back). Colors track the FILL side (B=win,
-  // S=loss) so the line color matches the marker arrows; the title tracks
-  // the entry/exit ROLE so the label reflects what the trader actually did.
+  // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
+  // sells. Short trades: entry = sells, exit = buys (the user opens by
+  // selling short and closes by buying back). Colors track the FILL side
+  // (B=win, S=loss) so the line color matches the marker arrows; the
+  // title tracks the entry/exit ROLE so the label reflects what the
+  // trader actually did. Labels say "Avg" because the price shown is the
+  // weighted average across all entry/exit fills, not a single price —
+  // a multi-fill scale-in/out trade has multiple fills behind one line.
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady) return
@@ -750,7 +753,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0, // solid
           axisLabelVisible: true,
-          title: `Entry ${price(entryAvg)}`,
+          title: `Avg Entry ${price(entryAvg)}`,
         }),
       )
     }
@@ -762,7 +765,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: `Exit ${price(exitAvg)}`,
+          title: `Avg Exit ${price(exitAvg)}`,
         }),
       )
     }
