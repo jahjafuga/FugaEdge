@@ -14,6 +14,7 @@ import QuickFilters from '@/components/trades/QuickFilters'
 import TradesViewToggle, { type TradesView } from '@/components/trades/TradesViewToggle'
 import TradeChartCard from '@/components/trades/TradeChartCard'
 import TradeChartTile from '@/components/trades/TradeChartTile'
+import MigrationCollisionsBanner from '@/components/data-health/MigrationCollisionsBanner'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
@@ -245,6 +246,7 @@ export default function Trades() {
   return (
     <PageShell title="Trades" subtitle={subtitle}>
       <div className="space-y-4">
+        <MigrationCollisionsBanner />
         <QuickFilters filters={filters} onChange={setFilters} />
         <TradesFilters filters={filters} onChange={setFilters} trades={trades} />
 

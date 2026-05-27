@@ -94,6 +94,9 @@ export const ipc = {
   /** Subscribe to updater status pushes. Returns an unsubscribe fn. */
   updaterOnStatus: (cb: (status: UpdaterStatus) => void) =>
     window.api.updaterOnStatus(cb),
+  dataHealthGet: () => window.api.dataHealthGet(),
+  dataHealthAcknowledgeCollisions: () =>
+    window.api.dataHealthAcknowledgeCollisions(),
 }
 
 // Re-exported from the preload for renderer-side consumers.

@@ -54,6 +54,11 @@ export const IPC = {
   ATTACHMENTS_DELETE: 'attachments:delete',
   DAY_TAGS_SAVE: 'dayTags:save',
   WEEK_NOTES_SAVE: 'weekNotes:save',
+  // v0.2.1 — data-health surface for the content_hash migration's historical
+  // duplicate banner. _GET returns counts; _ACKNOWLEDGE marks the banner
+  // dismissed.
+  DATA_HEALTH_GET: 'dataHealth:get',
+  DATA_HEALTH_ACKNOWLEDGE_COLLISIONS: 'dataHealth:acknowledgeCollisions',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

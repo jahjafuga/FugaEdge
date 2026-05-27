@@ -5,10 +5,17 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-// Bumped to 19 for Day 8.5 Commit B: timestamps flipped from bare-local
-// Eastern to true UTC. No table-shape change — the bump is the one-shot
-// trigger for the migrateTimestampsToUtc data migration (see migrate-tz-utc.ts).
-export const SCHEMA_VERSION = '19'
+// Bumped to 20 for v0.2.1: trades.content_hash backfill — second dedup
+// hash computed from intrinsic fill content (symbol, UTC ts, side, qty,
+// price) so duplicates that share content but differ on per-fill IDs
+// (cross-format scenarios b1/b2/b3 from the 2026-05-26 dedup investigation)
+// are caught. The bump is the one-shot trigger for migrateContentHash
+// (see migrate-content-hash.ts). Column ALTER + partial UNIQUE index are
+// added in migrateAfterSchema.
+//
+// Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
+// Eastern to true UTC. See migrate-tz-utc.ts.
+export const SCHEMA_VERSION = '20'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -42,6 +49,11 @@ CREATE TABLE IF NOT EXISTS trades (
   net_pnl         REAL    NOT NULL DEFAULT 0,                 -- gross_pnl - total_fees
   executions_json TEXT    NOT NULL DEFAULT '[]',              -- raw fills, parent→children grouping
   exec_hash       TEXT    NOT NULL UNIQUE,                    -- SHA-1 of sorted TradeID:OrderID
+  -- content_hash column is added in migrateAfterSchema (additive ALTER) so
+  -- existing v0.1.6/v0.2.0 rows can be backfilled idempotently. The partial
+  -- UNIQUE index "idx_trades_content_hash" (WHERE content_hash IS NOT NULL)
+  -- is also created in migrateAfterSchema after the migration sweep so
+  -- legacy NULL rows can coexist with the constraint.
   entry_timeframe TEXT,                                       -- user-input: '10s' | '1m' | '5m'
   entry_ema9_distance_pct REAL,                               -- backfilled from intraday_bars
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))

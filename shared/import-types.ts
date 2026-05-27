@@ -132,7 +132,19 @@ export interface RoundTrip {
   gross_pnl: number
   total_fees: number
   net_pnl: number
+  /** ID-based content hash: SHA-1 over sorted "trade_id:order_id" pairs
+   *  (plus account_name when non-empty for multi-account partitioning).
+   *  v0.1.6 contract — every existing trade row dedups against itself on
+   *  upgrade. See hashFills in src/core/import/build-round-trips.ts. */
   exec_hash: string
+  /** Content-based hash: SHA-1 over sorted (symbol, UTC timestamp, side,
+   *  qty, price) tuples — broker-agnostic. v0.2.1 dedup safety net that
+   *  catches the same logical fill expressed with different IDs across
+   *  export formats (scenarios b1/b2/b3 from the 2026-05-26 dedup
+   *  investigation). See hashFillsByContent in build-round-trips.ts.
+   *  Populated by buildRoundTrips for new trips; backfilled for legacy
+   *  rows by migrate-content-hash.ts. */
+  content_hash: string
   executions: RoundTripExecution[]
   status: RowStatus
 

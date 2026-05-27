@@ -57,6 +57,7 @@ import type {
   SaveTodaySessionInput,
   SessionMeta,
 } from '@shared/session-types'
+import type { DataHealth } from '@shared/data-health-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -179,6 +180,10 @@ const api = {
       ipcRenderer.removeListener(IPC.UPDATER_STATUS, listener)
     }
   },
+  dataHealthGet: (): Promise<DataHealth> =>
+    ipcRenderer.invoke(IPC.DATA_HEALTH_GET),
+  dataHealthAcknowledgeCollisions: (): Promise<DataHealth> =>
+    ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

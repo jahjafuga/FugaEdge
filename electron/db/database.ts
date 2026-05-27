@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { SCHEMA_SQL } from './schema'
 import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 import { migrateTimestampsToUtc } from './migrate-tz-utc'
+import { migrateContentHash } from './migrate-content-hash'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -14,6 +15,9 @@ const V020_BACKUP_LATCH_KEY = 'v020_backup_done'
 
 // Latch for the Day 8.5 tz-utc migration's pre-migration backup (schema 18→19).
 const TZ_BACKUP_LATCH_KEY = 'tz_migration_backup_done'
+
+// Latch for the v0.2.1 content_hash migration's pre-migration backup (schema 19→20).
+const CONTENT_HASH_BACKUP_LATCH_KEY = 'content_hash_migration_backup_done'
 
 let db: Database.Database | null = null
 
@@ -245,6 +249,63 @@ function backupBeforeTzMigration(conn: Database.Database, dbPath: string): void 
   }
 }
 
+// Pre-migration backup for the v0.2.1 content_hash backfill. Same shape as
+// backupBeforeTzMigration: checkpoint WAL → copy DB aside → throw on failure
+// so migrateContentHash aborts without mutating data. Latch lives in
+// settings so a successful backup on a prior launch is never repeated.
+function backupBeforeContentHashMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(CONTENT_HASH_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-v0.2.1-content-hash-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before content-hash backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so
+  // the migration aborts instead of mutating data with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] content-hash pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(CONTENT_HASH_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(
+      `[FE db] content-hash backup latch write failed: ${e}`,
+    )
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -462,6 +523,44 @@ function migrateAfterSchema(
   migrateTimestampsToUtc(conn, priorVersion, {
     backup: () => backupBeforeTzMigration(conn, dbPath),
   })
+
+  // v0.2.1 — add content_hash column + backfill from executions_json + create
+  // partial UNIQUE index. Three ordered steps so the constraint can't fail
+  // mid-backfill on historical duplicates (the migration phase detects them
+  // and leaves the loser row's content_hash NULL).
+  if (!has('content_hash')) {
+    conn.exec('ALTER TABLE trades ADD COLUMN content_hash TEXT')
+  }
+  const result = migrateContentHash(conn, priorVersion, {
+    backup: () => backupBeforeContentHashMigration(conn, dbPath),
+    onStart: (n) => {
+      // Boot-time log line so a future renderer-side IPC banner has a clear
+      // single source of truth for "what just got migrated". For 100-trade
+      // DBs this completes in <100ms; for 5000+ trade DBs the banner
+      // prevents "did the app freeze" panic — the line lands in the
+      // packaged log file at userData/logs/main.log.
+      if (n > 0) {
+        console.info(
+          `[FE db] content-hash migration: starting backfill of ${n} trade(s)`,
+        )
+      }
+    },
+  })
+  // Partial UNIQUE index — created idempotently every launch so fresh
+  // installs (which never run the migration) also get it. NULLs are
+  // excluded by the WHERE clause, so legacy rows the migration couldn't
+  // backfill don't violate the constraint.
+  conn.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_content_hash
+     ON trades(content_hash) WHERE content_hash IS NOT NULL`,
+  )
+  if (result.ran && result.historicalDuplicates > 0) {
+    console.warn(
+      `[FE db] content-hash migration completed with ` +
+        `${result.historicalDuplicates} historical duplicate(s) detected — ` +
+        `see prior warn lines for trade IDs`,
+    )
+  }
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

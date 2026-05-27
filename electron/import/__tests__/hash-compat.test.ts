@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { computeRoundTrips } from '../compute-trips'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import type { Execution } from '@shared/import-types'
 
-// The contract we're locking in: when account_name is unset (every v0.1.6
-// trade ever imported), the universal builder's exec_hash equals the legacy
-// builder's exec_hash for the same Execution[] input. This is what keeps
-// existing users from seeing every trade re-flagged as "new" after the
-// v0.2.0 upgrade.
+// v0.1.6 exec_hash regression lock.
+//
+// Original purpose: when the universal builder (src/core/import/build-round-
+// trips.ts) replaced the orphaned electron/import/compute-trips.ts module
+// in v0.2.0, both implementations had to produce the same exec_hash for
+// inputs with no account_name — otherwise every v0.1.6 trade would have
+// re-flagged as "new" on upgrade. The old test compared the two builders
+// at runtime. v0.2.1 deletes compute-trips.ts entirely; this test now
+// pins the v0.1.6 hash shape against a frozen SHA-1 literal instead.
+//
+// HASHES ARE LOAD-BEARING. Every existing trade row in every user's DB
+// dedups against its stored exec_hash. If any change to hashFills or its
+// inputs alters either of these literals, every legacy trade looks "new"
+// on the next import. Don't change without a coordinated migration.
 
 function exec(o: {
   trade_id: string
@@ -33,41 +41,46 @@ function exec(o: {
   }
 }
 
-describe('exec_hash compatibility — legacy computeRoundTrips vs buildRoundTrips', () => {
-  it('matches when account_name is unset (v0.1.6 dedup preserved)', () => {
-    const execs = [
+describe('exec_hash v0.1.6 regression (frozen literals)', () => {
+  it('single buy/sell round trip with no account_name', () => {
+    // Hash payload (per hashFills): sorted "trade_id:order_id" pairs joined
+    // by '|', no account_name prefix. SHA-1 hex.
+    //   ids = ['1:A1','2:A2'] -> '1:A1|2:A2'
+    //   SHA-1('1:A1|2:A2') = 1bb1ab4561b3ed094c44d5bf5e4c978e17feddd8
+    const trips = buildRoundTrips([
       exec({ trade_id: '1', order_id: 'A1', symbol: 'SLE', side: 'B', qty: 100, price: 5, time: '2026-05-15T09:30:00' }),
       exec({ trade_id: '2', order_id: 'A2', symbol: 'SLE', side: 'S', qty: 100, price: 6, time: '2026-05-15T09:31:00' }),
-    ]
-    const legacy = computeRoundTrips(execs)
-    const universal = buildRoundTrips(execs)
-    expect(legacy).toHaveLength(1)
-    expect(universal).toHaveLength(1)
-    expect(universal[0].exec_hash).toBe(legacy[0].exec_hash)
+    ])
+    expect(trips).toHaveLength(1)
+    expect(trips[0].exec_hash).toBe('1bb1ab4561b3ed094c44d5bf5e4c978e17feddd8')
   })
 
-  it('matches across a multi-fill trip (ODYS shape)', () => {
-    const execs = [
+  it('multi-fill ODYS-shape trip (6 fills) with no account_name', () => {
+    //   ids = ['1:A1','2:A2','3:A3','4:A4','5:A5','6:A6'] joined '|'
+    //   SHA-1 = 8553626ddb6002f61ca6fa15359f22adec6e6ac7
+    const trips = buildRoundTrips([
       exec({ trade_id: '1', order_id: 'A1', symbol: 'ODYS', side: 'B', qty: 500, price: 2.0, time: '2026-05-11T09:30:00' }),
       exec({ trade_id: '2', order_id: 'A2', symbol: 'ODYS', side: 'S', qty: 100, price: 2.1, time: '2026-05-11T09:31:00' }),
       exec({ trade_id: '3', order_id: 'A3', symbol: 'ODYS', side: 'S', qty: 100, price: 2.15, time: '2026-05-11T09:32:00' }),
       exec({ trade_id: '4', order_id: 'A4', symbol: 'ODYS', side: 'S', qty: 100, price: 2.2, time: '2026-05-11T09:33:00' }),
       exec({ trade_id: '5', order_id: 'A5', symbol: 'ODYS', side: 'S', qty: 100, price: 2.25, time: '2026-05-11T09:34:00' }),
       exec({ trade_id: '6', order_id: 'A6', symbol: 'ODYS', side: 'S', qty: 100, price: 2.3, time: '2026-05-11T09:35:00' }),
-    ]
-    const legacy = computeRoundTrips(execs)
-    const universal = buildRoundTrips(execs)
-    expect(universal[0].exec_hash).toBe(legacy[0].exec_hash)
+    ])
+    expect(trips).toHaveLength(1)
+    expect(trips[0].exec_hash).toBe('8553626ddb6002f61ca6fa15359f22adec6e6ac7')
   })
 
-  it('differs when account_name is set (multi-account partitioning kicks in)', () => {
-    const without: Execution[] = [
+  it('account_name=ACCT_A diverges from no-account_name (multi-account partitioning)', () => {
+    // Sanity check: account_name materially changes the hash. This is the
+    // v0.2.0 multi-account guard — same fills under two different accounts
+    // produce different exec_hashes so they don't dedup against each other.
+    const baseExecs = [
       exec({ trade_id: '1', order_id: 'A1', symbol: 'X', side: 'B', qty: 100, price: 5, time: '2026-05-15T09:30:00' }),
       exec({ trade_id: '2', order_id: 'A2', symbol: 'X', side: 'S', qty: 100, price: 6, time: '2026-05-15T09:31:00' }),
     ]
-    const withAcct = without.map((e) => ({ ...e, account_name: 'ACCT_A' }))
-    const u1 = buildRoundTrips(without)
-    const u2 = buildRoundTrips(withAcct)
-    expect(u1[0].exec_hash).not.toBe(u2[0].exec_hash)
+    const withAcct = baseExecs.map((e) => ({ ...e, account_name: 'ACCT_A' }))
+    const noAcct = buildRoundTrips(baseExecs)
+    const acctA = buildRoundTrips(withAcct)
+    expect(acctA[0].exec_hash).not.toBe(noAcct[0].exec_hash)
   })
 })
