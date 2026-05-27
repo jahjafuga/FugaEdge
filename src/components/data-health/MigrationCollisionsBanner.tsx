@@ -16,10 +16,12 @@ import type { DataHealth } from '@shared/data-health-types'
 //   - collision count is 0 (the common case — migration ran cleanly), OR
 //   - the user has already dismissed (acknowledged stored in settings)
 //
-// Trade IDs of the affected rows are not surfaced here — they're in the
-// console log from the migration (userData/logs/main.log). Surfacing
-// per-trade actions is v0.3.0 work (the "Settings → Data Health" page
-// the v0.2.1 plan deferred).
+// Trade IDs of the affected rows are not surfaced here — they're written
+// to the migration's console output (currently dev-only; packaged stdout
+// isn't captured to a user-accessible file). A future release will
+// persist collision IDs and surface them in-app. Per-trade actions are
+// v0.3.0 work (the "Settings → Data Health" page the v0.2.1 plan
+// deferred).
 
 export default function MigrationCollisionsBanner() {
   const [health, setHealth] = useState<DataHealth | null>(null)
@@ -84,10 +86,10 @@ export default function MigrationCollisionsBanner() {
             trade row{n === 1 ? '' : 's'} from previous imports that look like
             duplicate{n === 1 ? '' : 's'} of older row{n === 1 ? '' : 's'} in
             your journal. The migration kept both — your historical data is
-            untouched — but they may be double-counting in your P&amp;L. Check
-            the affected trade IDs in the app log file
-            (Help → Open log folder) and remove duplicates manually from the
-            trade detail view.
+            untouched — but they may be double-counting in your P&amp;L. A
+            future release will list the affected trade IDs here directly;
+            for now, review suspicious rows in the trade detail view and
+            remove duplicates manually.
           </p>
         </div>
         <button
