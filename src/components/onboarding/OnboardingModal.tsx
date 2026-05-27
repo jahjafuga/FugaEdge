@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import BrandMark from '@/components/layout/BrandMark'
 import DropZone from '@/components/import/DropZone'
+import ApiKeyEntry from '@/components/settings/ApiKeyEntry'
 import { ipc } from '@/lib/ipc'
 import {
   DEFAULT_ACCOUNT_SIZE,
@@ -138,6 +139,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
               onError={setError}
             />
           )}
+          {state.step === 4 && (
+            <ApiKeyEntry onSaved={commitAndClose} />
+          )}
         </div>
 
         {error && (
@@ -167,7 +171,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 Back
               </button>
             )}
-            {isLast ? (
+            {state.step !== 4 && (isLast ? (
               <button
                 type="button"
                 onClick={commitAndClose}
@@ -187,7 +191,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 {state.step === 0 ? "Let's go" : 'Continue'}
                 <ArrowRight size={13} strokeWidth={2.25} />
               </button>
-            )}
+            ))}
           </div>
         </footer>
       </div>
@@ -431,7 +435,9 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
   const [importing, setImporting] = useState(false)
   const [importedCount, setImportedCount] = useState<number | null>(null)
 
-  const handleFiles = async (files: { name: string; text: string }[]) => {
+  const handleFiles = async (
+    files: { name: string; text?: string; bytes?: Uint8Array }[],
+  ) => {
     onError(null)
     setImporting(true)
     try {
@@ -441,6 +447,7 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
       const inputs: PreviewInputFile[] = files.map((f) => ({
         filename: f.name,
         text: f.text,
+        bytes: f.bytes,
       }))
       const preview = await ipc.importPreview(inputs)
       const result = await ipc.importCommit({

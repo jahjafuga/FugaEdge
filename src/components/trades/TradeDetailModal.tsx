@@ -15,7 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, signed, pnlClass, longDate } from '@/lib/format'
+import { money, price, int, signed, pnlClass, longDate, formatEastern } from '@/lib/format'
 import PlaybookPicker from '@/components/playbook/PlaybookPicker'
 import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
@@ -324,7 +324,7 @@ function OverviewTab({
             }
           />
         </FieldRow>
-        <FieldRow label="Float">
+        <FieldRow label="Shares Out">
           <FloatEditor
             value={t.float_shares}
             onChange={(next) =>
@@ -343,7 +343,7 @@ function OverviewTab({
             }
           />
         </FieldRow>
-        <FieldRow label="Entry vs EMA9">
+        <FieldRow label="Entry vs 9EMA (1m)">
           <Ema9Readout pct={t.entry_ema9_distance_pct} />
         </FieldRow>
       </div>
@@ -417,7 +417,7 @@ function Ema9Readout({ pct }: { pct: number | null }) {
   return (
     <span
       className={`inline-flex items-center gap-2 font-mono text-sm font-semibold tnum ${tone}`}
-      title="Entry distance from EMA9 over 1-minute bars"
+      title="Entry distance from 9EMA over 1-minute bars"
     >
       {pct >= 0 ? '+' : ''}
       {pct.toFixed(2)}%
@@ -455,7 +455,7 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
         </div>
         {trade.executions.map((e, i) => (
           <div key={`${e.trade_id}-${e.order_id}-${i}`} className="contents">
-            <div className="text-fg-tertiary tnum">{timeOf(e.time)}</div>
+            <div className="text-fg-tertiary tnum">{formatEastern(e.time)}</div>
             <div className={e.side === 'B' ? 'text-win' : 'text-loss'}>{e.side}</div>
             <div className="text-right text-fg-primary tnum">{int(e.qty)}</div>
             <div className="text-right text-fg-secondary tnum">{price(e.price)}</div>
@@ -465,11 +465,6 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
       </div>
     </div>
   )
-}
-
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  return t ?? iso
 }
 
 // ── Mistakes tab — local state + save button ──
@@ -483,17 +478,29 @@ function MistakesTab({
 }) {
   const [selected, setSelected] = useState<string[]>(trade.mistakes)
   const [saving, setSaving] = useState(false)
+  // Transient "saved" confirmation — mirrors the Playbook editor's savedAt
+  // pill so the user gets visible feedback that the save landed.
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   const dirty = !sameArray(selected, trade.mistakes)
 
   useEffect(() => {
     setSelected(trade.mistakes)
+    setSavedAt(null)
   }, [trade.id])
+
+  // Auto-clear the confirmation after 1.5s so it reads as a transient pill.
+  useEffect(() => {
+    if (savedAt == null) return
+    const t = setTimeout(() => setSavedAt(null), 1500)
+    return () => clearTimeout(t)
+  }, [savedAt])
 
   const save = async () => {
     if (saving) return
     setSaving(true)
     try {
       await onSaveMistakes({ trade_id: trade.id, mistakes: selected })
+      setSavedAt(Date.now())
     } finally {
       setSaving(false)
     }
@@ -510,7 +517,12 @@ function MistakesTab({
         </p>
       </div>
       <MistakesChecklist selected={selected} onChange={setSelected} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {savedAt && (
+          <span className="text-[10px] uppercase tracking-wider text-win">
+            saved
+          </span>
+        )}
         <button
           type="button"
           onClick={save}

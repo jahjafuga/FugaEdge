@@ -2,7 +2,7 @@ import Card from '@/components/ui/Card'
 import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { SentimentAnalytics } from '@shared/analytics-types'
-import { int, money, signed, pnlClass } from '@/lib/format'
+import { int, money, percent, signed, pnlClass } from '@/lib/format'
 
 interface SentimentBreakdownCardProps {
   data: SentimentAnalytics
@@ -78,7 +78,7 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
                     <span className="text-fg-muted">—</span>
                   ) : (
                     <span className="text-gold">
-                      {(b.win_rate * 100).toFixed(0)}%
+                      {percent(b.win_rate, 0)}
                     </span>
                   )}
                 </td>

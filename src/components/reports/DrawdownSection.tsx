@@ -10,7 +10,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { DrawdownInfo } from '@shared/reports-types'
-import { int, longDate, money, pnlClass, shortDate, signed } from '@/lib/format'
+import { int, longDate, money, percent, pnlClass, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
@@ -45,7 +45,7 @@ export default function DrawdownSection({ drawdown }: DrawdownSectionProps) {
           tone="text-loss"
           detail={
             hasDrawdown && drawdown.percent != null
-              ? `−${(drawdown.percent * 100).toFixed(1)}%`
+              ? `−${percent(drawdown.percent, 1)}`
               : undefined
           }
         />

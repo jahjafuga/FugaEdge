@@ -1,5 +1,5 @@
 import type { BucketStats } from '@shared/reports-types'
-import { int, money, pnlClass, signed } from '@/lib/format'
+import { int, money, percent, pnlClass, signed } from '@/lib/format'
 
 interface HorizontalBarChartProps {
   buckets: BucketStats[]
@@ -54,7 +54,7 @@ export default function HorizontalBarChart({ buckets }: HorizontalBarChartProps)
             <div className="font-mono text-[10px] text-fg-tertiary">
               {b.win_rate == null
                 ? '—'
-                : `${(b.win_rate * 100).toFixed(0)}% win`}{' '}
+                : `${percent(b.win_rate, 0)} win`}{' '}
               · avg{' '}
               <span className={pnlClass(b.net_pnl / Math.max(1, b.trade_count))}>
                 {money(b.net_pnl / Math.max(1, b.trade_count))}

@@ -12,6 +12,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import type { InsightInput, InsightResult } from './types'
+import { utcToEasternParts } from '@/lib/format'
 import {
   aggregate,
   entryHour,
@@ -365,6 +366,11 @@ export function runMistakePattern(input: InsightInput): InsightResult | null {
 
 // ── 9. FLOAT SWEET SPOT ──────────────────────────────────────────────────
 // Best / worst float bucket. Requires 3+ trades in at least 2 buckets.
+//
+// DISABLED for v0.2.0 — bucketing reads share_class_shares_outstanding,
+// not true free float, so the analytic claim was misleading. Function
+// retained for v0.3.0 re-wire with point-in-time float (registration in
+// src/core/insights/index.ts is commented out, not deleted).
 
 export function runFloatSweetSpot(input: InsightInput): InsightResult | null {
   const buckets = groupBy(input.trades, (t) => floatBucket(t.float_shares))
@@ -430,7 +436,7 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
       body:
         `${fmtMoney(best.agg.net_pnl)} over ${best.agg.trade_count} round trips ` +
         `(${fmtPct(best.agg.win_rate ?? 0)} win). Track what makes this ticker work — ` +
-        `float, sector, time of day, your familiarity.`,
+        `sector, time of day, your familiarity.`,
       metric: fmtMoney(best.agg.net_pnl),
       priority: Math.abs(best.agg.net_pnl) + best.agg.trade_count * 10,
     })
@@ -458,7 +464,9 @@ function dowName(date: string | null | undefined): string | null {
   if (!date) return null
   const d = new Date(date + 'T12:00:00Z')
   if (Number.isNaN(d.getTime())) return null
-  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getUTCDay()] ?? null
+  // Full names so templated copy that appends "s" reads correctly
+  // ("Thursdays are your strongest day", not "Thus are your strongest day").
+  return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()] ?? null
 }
 
 export function runDayOfWeek(input: InsightInput): InsightResult | null {
@@ -706,9 +714,10 @@ export function runMistakeInLosers(input: InsightInput): InsightResult[] {
 // either jumping at noise or trading without confirmation.
 
 function parseHourMinute(timestamp: string): { hour: number; minute: number } | null {
-  const m = timestamp.match(/[T ](\d{2}):(\d{2})/)
-  if (!m) return null
-  return { hour: Number(m[1]), minute: Number(m[2]) }
+  // `timestamp` is true UTC (Day 8.5 Commit B) — convert to Eastern so the
+  // 9:30–10:00 ET window check below compares like-for-like.
+  const p = utcToEasternParts(timestamp)
+  return p ? { hour: p.hour, minute: p.minute } : null
 }
 
 export function runFirstThirtyMinutes(input: InsightInput): InsightResult | null {

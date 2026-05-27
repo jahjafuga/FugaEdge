@@ -12,6 +12,7 @@ import { registerReportsIpc } from '../reports/ipc'
 import { registerAnalyticsIpc } from '../analytics/ipc'
 import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
+import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
@@ -129,6 +130,7 @@ app.whenReady().then(() => {
   registerAnalyticsIpc()
   registerJournalIpc()
   registerSettingsIpc()
+  registerDataHealthIpc()
   registerMarketIpc()
   registerCountryIpc()
   registerPlaybookIpc()

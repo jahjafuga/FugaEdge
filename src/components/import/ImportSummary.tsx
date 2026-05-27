@@ -31,6 +31,12 @@ export default function ImportSummary({
                 <span className="text-xs text-muted">
                   {f.format === 'executions' ? `${int(f.rowCount)} fills` : null}
                   {f.format === 'daily-summary' ? `${int(f.rowCount)} symbols` : null}
+                  {f.format === 'tradehistory' ||
+                  f.format === 'trades_window' ||
+                  f.format === 'webull_mobile' ||
+                  f.format === 'xlsx'
+                    ? `${int(f.rowCount)} trades`
+                    : null}
                 </span>
                 {f.format === 'daily-summary' && f.inferredDate && (
                   <span className="text-xs text-subtle">
@@ -80,6 +86,25 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
     return (
       <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
         fees
+      </span>
+    )
+  }
+  // Pre-computed round-trip / order exports across brokers — same role
+  // (one row per filled order or per round trip). Filename and the
+  // per-file row-count label differentiate the source. Covers:
+  //   - DAS TradeHistory (Tester A variant)
+  //   - DAS Trades window (Tester B variant)
+  //   - Webull Mobile (Name-led CSV)
+  //   - Webull Desktop (XLSX)
+  if (
+    format === 'tradehistory' ||
+    format === 'trades_window' ||
+    format === 'webull_mobile' ||
+    format === 'xlsx'
+  ) {
+    return (
+      <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">
+        trades
       </span>
     )
   }

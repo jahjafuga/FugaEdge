@@ -1,12 +1,12 @@
 import { openDatabase } from '../db/database'
 import { getSettings } from '../settings/repo'
 import { ema } from '../lib/ema'
-import { parseEasternTimeMs } from '../lib/eastern-time'
 import {
   fetchIntradayMinutes,
   MassiveError,
   type IntradayBar,
 } from './massive'
+import { withRateLimitRetry } from './rate-limit'
 import {
   getIntradayRow,
   intradayPairsNeedingFetch,
@@ -17,7 +17,6 @@ import {
 
 const REQUEST_SPACING_MS = 350
 const MAX_CONCURRENT = 2
-const RETRY_BACKOFF_MS = 12_000
 
 export interface IntradayRefreshResult {
   attempted: number
@@ -103,17 +102,9 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   const fetchOne = async (symbol: string, date: string): Promise<void> => {
     try {
       await respectSpacing()
-      let bars
-      try {
-        bars = await fetchIntradayMinutes(polygon_api_key, symbol, date)
-      } catch (e) {
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          bars = await fetchIntradayMinutes(polygon_api_key, symbol, date)
-        } else {
-          throw e
-        }
-      }
+      const bars = await withRateLimitRetry(() =>
+        fetchIntradayMinutes(polygon_api_key, symbol, date),
+      )
       upsertIntradayRow({
         symbol,
         date,
@@ -268,11 +259,13 @@ export function computeMaeMfe(
 ): MaeMfeResult {
   if (!bars || bars.length === 0) return { mae: null, mfe: null }
 
-  const entryMs = parseEasternTimeMs(trade.open_time)
+  // open_time / close_time are true UTC (Day 8.5 Commit B) — Date.parse reads
+  // the Z suffix as UTC, matching the UTC-epoch bar timestamps from Massive.
+  const entryMs = Date.parse(trade.open_time)
   if (!Number.isFinite(entryMs)) return { mae: null, mfe: null }
 
   const exitMs = trade.close_time
-    ? parseEasternTimeMs(trade.close_time)
+    ? Date.parse(trade.close_time)
     : Number.POSITIVE_INFINITY
 
   const entry = entryPriceOf(trade)
@@ -347,10 +340,9 @@ export function computeEma9Distance(
   bars: IntradayBar[] | null,
 ): number | null {
   if (!bars || bars.length === 0) return null
-  // DAS open_time is wall-clock US/Eastern. The host machine could be in any
-  // timezone, so we parse explicitly rather than relying on Date.parse()'s
-  // local-time interpretation.
-  const entryMs = parseEasternTimeMs(trade.open_time)
+  // open_time is true UTC (Day 8.5 Commit B) — Date.parse reads the Z suffix
+  // as UTC, matching the UTC-epoch bar timestamps from Massive.
+  const entryMs = Date.parse(trade.open_time)
   if (!Number.isFinite(entryMs)) return null
 
   // Find the bar containing the entry (its start ≤ entry < start + 60s).

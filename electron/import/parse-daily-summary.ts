@@ -149,11 +149,18 @@ export function parseDailySummaryCsv(csvText: string): ParseDailySummaryResult {
       continue
     }
 
-    const fee_ecn = Math.abs(num(cell(r, 'ECN')))
-    const fee_sec = Math.abs(num(cell(r, 'SEC')))
-    const fee_finra = Math.abs(num(cell(r, 'FINRA')))
-    const fee_htb = Math.abs(num(cell(r, 'HTB Fee')))
-    const fee_cat = Math.abs(num(cell(r, 'CAT Fee')))
+    // SIGN-PRESERVING. v0.1.6 stripped sign via Math.abs(), which destroyed
+    // ECN rebates (negative values when the trader adds liquidity and the
+    // ECN credits a maker rebate). Day 3 of v0.2.0 keeps the sign so
+    // total_fees correctly nets rebates against debits and net_pnl reflects
+    // the actual cost drag. SEC/FINRA/HTB/CAT are positive-only in real
+    // DAS data, but we preserve sign uniformly — any sign anomaly is real
+    // signal and shouldn't be silently flattened by the parser.
+    const fee_ecn = num(cell(r, 'ECN'))
+    const fee_sec = num(cell(r, 'SEC'))
+    const fee_finra = num(cell(r, 'FINRA'))
+    const fee_htb = num(cell(r, 'HTB Fee'))
+    const fee_cat = num(cell(r, 'CAT Fee'))
     const total_fees = round2(fee_ecn + fee_sec + fee_finra + fee_htb + fee_cat)
 
     out.push({

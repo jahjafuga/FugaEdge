@@ -29,6 +29,7 @@ export const ipc = {
   getVersion: () => window.api.getVersion(),
   openExternal: (url: string) => window.api.openExternal(url),
   dbHealthcheck: () => window.api.dbHealthcheck(),
+  resetDatabase: () => window.api.resetDatabase(),
   importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
@@ -66,6 +67,7 @@ export const ipc = {
   journalSave: (input: SaveJournalInput) => window.api.journalSave(input),
   settingsGet: () => window.api.settingsGet(),
   settingsSave: (input: SettingsUpdate) => window.api.settingsSave(input),
+  testMassiveKey: (apiKey: string) => window.api.testMassiveKey(apiKey),
   exportTrades: () => window.api.exportTrades(),
   exportJournal: () => window.api.exportJournal(),
   exportDatabase: () => window.api.exportDatabase(),
@@ -92,6 +94,9 @@ export const ipc = {
   /** Subscribe to updater status pushes. Returns an unsubscribe fn. */
   updaterOnStatus: (cb: (status: UpdaterStatus) => void) =>
     window.api.updaterOnStatus(cb),
+  dataHealthGet: () => window.api.dataHealthGet(),
+  dataHealthAcknowledgeCollisions: () =>
+    window.api.dataHealthAcknowledgeCollisions(),
 }
 
 // Re-exported from the preload for renderer-side consumers.

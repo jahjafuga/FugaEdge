@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { RoundTrip } from '@shared/import-types'
-import { money, price, int, pnlClass, signed, longDate } from '@/lib/format'
+import { money, price, int, pnlClass, signed, longDate, formatEastern } from '@/lib/format'
 
 interface PreviewTableProps {
   trips: RoundTrip[]
@@ -49,9 +49,8 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
             {trips.map((t, i) => {
               const isExpanded = expanded.has(i)
               return (
-                <>
+                <Fragment key={t.exec_hash}>
                   <tr
-                    key={`${t.exec_hash}-row`}
                     onClick={() => toggle(i)}
                     className={`cursor-pointer border-b border-border/40 last:border-b-0 hover:bg-white/[0.02] ${
                       t.status === 'duplicate' ? 'opacity-50' : ''
@@ -70,11 +69,11 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                       <span className="font-mono text-xs text-subtle">{longDate(t.date)}</span>
                     </Td>
                     <Td>
-                      <span className="font-mono text-xs text-text">{timeOf(t.open_time)}</span>
+                      <span className="font-mono text-xs text-text">{formatEastern(t.open_time)}</span>
                     </Td>
                     <Td>
                       <span className="font-mono text-xs text-text">
-                        {t.close_time ? timeOf(t.close_time) : '—'}
+                        {t.close_time ? formatEastern(t.close_time) : '—'}
                       </span>
                     </Td>
                     <Td>
@@ -112,7 +111,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                   </tr>
 
                   {isExpanded && (
-                    <tr key={`${t.exec_hash}-fills`} className="border-b border-border/40">
+                    <tr className="border-b border-border/40">
                       <td colSpan={12} className="bg-bg/40 px-6 py-3">
                         <div className="text-[10px] uppercase tracking-wider text-muted">
                           {t.executions.length} fill{t.executions.length === 1 ? '' : 's'}
@@ -120,7 +119,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                         <div className="mt-2 grid grid-cols-[80px_60px_60px_80px_1fr] gap-x-4 gap-y-1 font-mono text-xs">
                           {t.executions.map((e) => (
                             <div key={`${e.trade_id}-${e.order_id}-${e.time}`} className="contents">
-                              <div className="text-muted">{timeOf(e.time)}</div>
+                              <div className="text-muted">{formatEastern(e.time)}</div>
                               <div className={e.side === 'B' ? 'text-win' : 'text-red'}>
                                 {e.side}
                               </div>
@@ -135,7 +134,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               )
             })}
           </tbody>
@@ -185,11 +184,4 @@ function Td({
   return (
     <td className={`px-3 py-2 ${align === 'right' ? 'text-right' : 'text-left'}`}>{children}</td>
   )
-}
-
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  if (!t) return iso
-  // "08:35:11" → "08:35:11"; we keep seconds for trade granularity.
-  return t
 }

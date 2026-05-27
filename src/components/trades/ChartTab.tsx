@@ -12,7 +12,7 @@ import {
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
-import { int, money, signed } from '@/lib/format'
+import { int, money, price, signed, formatEastern } from '@/lib/format'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -251,7 +251,7 @@ function PlanRestrictedState() {
     const api = (window as unknown as { api?: { openExternal?: (url: string) => Promise<void> | void } }).api
     if (api?.openExternal) {
       e.preventDefault()
-      void api.openExternal('https://polygon.io/pricing')
+      void api.openExternal('https://massive.com/pricing')
     }
   }, [])
   return (
@@ -264,17 +264,17 @@ function PlanRestrictedState() {
         Intraday chart unavailable
       </div>
       <div className="mx-auto mt-1 max-w-sm text-sm text-fg-tertiary">
-        Your Polygon plan doesn&apos;t include this timeframe&apos;s intraday data.
+        Your Massive plan doesn&apos;t include this timeframe&apos;s intraday data.
         Real-time and recent intraday bars are available on paid plans starting at $29/mo.
       </div>
       <a
-        href="https://polygon.io/pricing"
+        href="https://massive.com/pricing"
         target="_blank"
         rel="noopener noreferrer"
         onClick={handleUpgrade}
         className="mt-5 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-xs font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
       >
-        Upgrade Polygon Plan
+        Upgrade Massive Plan
         <ExternalLink size={12} strokeWidth={2.25} />
       </a>
       <button
@@ -290,8 +290,8 @@ function PlanRestrictedState() {
       </button>
       {showWhy && (
         <div className="mx-auto mt-3 max-w-md rounded-md border border-border-subtle bg-bg-3 p-3 text-left text-xs leading-relaxed text-fg-tertiary">
-          Polygon&apos;s free tier only provides delayed market data (typically 15 minutes
-          for stocks, 2 years for full historical). FugaEdge uses Polygon to render
+          Massive&apos;s free tier only provides delayed market data (typically 15 minutes
+          for stocks, 2 years for full historical). FugaEdge uses Massive to render
           intraday charts on every trade so you can review entries and exits against
           the EMA9, EMA20, and VWAP. Without a paid plan, this view is unavailable.
           Stats, journaling, and trade tracking still work normally.
@@ -375,7 +375,7 @@ function ChartCanvas({
         <TimeframeToggle value={tf} onChange={onChangeTf} />
         <div className="flex items-center gap-2">
           <IndicatorToggle
-            label={`EMA9 (${tfLabel})`}
+            label={`9EMA (${tfLabel})`}
             color={COLOR_GOLD}
             active={showEma9}
             onClick={onToggleEma9}
@@ -488,10 +488,19 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
             borderColor: COLOR_BORDER,
             scaleMargins: { top: 0.05, bottom: 0.25 },
           },
+          // Day 8.5 Commit B — candles/markers sit on UTC epochs; render the
+          // axis + crosshair in US/Eastern so the trader reads market
+          // wall-clock, matching their broker / TradingView / Chartswatcher.
+          localization: {
+            timeFormatter: (t: import('lightweight-charts').Time) =>
+              easternAxisLabel(t as number, true),
+          },
           timeScale: {
             borderColor: COLOR_BORDER,
             timeVisible: true,
             secondsVisible: false,
+            tickMarkFormatter: (t: import('lightweight-charts').Time) =>
+              easternAxisLabel(t as number, false),
           },
           crosshair: {
             mode: lc.CrosshairMode.Normal,
@@ -692,11 +701,14 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     r.markersPlugin.setMarkers(markers)
   }, [trade, bars, chartReady])
 
-  // Entry / Exit price lines. Long trades: entry = buys, exit = sells.
-  // Short trades: entry = sells, exit = buys (the user opens by selling
-  // short and closes by buying back). Colors track the FILL side (B=win,
-  // S=loss) so the line color matches the marker arrows; the title tracks
-  // the entry/exit ROLE so the label reflects what the trader actually did.
+  // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
+  // sells. Short trades: entry = sells, exit = buys (the user opens by
+  // selling short and closes by buying back). Colors track the FILL side
+  // (B=win, S=loss) so the line color matches the marker arrows; the
+  // title tracks the entry/exit ROLE so the label reflects what the
+  // trader actually did. Labels say "Avg" because the price shown is the
+  // weighted average across all entry/exit fills, not a single price —
+  // a multi-fill scale-in/out trade has multiple fills behind one line.
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady) return
@@ -741,7 +753,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0, // solid
           axisLabelVisible: true,
-          title: `Entry ${entryAvg.toFixed(2)}`,
+          title: `Avg Entry ${price(entryAvg)}`,
         }),
       )
     }
@@ -753,7 +765,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           lineWidth: 1,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: `Exit ${exitAvg.toFixed(2)}`,
+          title: `Avg Exit ${price(exitAvg)}`,
         }),
       )
     }
@@ -804,7 +816,8 @@ function FitToFillsButton({
     const r = chartRefs.current
     if (!r || bars.length === 0 || trade.executions.length === 0) return
     const fillTimes = trade.executions
-      .map((e) => Date.parse(`${e.time}Z`))
+      // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
+      .map((e) => Date.parse(e.time))
       .filter((t) => Number.isFinite(t))
     if (fillTimes.length === 0) return
     const minFill = Math.min(...fillTimes)
@@ -948,13 +961,13 @@ function ContextBar({
           : 'text-win'
   return (
     <div className="grid grid-cols-2 gap-3 rounded-lg border border-border-subtle bg-bg-2 p-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
-      <Pair label="Open" value={stats.open == null ? '—' : `$${stats.open.toFixed(2)}`} />
-      <Pair label="High" value={stats.high == null ? '—' : `$${stats.high.toFixed(2)}`} tone="text-win" />
-      <Pair label="Low"  value={stats.low  == null ? '—' : `$${stats.low.toFixed(2)}`}  tone="text-loss" />
-      <Pair label="Close" value={stats.close == null ? '—' : `$${stats.close.toFixed(2)}`} />
+      <Pair label="Open" value={stats.open == null ? '—' : `$${price(stats.open)}`} />
+      <Pair label="High" value={stats.high == null ? '—' : `$${price(stats.high)}`} tone="text-win" />
+      <Pair label="Low"  value={stats.low  == null ? '—' : `$${price(stats.low)}`}  tone="text-loss" />
+      <Pair label="Close" value={stats.close == null ? '—' : `$${price(stats.close)}`} />
       <Pair label="Day volume" value={int(stats.volume)} />
       <Pair
-        label={`Entry vs EMA9 (${tfLabel})`}
+        label={`Entry vs 9EMA (${tfLabel})`}
         value={
           ema9Pct == null
             ? '—'
@@ -985,6 +998,16 @@ function secondsTime(epochMs: number): import('lightweight-charts').UTCTimestamp
   // Lightweight Charts wants seconds since epoch (UTC). Cast through their
   // branded UTCTimestamp type so TS is happy.
   return Math.floor(epochMs / 1000) as import('lightweight-charts').UTCTimestamp
+}
+
+// Eastern wall-clock label for a lightweight-charts UTCTimestamp (epoch
+// seconds). Candles, markers, and indicator series all sit on UTC epochs;
+// this renders the time axis + crosshair in US/Eastern (Day 8.5 Commit B) so
+// a US trader reads market wall-clock instead of UTC. `withSeconds` is on for
+// the crosshair tooltip, off (HH:MM) for the denser axis tick labels.
+function easternAxisLabel(timeSec: number, withSeconds: boolean): string {
+  const label = formatEastern(new Date(timeSec * 1000).toISOString())
+  return withSeconds ? label : label.slice(0, 5)
 }
 
 function computeDayStats(bars: IntradayBar[]): DayStats {
@@ -1081,6 +1104,11 @@ function computeEntryEma9Pct(
   const entrySide = trade.side === 'short' ? 'S' : 'B'
   const entryFill = trade.executions.find((e) => e.side === entrySide)
   if (!entryFill) return null
+  // entryFill.time is true UTC with a Z suffix (Day 8.5 Commit B). The
+  // includes('Z') guard is kept deliberately — it tolerates either form, so
+  // this stays correct even if a caller ever passes a legacy bare-local
+  // string. Do NOT simplify to a hard `${...}Z` append: that would double
+  // the Z on the normal already-UTC path and yield NaN.
   const entryEpoch = Date.parse(
     entryFill.time.includes('Z') ? entryFill.time : `${entryFill.time}Z`,
   )
@@ -1121,7 +1149,10 @@ function buildFillMarkers(
   const barTimesSec = bars.map((b) => Math.floor(b.t / 1000))
   const out: import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] = []
   for (const e of trade.executions) {
-    const epoch = Date.parse(`${e.time}Z`)
+    // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
+    // The pre-Commit-B `${e.time}Z` append now doubles the Z → NaN → the
+    // marker silently vanishes; that bug is what Tester A's chart surfaced.
+    const epoch = Date.parse(e.time)
     if (!Number.isFinite(epoch)) continue
     const sec = Math.floor(epoch / 1000)
     // Snap to nearest bar time so the marker rides the candle exactly.

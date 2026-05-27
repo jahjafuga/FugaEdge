@@ -1,6 +1,6 @@
 import type { OverviewStats } from '@shared/dashboard-types'
 import AnimatedNumber from '@/components/ui/AnimatedNumber'
-import { money, int, signed, pnlClass } from '@/lib/format'
+import { money, int, percent, signed, pnlClass } from '@/lib/format'
 
 interface KpiStripProps {
   overview: OverviewStats
@@ -21,7 +21,7 @@ const NA = 'N/A'
 
 const moneyOrDash: Fmt = (n) => (n === null ? DASH : money(n))
 const signedOrDash: Fmt = (n) => (n === null ? DASH : signed(n))
-const pctOrDash: Fmt = (n) => (n === null ? DASH : `${n.toFixed(1)}%`)
+const pctOrDash: Fmt = (n) => (n === null ? DASH : percent(n, 1))
 const pfFormat: Fmt = (n) => {
   if (n === null) return NA
   if (!Number.isFinite(n)) return '∞'
@@ -30,14 +30,12 @@ const pfFormat: Fmt = (n) => {
 const intCount: Fmt = (n) => (n === null ? DASH : int(Math.round(n)))
 
 export default function KpiStrip({ overview }: KpiStripProps) {
-  const winRatePct = overview.win_rate === null ? null : overview.win_rate * 100
-
   const items: Kpi[] = [
     { label: 'Net P&L',         value: overview.net_pnl,        format: signedOrDash, tone: 'auto' },
     { label: 'Gross P&L',       value: overview.gross_pnl,      format: signedOrDash, tone: 'auto' },
     { label: 'Total fees',      value: overview.total_fees,     format: moneyOrDash,  tone: 'red' },
     { label: 'Trade count',     value: overview.trade_count,    format: intCount,     tone: 'neutral' },
-    { label: 'Win rate',        value: winRatePct,              format: pctOrDash,    tone: 'gold' },
+    { label: 'Win rate',        value: overview.win_rate,       format: pctOrDash,    tone: 'gold' },
     { label: 'Profit factor',   value: overview.profit_factor,  format: pfFormat,     tone: 'gold' },
     { label: 'Avg winner',      value: overview.avg_winner,     format: moneyOrDash,  tone: 'green' },
     { label: 'Avg loser',       value: overview.avg_loser,      format: moneyOrDash,  tone: 'red' },

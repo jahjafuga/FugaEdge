@@ -4,9 +4,17 @@ import { recomputeFeesForDateSymbol } from './apply-fees'
 
 export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   const db = openDatabase()
-  const stmt = db.prepare('SELECT 1 FROM trades WHERE exec_hash = ? LIMIT 1')
+  // v0.2.1 dual-hash dedup. A trip is duplicate if EITHER hash matches an
+  // existing row. exec_hash catches identical-ID re-imports (v0.1.6 contract);
+  // content_hash catches cross-format overlap where the same logical fill
+  // carries different per-fill IDs (scenarios b1/b2/b3 from the 2026-05-26
+  // dedup investigation). Both columns are indexed (UNIQUE on exec_hash,
+  // partial UNIQUE on content_hash), so the OR clause is sargable on either.
+  const stmt = db.prepare(
+    'SELECT 1 FROM trades WHERE exec_hash = ? OR content_hash = ? LIMIT 1',
+  )
   return trips.map((t) => {
-    const hit = stmt.get(t.exec_hash)
+    const hit = stmt.get(t.exec_hash, t.content_hash)
     return { ...t, status: hit ? ('duplicate' as const) : ('new' as const) }
   })
 }
@@ -135,15 +143,24 @@ export function commit(
     'DELETE FROM trades WHERE symbol = ? AND date = ? AND is_open = 1',
   )
 
+  // v0.2.1 uses INSERT OR IGNORE rather than multi-target ON CONFLICT — the
+  // bundled SQLite (3.49.2 via better-sqlite3 11.10) rejects ON CONFLICT
+  // when one of the targets is a partial unique index (see
+  // scripts/verify-multi-conflict.cjs for the empirical probe + the exact
+  // error: "2nd ON CONFLICT clause does not match any PRIMARY KEY or
+  // UNIQUE constraint"). INSERT OR IGNORE is the documented fallback — it
+  // catches conflicts on ANY uniqueness constraint without requiring a
+  // named target, which is exactly what the dual-hash design needs.
   const insertTrip = db.prepare(`
-    INSERT INTO trades (
+    INSERT OR IGNORE INTO trades (
       date, symbol, side,
       open_time, close_time, is_open,
       shares_bought, avg_buy_price, shares_sold, avg_sell_price,
       pnl, gross_pnl,
       fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees,
       net_pnl,
-      executions_json, exec_hash
+      executions_json, exec_hash, content_hash,
+      source_broker, source_format, source_file, account_name, fees_reported
     ) VALUES (
       @date, @symbol, @side,
       @open_time, @close_time, @is_open,
@@ -151,9 +168,30 @@ export function commit(
       @pnl, @gross_pnl,
       0, 0, 0, 0, 0, 0,
       @net_pnl,
-      @executions_json, @exec_hash
+      @executions_json, @exec_hash, @content_hash,
+      @source_broker, @source_format, @source_file, @account_name, @fees_reported
     )
-    ON CONFLICT(exec_hash) DO NOTHING
+  `)
+
+  // Dual-write companion to trades.executions_json (decision G). For each
+  // round trip that gets inserted, one row per constituent fill goes into
+  // the executions table. Readers stay on the JSON column for v0.2.0 Day 1;
+  // the table becomes load-bearing in a later v0.2.0 step.
+  //
+  // source_broker / source_format / source_file are taken from the round
+  // trip (which buildRoundTrips populated from the first constituent
+  // execution). Per-execution fee fields, liquidity_type, account_name,
+  // and is_paper stay NULL on Day 1 — the narrow RoundTripExecution shape
+  // doesn't carry them through. A later v0.2.0 day will widen the data
+  // flow when Webull/IBKR parsers start surfacing those fields.
+  const insertExecution = db.prepare(`
+    INSERT INTO executions (
+      round_trip_id, trade_id, order_id, symbol, side, quantity, price,
+      timestamp_utc, source_broker, source_format, source_file
+    ) VALUES (
+      @round_trip_id, @trade_id, @order_id, @symbol, @side, @quantity, @price,
+      @timestamp_utc, @source_broker, @source_format, @source_file
+    )
   `)
 
   const upsertFees = db.prepare(`
@@ -192,6 +230,14 @@ export function commit(
         skippedTrips++
         continue
       }
+      // Safe fallbacks so commit() stays compatible with any caller that
+      // constructs RoundTrips outside the universal buildRoundTrips path
+      // (e.g. test fixtures, future migration importers).
+      const sourceBroker = t.source_broker ?? 'DAS'
+      const sourceFormat = t.source_format ?? 'execution'
+      const sourceFile = t.source_file ?? null
+      const accountName = t.account_name ?? null
+
       const info = insertTrip.run({
         date: t.date,
         symbol: t.symbol,
@@ -208,9 +254,31 @@ export function commit(
         net_pnl: t.net_pnl,
         executions_json: JSON.stringify(t.executions),
         exec_hash: t.exec_hash,
+        content_hash: t.content_hash,
+        source_broker: sourceBroker,
+        source_format: sourceFormat,
+        source_file: sourceFile,
+        account_name: accountName,
+        fees_reported: t.fees_reported ? 1 : 0,
       })
       if (info.changes > 0) {
         insertedTrips++
+        const tripId = info.lastInsertRowid as number
+        for (const fill of t.executions) {
+          insertExecution.run({
+            round_trip_id: tripId,
+            trade_id: fill.trade_id,
+            order_id: fill.order_id,
+            symbol: t.symbol,
+            side: fill.side,
+            quantity: fill.qty,
+            price: fill.price,
+            timestamp_utc: fill.time,
+            source_broker: sourceBroker,
+            source_format: sourceFormat,
+            source_file: sourceFile,
+          })
+        }
         dates.add(t.date)
         pairs.add(`${t.date}|${t.symbol}`)
       } else {

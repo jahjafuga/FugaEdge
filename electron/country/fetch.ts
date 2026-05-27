@@ -1,5 +1,6 @@
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference, MassiveError } from '../market/massive'
+import { withRateLimitRetry } from '../market/rate-limit'
 import { resolveCountryFromPolygon, type ResolvedCountry } from '@/core/country/resolve'
 import {
   tradesNeedingCountryFetch,
@@ -9,7 +10,6 @@ import {
 } from '../trades/country'
 
 const REQUEST_SPACING_MS = 350
-const RETRY_BACKOFF_MS = 12_000
 const PROGRESS_EVERY = 1
 
 export interface CountryBackfillResult {
@@ -85,17 +85,9 @@ async function run(opts: {
     }
     try {
       await respectSpacing()
-      let ref
-      try {
-        ref = await fetchTickerReference(polygon_api_key, symbol)
-      } catch (e) {
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          ref = await fetchTickerReference(polygon_api_key, symbol)
-        } else {
-          throw e
-        }
-      }
+      const ref = await withRateLimitRetry(() =>
+        fetchTickerReference(polygon_api_key, symbol),
+      )
       const resolved = resolveCountryFromPolygon(ref)
       const source: CountrySource = resolved.source === 'polygon' ? 'polygon' : 'unknown'
       const changed = applyCountryToSymbol(symbol, {

@@ -13,6 +13,7 @@ export {
 export {
   cleanAmount,
   emptyOnboardingState,
+  isPlausibleApiKey,
   shouldShowOnboarding,
 } from './state'
 export {

@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC, type DbHealthcheck } from '@shared/ipc-channels'
+import { IPC, type DbHealthcheck, type DbResetResult } from '@shared/ipc-channels'
 import type {
   CommitInput,
   CommitResult,
@@ -41,6 +41,7 @@ import type {
   SettingsPayload,
   SettingsUpdate,
 } from '@shared/settings-types'
+import type { MassiveKeyStatus } from '@shared/massive-types'
 import type {
   IntradayBarsPayload,
   IntradayRefreshResult,
@@ -56,6 +57,7 @@ import type {
   SaveTodaySessionInput,
   SessionMeta,
 } from '@shared/session-types'
+import type { DataHealth } from '@shared/data-health-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -63,6 +65,7 @@ const api = {
   openExternal: (url: string): Promise<boolean> =>
     ipcRenderer.invoke(IPC.APP_OPEN_EXTERNAL, url),
   dbHealthcheck: (): Promise<DbHealthcheck> => ipcRenderer.invoke(IPC.DB_HEALTHCHECK),
+  resetDatabase: (): Promise<DbResetResult> => ipcRenderer.invoke(IPC.DB_RESET),
   importPreview: (files: PreviewInputFile[]): Promise<PreviewResult> =>
     ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files),
   importCommit: (input: CommitInput): Promise<CommitResult> =>
@@ -127,6 +130,8 @@ const api = {
   settingsGet: (): Promise<SettingsPayload> => ipcRenderer.invoke(IPC.SETTINGS_GET),
   settingsSave: (input: SettingsUpdate): Promise<SettingsPayload> =>
     ipcRenderer.invoke(IPC.SETTINGS_SAVE, input),
+  testMassiveKey: (apiKey: string): Promise<MassiveKeyStatus> =>
+    ipcRenderer.invoke(IPC.SETTINGS_TEST_MASSIVE_KEY, apiKey),
   exportTrades: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_TRADES),
   exportJournal: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_JOURNAL),
   exportDatabase: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_DATABASE),
@@ -175,6 +180,10 @@ const api = {
       ipcRenderer.removeListener(IPC.UPDATER_STATUS, listener)
     }
   },
+  dataHealthGet: (): Promise<DataHealth> =>
+    ipcRenderer.invoke(IPC.DATA_HEALTH_GET),
+  dataHealthAcknowledgeCollisions: (): Promise<DataHealth> =>
+    ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

@@ -35,6 +35,24 @@ interface RefreshOptions {
 
 let inFlight: Promise<RefreshResult> | null = null
 
+/** Fetch daily aggregates (date → volume map + avg) for a single symbol
+ *  over an explicit date range. Mirrors the aggregates-fetch portion of
+ *  runRefresh's fetchOne but as a standalone primitive the import-time
+ *  aggregates orchestrator can call without going through the singleton
+ *  lock. Does NOT consult cache or staleness — caller owns those. */
+export async function fetchAggregatesForSymbol(
+  apiKey: string,
+  symbol: string,
+  from: string,
+  to: string,
+): Promise<{ daily_volumes: Record<string, number>; avg_volume: number | null }> {
+  const aggs = await fetchDailyAggregates(apiKey, symbol, from, to)
+  const daily_volumes: Record<string, number> = {}
+  for (const a of aggs) daily_volumes[a.date] = a.volume
+  const avg = aggs.length > 0 ? avgVolume(aggs.map((a) => a.volume)) : null
+  return { daily_volumes, avg_volume: avg }
+}
+
 // Public entrypoint. Locks behind a singleton promise so concurrent callers
 // (manual button + import-time auto-refresh racing) share one run.
 export function refreshMarketData(opts: RefreshOptions = {}): Promise<RefreshResult> {

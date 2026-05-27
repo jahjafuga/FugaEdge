@@ -52,3 +52,12 @@ export function cleanAmount(raw: number | string | null | undefined): number {
   if (!Number.isFinite(n) || n < 0) return 0
   return n
 }
+
+/** Plausibility check for a Massive API key. Lenient by design — real
+ *  validation happens against the service in a later step. Guards the UX
+ *  against obviously-empty or pasted-wrong submissions. */
+export function isPlausibleApiKey(s: string): boolean {
+  const trimmed = s.trim()
+  if (trimmed.length < 16) return false
+  return /^[A-Za-z0-9_-]+$/.test(trimmed)
+}

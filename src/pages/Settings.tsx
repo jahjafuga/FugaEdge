@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { AlertCircle, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { AlertCircle, ArrowUpRight, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
+import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
@@ -18,6 +19,7 @@ import type {
   SettingsValues,
 } from '@shared/settings-types'
 import type { IntradayRefreshResult, MarketRefreshResult } from '@shared/market-types'
+import type { MassiveKeyStatus } from '@shared/massive-types'
 
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
@@ -50,6 +52,8 @@ export default function Settings() {
   const [snapshot, setSnapshot] = useState<SettingsValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [keyStatus, setKeyStatus] = useState<MassiveKeyStatus | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
@@ -82,18 +86,30 @@ export default function Settings() {
   }, [])
 
   const handleSave = useCallback(async () => {
-    if (saving || !editor) return
+    if (saving || !editor || !snapshot) return
     setSaving(true)
+    setKeyStatus(null) // clear any prior validity result before this save
     try {
       const updated = await ipc.settingsSave(editor)
       setPayload(updated)
       setEditor(updated.values)
       setSnapshot(updated.values)
       setSavedAt(Date.now())
+
+      // Save-then-verify: the key is already persisted by this point, so
+      // every keyStatus outcome below describes a key that IS saved. Ping
+      // Massive only when the key field actually changed in this save and
+      // is non-empty — don't hit the network on unrelated settings saves.
+      const keyChanged = editor.polygon_api_key !== snapshot.polygon_api_key
+      const keyPresent = editor.polygon_api_key.trim().length > 0
+      if (keyChanged && keyPresent) {
+        const status = await ipc.testMassiveKey(editor.polygon_api_key.trim())
+        setKeyStatus(status)
+      }
     } finally {
       setSaving(false)
     }
-  }, [editor, saving])
+  }, [editor, saving, snapshot])
 
   const runRefresh = useCallback(async () => {
     if (refreshing) return
@@ -195,7 +211,9 @@ export default function Settings() {
               hint="Dashboard banner fires when today's net P&L falls below the negative of this value."
               value={editor.max_daily_loss}
               onChange={(v) =>
-                setEditor({ ...editor, max_daily_loss: v })
+                setEditor((prev) =>
+                  prev ? { ...prev, max_daily_loss: v } : prev,
+                )
               }
             />
             <NumberField
@@ -203,7 +221,11 @@ export default function Settings() {
               suffix={money(editor.account_size).replace('$', '$ ')}
               hint="Used as the reference equity for percentage-based stats."
               value={editor.account_size}
-              onChange={(v) => setEditor({ ...editor, account_size: v })}
+              onChange={(v) =>
+                setEditor((prev) =>
+                  prev ? { ...prev, account_size: v } : prev,
+                )
+              }
             />
           </div>
         </Card>
@@ -216,7 +238,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.journal_rules}
-            onChange={(next) => setEditor({ ...editor, journal_rules: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, journal_rules: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -228,7 +254,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.mistake_list}
-            onChange={(next) => setEditor({ ...editor, mistake_list: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, mistake_list: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -240,7 +270,11 @@ export default function Settings() {
         >
           <RuleList
             rules={editor.day_tag_list}
-            onChange={(next) => setEditor({ ...editor, day_tag_list: next })}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, day_tag_list: next } : prev,
+              )
+            }
           />
         </SettingsAccordion>
 
@@ -249,6 +283,18 @@ export default function Settings() {
           subtitle="Massive.com REST API. Powers the Reports volume analysis and the Momentum EMA9 distance."
         >
           <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() =>
+                void ipc.openExternal(
+                  'https://massive.com/dashboard/signup?redirect=%2Fdashboard%2Fkeys',
+                )
+              }
+              className="inline-flex h-8 cursor-pointer items-center gap-1.5 self-start rounded-md border border-border-strong bg-bg-1 px-3 text-xs font-semibold text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+            >
+              Get a free Massive API key
+              <ArrowUpRight size={12} strokeWidth={2.25} />
+            </button>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
                 API key
@@ -257,15 +303,35 @@ export default function Settings() {
                 type="password"
                 value={editor.polygon_api_key}
                 onChange={(e) =>
-                  setEditor({ ...editor, polygon_api_key: e.target.value })
+                  setEditor((prev) =>
+                    prev ? { ...prev, polygon_api_key: e.target.value } : prev,
+                  )
                 }
                 placeholder="paste your massive.com API key"
                 className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
               />
               <div className="mt-1.5 text-xs text-fg-tertiary">
-                Cached in SQLite at <span className="font-mono">settings.polygon_api_key</span>.
-                Never logged. Save before refreshing.
+                Cached locally. Never logged. Save before refreshing.
               </div>
+              {keyStatus && (
+                <div
+                  className={`mt-1.5 text-xs ${
+                    keyStatus.kind === 'valid'
+                      ? 'text-win'
+                      : keyStatus.kind === 'invalid'
+                        ? 'text-danger'
+                        : 'text-warning'
+                  }`}
+                >
+                  {keyStatus.kind === 'valid' && '✓ Key verified.'}
+                  {keyStatus.kind === 'invalid' &&
+                    "✗ Massive didn't accept that key. Double-check the value and try saving again."}
+                  {keyStatus.kind === 'rate-limited' &&
+                    "Key saved. Couldn't fully verify right now — Massive's rate limit was hit. Try Save again in a minute to verify."}
+                  {keyStatus.kind === 'network-error' &&
+                    "Key saved. Couldn't reach Massive — check your connection and try Save again to verify."}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4">
@@ -380,8 +446,33 @@ export default function Settings() {
         <DataBackfillCard
           lastRun={editor.last_country_backfill}
           onLastRunChange={(iso) =>
-            setEditor({ ...editor, last_country_backfill: iso })
+            setEditor((prev) =>
+              prev ? { ...prev, last_country_backfill: iso } : prev,
+            )
           }
+          onApiKeySaved={() => {
+            // The backfill modal saved a key straight to the DB, bypassing
+            // this page's editor state. Re-read and patch ONLY
+            // polygon_api_key into both editor and snapshot — editor so the
+            // Market data input reflects it, snapshot so isDirty stays false
+            // (no spurious "Save settings" prompt).
+            void ipc.settingsGet().then((p) => {
+              // Guard `prev` so the spread keeps every field required —
+              // spreading `SettingsValues | null` would mark them optional.
+              // (prev is non-null in practice: this card only renders once
+              // Settings is past its loading gate.)
+              setEditor((prev) =>
+                prev
+                  ? { ...prev, polygon_api_key: p.values.polygon_api_key }
+                  : prev,
+              )
+              setSnapshot((prev) =>
+                prev
+                  ? { ...prev, polygon_api_key: p.values.polygon_api_key }
+                  : prev,
+              )
+            })
+          }}
         />
 
         <Card title="Data" subtitle="Export and back up your local database.">
@@ -442,7 +533,22 @@ export default function Settings() {
                 Export failed: {exportError}
               </div>
             )}
+
+            <div className="border-t border-border-subtle pt-4">
+              <button
+                type="button"
+                onClick={() => setResetOpen(true)}
+                className="rounded-md border border-loss/50 bg-bg-1 px-4 py-2 text-sm text-loss transition-colors duration-150 hover:border-loss hover:bg-loss/[0.06]"
+              >
+                Reset journal
+              </button>
+              <p className="mt-1.5 text-xs text-fg-tertiary">
+                Saves the current journal aside as a dated file and starts
+                fresh. FugaEdge restarts. Recovery is manual.
+              </p>
+            </div>
           </div>
+          <ResetJournalModal open={resetOpen} onClose={() => setResetOpen(false)} />
         </Card>
 
         <Card

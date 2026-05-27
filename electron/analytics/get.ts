@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
+import { utcToEasternParts } from '@/lib/format'
 import type {
   AnalyticsData,
   CatalystAnalytics,
@@ -330,16 +331,12 @@ function pad2(n: number): string {
 }
 
 function bucketWindow(iso: string): string | null {
-  // ISO is local-ish ("YYYY-MM-DDTHH:MM:SS"); split rather than Date-parse
-  // so we don't drift from the timestamp the user actually sees.
-  const t = iso.split('T')[1]
-  if (!t) return null
-  const [hh, mm] = t.split(':')
-  const h = Number(hh)
-  const m = Number(mm)
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return null
-  const halfHour = m < 30 ? '00' : '30'
-  return `${pad2(h)}:${halfHour}`
+  // `iso` is true UTC (Day 8.5 Commit B) — bucket by Eastern wall-clock so
+  // the half-hour windows line up with US market hours.
+  const p = utcToEasternParts(iso)
+  if (!p) return null
+  const halfHour = p.minute < 30 ? '00' : '30'
+  return `${pad2(p.hour)}:${halfHour}`
 }
 
 function computeVolumeByTimeOfDay(rows: TradeRow[]): VolumeByTimeBucket[] {
@@ -389,10 +386,11 @@ function bucketStatsFor(trades: TradeRow[], key: string): MomentumBucket {
 }
 
 function computeByTimeframe(rows: TradeRow[]): MomentumBucket[] {
-  const order = ['10s', '1m', '5m', 'unset']
+  const order = ['10s', '1m', '5m']
   const groups = new Map<string, TradeRow[]>()
   for (const t of rows) {
-    const key = t.entry_timeframe ?? 'unset'
+    if (t.entry_timeframe == null) continue
+    const key = t.entry_timeframe
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
@@ -404,17 +402,18 @@ function computeByTimeframe(rows: TradeRow[]): MomentumBucket[] {
 }
 
 function computeByConfidence(rows: TradeRow[]): MomentumBucket[] {
-  const order = ['1', '2', '3', '4', '5', 'unset']
+  const order = ['1', '2', '3', '4', '5']
   const groups = new Map<string, TradeRow[]>()
   for (const t of rows) {
-    const key = t.confidence != null ? String(t.confidence) : 'unset'
+    if (t.confidence == null) continue
+    const key = String(t.confidence)
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
   }
   return order
     .filter((k) => groups.has(k))
-    .map((k) => bucketStatsFor(groups.get(k)!, k === 'unset' ? 'unset' : `${k} dot${k === '1' ? '' : 's'}`))
+    .map((k) => bucketStatsFor(groups.get(k)!, `${k} dot${k === '1' ? '' : 's'}`))
 }
 
 function ema9Bucket(pct: number): string {

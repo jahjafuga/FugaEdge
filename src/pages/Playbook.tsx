@@ -7,7 +7,7 @@ import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
 import TierBadge from '@/components/playbook/TierBadge'
 import { ipc } from '@/lib/ipc'
-import { int, pnlClass, signed } from '@/lib/format'
+import { int, percent, pnlClass, signed } from '@/lib/format'
 import {
   PLAYBOOK_TIERS,
   type PlaybookTier,
@@ -20,6 +20,10 @@ export default function Playbook() {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  // Inline "new playbook" creator — replaces window.prompt, which Electron's
+  // renderer does not implement (it returns null, silently killing creation).
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
 
   // Form state for the right-side editor — mirrors the selected playbook,
   // resets when selection changes. dirty check happens at save time.
@@ -74,8 +78,18 @@ export default function Playbook() {
     }
   }, [selected])
 
-  const handleCreate = useCallback(async () => {
-    const name = window.prompt('New playbook name?')?.trim()
+  const startCreate = useCallback(() => {
+    setNewName('')
+    setCreating(true)
+  }, [])
+
+  const cancelCreate = useCallback(() => {
+    setCreating(false)
+    setNewName('')
+  }, [])
+
+  const submitCreate = useCallback(async () => {
+    const name = newName.trim()
     if (!name) return
     try {
       const created = await ipc.playbookCreate({ name })
@@ -83,10 +97,12 @@ export default function Playbook() {
       const fresh = await ipc.playbooksList()
       setList(fresh)
       setSelectedId(created.id)
+      setCreating(false)
+      setNewName('')
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e))
     }
-  }, [])
+  }, [newName])
 
   const handleSave = useCallback(async () => {
     if (!selected || !editor || saving) return
@@ -111,6 +127,22 @@ export default function Playbook() {
       setSaving(false)
     }
   }, [editor, saving, selected])
+
+  // Archive must persist immediately. Previously the button only flipped
+  // local editor state, so the change was lost on navigation away/back.
+  const handleArchiveToggle = useCallback(async () => {
+    if (!selected || !editor) return
+    const nextArchived = !editor.archived
+    try {
+      await ipc.playbookUpdate({ id: selected.id, archived: nextArchived })
+      invalidatePlaybookCache()
+      const fresh = await ipc.playbooksList()
+      setList(fresh)
+      setEditor({ ...editor, archived: nextArchived })
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : String(e))
+    }
+  }, [editor, selected])
 
   const handleDelete = useCallback(async () => {
     if (!selected) return
@@ -168,13 +200,52 @@ export default function Playbook() {
             </div>
             <button
               type="button"
-              onClick={handleCreate}
+              onClick={startCreate}
               className="inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold transition-colors duration-150 hover:bg-gold/[0.18]"
             >
               <Plus size={11} strokeWidth={2.5} />
               New
             </button>
           </div>
+          {creating && (
+            <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-3">
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    submitCreate()
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    cancelCreate()
+                  }
+                }}
+                placeholder="New playbook name…"
+                className="min-w-0 flex-1 rounded-md border border-border-strong bg-bg-1 px-2 py-1 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
+              />
+              <button
+                type="button"
+                onClick={submitCreate}
+                disabled={!newName.trim()}
+                className="shrink-0 cursor-pointer rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-bg transition-all duration-150 hover:brightness-110 disabled:cursor-default disabled:opacity-40"
+                style={{
+                  background:
+                    'linear-gradient(135deg, #d4af37 0%, #b59122 100%)',
+                }}
+              >
+                Create
+              </button>
+              <button
+                type="button"
+                onClick={cancelCreate}
+                className="shrink-0 cursor-pointer rounded border border-white/[0.08] px-2 py-1 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <ul className="max-h-[600px] overflow-y-auto">
             {list.map((p) => {
               const isSel = p.id === selectedId
@@ -221,7 +292,7 @@ export default function Playbook() {
                           <>
                             <span>·</span>
                             <span className="text-gold">
-                              {(p.stats.win_rate * 100).toFixed(0)}%
+                              {percent(p.stats.win_rate, 0)}
                             </span>
                           </>
                         )}
@@ -261,9 +332,7 @@ export default function Playbook() {
                   )}
                   <button
                     type="button"
-                    onClick={() =>
-                      setEditor({ ...editor, archived: !editor.archived })
-                    }
+                    onClick={handleArchiveToggle}
                     className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
                   >
                     {editor.archived ? 'restore' : 'archive'}
@@ -361,7 +430,7 @@ export default function Playbook() {
                       setEditor({ ...editor, ideal_conditions: e.target.value })
                     }
                     rows={4}
-                    placeholder={`Time of day, RVOL, news catalyst, float, daily range, etc.`}
+                    placeholder={`Time of day, RVOL, news catalyst, daily range, etc.`}
                     className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
                   />
                 </Field>

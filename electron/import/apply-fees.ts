@@ -1,35 +1,27 @@
 import { openDatabase } from '../db/database'
+import {
+  allocateFees,
+  zeroAllocation,
+  type DayFees,
+  type TripShare,
+} from '@/core/import/allocate-fees'
 
-// Allocates day_fees pro-rata across every trade for (date, symbol).
-// Basis: shares_bought + shares_sold per trip / total of same across all trips.
-// Fee types that aren't share-based (HTB, sometimes ECN) get the same basis —
-// good enough until we wire per-fee-type rates. After fees are applied we
-// recompute the affected dates' daily_summary so the dashboard reflects them.
-
-interface TripShare {
-  id: number
-  total_shares: number
-  gross_pnl: number
-}
-
-interface DayFees {
-  fee_ecn: number
-  fee_sec: number
-  fee_finra: number
-  fee_htb: number
-  fee_cat: number
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100
-}
+// Thin DB wrapper around the pure allocation engine in
+// /src/core/import/allocate-fees.ts. Read the (date, symbol) bucket of
+// trips and the matching day_fees row, hand them to the pure math, and
+// write the allocations back. Recomputes the affected dates' daily_summary
+// downstream so the dashboard reflects new fees.
+//
+// SIGN-PRESERVING — see allocate-fees.ts for the v0.1.6 ECN-rebate bug
+// fix context. This wrapper carries no clamping of its own; whatever the
+// pure function returns is what lands in trades.fee_*.
 
 export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
   const db = openDatabase()
 
   const trips = db
     .prepare(`
-      SELECT id, (shares_bought + shares_sold) AS total_shares, gross_pnl
+      SELECT id, (shares_bought + shares_sold) AS total_shares
       FROM trades WHERE date = ? AND symbol = ?
     `)
     .all(date, symbol) as TripShare[]
@@ -59,60 +51,8 @@ export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
     WHERE id = @id
   `)
 
-  if (!fees) {
-    // No fee data for this (date, symbol) — clear any previously-applied fees.
-    for (const t of trips) {
-      update.run({
-        id: t.id,
-        fee_ecn: 0,
-        fee_sec: 0,
-        fee_finra: 0,
-        fee_htb: 0,
-        fee_cat: 0,
-        total_fees: 0,
-      })
-    }
-    return
-  }
-
-  const totalShares = trips.reduce((acc, t) => acc + t.total_shares, 0)
-  if (totalShares === 0) return
-
-  // Track running totals so we can fix the rounding residue on the last trip —
-  // pro-rata + rounding to cents would otherwise leave the sum a penny off.
-  let acc = { ecn: 0, sec: 0, finra: 0, htb: 0, cat: 0 }
-
-  trips.forEach((t, i) => {
-    const last = i === trips.length - 1
-    const ratio = t.total_shares / totalShares
-    let ecn = last ? round2(fees.fee_ecn - acc.ecn) : round2(fees.fee_ecn * ratio)
-    let sec = last ? round2(fees.fee_sec - acc.sec) : round2(fees.fee_sec * ratio)
-    let finra = last ? round2(fees.fee_finra - acc.finra) : round2(fees.fee_finra * ratio)
-    let htb = last ? round2(fees.fee_htb - acc.htb) : round2(fees.fee_htb * ratio)
-    let cat = last ? round2(fees.fee_cat - acc.cat) : round2(fees.fee_cat * ratio)
-    if (ecn < 0) ecn = 0
-    if (sec < 0) sec = 0
-    if (finra < 0) finra = 0
-    if (htb < 0) htb = 0
-    if (cat < 0) cat = 0
-    acc = {
-      ecn: acc.ecn + ecn,
-      sec: acc.sec + sec,
-      finra: acc.finra + finra,
-      htb: acc.htb + htb,
-      cat: acc.cat + cat,
-    }
-    const total = round2(ecn + sec + finra + htb + cat)
-    update.run({
-      id: t.id,
-      fee_ecn: ecn,
-      fee_sec: sec,
-      fee_finra: finra,
-      fee_htb: htb,
-      fee_cat: cat,
-      total_fees: total,
-    })
-  })
+  const allocations = fees ? allocateFees(trips, fees) : zeroAllocation(trips)
+  for (const a of allocations) update.run(a)
 }
 
 // Convenience: replays the allocation for everything in day_fees. Use when

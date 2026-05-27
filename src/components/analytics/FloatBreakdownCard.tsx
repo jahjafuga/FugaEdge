@@ -2,7 +2,7 @@ import Card from '@/components/ui/Card'
 import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { FloatAnalytics } from '@shared/analytics-types'
-import { int, signed, pnlClass } from '@/lib/format'
+import { int, percent, signed, pnlClass } from '@/lib/format'
 
 interface FloatBreakdownCardProps {
   data: FloatAnalytics
@@ -31,7 +31,7 @@ export default function FloatBreakdownCard({ data }: FloatBreakdownCardProps) {
         <Tooltip
           content={
             <>
-              Float is auto-fetched from Polygon ticker details on import
+              Float is auto-fetched from Massive ticker details on import
               (share_class_shares_outstanding). The trade detail modal's
               Float field lets you override per-trade values. Trades without
               a float value (no market data yet) roll up into "Unset".
@@ -77,7 +77,7 @@ export default function FloatBreakdownCard({ data }: FloatBreakdownCardProps) {
                     <span className="text-fg-muted">—</span>
                   ) : (
                     <span className="text-gold">
-                      {(b.win_rate * 100).toFixed(0)}%
+                      {percent(b.win_rate, 0)}
                     </span>
                   )}
                 </td>

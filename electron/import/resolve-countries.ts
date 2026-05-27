@@ -3,7 +3,8 @@
 // portable per ARCHITECTURE.md.
 
 import { getSettings } from '../settings/repo'
-import { fetchTickerReference, MassiveError } from '../market/massive'
+import { fetchTickerReference } from '../market/massive'
+import { withRateLimitRetry } from '../market/rate-limit'
 import { applyCountryToSymbol, type CountrySource } from '../trades/country'
 import { getMarketRow, upsertMarketRow } from '../market/repo'
 import {
@@ -12,7 +13,6 @@ import {
 } from '@/core/country/import-orchestrator'
 
 const REQUEST_SPACING_MS = 350
-const RETRY_BACKOFF_MS = 12_000
 
 /** Resolve country for each newly-imported symbol using Polygon's
  *  /v3/reference/tickers cached response, then persist to trades + the
@@ -22,31 +22,20 @@ export async function resolveCountriesForImportedSymbols(
   symbols: string[],
 ): Promise<ImportResolveResult> {
   if (symbols.length === 0) {
-    return { resolved: 0, unknown: 0, errors: [] }
+    return { resolved: 0, unknown: 0, errors: [], apiKeyMissing: false }
   }
   const { polygon_api_key } = getSettings().values
   if (!polygon_api_key) {
-    // No key → can't resolve. Treat all as unknown so the toast nudges the
-    // user to set up Backfill (which itself prompts for an API key).
-    return { resolved: 0, unknown: symbols.length, errors: [] }
+    // No key → can't resolve. Flag it so the renderer can surface a
+    // specific "API key missing" banner instead of the generic
+    // "N tickers unknown" line.
+    return { resolved: 0, unknown: symbols.length, errors: [], apiKeyMissing: true }
   }
 
   return resolveCountriesForImport({
     symbols,
-    fetchRef: async (symbol) => {
-      try {
-        return await fetchTickerReference(polygon_api_key, symbol)
-      } catch (e) {
-        // Single soft retry on rate-limit, matching refreshMarketData's
-        // behaviour. Other errors bubble up and are recorded by the
-        // orchestrator.
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          return fetchTickerReference(polygon_api_key, symbol)
-        }
-        throw e
-      }
-    },
+    fetchRef: (symbol) =>
+      withRateLimitRetry(() => fetchTickerReference(polygon_api_key, symbol)),
     applyToTrades: (symbol, resolved) => {
       const source: CountrySource = resolved.country ? 'polygon' : 'unknown'
       applyCountryToSymbol(symbol, {

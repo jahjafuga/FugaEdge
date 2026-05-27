@@ -5,18 +5,34 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-export const SCHEMA_VERSION = '17'
+// Bumped to 20 for v0.2.1: trades.content_hash backfill — second dedup
+// hash computed from intrinsic fill content (symbol, UTC ts, side, qty,
+// price) so duplicates that share content but differ on per-fill IDs
+// (cross-format scenarios b1/b2/b3 from the 2026-05-26 dedup investigation)
+// are caught. The bump is the one-shot trigger for migrateContentHash
+// (see migrate-content-hash.ts). Column ALTER + partial UNIQUE index are
+// added in migrateAfterSchema.
+//
+// Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
+// Eastern to true UTC. See migrate-tz-utc.ts.
+export const SCHEMA_VERSION = '20'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
 
+-- TIMEZONE FOOTGUN (Day 8.5 Commit B): open_time / close_time are true UTC
+-- (ISO 8601 with a Z suffix). \`date\` is the Eastern TRADING DAY and
+-- deliberately does NOT track the UTC calendar day — an after-hours fill
+-- (20:00 ET) has an open_time on the next UTC day while \`date\` stays the
+-- Eastern day. Bucket P&L / calendar / day-of-week by \`date\`; never derive
+-- the trading day from open_time.slice(0,10).
 CREATE TABLE IF NOT EXISTS trades (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  date            TEXT    NOT NULL,                           -- YYYY-MM-DD of open_time
+  date            TEXT    NOT NULL,                           -- Eastern trading day YYYY-MM-DD (see footgun note above)
   symbol          TEXT    NOT NULL,
   side            TEXT    NOT NULL CHECK (side IN ('long','short')),
-  open_time       TEXT    NOT NULL,                           -- ISO YYYY-MM-DDTHH:MM:SS
-  close_time      TEXT,                                       -- null if is_open = 1
+  open_time       TEXT    NOT NULL,                           -- ISO 8601 UTC, e.g. 2026-05-14T13:30:00Z
+  close_time      TEXT,                                       -- ISO 8601 UTC; null if is_open = 1
   is_open         INTEGER NOT NULL DEFAULT 0,                 -- 1 if position never returned to 0
   shares_bought   INTEGER NOT NULL DEFAULT 0,
   avg_buy_price   REAL    NOT NULL DEFAULT 0,
@@ -33,6 +49,11 @@ CREATE TABLE IF NOT EXISTS trades (
   net_pnl         REAL    NOT NULL DEFAULT 0,                 -- gross_pnl - total_fees
   executions_json TEXT    NOT NULL DEFAULT '[]',              -- raw fills, parent→children grouping
   exec_hash       TEXT    NOT NULL UNIQUE,                    -- SHA-1 of sorted TradeID:OrderID
+  -- content_hash column is added in migrateAfterSchema (additive ALTER) so
+  -- existing v0.1.6/v0.2.0 rows can be backfilled idempotently. The partial
+  -- UNIQUE index "idx_trades_content_hash" (WHERE content_hash IS NOT NULL)
+  -- is also created in migrateAfterSchema after the migration sweep so
+  -- legacy NULL rows can coexist with the constraint.
   entry_timeframe TEXT,                                       -- user-input: '10s' | '1m' | '5m'
   entry_ema9_distance_pct REAL,                               -- backfilled from intraday_bars
   created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -46,6 +67,48 @@ CREATE INDEX IF NOT EXISTS idx_trades_net_pnl     ON trades(net_pnl);
 -- idx_trades_playbook_id is created in migrateAfterSchema() after the
 -- ALTER COLUMN that adds the column itself — fresh installs don't have
 -- playbook_id at the time SCHEMA_SQL runs.
+
+-- v0.2.0 universal-import: per-fill execution log. Dual-written alongside
+-- trades.executions_json so readers can stay on the JSON column today while
+-- the table accumulates the data we'll need for multi-broker analytics and
+-- the eventual web port. round_trip_id FK is ON DELETE CASCADE so the
+-- existing purgeOpen wipe-and-rewrite path continues to work on (symbol,
+-- date) — cascade deletes the dangling fills.
+--
+-- Column conventions: timestamp_utc / quantity match the v0.2.0 universal-
+-- model spec. side stays as 'B'/'S' (decision C — no renames in v0.2.0).
+-- Fee components are sign-preserving — negative ECN values are rebates.
+CREATE TABLE IF NOT EXISTS executions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  round_trip_id   INTEGER NOT NULL,
+  trade_id        TEXT    NOT NULL,
+  order_id        TEXT    NOT NULL,
+  symbol          TEXT    NOT NULL,
+  side            TEXT    NOT NULL CHECK (side IN ('B','S')),
+  quantity        INTEGER NOT NULL,
+  price           REAL    NOT NULL,
+  timestamp_utc   TEXT    NOT NULL,                          -- ISO 8601 UTC, e.g. 2026-05-14T13:30:00Z
+  source_broker   TEXT    NOT NULL,                          -- 'DAS' | 'Webull' | ...
+  source_format   TEXT    NOT NULL,                          -- 'execution' | 'summary' | ...
+  source_file     TEXT,
+  route           TEXT,
+  liquidity_type  TEXT,                                      -- 'ADDED' | 'REMOVED'
+  account_name    TEXT,
+  is_paper        INTEGER NOT NULL DEFAULT 0,
+  commission      REAL,
+  ecn_fee         REAL,
+  sec_fee         REAL,
+  finra_fee       REAL,
+  cat_fee         REAL,
+  htb_fee         REAL,
+  other_fees      REAL,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (round_trip_id) REFERENCES trades(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_executions_round_trip  ON executions(round_trip_id);
+CREATE INDEX IF NOT EXISTS idx_executions_symbol      ON executions(symbol);
+CREATE INDEX IF NOT EXISTS idx_executions_timestamp   ON executions(timestamp_utc);
 
 CREATE TABLE IF NOT EXISTS daily_summary (
   date          TEXT    PRIMARY KEY,

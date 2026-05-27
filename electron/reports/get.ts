@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { getAllMarketRows, type MarketRow } from '../market/repo'
 import { buildEquityCurve, computeDrawdown } from '../lib/equity'
+import { utcToEasternParts } from '@/lib/format'
 import type {
   BucketStats,
   DayBreakdown,
@@ -130,8 +131,9 @@ function dowFromDate(iso: string): number {
 }
 
 function hourFromTime(iso: string): number {
-  const h = Number(iso.slice(11, 13))
-  return Number.isFinite(h) ? h : 0
+  // `iso` is true UTC (Day 8.5 Commit B) — bucket byHour by the Eastern hour
+  // so the report still groups trades by US-market wall-clock.
+  return utcToEasternParts(iso)?.hour ?? 0
 }
 
 function groupBy<T, K>(items: T[], keyOf: (t: T) => K): Map<K, T[]> {

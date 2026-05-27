@@ -3,8 +3,10 @@ export const IPC = {
   APP_GET_VERSION: 'app:getVersion',
   APP_OPEN_EXTERNAL: 'app:openExternal',
   DB_HEALTHCHECK: 'db:healthcheck',
+  DB_RESET: 'db:reset',
   IMPORT_PREVIEW: 'import:preview',
   IMPORT_COMMIT: 'import:commit',
+  IMPORT_PROGRESS: 'import:progress',
   DASHBOARD_GET: 'dashboard:get',
   TRADES_LIST: 'trades:list',
   TRADE_NOTE_SAVE: 'trade:noteSave',
@@ -15,6 +17,7 @@ export const IPC = {
   JOURNAL_SAVE: 'journal:save',
   SETTINGS_GET: 'settings:get',
   SETTINGS_SAVE: 'settings:save',
+  SETTINGS_TEST_MASSIVE_KEY: 'settings:testMassiveKey',
   EXPORT_TRADES: 'export:trades',
   EXPORT_JOURNAL: 'export:journal',
   EXPORT_DATABASE: 'export:database',
@@ -51,6 +54,11 @@ export const IPC = {
   ATTACHMENTS_DELETE: 'attachments:delete',
   DAY_TAGS_SAVE: 'dayTags:save',
   WEEK_NOTES_SAVE: 'weekNotes:save',
+  // v0.2.1 — data-health surface for the content_hash migration's historical
+  // duplicate banner. _GET returns counts; _ACKNOWLEDGE marks the banner
+  // dismissed.
+  DATA_HEALTH_GET: 'dataHealth:get',
+  DATA_HEALTH_ACKNOWLEDGE_COLLISIONS: 'dataHealth:acknowledgeCollisions',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
@@ -59,4 +67,9 @@ export interface DbHealthcheck {
   ok: boolean
   path: string
   tables: string[]
+}
+
+export interface DbResetResult {
+  /** Absolute path of the renamed-aside fugaedge-reset-<ts>.db safety file. */
+  resetPath: string
 }

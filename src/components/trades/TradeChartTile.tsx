@@ -1,22 +1,21 @@
 import type { TradeListRow } from '@shared/trades-types'
 import Sparkline from './Sparkline'
-import { int, pnlClass, shortDate, signed } from '@/lib/format'
+import { int, pnlClass, shortDate, signed, formatEastern } from '@/lib/format'
 
 interface TradeChartTileProps {
   trade: TradeListRow
 }
 
-function timeOf(iso: string): string {
-  const t = iso.split('T')[1]
-  if (!t) return iso
-  // Trim to HH:MM for the compact tile — seconds add noise at this size.
-  const [h, m] = t.split(':')
-  return `${h}:${m}`
+// Compact tile renders Eastern HH:MM only — formatEastern yields HH:MM:SS,
+// and seconds add noise at this tile size. Day 8.5 Commit B flips the zone
+// but keeps the prior display density.
+function hhmm(iso: string): string {
+  return formatEastern(iso).slice(0, 5)
 }
 
 // Small grid variant — compact tile with mini sparkline. Display-only.
 export default function TradeChartTile({ trade }: TradeChartTileProps) {
-  const closeStr = trade.close_time ? timeOf(trade.close_time) : '—'
+  const closeStr = trade.close_time ? hhmm(trade.close_time) : '—'
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border bg-panel p-3 transition-all duration-200 ease-smooth hover:border-gold/40 hover:shadow-[0_0_24px_-10px_rgba(201,168,76,0.35)]">
@@ -53,7 +52,7 @@ export default function TradeChartTile({ trade }: TradeChartTileProps) {
 
       <div className="text-[10px] text-muted">
         <span className="font-mono">
-          {timeOf(trade.open_time)} → {closeStr}
+          {hhmm(trade.open_time)} → {closeStr}
         </span>
       </div>
 

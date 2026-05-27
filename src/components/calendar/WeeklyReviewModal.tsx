@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ipc } from '@/lib/ipc'
-import { int, longDate, money, pnlClass, signed } from '@/lib/format'
+import { int, longDate, money, percent, pnlClass, signed, formatEastern } from '@/lib/format'
 import type { WeeklySummary } from '@shared/calendar-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -15,12 +15,6 @@ function addDaysStr(date: string, days: number): string {
   const dt = new Date(y, m - 1, d + days)
   const pad = (n: number) => (n < 10 ? `0${n}` : String(n))
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
-}
-
-function timeOf(iso: string): string {
-  const m = iso.match(/T?(\d{2}):(\d{2})/)
-  if (!m) return '—'
-  return `${m[1]}:${m[2]}`
 }
 
 export default function WeeklyReviewModal({
@@ -126,7 +120,7 @@ export default function WeeklyReviewModal({
               <Stat label="Trades" value={int(summary.trade_count)} />
               <Stat
                 label="Win rate"
-                value={summary.win_rate == null ? '—' : `${(summary.win_rate * 100).toFixed(0)}%`}
+                value={summary.win_rate == null ? '—' : percent(summary.win_rate, 0)}
               />
               <Stat
                 label="Profit factor"
@@ -156,7 +150,7 @@ export default function WeeklyReviewModal({
                   summary.best_day ? (
                     <span>
                       <span className="font-mono text-fg-primary">{summary.best_day.date}</span>
-                      <span className="ml-2 font-mono text-win">
+                      <span className={`ml-2 font-mono ${pnlClass(summary.best_day.net_pnl)}`}>
                         {signed(summary.best_day.net_pnl)}
                       </span>
                     </span>
@@ -169,7 +163,7 @@ export default function WeeklyReviewModal({
                   summary.worst_day ? (
                     <span>
                       <span className="font-mono text-fg-primary">{summary.worst_day.date}</span>
-                      <span className="ml-2 font-mono text-loss">
+                      <span className={`ml-2 font-mono ${pnlClass(summary.worst_day.net_pnl)}`}>
                         {signed(summary.worst_day.net_pnl)}
                       </span>
                     </span>
@@ -259,7 +253,10 @@ export default function WeeklyReviewModal({
                             {t.side}
                           </td>
                           <td className="px-2 py-1.5 font-mono text-fg-tertiary">
-                            {timeOf(t.open_time)}
+                            {/* HH:MM — the weekly trade list stays compact;
+                                formatEastern yields HH:MM:SS. Day 8.5 Commit B
+                                flips the zone but keeps the prior density. */}
+                            {formatEastern(t.open_time).slice(0, 5)}
                           </td>
                           <td
                             className={`px-2 py-1.5 text-right font-mono font-medium ${pnlClass(t.net_pnl)}`}
