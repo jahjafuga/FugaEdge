@@ -75,6 +75,20 @@ export function saveSentiment(date: string, sentiment: number | null): SessionMe
   }
 }
 
+// Upsert the day-level free-text note (session_meta.notes) only — sentiment
+// and no_trade_* are preserved. Backs the Day Detail Modal's Notes tab.
+// Trimmed; an empty note is stored as '' (read back as null by the day repo).
+export function saveDayNote(date: string, body: string): void {
+  const db = openDatabase()
+  db.prepare(`
+    INSERT INTO session_meta (date, notes, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(date) DO UPDATE SET
+      notes      = excluded.notes,
+      updated_at = excluded.updated_at
+  `).run(date, body.trim())
+}
+
 // Combined save for the Today's Session card. Sentiment + no-trade-day +
 // reason in one write. When `no_trade_day` is false we clear the reason
 // so a flipped-off day doesn't keep stale copy hanging around.

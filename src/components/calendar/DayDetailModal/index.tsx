@@ -17,6 +17,7 @@ import TradeDetailModal from '@/components/trades/TradeDetailModal'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
+import NotesTab from './NotesTab'
 
 interface DayDetailModalProps {
   date: string | null
@@ -34,7 +35,7 @@ const TABS: { key: TabKey; label: string; Icon: typeof BookOpen; available: bool
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
-  { key: 'notes', label: 'Notes', Icon: NotebookPen, available: false },
+  { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
 ]
 
@@ -199,7 +200,10 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
               onSelectTrade={setSelectedTradeId}
             />
           )}
-          {detail && !loading && tab !== 'overview' && tab !== 'performance' && tab !== 'trades' && (
+          {detail && !loading && tab === 'notes' && (
+            <NotesTab date={date} note={detail.note} />
+          )}
+          {detail && !loading && tab === 'mistakes' && (
             <div className="p-6 text-sm text-fg-tertiary">
               This tab ships later in the v0.2.2 build sequence.
             </div>

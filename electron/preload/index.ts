@@ -187,6 +187,8 @@ const api = {
     ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
   dayDetailGet: (date: string): Promise<DayDetail> =>
     ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
+  dayNoteSave: (date: string, body: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

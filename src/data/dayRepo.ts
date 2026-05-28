@@ -13,4 +13,7 @@ export const dayRepo = {
   getDayDetail(date: string): Promise<DayDetail> {
     return window.api.dayDetailGet(date)
   },
+  saveDayNote(date: string, body: string): Promise<void> {
+    return window.api.dayNoteSave(date, body)
+  },
 }

@@ -62,6 +62,8 @@ export const IPC = {
   // v0.2.2 — Day Detail Modal data source. Returns DayDetail (trades + metrics
   // + day-level notes/mistakes) for the given date.
   DAY_GET_DETAIL: 'day:getDetail',
+  // v0.2.2 Day 4 — Day Detail writable fields, both stored on session_meta.
+  DAY_NOTE_SAVE: 'day:noteSave',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
