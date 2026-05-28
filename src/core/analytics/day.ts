@@ -32,6 +32,16 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   let latestClose: string | null = null
   let biggestWin: { symbol: string; pnl: number } | null = null
   let worstLoss: { symbol: string; pnl: number } | null = null
+  // Hold-time accumulators. Trades without close_time are skipped (still-open
+  // trades shouldn't appear in a day-detail view, but guard defensively).
+  let holdSecondsTotal = 0
+  let holdSecondsTotalCount = 0
+  let holdSecondsWinnersTotal = 0
+  let holdSecondsWinnersCount = 0
+  let holdSecondsLosersTotal = 0
+  let holdSecondsLosersCount = 0
+  let holdSecondsScratchesTotal = 0
+  let holdSecondsScratchesCount = 0
   const symbolCounts = new Map<string, number>()
   // Insertion order tracks first-seen — used as the tiebreaker when multiple
   // symbols share the same trade count in the top-3 ranking.
@@ -74,6 +84,28 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
       latestClose = endTime
     }
 
+    // Hold seconds — only when close_time is present and both timestamps parse.
+    // Both timestamps are in the same TZ so the delta is TZ-independent.
+    if (t.close_time !== null) {
+      const open = Date.parse(t.open_time)
+      const close = Date.parse(t.close_time)
+      if (!Number.isNaN(open) && !Number.isNaN(close)) {
+        const seconds = (close - open) / 1000
+        holdSecondsTotal += seconds
+        holdSecondsTotalCount += 1
+        if (t.net_pnl > 0) {
+          holdSecondsWinnersTotal += seconds
+          holdSecondsWinnersCount += 1
+        } else if (t.net_pnl < 0) {
+          holdSecondsLosersTotal += seconds
+          holdSecondsLosersCount += 1
+        } else {
+          holdSecondsScratchesTotal += seconds
+          holdSecondsScratchesCount += 1
+        }
+      }
+    }
+
     symbolCounts.set(t.symbol, (symbolCounts.get(t.symbol) ?? 0) + 1)
     if (!symbolFirstSeen.has(t.symbol)) symbolFirstSeen.set(t.symbol, i)
 
@@ -91,6 +123,56 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   const avgWin = winCount > 0 ? winnerSum / winCount : null
   const avgLoss = lossCount > 0 ? loserSum / lossCount : null
   const avgRMultiple = rCount > 0 ? rSum / rCount : null
+  const avgTradePnl = trades.length > 0 ? netPnl / trades.length : null
+  const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
+
+  // Profit factor convention (see v0.2.2 plan addendum):
+  //   - finite (>0) when both sides have flow
+  //   - Infinity when winners exist but no losers (real winning-only outcome)
+  //   - null when no decided trades
+  // loserSum is accumulated as a negative quantity above; flip its sign.
+  let profitFactor: number | null = null
+  if (decided > 0) {
+    profitFactor = loserSum === 0 ? Infinity : winnerSum / -loserSum
+  }
+
+  // Sample std dev (n−1 denominator). Null when tradeCount < 3 — at small N
+  // the value is statistical noise (Class C in the v0.2.2 plan addendum).
+  let stdDevPnl: number | null = null
+  if (trades.length >= 3) {
+    const mean = netPnl / trades.length
+    let sumSquaredDeviations = 0
+    for (const t of trades) sumSquaredDeviations += (t.net_pnl - mean) ** 2
+    stdDevPnl = Math.sqrt(sumSquaredDeviations / (trades.length - 1))
+  }
+
+  const avgHoldSeconds = holdSecondsTotalCount > 0 ? holdSecondsTotal / holdSecondsTotalCount : null
+  const avgHoldSecondsWinners = holdSecondsWinnersCount > 0 ? holdSecondsWinnersTotal / holdSecondsWinnersCount : null
+  const avgHoldSecondsLosers = holdSecondsLosersCount > 0 ? holdSecondsLosersTotal / holdSecondsLosersCount : null
+  const avgHoldSecondsScratches = holdSecondsScratchesCount > 0 ? holdSecondsScratchesTotal / holdSecondsScratchesCount : null
+
+  // Chronological streak scan. Scratches break BOTH streaks (matches the
+  // Tradervue Detailed convention documented in the v0.2.2 plan addendum).
+  // We sort a shallow copy so the caller's array isn't mutated.
+  const chrono = [...trades].sort((a, b) => a.open_time.localeCompare(b.open_time))
+  let curWinStreak = 0
+  let curLossStreak = 0
+  let maxConsecutiveWins = 0
+  let maxConsecutiveLosses = 0
+  for (const t of chrono) {
+    if (t.net_pnl > 0) {
+      curWinStreak += 1
+      curLossStreak = 0
+      if (curWinStreak > maxConsecutiveWins) maxConsecutiveWins = curWinStreak
+    } else if (t.net_pnl < 0) {
+      curLossStreak += 1
+      curWinStreak = 0
+      if (curLossStreak > maxConsecutiveLosses) maxConsecutiveLosses = curLossStreak
+    } else {
+      curWinStreak = 0
+      curLossStreak = 0
+    }
+  }
 
   const symbolsTraded = [...symbolCounts.keys()]
   // Rank by tradeCount desc, then first-seen index asc (stable tiebreak).
@@ -159,6 +241,20 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     mostUsedPlaybook,
     moneyLeftOnTable,
     moneyLeftCoverage,
+    // Day 2 fields — placeholder defaults; each gets a real computation
+    // below as its TDD cycle lands.
+    avgTradePnl,
+    avgPerShareGainLoss,
+    profitFactor,
+    maxConsecutiveWins,
+    maxConsecutiveLosses,
+    avgHoldSeconds,
+    avgHoldSecondsWinners,
+    avgHoldSecondsLosers,
+    avgHoldSecondsScratches,
+    stdDevPnl,
+    avgMfeDollars: null,
+    avgMaeDollars: null,
   }
 }
 
@@ -189,6 +285,18 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     mostUsedPlaybook: null,
     moneyLeftOnTable: null,
     moneyLeftCoverage: null,
+    avgTradePnl: null,
+    avgPerShareGainLoss: null,
+    profitFactor: null,
+    maxConsecutiveWins: 0,
+    maxConsecutiveLosses: 0,
+    avgHoldSeconds: null,
+    avgHoldSecondsWinners: null,
+    avgHoldSecondsLosers: null,
+    avgHoldSecondsScratches: null,
+    stdDevPnl: null,
+    avgMfeDollars: null,
+    avgMaeDollars: null,
   }
 }
 

@@ -48,6 +48,20 @@ export function percent(
   return `${(fraction * 100).toFixed(decimals)}%`
 }
 
+// Renders profit factor (Σ wins / |Σ losses|). Promoted in v0.2.2 Day 2 from
+// the inline pf() helper in FullStatsTable.tsx so the new day-scoped
+// Performance tab and the existing whole-account stats table render the
+// same string. Convention is documented in the v0.2.2 plan addendum:
+//   - finite → toFixed(2)
+//   - Infinity → "∞"  (winners but no losers — a real winning-only-day
+//                       outcome, not an error)
+//   - null → "—"      (no decided trades; all scratches or empty day)
+export function formatProfitFactor(n: number | null): string {
+  if (n == null) return '—'
+  if (!Number.isFinite(n)) return '∞'
+  return n.toFixed(2)
+}
+
 // Returns the Tailwind class for a P&L value's color. Uses the themed
 // win/loss/muted tokens so the same green/red automatically darkens for
 // light mode (text-win → #16a34a) without each caller knowing.

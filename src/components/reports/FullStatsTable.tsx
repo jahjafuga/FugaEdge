@@ -1,6 +1,6 @@
 import type { FullStats } from '@shared/reports-types'
 import { Info } from 'lucide-react'
-import { duration, int, money, pnlClass, signed } from '@/lib/format'
+import { duration, formatProfitFactor, int, money, pnlClass, signed } from '@/lib/format'
 
 interface FullStatsTableProps {
   stats: FullStats
@@ -18,12 +18,6 @@ interface Section {
 }
 
 const DASH = '—'
-
-function pf(n: number | null): string {
-  if (n == null) return DASH
-  if (!Number.isFinite(n)) return '∞'
-  return n.toFixed(2)
-}
 
 function sqnLabel(n: number | null): string {
   if (n == null) return ''
@@ -57,7 +51,7 @@ export default function FullStatsTable({ stats }: FullStatsTableProps) {
         {
           label: 'Profit factor',
           value: (
-            <span className="font-mono text-gold">{pf(stats.profit_factor)}</span>
+            <span className="font-mono text-gold">{formatProfitFactor(stats.profit_factor)}</span>
           ),
           hint: 'Gross wins / |gross losses|. N/A when no losing trades.',
         },

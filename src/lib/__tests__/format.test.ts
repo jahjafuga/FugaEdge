@@ -20,6 +20,7 @@ import {
   compactShares,
   easternToUtc,
   formatEastern,
+  formatProfitFactor,
   int,
   localEasternToUtc,
   percent,
@@ -237,5 +238,25 @@ describe('FloatEditor parseInput — round-trips the int() seed exactly', () => 
     expect(parseInput('   ')).toBeNull()
     expect(parseInput('abc')).toBeNull()
     expect(parseInput('—')).toBeNull()
+  })
+})
+
+describe('formatProfitFactor — single render path for Σ wins / |Σ losses|', () => {
+  // Day 2 of the v0.2.2 sprint promotes the inline pf() helper from
+  // FullStatsTable.tsx into a shared util so the new day-scoped Performance
+  // tab and the existing whole-account view render the same string.
+
+  it('formats a finite profit factor to 2 decimal places', () => {
+    expect(formatProfitFactor(2.5)).toBe('2.50')
+    expect(formatProfitFactor(0)).toBe('0.00') // all-losing day is a real outcome
+    expect(formatProfitFactor(1.234)).toBe('1.23')
+  })
+
+  it('renders Infinity as "∞" (winners but no losers — a real outcome, not an error)', () => {
+    expect(formatProfitFactor(Infinity)).toBe('∞')
+  })
+
+  it('renders null as the em-dash placeholder (no decided trades on the day)', () => {
+    expect(formatProfitFactor(null)).toBe('—')
   })
 })

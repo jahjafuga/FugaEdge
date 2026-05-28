@@ -31,6 +31,37 @@ export interface DayMetrics {
   // (sum of per-trade ExitDelta.delta). Null when no trades on the day have MFE data.
   moneyLeftOnTable: number | null
   moneyLeftCoverage: { withMfe: number; total: number } | null
+
+  // ── v0.2.2 Day 2 — Performance tab metrics ────────────────────────────
+  // Tradervue Detailed-style statistics, scoped to one day. Classification
+  // (A/B/C/D) and rationale: see "v0.2.2 spec update" in the plan addendum.
+
+  avgTradePnl: number | null              // netPnl / tradeCount
+  avgPerShareGainLoss: number | null      // netPnl / totalShares
+  /** Σ positive net_pnl ÷ |Σ negative net_pnl|. `Infinity` is a real
+   *  outcome (winners but no losers — a winning-only day), not an error.
+   *  `null` when no decided trades (all scratches or empty day). Renders
+   *  via {@link formatProfitFactor}. */
+  profitFactor: number | null
+  /** Chronological scan of net_pnl signs; scratches break both streaks
+   *  (matches Tradervue's max-consecutive convention). 0 on empty day. */
+  maxConsecutiveWins: number
+  maxConsecutiveLosses: number
+  /** Mean (close_time − open_time) in seconds. Skips trades with null
+   *  close_time. Per-category variants narrow to net_pnl sign. */
+  avgHoldSeconds: number | null
+  avgHoldSecondsWinners: number | null
+  avgHoldSecondsLosers: number | null
+  avgHoldSecondsScratches: number | null
+  /** Sample std dev (n−1 denominator) of net_pnl. `null` when
+   *  `tradeCount < 3` — at smaller N the value is noise (see Class C
+   *  rationale in the plan addendum). */
+  stdDevPnl: number | null
+  /** Day 2 contract: ships as `null` for all fixtures. Day 5 wires the
+   *  intraday-bar excursion data through and these light up. Same
+   *  awaiting-intraday pattern as {@link moneyLeftOnTable}. */
+  avgMfeDollars: number | null
+  avgMaeDollars: number | null
 }
 
 export interface DayDetail {

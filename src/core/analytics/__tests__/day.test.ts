@@ -82,6 +82,20 @@ describe('computeDayMetrics', () => {
     expect(result.mostUsedPlaybook).toBeNull()
     expect(result.moneyLeftOnTable).toBeNull()
     expect(result.moneyLeftCoverage).toBeNull()
+
+    // v0.2.2 Day 2 — Performance tab additions. Empty-day defaults.
+    expect(result.avgTradePnl).toBeNull()
+    expect(result.avgPerShareGainLoss).toBeNull()
+    expect(result.profitFactor).toBeNull()
+    expect(result.maxConsecutiveWins).toBe(0)
+    expect(result.maxConsecutiveLosses).toBe(0)
+    expect(result.avgHoldSeconds).toBeNull()
+    expect(result.avgHoldSecondsWinners).toBeNull()
+    expect(result.avgHoldSecondsLosers).toBeNull()
+    expect(result.avgHoldSecondsScratches).toBeNull()
+    expect(result.stdDevPnl).toBeNull()
+    expect(result.avgMfeDollars).toBeNull()
+    expect(result.avgMaeDollars).toBeNull()
   })
 
   it('counts wins, losses, scratches and sums gross/fees/net across the day', () => {
@@ -305,5 +319,142 @@ describe('computeDayMetrics', () => {
     // empty state, NOT a misleading $0.00 sum.
     expect(result.moneyLeftOnTable).toBeNull()
     expect(result.moneyLeftCoverage).toBeNull()
+  })
+
+  // ── v0.2.2 Day 2 — Performance tab metrics ──────────────────────────────
+
+  it('computes avgTradePnl (netPnl ÷ tradeCount) and avgPerShareGainLoss (netPnl ÷ totalShares)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 120, shares_bought: 100, shares_sold: 100 }),
+      tradeRow({ id: 2, net_pnl: 80,  shares_bought: 100, shares_sold: 100 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    // Total: netPnl 200, tradeCount 2, totalShares 400 (2 × (100+100))
+    expect(result.avgTradePnl).toBeCloseTo(100, 5)     // 200 / 2
+    expect(result.avgPerShareGainLoss).toBeCloseTo(0.5, 5)  // 200 / 400
+  })
+
+  it('computes profitFactor as Σ positive net_pnl ÷ |Σ negative net_pnl|', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 100 }),
+      tradeRow({ id: 2, net_pnl: 200 }),
+      tradeRow({ id: 3, net_pnl: -50 }),
+      tradeRow({ id: 4, net_pnl: -100 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    // Σ positives = 300, |Σ negatives| = 150 → 2.0
+    expect(result.profitFactor).toBeCloseTo(2.0, 5)
+  })
+
+  it('returns Infinity profitFactor for a winning-only day (no losers — real outcome, not error)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 50 }),
+      tradeRow({ id: 2, net_pnl: 100 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.profitFactor).toBe(Infinity)
+  })
+
+  it('returns null profitFactor when no decided trades (all scratches)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 0 }),
+      tradeRow({ id: 2, net_pnl: 0 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.profitFactor).toBeNull()
+  })
+
+  it('counts max consecutive wins and losses chronologically; scratches break both streaks', () => {
+    // Chronological pattern: W W L W W W S W L
+    // Walking the streaks (scratches reset BOTH per addendum convention):
+    //   W(1) W(2) L(1,maxL=1) W(1) W(2) W(3,maxW=3) S(reset both) W(1) L(1)
+    // → maxConsecutiveWins = 3, maxConsecutiveLosses = 1
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, open_time: '2026-05-15T09:30:00', net_pnl: 50 }),    // W
+      tradeRow({ id: 2, open_time: '2026-05-15T09:35:00', net_pnl: 75 }),    // W
+      tradeRow({ id: 3, open_time: '2026-05-15T09:40:00', net_pnl: -30 }),   // L
+      tradeRow({ id: 4, open_time: '2026-05-15T09:45:00', net_pnl: 60 }),    // W
+      tradeRow({ id: 5, open_time: '2026-05-15T09:50:00', net_pnl: 40 }),    // W
+      tradeRow({ id: 6, open_time: '2026-05-15T09:55:00', net_pnl: 90 }),    // W
+      tradeRow({ id: 7, open_time: '2026-05-15T10:00:00', net_pnl: 0 }),     // S
+      tradeRow({ id: 8, open_time: '2026-05-15T10:05:00', net_pnl: 20 }),    // W
+      tradeRow({ id: 9, open_time: '2026-05-15T10:10:00', net_pnl: -10 }),   // L
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.maxConsecutiveWins).toBe(3)
+    expect(result.maxConsecutiveLosses).toBe(1)
+  })
+
+  it('averages hold time overall and per outcome category (winners / losers / scratches)', () => {
+    const trades: TradeListRow[] = [
+      // Winner held 15 min = 900s
+      tradeRow({ id: 1, open_time: '2026-05-15T09:30:00', close_time: '2026-05-15T09:45:00', net_pnl: 100 }),
+      // Winner held 30 min = 1800s → avg winner = (900+1800)/2 = 1350
+      tradeRow({ id: 2, open_time: '2026-05-15T09:30:00', close_time: '2026-05-15T10:00:00', net_pnl: 200 }),
+      // Loser held 5 min = 300s → avg loser = 300
+      tradeRow({ id: 3, open_time: '2026-05-15T09:30:00', close_time: '2026-05-15T09:35:00', net_pnl: -50 }),
+      // Scratch held 1 min = 60s → avg scratch = 60
+      tradeRow({ id: 4, open_time: '2026-05-15T09:30:00', close_time: '2026-05-15T09:31:00', net_pnl: 0 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    // Overall avg: (900+1800+300+60)/4 = 765s
+    expect(result.avgHoldSeconds).toBeCloseTo(765, 5)
+    expect(result.avgHoldSecondsWinners).toBeCloseTo(1350, 5)
+    expect(result.avgHoldSecondsLosers).toBeCloseTo(300, 5)
+    expect(result.avgHoldSecondsScratches).toBeCloseTo(60, 5)
+  })
+
+  it('computes sample std dev of net_pnl (n−1 denominator) for n≥3', () => {
+    // net_pnl [10, 20, 30] → mean 20, Σ(x−mean)² = 200, variance = 200/2 = 100,
+    // sample std dev = √100 = 10.
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 10 }),
+      tradeRow({ id: 2, net_pnl: 20 }),
+      tradeRow({ id: 3, net_pnl: 30 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.stdDevPnl).toBeCloseTo(10, 5)
+  })
+
+  it('returns null stdDevPnl when tradeCount < 3 (sample sd is noise at small N)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 100 }),
+      tradeRow({ id: 2, net_pnl: -50 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.stdDevPnl).toBeNull()
+  })
+
+  it('ships avgMfeDollars / avgMaeDollars as null for non-empty days until Day 5 wires intraday', () => {
+    // Day 2 contract per the addendum: the field exists but the value stays
+    // null. Day 5 wires intraday-bar excursion data and these light up.
+    // Day 2 tests lock the null contract; if they go non-null without the
+    // wiring landing first, something silently filled the field.
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 100 }),
+      tradeRow({ id: 2, net_pnl: -50 }),
+      tradeRow({ id: 3, net_pnl: 75 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.avgMfeDollars).toBeNull()
+    expect(result.avgMaeDollars).toBeNull()
   })
 })
