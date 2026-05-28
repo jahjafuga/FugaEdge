@@ -318,18 +318,12 @@ If any of these fail at the smoke test, the release is blocked until fixed.
 
 ## Release-day action items
 
-### Release-notes blurb — copy LOCKED (do not reword without review)
+### Release-notes blurb — superseded 2026-05-28
 
-Paste this verbatim into the v0.2.2 GitHub release notes under the
-"Highlights" section. Refine on the day if needed.
-
-> **Day Detail Modal.** Click any day on the Calendar and a new overlay
-> opens with everything you need to review that day — P&L summary,
-> key metrics including Money Left on Table, the full trade list,
-> intraday chart per symbol with your entry/exit markers, day-level
-> notes, and day-level mistake patterns. Click any trade in the list
-> to drill into the existing Trade Detail Modal. Same UX pattern as
-> the Trade Detail Modal you already know, scoped to one day.
+The original LOCKED copy here described an intraday chart per symbol
+that v0.2.2 no longer ships (Chart tab removed in the post-Day-1 spec
+update). The blurb was replaced — see "Re-LOCKED release-notes blurb"
+in the spec-update addendum below for the new canonical copy.
 
 ### Tester B outreach (Circle DM)
 
@@ -435,3 +429,218 @@ Honest disclosure of partial coverage matches Decision 3 above ("(N of M trades 
 - `src/components/calendar/DayDetailModal/index.tsx` — modal shell
 - `src/components/calendar/DayDetailModal/OverviewTab.tsx` — tab content
 - `src/pages/Journal.tsx` (or wherever Calendar lives) — wire day-click to modal, remove DayTradesPanel inline expansion
+
+---
+
+## v0.2.2 spec update — post-Day-1 smoke test (2026-05-28)
+
+Day 1 shipped (commit ac5afe6), then a live smoke test surfaced product-spec
+changes that reframe the rest of the build sequence. Day 1's code stays as-is
+— its metrics module and modal shell are reusable. The Overview tab gets
+rebuilt and a new Performance tab replaces the old Chart tab.
+
+### Tab structure
+
+**Old:** Overview · Trades · Chart · Notes · Mistakes
+**New:** Overview · Performance · Trades · Notes · Mistakes
+
+Chart tab removed entirely from v0.2.2. The old Day 3 (Chart tab +
+IntradayChart extraction) is dropped; its budget reallocates to the new
+Performance work.
+
+### Overview content (rebuilt)
+
+- **Full-width intraday equity curve** at the top: cumulative net P&L
+  through the trading day, stepping at each round-trip's `close_time`.
+  Implementation: Recharts (already in dependencies — `RunningPnlChart.tsx`
+  uses it), not lightweight-charts (which is reserved for the per-symbol
+  intraday OHLC).
+- **Strip below**: two count-only cards — Trades (W/L/S breakdown) and
+  Shares traded. Nothing else.
+- The nine perf-flavored cards from Day 1 (Win Rate, R-Multiple, Avg
+  Win/Loss, Biggest Win, Worst Loss, Session Window, Most-Used Playbook,
+  Symbols Traded, Money Left) **leave Overview** and move to Performance.
+  Symbols Traded specifically moves to the Trades tab header (Day 3).
+
+### Performance tab (new)
+
+Dense two-column statistics table, scoped to one day. Reference pattern:
+Tradervue's "Detailed" view. Visual structure mirrors `FullStatsTable.tsx`
+from Deep Analytics (sections with header chip, label/value rows, optional
+hints) so the aesthetic stays consistent across the app.
+
+#### Metric classification (Tradervue universe → day scope)
+
+| Metric | Class | Notes |
+|---|---|---|
+| Total net / gross P&L | A | Already in `day.ts` |
+| Total fees | A | Already |
+| Largest gain | A | `biggestWin` moves from Overview |
+| Largest loss | A | `worstLoss` moves from Overview |
+| Avg winning trade | A | `avgWin` moves |
+| Avg losing trade | A | `avgLoss` moves |
+| Avg per-share gain/loss | A — new | `netPnl / totalShares` |
+| Avg trade gain/loss | A — new | `netPnl / tradeCount` |
+| Profit factor | A — new | See convention below |
+| Trade P&L std dev | C (conditional) | Show when n≥3 with N coverage; hide otherwise |
+| Total trades | A | `tradeCount` |
+| # winning / losing / scratch | A | Already |
+| Max consecutive wins / losses | A — new | Chronological scan |
+| Avg hold time (overall + W/L/S) | A — new | `close_time − open_time` per category |
+| Avg position MFE | D | Placeholder, same pattern as Money Left |
+| Avg position MAE | D | Same |
+| SQN | C — skip | √N factor makes single-day SQN noise; this is a multi-day stat by design |
+| K-Ratio | C — skip | Slope/SE over daily equity; day scope = 1 equity point, undefined |
+| Probability of random chance | C — skip | Derived from SQN, same problem |
+| Total commissions | B — skip | Always null today (DAS Trades.csv has no commission column) |
+| Avg daily P&L | B — skip | At day scope equals the day's netPnl |
+| Trading days | B — skip | Always 1 at day scope |
+
+**Class definitions:** A = translates cleanly, build it. B = redundant at
+single-day scope (collapses to a value Overview already shows or to Total),
+skip. C = statistically meaningless at n≈single-day, skip with footer
+pointer to Deep Analytics. D = needs intraday data not yet wired, render
+"awaiting intraday data" placeholder.
+
+Day-scoped Performance footer text: "Multi-day system-quality stats (SQN,
+K-Ratio) live in Deep Analytics → Performance."
+
+#### Profit factor rendering convention (locked)
+
+`profitFactor` returns:
+- `number` (finite) — normal case (`Σ positive net_pnl / |Σ negative net_pnl|`)
+- `Infinity` — winners exist but no losers (division by zero is a real
+  outcome on a winning-only day, not an error)
+- `null` — no decided trades (all scratches or empty day)
+
+Render mapping (matches existing `FullStatsTable.tsx` `pf()` helper and
+Deep Analytics `OverviewTab.tsx`):
+- finite → `n.toFixed(2)`
+- `Infinity` → `"∞"`
+- `null` → `"—"`
+
+Implementation: a new `formatProfitFactor(n: number | null): string` helper
+in `src/lib/format.ts` (alongside `money`, `percent`, `signed`, `duration`).
+Day 2 tests it directly with one assertion per output branch, including
+explicit `formatProfitFactor(Infinity) === "∞"`. The pure-module
+`computeDayMetrics` test asserts the metric value is `Infinity` in the
+same scenario.
+
+##### Migration plan for the existing `pf()` helper in `FullStatsTable.tsx`
+
+Day 2 also lands a parity test that asserts, for the three input branches
+(finite, `Infinity`, `null`):
+
+```
+formatProfitFactor(x) === FullStatsTable.pf(x)
+```
+
+If all three assertions pass, `FullStatsTable.tsx` migrates to use
+`formatProfitFactor` and the local `pf()` is deleted. If any branch
+diverges, `pf()` stays in place and a v0.3.0 cleanup card gets filed in
+`docs/plans/v0.3.0-or-later-ideas.md` describing the divergence and the
+intended convergence. No silent migration either way.
+
+Rationale for `∞` (not `"—"` or `"100%"`): mathematically accurate (an
+unbounded profit factor), consistent with existing FugaEdge surfaces, and
+honest — a winning-only day's profit factor is genuinely undefined-as-finite,
+not "missing data". Hint text on the row: "No losing trades — profit factor
+is undefined."
+
+#### Toggle set: none
+
+Tradervue offers Aggregate-vs-per-trade-avg, Gross/Net, and $/T/R toggles.
+v0.2.2 ships with **no toggles**:
+- Aggregate vs per-trade: both shown as explicit rows (Total net P&L and
+  Avg trade gain/loss are separate rows). No toggle needed.
+- Gross / Net: three explicit rows — Total net P&L, Total gross P&L, Total
+  fees. Matches existing `FullStatsTable.tsx` convention.
+- $ / T / R: hold time stays in `duration()` format. R-multiple is its own
+  explicit row (Avg R-multiple). Inline R appendix on Avg winner/loser
+  (`+$XX.XX (avg +1.4R)`) only when coverage > 0.
+
+Rationale: dense single-table aesthetic matches the Tradervue Detailed
+reference; toggles fragment information and add interaction cost. Brand
+voice is "honest disclosure > clever toggles."
+
+### Modal width
+
+`max-w-[980px]` → `max-w-[1400px]`. Performance tab's two-column statistics
+layout needs the horizontal real estate, and the equity curve on Overview
+breathes at the wider width.
+
+### `day.ts` additions
+
+New pure functions added to `computeDayMetrics` (TDD-style, all in
+`src/core/analytics/__tests__/day.test.ts`):
+
+- `avgTradePnl`, `avgPerShareGainLoss`
+- `profitFactor` (returns `number | null`, with `Infinity` for no-losers
+  case — see convention above)
+- `maxConsecutiveWins`, `maxConsecutiveLosses`
+- `avgHoldSeconds`, `avgHoldSecondsWinners`, `avgHoldSecondsLosers`,
+  `avgHoldSecondsScratches`
+- `stdDevPnl` (sample std dev, n−1 denominator; `null` when `tradeCount < 3`)
+- `avgMfeDollars`, `avgMaeDollars` — ship as nullable fields on `DayMetrics`,
+  consistent with `moneyLeftOnTable`'s pattern. **Day 2 tests must assert
+  these are `null` for all fixtures** (intraday wiring lands in Day 5; until
+  then the contract is "field exists, value is null"). The render layer
+  shows the "awaiting intraday data" placeholder.
+
+`DayMetrics` interface gets these new nullable fields appended. No existing
+field changes (winRate stays a 0..1 ratio, etc.).
+
+Expected new test count: ~11 tests (9 for new metrics + 2 for MFE/MAE null
+behavior), bringing the file from 9 → ~20 tests.
+
+### Build sequence (renumbered)
+
+| Day | Scope | Status |
+|---|---|---|
+| 1 | Shell + (legacy) Overview tab + day metrics module | **Shipped (ac5afe6)** |
+| 2 | **Overview redesign + Performance tab + new metrics + modal width + `pf()` parity migration** | NEW |
+| 3 | Trades tab + modal stacking (was Day 2) | Renumbered |
+| ~~3~~ | ~~Chart tab + IntradayChart extraction~~ | **Removed** |
+| 4 | Notes + Mistakes tabs | Unchanged |
+| 5 | Edge cases + polish + intraday wiring for MFE/MAE/Money Left | Expanded |
+| 6 | Smoke test + cleanup | Unchanged |
+| 7 | Ship | Unchanged |
+
+Net day count: 7 days total, unchanged from the original plan. Chart's
+removal exactly funds Day 2's redesign. Day 5 absorbs the intraday wiring
+that turns the MFE/MAE/Money Left placeholders into real values.
+
+### Updated success criteria
+
+The original Success Criteria list needs two changes:
+
+- **Drop criterion 8** ("Intraday chart renders with trade markers for at
+  least one symbol per day") — Chart tab removed.
+- **Replace with new criterion 8:** "Performance tab renders every
+  class-A metric with correct values on representative fixtures, including
+  the no-losers profit-factor case (renders ∞), the n<3 std-dev case
+  (renders —), and the awaiting-intraday MFE/MAE/Money Left placeholders
+  (until Day 5 wiring lands)."
+
+Criteria 1–7 and 9–11 stay as written.
+
+---
+
+## Re-LOCKED release-notes blurb (2026-05-28)
+
+Replaces the original LOCKED blurb (marked superseded above). The original
+described an intraday chart per symbol that v0.2.2 no longer ships.
+
+Paste verbatim into the v0.2.2 GitHub release notes under the "Highlights"
+section. Refine on Day 7 only if a beta-tester conversation surfaces a
+factual gap.
+
+> **Day Detail Modal.** Click any day on the Calendar and a new overlay
+> opens with everything you need to review that day — an intraday equity
+> curve, your W/L/S split, a dense Performance table (profit factor, avg
+> winner vs avg loser, max consecutive streaks, hold time per outcome,
+> Money Left on Table, and more), the full trade list, day-level notes,
+> and day-level mistake patterns. Click any trade to drill into the Trade
+> Detail Modal you already know. Same UX pattern, scoped to one day.
+
+Wording was reviewed and approved 2026-05-28.
