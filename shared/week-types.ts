@@ -1,0 +1,50 @@
+import type { TradeListRow } from './trades-types'
+
+// v0.2.2 Day 4.5b — week-scoped metrics for the tabbed Weekly Review modal.
+// Reuses the day.ts conventions (net/counts/winRate/profitFactor/symbolBreakdown/
+// mistakeTagCounts, plus avgWin/avgLoss) over the week's trades, and adds
+// week-shaped fields (day-by-day, best/worst DAY, per-playbook, consistency,
+// streak). Pure computation lives in src/core/analytics/week.ts.
+export interface WeekMetrics {
+  netPnl: number
+  grossPnl: number
+  totalFees: number
+  tradeCount: number
+  winCount: number
+  lossCount: number
+  scratchCount: number
+  // 0..1 ratio (winners / decided, scratches excluded); null when no decided trades.
+  winRate: number | null
+  // Σ positive net / |Σ negative net|. Infinity = winners but no losers; null = no decided.
+  profitFactor: number | null
+  avgWin: number | null
+  avgLoss: number | null
+  // All symbols traded that week, sorted by net P&L desc (ties: count desc, then first-seen).
+  symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
+  // Per-trade mistake tags aggregated across the week, sorted count desc then alpha.
+  mistakeTagCounts: { tag: string; count: number }[]
+
+  // ── week-new ──────────────────────────────────────────────────────────
+  /** Traded days only, chronological asc. */
+  dayByDay: { date: string; netPnl: number; tradeCount: number }[]
+  /** Highest-net day, only when its net > 0 (sign-gated, mirrors day biggestWin). */
+  bestDay: { date: string; netPnl: number } | null
+  /** Lowest-net day, only when its net < 0 (sign-gated, mirrors day worstLoss). */
+  worstDay: { date: string; netPnl: number } | null
+  /** Tagged trades only, sorted net P&L desc. */
+  perPlaybook: { playbook: string; tradeCount: number; netPnl: number; winRate: number | null }[]
+  greenDays: number
+  tradingDays: number
+  /** Sample std dev (n−1) of per-day net P&L; null when tradingDays < 3. */
+  dayPnlStdDev: number | null
+  /** Streak into the week's end, walking back through daily P&L. */
+  streak: { kind: 'win' | 'loss' | 'none'; days: number }
+}
+
+export interface WeekDetail {
+  weekStart: string  // Sunday, YYYY-MM-DD
+  weekEnd: string    // Saturday, YYYY-MM-DD
+  metrics: WeekMetrics
+  trades: TradeListRow[]  // all week trades, for the equity curve + Trades tab
+  notes: string           // week_notes reflection
+}

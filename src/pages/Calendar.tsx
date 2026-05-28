@@ -7,7 +7,7 @@ import CalendarHeader from '@/components/calendar/CalendarHeader'
 import CalendarGrid from '@/components/calendar/CalendarGrid'
 import CalendarCompareStrip from '@/components/calendar/CalendarCompareStrip'
 import DayDetailModal from '@/components/calendar/DayDetailModal'
-import WeeklyReviewModal from '@/components/calendar/WeeklyReviewModal'
+import WeekReviewModal from '@/components/calendar/WeekReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
 import type { CalendarMonth } from '@shared/calendar-types'
@@ -129,20 +129,6 @@ export default function Calendar() {
     [],
   )
 
-  const handleWeekNotesSaved = useCallback(
-    (text: string) => {
-      if (!selectedWeek) return
-      setData((prev) => {
-        if (!prev) return prev
-        const idx = prev.weeks.findIndex((w) => w.week_start === selectedWeek)
-        if (idx < 0) return prev
-        const next = [...prev.weeks]
-        next[idx] = { ...next[idx], notes: text }
-        return { ...prev, weeks: next }
-      })
-    },
-    [selectedWeek],
-  )
 
   if (err) {
     return (
@@ -270,17 +256,10 @@ export default function Calendar() {
           />
         )}
 
-        {selectedWeek && data.weeks && (() => {
-          const summary = data.weeks.find((w) => w.week_start === selectedWeek)
-          if (!summary) return null
-          return (
-            <WeeklyReviewModal
-              summary={summary}
-              onClose={() => setSelectedWeek(null)}
-              onNotesSaved={handleWeekNotesSaved}
-            />
-          )
-        })()}
+        <WeekReviewModal
+          weekStart={selectedWeek}
+          onClose={() => setSelectedWeek(null)}
+        />
 
         <DayDetailModal
           date={selectedDate}

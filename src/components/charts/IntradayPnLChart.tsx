@@ -9,7 +9,7 @@ import {
   YAxis,
 } from 'recharts'
 import type { TradeListRow } from '@shared/trades-types'
-import { signed, money, formatEastern } from '@/lib/format'
+import { signed, money, formatEastern, utcToEasternParts } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 
@@ -31,6 +31,11 @@ interface IntradayPnLChartProps {
   date: string
   /** Chart height in px. Defaults to 160 per the spec. */
   height?: number
+  /** X-axis label granularity. 'time' (default) = HH:MM for an intraday
+   *  single-day curve. 'datetime' = Eastern M/D for a multi-day (week) curve,
+   *  where HH:MM would repeat/collide across days. Additive — existing
+   *  single-day callers (Day Overview, Journal) keep 'time'. */
+  xLabelMode?: 'time' | 'datetime'
 }
 
 interface CurvePoint {
@@ -38,8 +43,10 @@ interface CurvePoint {
   t: number
   /** Cumulative running P&L through (and including) this fill. */
   pnl: number
-  /** Pre-formatted time-of-day label for the X axis. */
+  /** Time-of-day label (HH:MM) — X axis in 'time' mode. */
   label: string
+  /** Eastern date label (M/D) — X axis in 'datetime' mode. */
+  dateLabel: string
 }
 
 function buildCurve(trades: TradeListRow[]): CurvePoint[] {
@@ -71,11 +78,13 @@ function buildCurve(trades: TradeListRow[]): CurvePoint[] {
   // Seed the curve with a zero point at the first close minus 1 minute so
   // the chart starts visibly at zero, not at the first realized P&L value.
   const firstT = closings[0].t - 60_000
-  const out: CurvePoint[] = [{ t: firstT, pnl: 0, label: timeOf(firstT) }]
+  const out: CurvePoint[] = [
+    { t: firstT, pnl: 0, label: timeOf(firstT), dateLabel: dateOf(firstT) },
+  ]
   let running = 0
   for (const c of closings) {
     running += c.pnlPortion
-    out.push({ t: c.t, pnl: running, label: timeOf(c.t) })
+    out.push({ t: c.t, pnl: running, label: timeOf(c.t), dateLabel: dateOf(c.t) })
   }
   return out
 }
@@ -87,7 +96,18 @@ function timeOf(epochMs: number): string {
   return formatEastern(new Date(epochMs).toISOString()).slice(0, 5)
 }
 
-export default function IntradayPnLChart({ trades, date, height = 160 }: IntradayPnLChartProps) {
+function dateOf(epochMs: number): string {
+  // Eastern M/D for the multi-day (week) X axis.
+  const p = utcToEasternParts(new Date(epochMs).toISOString())
+  return p ? `${p.month}/${p.day}` : ''
+}
+
+export default function IntradayPnLChart({
+  trades,
+  date,
+  height = 160,
+  xLabelMode = 'time',
+}: IntradayPnLChartProps) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
 
@@ -129,7 +149,7 @@ export default function IntradayPnLChart({ trades, date, height = 160 }: Intrada
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3 shadow-sm">
       <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Intraday P&amp;L
+          {xLabelMode === 'datetime' ? 'Cumulative P&L' : 'Intraday P&L'}
         </div>
         <div
           className={`font-mono text-sm font-semibold tnum ${
@@ -164,7 +184,7 @@ export default function IntradayPnLChart({ trades, date, height = 160 }: Intrada
               </linearGradient>
             </defs>
             <XAxis
-              dataKey="label"
+              dataKey={xLabelMode === 'datetime' ? 'dateLabel' : 'label'}
               stroke={palette.axis}
               fontSize={10}
               tickLine={false}
@@ -183,7 +203,7 @@ export default function IntradayPnLChart({ trades, date, height = 160 }: Intrada
             <ReferenceLine y={0} stroke={palette.grid} strokeDasharray="3 3" />
             <Tooltip
               cursor={{ stroke: palette.grid, strokeWidth: 1 }}
-              content={<IntradayTooltip date={date} />}
+              content={<IntradayTooltip date={date} xLabelMode={xLabelMode} />}
             />
             <Area
               type="monotone"
@@ -202,21 +222,24 @@ export default function IntradayPnLChart({ trades, date, height = 160 }: Intrada
 
 function IntradayTooltip({
   date,
+  xLabelMode = 'time',
   active,
   payload,
 }: {
   date: string
+  xLabelMode?: 'time' | 'datetime'
   active?: boolean
   payload?: { payload: CurvePoint }[]
 }) {
   if (!active || !payload?.length) return null
   const p = payload[0].payload
   const positive = p.pnl >= 0
+  // 'time' (single day): the day's date + HH:MM. 'datetime' (week): the
+  // point's own Eastern date + HH:MM, since points span multiple days.
+  const header = xLabelMode === 'datetime' ? `${p.dateLabel} · ${p.label}` : `${date} · ${p.label}`
   return (
     <div className="rounded-md border border-border bg-bg-4 px-3 py-2 shadow-md">
-      <div className="font-mono text-[11px] text-fg-tertiary tnum">
-        {date} · {p.label}
-      </div>
+      <div className="font-mono text-[11px] text-fg-tertiary tnum">{header}</div>
       <div
         className={`mt-1 font-mono text-sm font-semibold tnum ${
           positive ? 'text-win' : 'text-loss'

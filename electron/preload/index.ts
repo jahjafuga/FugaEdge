@@ -59,6 +59,7 @@ import type {
 } from '@shared/session-types'
 import type { DataHealth } from '@shared/data-health-types'
 import type { DayDetail } from '@shared/day-types'
+import type { WeekDetail } from '@shared/week-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -191,6 +192,8 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
   dayMistakesSave: (date: string, tags: string[]): Promise<void> =>
     ipcRenderer.invoke(IPC.DAY_MISTAKES_SAVE, { date, tags }),
+  weekDetailGet: (weekStart: string): Promise<WeekDetail> =>
+    ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

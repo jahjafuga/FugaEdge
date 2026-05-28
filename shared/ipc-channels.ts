@@ -65,6 +65,9 @@ export const IPC = {
   // v0.2.2 Day 4 — Day Detail writable fields, both stored on session_meta.
   DAY_NOTE_SAVE: 'day:noteSave',
   DAY_MISTAKES_SAVE: 'day:mistakesSave',
+  // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
+  // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
+  WEEK_GET_DETAIL: 'week:getDetail',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

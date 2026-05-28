@@ -92,12 +92,25 @@ function buildNote(row: TradeRowDb): TradeNote | null {
 
 export interface ListTradesOptions {
   date?: string
+  /** Inclusive Eastern-trading-day range (YYYY-MM-DD). Used by the Weekly
+   *  Review modal. `date` takes precedence if both are given. */
+  from?: string
+  to?: string
 }
 
 export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
   const db = openDatabase()
-  const where = opts.date ? 'WHERE t.date = ?' : ''
-  const params = opts.date ? [opts.date] : []
+  let where = ''
+  let params: string[] = []
+  if (opts.date) {
+    where = 'WHERE t.date = ?'
+    params = [opts.date]
+  } else if (opts.from && opts.to) {
+    // Inclusive range on the Eastern trading-day column (no clock component,
+    // so the full day at each end is covered; lexicographic = chronological).
+    where = 'WHERE t.date >= ? AND t.date <= ?'
+    params = [opts.from, opts.to]
+  }
   const rows = db
     .prepare(`
       SELECT
@@ -164,6 +177,12 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       attachment_count: r.attachment_count ?? 0,
     }
   })
+}
+
+// All trades whose Eastern trading day falls in [from, to] (inclusive).
+// Backs the Weekly Review modal's week range.
+export function listTradesInRange(from: string, to: string): TradeListRow[] {
+  return listTrades({ from, to })
 }
 
 export function getTrade(id: number): TradeListRow | null {
