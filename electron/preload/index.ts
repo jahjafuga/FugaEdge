@@ -58,6 +58,7 @@ import type {
   SessionMeta,
 } from '@shared/session-types'
 import type { DataHealth } from '@shared/data-health-types'
+import type { DayDetail } from '@shared/day-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -184,6 +185,8 @@ const api = {
     ipcRenderer.invoke(IPC.DATA_HEALTH_GET),
   dataHealthAcknowledgeCollisions: (): Promise<DataHealth> =>
     ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
+  dayDetailGet: (date: string): Promise<DayDetail> =>
+    ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

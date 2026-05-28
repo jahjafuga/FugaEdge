@@ -59,6 +59,9 @@ export const IPC = {
   // dismissed.
   DATA_HEALTH_GET: 'dataHealth:get',
   DATA_HEALTH_ACKNOWLEDGE_COLLISIONS: 'dataHealth:acknowledgeCollisions',
+  // v0.2.2 — Day Detail Modal data source. Returns DayDetail (trades + metrics
+  // + day-level notes/mistakes) for the given date.
+  DAY_GET_DETAIL: 'day:getDetail',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
