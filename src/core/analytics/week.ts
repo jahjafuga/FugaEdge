@@ -27,6 +27,13 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   let scratchCount = 0
   let winnerSum = 0
   let loserSum = 0
+  let rSum = 0
+  let rCount = 0
+  let totalShares = 0
+  let totalDollarVolume = 0
+  // Single biggest winning / worst losing TRADE (sign-gated, mirrors day.ts).
+  let biggestWin: { symbol: string; pnl: number } | null = null
+  let worstLoss: { symbol: string; pnl: number } | null = null
   // Per-symbol: count + net, first-seen index for a stable sort tiebreak.
   const symbolAgg = new Map<string, { tradeCount: number; netPnl: number; firstSeen: number }>()
   // Per-trade mistake tag occurrences across the week.
@@ -45,12 +52,25 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     if (t.net_pnl > 0) {
       winCount += 1
       winnerSum += t.net_pnl
+      if (biggestWin === null || t.net_pnl > biggestWin.pnl) {
+        biggestWin = { symbol: t.symbol, pnl: t.net_pnl }
+      }
     } else if (t.net_pnl < 0) {
       lossCount += 1
       loserSum += t.net_pnl
+      if (worstLoss === null || t.net_pnl < worstLoss.pnl) {
+        worstLoss = { symbol: t.symbol, pnl: t.net_pnl }
+      }
     } else {
       scratchCount += 1
     }
+
+    if (t.r_multiple !== null) {
+      rSum += t.r_multiple
+      rCount += 1
+    }
+    totalShares += t.shares_bought + t.shares_sold
+    totalDollarVolume += t.shares_bought * t.avg_buy_price + t.shares_sold * t.avg_sell_price
 
     const sym = symbolAgg.get(t.symbol) ?? { tradeCount: 0, netPnl: 0, firstSeen: i }
     sym.tradeCount += 1
@@ -80,6 +100,8 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   const winRate = decided > 0 ? winCount / decided : null
   const avgWin = winCount > 0 ? winnerSum / winCount : null
   const avgLoss = lossCount > 0 ? loserSum / lossCount : null
+  const avgRMultiple = rCount > 0 ? rSum / rCount : null
+  const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
 
   let profitFactor: number | null = null
   if (decided > 0) {
@@ -161,6 +183,11 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     profitFactor,
     avgWin,
     avgLoss,
+    biggestWin,
+    worstLoss,
+    avgRMultiple,
+    totalDollarVolume,
+    avgPerShareGainLoss,
     symbolBreakdown,
     mistakeTagCounts,
     dayByDay,

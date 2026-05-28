@@ -12,6 +12,7 @@ import { longDate, signed, pnlClass, formatProfitFactor } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
 import WeekOverviewTab from './WeekOverviewTab'
+import WeekPerformanceTab from './WeekPerformanceTab'
 
 interface WeekReviewModalProps {
   /** Sunday week_start (from the calendar grid row), or null when closed. */
@@ -21,12 +22,12 @@ interface WeekReviewModalProps {
 
 type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'notes'
 
-// Day 4.5b ships Overview; Performance (4.5c) and Trades/Mistakes/Notes (4.5d)
+// Overview (4.5b) + Performance (4.5c) live; Trades/Mistakes/Notes (4.5d)
 // flip to available as they land. Same progressive pattern as the Day Detail
 // modal shipped its tabs.
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
-  { key: 'performance', label: 'Performance', Icon: BarChart3, available: false },
+  { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: false },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: false },
@@ -110,7 +111,8 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
         <div className="p-6 text-sm text-loss">Failed to load week detail: {error}</div>
       )}
       {detail && !loading && tab === 'overview' && <WeekOverviewTab detail={detail} />}
-      {detail && !loading && tab !== 'overview' && (
+      {detail && !loading && tab === 'performance' && <WeekPerformanceTab detail={detail} />}
+      {detail && !loading && tab !== 'overview' && tab !== 'performance' && (
         <div className="p-6 text-sm text-fg-tertiary">
           This tab ships later in the v0.2.2 build sequence.
         </div>

@@ -19,6 +19,17 @@ export interface WeekMetrics {
   profitFactor: number | null
   avgWin: number | null
   avgLoss: number | null
+  // Single biggest winning / worst losing TRADE of the week (sign-gated, mirrors
+  // day biggestWin/worstLoss). Distinct from bestDay/worstDay, which aggregate
+  // by day. Null when the week has no winners / no losers respectively.
+  biggestWin: { symbol: string; pnl: number } | null
+  worstLoss: { symbol: string; pnl: number } | null
+  // Avg of per-trade r_multiple over trades that have one set; null when none do.
+  avgRMultiple: number | null
+  // Σ per-trade notional (shares_bought·avg_buy + shares_sold·avg_sell).
+  totalDollarVolume: number
+  // netPnl ÷ total shares traded (bought + sold); null when no shares.
+  avgPerShareGainLoss: number | null
   // All symbols traded that week, sorted by net P&L desc (ties: count desc, then first-seen).
   symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   // Per-trade mistake tags aggregated across the week, sorted count desc then alpha.

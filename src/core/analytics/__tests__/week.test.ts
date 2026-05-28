@@ -74,6 +74,11 @@ describe('computeWeekMetrics', () => {
     expect(r.tradingDays).toBe(0)
     expect(r.dayPnlStdDev).toBeNull()
     expect(r.streak).toEqual({ kind: 'none', days: 0 })
+    expect(r.biggestWin).toBeNull()
+    expect(r.worstLoss).toBeNull()
+    expect(r.avgRMultiple).toBeNull()
+    expect(r.totalDollarVolume).toBe(0)
+    expect(r.avgPerShareGainLoss).toBeNull()
   })
 
   it('aggregates net / counts / win rate over the week (scratches excluded from win rate)', () => {
@@ -264,5 +269,76 @@ describe('computeWeekMetrics', () => {
     const trades: TradeListRow[] = [tradeRow({ id: 1, date: '2026-05-16', net_pnl: -25 })]
     const r = computeWeekMetrics({ trades, weekEnd: WEEK_END, dailyPnl })
     expect(r.streak).toEqual({ kind: 'loss', days: 2 })
+  })
+
+  // ── Cheap Tier-B additions (v0.2.2 Day 4.5c) — single-trade extremes,
+  //    R-multiple, notional volume, per-share P&L. Mirror day.ts conventions.
+
+  it('biggestWin / worstLoss track the single largest winning / losing TRADE (with symbol)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', symbol: 'HCTO', net_pnl: 100 }),
+      tradeRow({ id: 2, date: '2026-05-11', symbol: 'ABCD', net_pnl: 300 }), // biggest win
+      tradeRow({ id: 3, date: '2026-05-12', symbol: 'XYZ', net_pnl: -50 }),
+      tradeRow({ id: 4, date: '2026-05-12', symbol: 'QQQ', net_pnl: -220 }), // worst loss
+      tradeRow({ id: 5, date: '2026-05-13', symbol: 'TEST', net_pnl: 20 }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.biggestWin).toEqual({ symbol: 'ABCD', pnl: 300 })
+    expect(r.worstLoss).toEqual({ symbol: 'QQQ', pnl: -220 })
+    // Distinct axis from bestDay: 05-11 nets +400 (the best DAY) but the biggest
+    // single TRADE is +300.
+    expect(r.bestDay).toEqual({ date: '2026-05-11', netPnl: 400 })
+  })
+
+  it('all-green week → worstLoss null; all-loss week → biggestWin null', () => {
+    const allGreen = [
+      tradeRow({ id: 1, date: '2026-05-11', symbol: 'AAA', net_pnl: 100 }),
+      tradeRow({ id: 2, date: '2026-05-12', symbol: 'BBB', net_pnl: 60 }),
+    ]
+    const g = computeWeekMetrics({ trades: allGreen, weekEnd: WEEK_END })
+    expect(g.biggestWin).toEqual({ symbol: 'AAA', pnl: 100 })
+    expect(g.worstLoss).toBeNull()
+
+    const allLoss = [
+      tradeRow({ id: 1, date: '2026-05-11', symbol: 'CCC', net_pnl: -100 }),
+      tradeRow({ id: 2, date: '2026-05-12', symbol: 'DDD', net_pnl: -60 }),
+    ]
+    const l = computeWeekMetrics({ trades: allLoss, weekEnd: WEEK_END })
+    expect(l.biggestWin).toBeNull()
+    expect(l.worstLoss).toEqual({ symbol: 'CCC', pnl: -100 })
+  })
+
+  it('avgRMultiple averages trades with r_multiple set and ignores those without', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, r_multiple: 2 }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: -50, r_multiple: -1 }),
+      tradeRow({ id: 3, date: '2026-05-13', net_pnl: 25, r_multiple: null }), // ignored
+    ]
+    // (2 + −1) / 2 = 0.5  — the null-R trade is not in the denominator.
+    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgRMultiple).toBeCloseTo(0.5, 5)
+
+    const noneSet = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, r_multiple: null }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: -50, r_multiple: null }),
+    ]
+    expect(computeWeekMetrics({ trades: noneSet, weekEnd: WEEK_END }).avgRMultiple).toBeNull()
+  })
+
+  it('totalDollarVolume sums per-trade notional (buy + sell legs)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', shares_bought: 100, avg_buy_price: 10, shares_sold: 100, avg_sell_price: 11 }), // 1000 + 1100
+      tradeRow({ id: 2, date: '2026-05-12', shares_bought: 50, avg_buy_price: 20, shares_sold: 50, avg_sell_price: 22 }), // 1000 + 1100
+    ]
+    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).totalDollarVolume).toBeCloseTo(4200, 5)
+  })
+
+  it('avgPerShareGainLoss = netPnl / total shares traded', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 200, shares_bought: 100, shares_sold: 100 }), // 200 shares
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 100, shares_bought: 50, shares_sold: 50 }), // 100 shares
+    ]
+    // netPnl 300 / totalShares 300 = 1.0 per share
+    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgPerShareGainLoss).toBeCloseTo(1.0, 5)
   })
 })
