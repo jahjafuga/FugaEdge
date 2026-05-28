@@ -34,7 +34,7 @@ interface DetailModalShellProps<K extends string> {
 // DayDetailModal behavior-preserving. Owns: portal + backdrop + content card
 // (z-110 base layer) + header (title/subtitle/headerRight slot/close) + tab
 // strip + scrollable content + the stacking-aware Escape handler. Both
-// DayDetailModal and the Day-4.5 WeeklyReviewModal render their own header
+// DayDetailModal and the Day-4.5 WeekReviewModal render their own header
 // content + tab content into this shell, so the chrome — and the Escape /
 // z-order discipline that bit us twice — has a single source of truth.
 export default function DetailModalShell<K extends string>({

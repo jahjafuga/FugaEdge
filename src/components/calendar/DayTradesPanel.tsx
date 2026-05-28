@@ -53,8 +53,8 @@ export default function DayTradesPanel({
   onSaveCatalyst,
   onSaveCountry,
 }: DayTradesPanelProps) {
-  // Escape closes the panel — matches the WeeklyReviewModal + lightbox
-  // pattern so the calendar's two dismissal paths feel consistent.
+  // Escape closes the panel — matches the detail modals + lightbox pattern
+  // so the calendar's dismissal paths feel consistent.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()

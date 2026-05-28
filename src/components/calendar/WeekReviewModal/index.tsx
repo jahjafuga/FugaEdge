@@ -11,8 +11,11 @@ import { weekRepo } from '@/data/weekRepo'
 import { longDate, signed, pnlClass, formatProfitFactor } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
+import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import WeekOverviewTab from './WeekOverviewTab'
 import WeekPerformanceTab from './WeekPerformanceTab'
+import WeekTradesTab from './WeekTradesTab'
+import WeekMistakesTab from './WeekMistakesTab'
 
 interface WeekReviewModalProps {
   /** Sunday week_start (from the calendar grid row), or null when closed. */
@@ -22,15 +25,13 @@ interface WeekReviewModalProps {
 
 type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'notes'
 
-// Overview (4.5b) + Performance (4.5c) live; Trades/Mistakes/Notes (4.5d)
-// flip to available as they land. Same progressive pattern as the Day Detail
-// modal shipped its tabs.
+// All five tabs live as of Day 4.5d.
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
-  { key: 'trades', label: 'Trades', Icon: ListChecks, available: false },
-  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
-  { key: 'notes', label: 'Notes', Icon: NotebookPen, available: false },
+  { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
+  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
+  { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
 ]
 
 // v0.2.2 Day 4.5b — tabbed Weekly Review modal, built on the shared
@@ -112,10 +113,24 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
       )}
       {detail && !loading && tab === 'overview' && <WeekOverviewTab detail={detail} />}
       {detail && !loading && tab === 'performance' && <WeekPerformanceTab detail={detail} />}
-      {detail && !loading && tab !== 'overview' && tab !== 'performance' && (
-        <div className="p-6 text-sm text-fg-tertiary">
-          This tab ships later in the v0.2.2 build sequence.
-        </div>
+      {detail && !loading && tab === 'trades' && (
+        <WeekTradesTab
+          trades={detail.trades}
+          selectedTradeId={stack.selectedTradeId}
+          onSelectTrade={stack.selectTrade}
+        />
+      )}
+      {detail && !loading && tab === 'mistakes' && (
+        <WeekMistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
+      )}
+      {detail && !loading && tab === 'notes' && (
+        <DetailNotesTab
+          resetKey={detail.weekStart}
+          initialValue={detail.notes ?? ''}
+          onSave={(body) => weekRepo.saveWeekNotes(detail.weekStart, body)}
+          label="Week notes"
+          placeholder="What worked this week? What didn't? What's the plan for next week?"
+        />
       )}
     </DetailModalShell>
   )

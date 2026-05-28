@@ -6,4 +6,9 @@ export const weekRepo = {
   getWeekDetail(weekStart: string): Promise<WeekDetail> {
     return window.api.weekDetailGet(weekStart)
   },
+  // Mirrors dayRepo.saveDayNote: reuses the existing weekNotesSave IPC
+  // (week_notes table) as-is. Returns void so DetailNotesTab's onSave fits.
+  saveWeekNotes(weekStart: string, body: string): Promise<void> {
+    return window.api.weekNotesSave({ week_start: weekStart, text: body }).then(() => {})
+  },
 }
