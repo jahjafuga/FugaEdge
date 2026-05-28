@@ -13,6 +13,7 @@ import { dayRepo } from '@/data/dayRepo'
 import { longDate, money, signed, pnlClass } from '@/lib/format'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
+import TradesTab from './TradesTab'
 
 interface DayDetailModalProps {
   date: string | null
@@ -29,7 +30,7 @@ type TabKey = 'overview' | 'performance' | 'trades' | 'notes' | 'mistakes'
 const TABS: { key: TabKey; label: string; Icon: typeof BookOpen; available: boolean }[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
-  { key: 'trades', label: 'Trades', Icon: ListChecks, available: false },
+  { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: false },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
 ]
@@ -48,9 +49,15 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
   const [detail, setDetail] = useState<DayDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Trade whose detail will stack on top (Day 3.2). In 3.1 it only drives the
+  // row highlight in the Trades tab — the stacked TradeDetailModal lands next.
+  const [selectedTradeId, setSelectedTradeId] = useState<number | null>(null)
 
   useEffect(() => {
-    if (date) setTab('overview')
+    if (date) {
+      setTab('overview')
+      setSelectedTradeId(null)
+    }
   }, [date])
 
   useEffect(() => {
@@ -141,7 +148,14 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           )}
           {detail && !loading && tab === 'overview' && <OverviewTab detail={detail} />}
           {detail && !loading && tab === 'performance' && <PerformanceTab detail={detail} />}
-          {detail && !loading && tab !== 'overview' && tab !== 'performance' && (
+          {detail && !loading && tab === 'trades' && (
+            <TradesTab
+              trades={detail.trades}
+              selectedTradeId={selectedTradeId}
+              onSelectTrade={setSelectedTradeId}
+            />
+          )}
+          {detail && !loading && tab !== 'overview' && tab !== 'performance' && tab !== 'trades' && (
             <div className="p-6 text-sm text-fg-tertiary">
               This tab ships later in the v0.2.2 build sequence.
             </div>
