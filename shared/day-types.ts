@@ -22,8 +22,11 @@ export interface DayMetrics {
   avgLoss: number | null          // null when lossCount = 0
   sessionFirstTradeTime: string | null   // HH:MM, null when tradeCount = 0
   sessionLastTradeTime: string | null    // HH:MM, null when tradeCount = 0
-  symbolsTraded: string[]
-  topThreeSymbols: { symbol: string; tradeCount: number }[]
+  /** Every symbol traded that day with its trade count and net P&L, sorted
+   *  by net P&L descending (best first; ties broken by trade count desc then
+   *  first-seen). Distinct-symbol count is symbolBreakdown.length. Powers the
+   *  Overview "what did I trade today" breakdown and best/worst-symbol summary. */
+  symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   totalShares: number
   totalDollarVolume: number
   mostUsedPlaybook: { playbook: string; tradeCount: number; winRate: number | null } | null

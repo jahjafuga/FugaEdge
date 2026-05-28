@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import {
   X,
   BookOpen,
-  ListChecks,
   BarChart3,
+  ListChecks,
   NotebookPen,
   AlertTriangle,
 } from 'lucide-react'
@@ -12,21 +12,24 @@ import type { DayDetail } from '@shared/day-types'
 import { dayRepo } from '@/data/dayRepo'
 import { longDate, money, signed, pnlClass } from '@/lib/format'
 import OverviewTab from './OverviewTab'
+import PerformanceTab from './PerformanceTab'
 
 interface DayDetailModalProps {
   date: string | null
   onClose: () => void
 }
 
-type TabKey = 'overview' | 'trades' | 'chart' | 'notes' | 'mistakes'
+type TabKey = 'overview' | 'performance' | 'trades' | 'notes' | 'mistakes'
 
 // `available` flips to true as each tab ships across the v0.2.2 build sequence.
-// Day 1 ships Overview only; Days 2–4 land the rest. Disabled tabs render as
-// non-interactive labels so the trader sees what's coming without confusion.
+// Days 1–2 ship Overview + Performance; Day 3 lands Trades, Day 4 the rest.
+// Disabled tabs render as non-interactive labels so the trader sees what's
+// coming without confusion. (Chart tab was removed in the post-Day-1 spec
+// update — see the v0.2.2 plan addendum.)
 const TABS: { key: TabKey; label: string; Icon: typeof BookOpen; available: boolean }[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
+  { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: false },
-  { key: 'chart', label: 'Chart', Icon: BarChart3, available: false },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: false },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
 ]
@@ -97,7 +100,7 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
         className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
         onClick={onClose}
       />
-      <div className="relative flex max-h-[92vh] w-full max-w-[980px] flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in">
+      <div className="relative flex max-h-[92vh] w-full max-w-[min(1400px,calc(100vw-3rem))] flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in">
         <ModalHeader detail={detail} date={date} onClose={onClose} />
         <div className="flex items-center gap-0 border-b border-border-subtle px-3">
           {TABS.map((t) => {
@@ -137,7 +140,8 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
             <div className="p-6 text-sm text-loss">Failed to load day detail: {error}</div>
           )}
           {detail && !loading && tab === 'overview' && <OverviewTab detail={detail} />}
-          {detail && !loading && tab !== 'overview' && (
+          {detail && !loading && tab === 'performance' && <PerformanceTab detail={detail} />}
+          {detail && !loading && tab !== 'overview' && tab !== 'performance' && (
             <div className="p-6 text-sm text-fg-tertiary">
               This tab ships later in the v0.2.2 build sequence.
             </div>

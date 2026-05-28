@@ -75,8 +75,7 @@ describe('computeDayMetrics', () => {
     expect(result.avgLoss).toBeNull()
     expect(result.sessionFirstTradeTime).toBeNull()
     expect(result.sessionLastTradeTime).toBeNull()
-    expect(result.symbolsTraded).toEqual([])
-    expect(result.topThreeSymbols).toEqual([])
+    expect(result.symbolBreakdown).toEqual([])
     expect(result.totalShares).toBe(0)
     expect(result.totalDollarVolume).toBe(0)
     expect(result.mostUsedPlaybook).toBeNull()
@@ -229,20 +228,19 @@ describe('computeDayMetrics', () => {
     expect(result.totalDollarVolume).toBeCloseTo(13140, 5)
   })
 
-  it('aggregates distinct symbols, top three by trade count, and most-used playbook with its win rate', () => {
+  it('builds the per-symbol breakdown (count + net P&L, sorted by net P&L desc) and most-used playbook', () => {
     const trades: TradeListRow[] = [
-      // HCTO: 3 trades on the Gap-and-Go playbook (2W, 1L)
+      // HCTO: 3 trades on the Gap-and-Go playbook (2W, 1L) → net 250
       tradeRow({ id: 1,  symbol: 'HCTO', net_pnl: 100,  playbook_id: 1, playbook_name: 'Gap-and-Go' }),
       tradeRow({ id: 2,  symbol: 'HCTO', net_pnl: 200,  playbook_id: 1, playbook_name: 'Gap-and-Go' }),
       tradeRow({ id: 3,  symbol: 'HCTO', net_pnl: -50,  playbook_id: 1, playbook_name: 'Gap-and-Go' }),
-      // AMSS: 2 trades on Reversal
+      // AMSS: 2 trades on Reversal → net 30
       tradeRow({ id: 4,  symbol: 'AMSS', net_pnl: 50,   playbook_id: 2, playbook_name: 'Reversal' }),
       tradeRow({ id: 5,  symbol: 'AMSS', net_pnl: -20,  playbook_id: 2, playbook_name: 'Reversal' }),
-      // AIIO: 1 trade on Gap-and-Go
+      // AIIO: 1 trade → net 30 (ties AMSS on P&L; AMSS wins tiebreak on trade count)
       tradeRow({ id: 6,  symbol: 'AIIO', net_pnl: 30,   playbook_id: 1, playbook_name: 'Gap-and-Go' }),
-      // BIGW: 1 trade with no playbook — excluded from playbook ranking
+      // BIGW: 1 trade, no playbook → net 75
       tradeRow({ id: 7,  symbol: 'BIGW', net_pnl: 75,   playbook_id: null, playbook_name: null }),
-      // Two more symbols with 1 trade each to test "top three" cutoff
       tradeRow({ id: 8,  symbol: 'EXTRA1', net_pnl: 10, playbook_id: 1, playbook_name: 'Gap-and-Go' }),
       tradeRow({ id: 9,  symbol: 'EXTRA2', net_pnl: 5,  playbook_id: 1, playbook_name: 'Gap-and-Go' }),
     ]
@@ -253,19 +251,19 @@ describe('computeDayMetrics', () => {
       exitDeltas: [],
     })
 
-    // 6 distinct symbols total
-    expect(result.symbolsTraded).toHaveLength(6)
-    expect(result.symbolsTraded).toEqual(expect.arrayContaining(['HCTO', 'AMSS', 'AIIO', 'BIGW', 'EXTRA1', 'EXTRA2']))
+    // All 6 symbols, sorted by net P&L desc. The 30-tie (AMSS vs AIIO) breaks
+    // on trade count desc → AMSS (2 trades) before AIIO (1 trade).
+    expect(result.symbolBreakdown).toEqual([
+      { symbol: 'HCTO', tradeCount: 3, netPnl: 250 },
+      { symbol: 'BIGW', tradeCount: 1, netPnl: 75 },
+      { symbol: 'AMSS', tradeCount: 2, netPnl: 30 },
+      { symbol: 'AIIO', tradeCount: 1, netPnl: 30 },
+      { symbol: 'EXTRA1', tradeCount: 1, netPnl: 10 },
+      { symbol: 'EXTRA2', tradeCount: 1, netPnl: 5 },
+    ])
 
-    // Top 3 by trade count: HCTO (3), AMSS (2), then a 1-trade tie — any one of the four
-    expect(result.topThreeSymbols).toHaveLength(3)
-    expect(result.topThreeSymbols[0]).toEqual({ symbol: 'HCTO', tradeCount: 3 })
-    expect(result.topThreeSymbols[1]).toEqual({ symbol: 'AMSS', tradeCount: 2 })
-    expect(result.topThreeSymbols[2].tradeCount).toBe(1)
-
-    // Most-used playbook: Gap-and-Go has 5 trades (HCTO x3 + AIIO + EXTRA1 + EXTRA2 = 6, wait — let me recount)
-    // Gap-and-Go: ids 1, 2, 3, 6, 8, 9 → 6 trades. Wins: 1, 2, 6, 8, 9 (5 of 6); loss: 3
-    // decided = 6 (no scratches); winRate = 5/6
+    // Most-used playbook: Gap-and-Go has 6 trades (ids 1,2,3,6,8,9).
+    // Wins: 1,2,6,8,9 (5); loss: 3. decided = 6, no scratches; winRate = 5/6.
     expect(result.mostUsedPlaybook).toEqual({
       playbook: 'Gap-and-Go',
       tradeCount: 6,

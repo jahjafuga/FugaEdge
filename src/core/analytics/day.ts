@@ -42,10 +42,9 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   let holdSecondsLosersCount = 0
   let holdSecondsScratchesTotal = 0
   let holdSecondsScratchesCount = 0
-  const symbolCounts = new Map<string, number>()
-  // Insertion order tracks first-seen — used as the tiebreaker when multiple
-  // symbols share the same trade count in the top-3 ranking.
-  const symbolFirstSeen = new Map<string, number>()
+  // Per-symbol aggregation: count + net P&L, with first-seen index as the
+  // final tiebreaker for a stable sort.
+  const symbolAgg = new Map<string, { tradeCount: number; netPnl: number; firstSeen: number }>()
   const playbookAgg = new Map<string, { tradeCount: number; winners: number; losers: number }>()
 
   for (let i = 0; i < trades.length; i++) {
@@ -106,8 +105,10 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
       }
     }
 
-    symbolCounts.set(t.symbol, (symbolCounts.get(t.symbol) ?? 0) + 1)
-    if (!symbolFirstSeen.has(t.symbol)) symbolFirstSeen.set(t.symbol, i)
+    const sym = symbolAgg.get(t.symbol) ?? { tradeCount: 0, netPnl: 0, firstSeen: i }
+    sym.tradeCount += 1
+    sym.netPnl += t.net_pnl
+    symbolAgg.set(t.symbol, sym)
 
     if (t.playbook_name !== null) {
       const agg = playbookAgg.get(t.playbook_name) ?? { tradeCount: 0, winners: 0, losers: 0 }
@@ -174,15 +175,16 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     }
   }
 
-  const symbolsTraded = [...symbolCounts.keys()]
-  // Rank by tradeCount desc, then first-seen index asc (stable tiebreak).
-  const topThreeSymbols = symbolsTraded
-    .map((symbol) => ({ symbol, tradeCount: symbolCounts.get(symbol)! }))
+  // Rank by net P&L desc (best first), then trade count desc, then first-seen
+  // asc — a stable order for the Overview "what did I trade today" breakdown.
+  const symbolBreakdown = [...symbolAgg.entries()]
+    .map(([symbol, agg]) => ({ symbol, tradeCount: agg.tradeCount, netPnl: agg.netPnl, firstSeen: agg.firstSeen }))
     .sort((a, b) => {
+      if (a.netPnl !== b.netPnl) return b.netPnl - a.netPnl
       if (a.tradeCount !== b.tradeCount) return b.tradeCount - a.tradeCount
-      return (symbolFirstSeen.get(a.symbol) ?? 0) - (symbolFirstSeen.get(b.symbol) ?? 0)
+      return a.firstSeen - b.firstSeen
     })
-    .slice(0, 3)
+    .map(({ symbol, tradeCount, netPnl }) => ({ symbol, tradeCount, netPnl }))
 
   let mostUsedPlaybook: DayMetrics['mostUsedPlaybook'] = null
   for (const [name, agg] of playbookAgg) {
@@ -234,8 +236,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     avgLoss,
     sessionFirstTradeTime: earliestOpen ? extractHHMM(earliestOpen) : null,
     sessionLastTradeTime: latestClose ? extractHHMM(latestClose) : null,
-    symbolsTraded,
-    topThreeSymbols,
+    symbolBreakdown,
     totalShares,
     totalDollarVolume,
     mostUsedPlaybook,
@@ -278,8 +279,7 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     avgLoss: null,
     sessionFirstTradeTime: null,
     sessionLastTradeTime: null,
-    symbolsTraded: [],
-    topThreeSymbols: [],
+    symbolBreakdown: [],
     totalShares: 0,
     totalDollarVolume: 0,
     mostUsedPlaybook: null,
