@@ -95,6 +95,7 @@ describe('computeDayMetrics', () => {
     expect(result.stdDevPnl).toBeNull()
     expect(result.avgMfeDollars).toBeNull()
     expect(result.avgMaeDollars).toBeNull()
+    expect(result.mistakeTagCounts).toEqual([])
   })
 
   it('counts wins, losses, scratches and sums gross/fees/net across the day', () => {
@@ -456,5 +457,24 @@ describe('computeDayMetrics', () => {
 
     expect(result.avgMfeDollars).toBeNull()
     expect(result.avgMaeDollars).toBeNull()
+  })
+
+  it('aggregates per-trade mistake tags across the day, sorted by count desc', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, mistakes: ['FOMO entry', 'Sized too big'] }),
+      tradeRow({ id: 2, mistakes: ['FOMO entry'] }),
+      tradeRow({ id: 3, mistakes: [] }),
+      tradeRow({ id: 4, mistakes: ['Sized too big', 'Chased extended entry'] }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    // FOMO entry ×2, Sized too big ×2, Chased extended entry ×1.
+    // Count desc, then alphabetical on the count tie.
+    expect(result.mistakeTagCounts).toEqual([
+      { tag: 'FOMO entry', count: 2 },
+      { tag: 'Sized too big', count: 2 },
+      { tag: 'Chased extended entry', count: 1 },
+    ])
   })
 })

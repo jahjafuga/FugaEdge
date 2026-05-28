@@ -18,6 +18,7 @@ import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
 import NotesTab from './NotesTab'
+import MistakesTab from './MistakesTab'
 
 interface DayDetailModalProps {
   date: string | null
@@ -36,7 +37,7 @@ const TABS: { key: TabKey; label: string; Icon: typeof BookOpen; available: bool
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
-  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: false },
+  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
 ]
 
 // v0.2.2 Day Detail Modal — overlay that replaces the Calendar's inline
@@ -57,11 +58,17 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
   // Trade whose detail will stack on top (Day 3.2). In 3.1 it only drives the
   // row highlight in the Trades tab — the stacked TradeDetailModal lands next.
   const [selectedTradeId, setSelectedTradeId] = useState<number | null>(null)
+  // Day-level mistake tags lifted here (Day 4.2) so the selection survives
+  // tab switches — MistakesTab unmounts on switch, so its own state would be
+  // lost and re-seeded stale. Seeded from detail on load; this is the single
+  // source of truth for the day-level picker.
+  const [dayMistakes, setDayMistakes] = useState<string[]>([])
 
   useEffect(() => {
     if (date) {
       setTab('overview')
       setSelectedTradeId(null)
+      setDayMistakes([])
     }
   }, [date])
 
@@ -74,7 +81,10 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     dayRepo
       .getDayDetail(date)
       .then((d) => {
-        if (!cancelled) setDetail(d)
+        if (!cancelled) {
+          setDetail(d)
+          setDayMistakes(d.dayMistakes)
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -130,6 +140,18 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     const updated = await save(input)
     if (updated) await reload()
   }
+
+  // Day-level mistake toggle: optimistically update the lifted state and
+  // persist the full set. Self-contained to the Mistakes tab (nothing else
+  // reads dayMistakes), so no reload() — unlike the trade-save handlers.
+  const handleSaveDayMistakes = useCallback(
+    (next: string[]) => {
+      if (!date) return
+      setDayMistakes(next)
+      void dayRepo.saveDayMistakes(date, next)
+    },
+    [date],
+  )
 
   if (!date) return null
 
@@ -204,9 +226,11 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
             <NotesTab date={date} note={detail.note} />
           )}
           {detail && !loading && tab === 'mistakes' && (
-            <div className="p-6 text-sm text-fg-tertiary">
-              This tab ships later in the v0.2.2 build sequence.
-            </div>
+            <MistakesTab
+              mistakeTagCounts={detail.metrics.mistakeTagCounts}
+              dayMistakes={dayMistakes}
+              onChangeDayMistakes={handleSaveDayMistakes}
+            />
           )}
         </div>
       </div>

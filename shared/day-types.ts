@@ -65,6 +65,11 @@ export interface DayMetrics {
    *  awaiting-intraday pattern as {@link moneyLeftOnTable}. */
   avgMfeDollars: number | null
   avgMaeDollars: number | null
+  /** Day 4 — per-trade mistake tags aggregated across the day's trades,
+   *  sorted by count desc (ties broken alphabetically). Powers the Mistakes
+   *  tab's "what went wrong today" rollup. Distinct from day-level mistake
+   *  tags (DayDetail.dayMistakes), which tag the day itself. */
+  mistakeTagCounts: { tag: string; count: number }[]
 }
 
 export interface DayDetail {

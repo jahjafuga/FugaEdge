@@ -257,12 +257,13 @@ CREATE TABLE IF NOT EXISTS week_notes (
 -- on the trading day at the session level (distinct from the longer-form
 -- journal entry which has its own table).
 CREATE TABLE IF NOT EXISTS session_meta (
-  date            TEXT PRIMARY KEY,
-  sentiment       INTEGER,                          -- 1..5 or NULL
-  notes           TEXT NOT NULL DEFAULT '',
-  no_trade_day    INTEGER NOT NULL DEFAULT 0,       -- 1 = trader sat out
-  no_trade_reason TEXT NOT NULL DEFAULT '',         -- free-form reason
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  date              TEXT PRIMARY KEY,
+  sentiment         INTEGER,                          -- 1..5 or NULL
+  notes             TEXT NOT NULL DEFAULT '',
+  no_trade_day      INTEGER NOT NULL DEFAULT 0,       -- 1 = trader sat out
+  no_trade_reason   TEXT NOT NULL DEFAULT '',         -- free-form reason
+  day_mistakes_json TEXT NOT NULL DEFAULT '[]',       -- v0.2.2 Day 4: JSON array of day-level mistake tags (Day Detail Modal)
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS settings (

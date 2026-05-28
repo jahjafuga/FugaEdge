@@ -16,4 +16,7 @@ export const dayRepo = {
   saveDayNote(date: string, body: string): Promise<void> {
     return window.api.dayNoteSave(date, body)
   },
+  saveDayMistakes(date: string, tags: string[]): Promise<void> {
+    return window.api.dayMistakesSave(date, tags)
+  },
 }

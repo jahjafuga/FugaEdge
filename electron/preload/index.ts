@@ -189,6 +189,8 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
   dayNoteSave: (date: string, body: string): Promise<void> =>
     ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
+  dayMistakesSave: (date: string, tags: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.DAY_MISTAKES_SAVE, { date, tags }),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

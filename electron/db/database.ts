@@ -495,6 +495,14 @@ function migrateAfterSchema(
       "ALTER TABLE session_meta ADD COLUMN no_trade_reason TEXT NOT NULL DEFAULT ''",
     )
   }
+  // v0.2.2 Day 4 — day-level mistake tags for the Day Detail Modal. Additive,
+  // nullable-with-default; existing rows get '[]'. No data migration / version
+  // bump needed (same as the no_trade_* adds above).
+  if (!hasSession('day_mistakes_json')) {
+    conn.exec(
+      "ALTER TABLE session_meta ADD COLUMN day_mistakes_json TEXT NOT NULL DEFAULT '[]'",
+    )
+  }
 
   // polygon_api_key is intentionally NOT seeded with a value here — the
   // user pastes their own in Settings → Market Data on first launch.

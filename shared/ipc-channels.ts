@@ -64,6 +64,7 @@ export const IPC = {
   DAY_GET_DETAIL: 'day:getDetail',
   // v0.2.2 Day 4 — Day Detail writable fields, both stored on session_meta.
   DAY_NOTE_SAVE: 'day:noteSave',
+  DAY_MISTAKES_SAVE: 'day:mistakesSave',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

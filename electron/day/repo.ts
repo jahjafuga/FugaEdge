@@ -1,7 +1,7 @@
 import { computeDayMetrics } from '@/core/analytics/day'
 import type { DayDetail } from '@shared/day-types'
 import { listTrades } from '../trades/list'
-import { getSessionMeta } from '../session/repo'
+import { getSessionMeta, getDayMistakes } from '../session/repo'
 
 // v0.2.2 Day 1 — Day Detail data assembly.
 //
@@ -10,8 +10,8 @@ import { getSessionMeta } from '../session/repo'
 // (Money Left card renders the "awaiting intraday data" empty state in the
 // meantime — see Decision 3 in docs/plans/v0_2_2-calendar-day-detail.md).
 //
-// Day 4: the day-level note lives on session_meta.notes (reused, not a new
-// table). Day-level mistakes land in Day 4.2.
+// Day 4: the day-level note and mistake tags both live on session_meta
+// (notes + day_mistakes_json) — reused, no new tables.
 export function getDayDetail(date: string): DayDetail {
   const trades = listTrades({ date })
   const metrics = computeDayMetrics({ date, trades, exitDeltas: [] })
@@ -22,6 +22,6 @@ export function getDayDetail(date: string): DayDetail {
     metrics,
     trades,
     note: meta?.notes ? meta.notes : null,
-    dayMistakes: [],
+    dayMistakes: getDayMistakes(date),
   }
 }

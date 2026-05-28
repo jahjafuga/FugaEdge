@@ -46,6 +46,8 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   // Per-symbol aggregation: count + net P&L, with first-seen index as the
   // final tiebreaker for a stable sort.
   const symbolAgg = new Map<string, { tradeCount: number; netPnl: number; firstSeen: number }>()
+  // Per-trade mistake-tag occurrences across the day.
+  const mistakeCounts = new Map<string, number>()
   const playbookAgg = new Map<string, { tradeCount: number; winners: number; losers: number }>()
 
   for (let i = 0; i < trades.length; i++) {
@@ -110,6 +112,10 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     sym.tradeCount += 1
     sym.netPnl += t.net_pnl
     symbolAgg.set(t.symbol, sym)
+
+    for (const tag of t.mistakes) {
+      mistakeCounts.set(tag, (mistakeCounts.get(tag) ?? 0) + 1)
+    }
 
     if (t.playbook_name !== null) {
       const agg = playbookAgg.get(t.playbook_name) ?? { tradeCount: 0, winners: 0, losers: 0 }
@@ -187,6 +193,11 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     })
     .map(({ symbol, tradeCount, netPnl }) => ({ symbol, tradeCount, netPnl }))
 
+  // Mistake tags sorted by count desc, then alphabetically on a tie.
+  const mistakeTagCounts = [...mistakeCounts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+
   let mostUsedPlaybook: DayMetrics['mostUsedPlaybook'] = null
   for (const [name, agg] of playbookAgg) {
     if (mostUsedPlaybook === null || agg.tradeCount > mostUsedPlaybook.tradeCount) {
@@ -257,6 +268,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     stdDevPnl,
     avgMfeDollars: null,
     avgMaeDollars: null,
+    mistakeTagCounts,
   }
 }
 
@@ -286,6 +298,7 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     mostUsedPlaybook: null,
     moneyLeftOnTable: null,
     moneyLeftCoverage: null,
+    mistakeTagCounts: [],
     avgTradePnl: null,
     avgPerShareGainLoss: null,
     profitFactor: null,
