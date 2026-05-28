@@ -276,6 +276,18 @@ Format: `FIRST TRADE · HCTO · +$181.25 (+1.4R)` — symbol, P&L, R-multiple if
 - Modal stacking edge cases (close TradeDetail with Escape doesn't close DayDetail by mistake)
 - Light/dark mode audit (every new card and tab works in both)
 
+**Week Performance — Hold Time section (deferred from Day 4.5c).** The Week
+Performance tab ships in 4.5c WITHOUT Hold Time (avg hold all / winners /
+losers / scratches). Unlike the other cheap week stats, it carries no field on
+`WeekMetrics` and needs new pure aggregation in `week.ts`: parse
+`open_time`/`close_time`, diff to seconds, partition into 4 buckets
+(all + winners + losers + scratches), null-handle still-open trades — the
+heaviest of the candidate week stats. It's thematically the same "execution
+timing" family as the intraday MFE/MAE/Money-Left wiring this day already
+absorbs, so wire it here alongside that work (not in 4.5c, not v0.3.0) so the
+two land together. Mirror the day.ts hold-time accumulators (`day.ts` lines
+36-45, 89-109, 157-160) + add `week.test.ts` coverage.
+
 ### Day 6 — Smoke test + cleanup
 
 - Re-import all fixture data (DAS, Webull, real DTSM testers) and click through random days
