@@ -644,3 +644,121 @@ factual gap.
 > Detail Modal you already know. Same UX pattern, scoped to one day.
 
 Wording was reviewed and approved 2026-05-28.
+
+---
+
+## Day 4.5 — Weekly Review modal (tabbed, mirrors Day Detail) — added end of Day 4
+
+New scope, accepted eyes-open: replace the single-panel Weekly Review modal
+with a full tabbed modal mirroring the Day Detail modal, scoped to a week.
+This is a multi-day arc; **Ship slides** (see revised sequence below). A week
+is NOT just a big day — the tabs are week-shaped (best/worst DAY, day-by-day,
+per-playbook, symbol-grouped trades).
+
+### Reuse strategy — refactor-first (extract shared, then build on it)
+
+Copy-then-dedup drifts; two parallel modals would re-grow the Escape/z-order
+bug class we already fixed twice. So we **refactor Day Detail behavior-
+preserving to extract shared primitives FIRST**, then build the week tabs on
+top. Three primitives extracted from the current Day Detail:
+
+1. **`DetailModalShell`** — portal + backdrop + tab strip + content switch +
+   z-110 chrome. `headerRight` is a slot (Day = gross/fees/net trio; Week =
+   net/win-rate/best-day). Takes `escapeBlocked` so stacking can suppress the
+   shell's own Escape-close.
+2. **`useTradeStack({ reload })`** — owns `selectedTradeId`, the Escape guard,
+   the 10 trade-save handlers + reload, and renders the stacked
+   `TradeDetailModal` (`stacked` → z-210). Both modals share ONE stacking
+   implementation — the anti-drift core of this arc.
+3. **`CumulativePnlChart`** (generalized `IntradayPnLChart`) — the curve-build
+   (prorate net_pnl across closing fills, sort by time, accumulate) is already
+   date-agnostic; add an X-axis label mode (`'time'` for day, `'datetime'` /
+   weekday for week) + per-point date in the tooltip.
+4. **`NotesTab`** generalized to `{ initialValue, onSave }` — Day →
+   `saveDayNote`; Week → existing `weekNotesSave`. Debounce + flush identical.
+
+Per-Day-Detail-piece verdict: shell → extract; stacking → extract hook;
+equity curve → reuse + label mode; NotesTab → generalize; OverviewTab /
+PerformanceTab / TradesTab → **rebuild week-specific** (different content) on
+the shared spine; MistakesTab → reuse the per-trade rollup card, drop the
+day-level picker (week has no week-level mistake picker).
+
+### Data layer (ARCHITECTURE.md-compliant)
+
+- **`src/core/analytics/week.ts` — pure `computeWeekMetrics(trades, weekStart,
+  weekEnd, dailyPnl?)`** (mirrors `day.ts`, TDD). Reuses day conventions for
+  net/counts/winRate/profitFactor/symbolBreakdown/mistakeTagCounts over week
+  trades, plus week-new: `dayByDay[]`, `bestDay`/`worstDay`, `perPlaybook[]`,
+  consistency (% green days, day-P&L std dev, largest swing), `streak`.
+- `shared/week-types.ts` — `WeekDetail` + `WeekMetrics`.
+- `electron/trades/list.ts` — add `listTradesInRange(from, to)` (one
+  `WHERE date BETWEEN` query; full `TradeListRow`). Replaces the current
+  modal's 7-parallel `tradesList` fetch.
+- `electron/week/repo.ts` — `getWeekDetail(weekStart)`: range-fetch + read
+  `week_notes` + feed `computeWeekMetrics`. Thin IPC handler (`electron/week/ipc.ts`),
+  no inline SQL. `src/data/weekRepo.ts` renderer client.
+- **Reuse:** `week_notes` table + `weekNotesSave` IPC (Notes tab) as-is;
+  port `computeStreak` into core; the existing `WeeklySummary`/`computeOne`
+  grid path is NOT touched (see drift note).
+
+### Tab content (week-scoped)
+
+- **Overview** — week equity curve (`CumulativePnlChart`, multi-day) + summary
+  (net, win rate, best/worst DAY, streak).
+- **Performance** — day-by-day P&L (which days win/lose), per-playbook across
+  the week, consistency metrics. The pattern-spotting tab.
+- **Trades** — symbol-grouped, collapsed-by-default (the scalability spec from
+  the Weekly Review parking-lot entry; Tester A does 37+/week — a flat list is the
+  trade-dump we're killing). Row → stacked `TradeDetailModal` via `useTradeStack`.
+- **Mistakes** — per-trade mistake rollup across the week (same disjoint
+  per-trade data path verified in Day 4.2; no week-level picker).
+- **Notes** — the weekly reflection box (existing `week_notes`), via the
+  generalized `NotesTab`.
+
+### Build arc (4 sub-days, each checkpoint + commit)
+
+- **Day 4.5a — Extract shared primitives (refactor only, no new features).**
+  `DetailModalShell` + `useTradeStack` + generalized `CumulativePnlChart` /
+  `NotesTab`; Day Detail rewired to use them. **Checkpoint: prove Day Detail
+  behavior byte-for-byte identical** (all 5 tabs, stacking, Escape, notes).
+  Kept SEPARATE so a regression is isolated to the refactor, not mixed with
+  new week code.
+- **Day 4.5b — Week data layer + Week Overview.** week-types, `week.ts` (TDD),
+  `listTradesInRange`, `electron/week` repo+IPC, `weekRepo`. New `WeekReviewModal`
+  on the shared shell, Overview tab only. Wire Calendar `onSelectWeek`.
+- **Day 4.5c — Week Performance.** Day-by-day + per-playbook + consistency
+  (extends `computeWeekMetrics`, more TDD).
+- **Day 4.5d — Week Trades + Mistakes + Notes; retire old modal.** Symbol-
+  grouped Trades (reusing `useTradeStack`), Mistakes rollup, Notes via the
+  generalized component. Delete the old `WeeklyReviewModal`. Checkpoint
+  includes a Day Detail regression pass.
+
+### Revised build sequence + Ship date
+
+| Day | Scope | Status |
+|---|---|---|
+| 1–4 | Day Detail Modal (shell → 5 tabs) | **Shipped** |
+| 4.5a–d | **Weekly Review modal (this arc, ~4 working days)** | NEW |
+| 5 | Edge cases + polish (± intraday MFE/MAE/Money-Left wiring) | pending |
+| 5.5 | Intraday wiring, IF it slides out of Day 5 (open decision) | conditional |
+| 6 | Smoke test + cleanup | pending |
+| 7 | Ship | pending |
+
+**Honest Ship: ~Day 11** (Weekly arc adds ~4 days to the original Day-7 ship),
+or **~Day 12 if intraday slides to Day 5.5** (that decision is still open from
+end of Day 4). Formalize the exact number once the intraday Day-5 call is made.
+
+### Drift note — week aggregation runs in two places (logged for v0.3.0)
+
+`computeWeekMetrics` (new, pure core, rich, per-week) and the existing
+`getWeeklySummaries`/`computeOne` (electron, lightweight, 6-weeks-at-once for
+the calendar grid) will both compute week aggregates. We deliberately do NOT
+unify them now — they serve different surfaces. Logged as a v0.3.0
+consolidation item in `docs/plans/v0.3.0-or-later-ideas.md` so they're on
+record as parallel paths and don't silently diverge.
+
+### LOCKED release-notes blurb — needs another pass
+
+The re-LOCKED blurb above describes only the Day Detail Modal. It does NOT
+mention the Weekly Review modal. Re-draft + re-LOCK the blurb to cover both
+surfaces before Ship — do not silently edit; replace the block as before.
