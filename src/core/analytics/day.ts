@@ -1,6 +1,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { ExitDelta } from '@shared/analytics-types'
 import type { DayMetrics } from '@shared/day-types'
+import { formatEastern } from '@/lib/format'
 
 interface ComputeDayMetricsInput {
   date: string
@@ -234,8 +235,8 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     avgRMultiple,
     avgWin,
     avgLoss,
-    sessionFirstTradeTime: earliestOpen ? extractHHMM(earliestOpen) : null,
-    sessionLastTradeTime: latestClose ? extractHHMM(latestClose) : null,
+    sessionFirstTradeTime: earliestOpen ? toEasternHHMM(earliestOpen) : null,
+    sessionLastTradeTime: latestClose ? toEasternHHMM(latestClose) : null,
     symbolBreakdown,
     totalShares,
     totalDollarVolume,
@@ -302,9 +303,12 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-function extractHHMM(isoTimestamp: string): string {
-  // open_time/close_time are ISO-ish "YYYY-MM-DDTHH:MM:SS" — positions 11..16 carry HH:MM.
-  return isoTimestamp.slice(11, 16)
+function toEasternHHMM(utcTimestamp: string): string {
+  // open_time/close_time are stored UTC (Day 8.5 migration). Render the
+  // Eastern wall-clock HH:MM — the convention the rest of the app uses
+  // (TradesTable, IntradayPnLChart). A prior slice(11,16) here showed UTC,
+  // ~4-5h off, surfaced during v0.2.2 Day 3.
+  return formatEastern(utcTimestamp).slice(0, 5)
 }
 
 function deriveDayOfWeek(isoDate: string): string {

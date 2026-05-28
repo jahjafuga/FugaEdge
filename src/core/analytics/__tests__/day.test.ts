@@ -191,13 +191,15 @@ describe('computeDayMetrics', () => {
     expect(result.avgRMultiple).toBeNull()
   })
 
-  it('computes session window (HH:MM) and total shares + dollar volume', () => {
+  it('computes session window in Eastern (HH:MM) from UTC timestamps and total shares + dollar volume', () => {
+    // open_time/close_time are stored UTC (Day 8.5). In May (EDT = UTC-4):
+    //   13:31 UTC → 09:31 ET (earliest open) · 15:02 UTC → 11:02 ET (latest close)
     const trades: TradeListRow[] = [
       tradeRow({
         id: 1,
         symbol: 'HCTO',
-        open_time: '2026-05-15T09:31:15',
-        close_time: '2026-05-15T09:45:00',
+        open_time: '2026-05-15T13:31:15Z',
+        close_time: '2026-05-15T13:45:00Z',
         shares_bought: 500,
         avg_buy_price: 10,
         shares_sold: 500,
@@ -206,8 +208,8 @@ describe('computeDayMetrics', () => {
       tradeRow({
         id: 2,
         symbol: 'AMSS',
-        open_time: '2026-05-15T10:15:00',
-        close_time: '2026-05-15T11:02:30',
+        open_time: '2026-05-15T14:15:00Z',
+        close_time: '2026-05-15T15:02:30Z',
         shares_bought: 300,
         avg_buy_price: 5,
         shares_sold: 300,
@@ -221,8 +223,8 @@ describe('computeDayMetrics', () => {
       exitDeltas: [],
     })
 
-    expect(result.sessionFirstTradeTime).toBe('09:31')  // earliest open
-    expect(result.sessionLastTradeTime).toBe('11:02')   // latest close
+    expect(result.sessionFirstTradeTime).toBe('09:31')  // earliest open, Eastern
+    expect(result.sessionLastTradeTime).toBe('11:02')   // latest close, Eastern
     expect(result.totalShares).toBe(1600)               // 500+500 + 300+300
     // Notional: 500*10 + 500*10.4 + 300*5 + 300*4.8 = 5000 + 5200 + 1500 + 1440 = 13140
     expect(result.totalDollarVolume).toBeCloseTo(13140, 5)
