@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X,
@@ -9,8 +9,11 @@ import {
   AlertTriangle,
 } from 'lucide-react'
 import type { DayDetail } from '@shared/day-types'
+import type { TradeListRow } from '@shared/trades-types'
 import { dayRepo } from '@/data/dayRepo'
+import { ipc } from '@/lib/ipc'
 import { longDate, money, signed, pnlClass } from '@/lib/format'
+import TradeDetailModal from '@/components/trades/TradeDetailModal'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
@@ -42,8 +45,9 @@ const TABS: { key: TabKey; label: string; Icon: typeof BookOpen; available: bool
 // Layering: the outer container's z-[110] puts the whole modal above the
 // Calendar (z-0). Within the modal, backdrop comes first in DOM and content
 // second, so DOM order alone keeps content above the backdrop's blur — no
-// inner z-index needed. Day 2 modal stacking will bump TradeDetailModal's
-// outer container above this one (e.g. z-[210]) using the same approach.
+// inner z-index needed. When a trade row is clicked, a stacked
+// TradeDetailModal (stacked → z-[210]) opens above this one; DayDetail stays
+// mounted underneath, preserving its tab/scroll/data.
 export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [detail, setDetail] = useState<DayDetail | null>(null)
@@ -86,15 +90,55 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     if (!date) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // When a trade detail is stacked on top, it owns Escape — don't close
+        // DayDetail out from under it. Both listeners live on `document`;
+        // stopPropagation can't stop a sibling listener, and DayDetail's fires
+        // first (mounted first), so the guard must be explicit here.
+        if (selectedTradeId !== null) return
         e.stopPropagation()
         onClose()
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [date, onClose])
+  }, [date, onClose, selectedTradeId])
+
+  // Re-fetch the whole day after a trade edit so Overview + Performance +
+  // Trades stay consistent. Some edits shift day metrics (playbook →
+  // mostUsedPlaybook; planned_risk → avgRMultiple / firstTradePnl.rMultiple),
+  // so the old surgical single-row patch would leave those cards stale. No
+  // loading-flash here — keep the current detail on screen until fresh lands,
+  // so the stacked modal doesn't unmount mid-edit.
+  const reload = useCallback(async () => {
+    if (!date) return
+    try {
+      const fresh = await dayRepo.getDayDetail(date)
+      setDetail(fresh)
+    } catch {
+      // A refresh-after-save failure keeps the last-good detail on screen;
+      // the initial-load effect owns hard-error surfacing.
+    }
+  }, [date])
+
+  // Wraps each trade-save IPC: persist, then reload if it actually changed
+  // something. T is inferred per call from the specific save fn + input.
+  async function persist<T>(
+    save: (input: T) => Promise<TradeListRow | null>,
+    input: T,
+  ): Promise<void> {
+    const updated = await save(input)
+    if (updated) await reload()
+  }
 
   if (!date) return null
+
+  // The trade whose detail is stacked on top, resolved from the freshly
+  // fetched list so post-save edits flow back in. null → TradeDetailModal
+  // self-hides (renders null).
+  const selectedTrade =
+    detail && selectedTradeId !== null
+      ? detail.trades.find((t) => t.id === selectedTradeId) ?? null
+      : null
 
   return createPortal(
     <div
@@ -162,6 +206,25 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           )}
         </div>
       </div>
+
+      {/* Stacked trade detail. TradeDetailModal self-portals to document.body,
+          so its DOM position is independent of this nesting; stacked → z-210,
+          above DayDetail's z-110. Renders null when no row is selected. */}
+      <TradeDetailModal
+        trade={selectedTrade}
+        stacked
+        onClose={() => setSelectedTradeId(null)}
+        onSaveNote={(i) => persist(ipc.tradeNoteSave, i)}
+        onSaveTimeframe={(i) => persist(ipc.tradeTimeframeSave, i)}
+        onSavePlaybook={(i) => persist(ipc.tradePlaybookSave, i)}
+        onSaveConfidence={(i) => persist(ipc.tradeConfidenceSave, i)}
+        onSaveMistakes={(i) => persist(ipc.tradeMistakesSave, i)}
+        onSavePlannedRisk={(i) => persist(ipc.tradePlannedRiskSave, i)}
+        onSavePlannedStopLoss={(i) => persist(ipc.tradePlannedStopLossSave, i)}
+        onSaveFloat={(i) => persist(ipc.tradeFloatSave, i)}
+        onSaveCatalyst={(i) => persist(ipc.tradeCatalystSave, i)}
+        onSaveCountry={(i) => persist(ipc.tradeCountrySave, i)}
+      />
     </div>,
     document.body,
   )

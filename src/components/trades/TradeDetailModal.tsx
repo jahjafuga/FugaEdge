@@ -44,6 +44,10 @@ interface TradeDetailModalProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  /** When opened on top of another modal (e.g. stacked inside DayDetailModal),
+   *  raises the overlay above it. Default false → standalone z-[60]; true →
+   *  z-[210], above DayDetailModal's z-[110]. */
+  stacked?: boolean
 }
 
 type TabKey = 'overview' | 'notes' | 'attachments' | 'mistakes' | 'chart'
@@ -72,6 +76,7 @@ export default function TradeDetailModal({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
 
@@ -99,7 +104,7 @@ export default function TradeDetailModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="trade-detail-title"
-      className="fixed inset-0 z-[60] flex items-center justify-center p-6"
+      className={`fixed inset-0 ${stacked ? 'z-[210]' : 'z-[60]'} flex items-center justify-center p-6`}
     >
       <div
         className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
