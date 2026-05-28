@@ -1,42 +1,53 @@
 import { useEffect, useRef, useState } from 'react'
-import { dayRepo } from '@/data/dayRepo'
 
 const DEBOUNCE_MS = 500
 
-interface NotesTabProps {
-  date: string
-  note: string | null
+interface DetailNotesTabProps {
+  /** Identity that resets the editor when it changes (day's date / week start). */
+  resetKey: string
+  initialValue: string
+  onSave: (body: string) => Promise<void> | void
+  label: string
+  placeholder: string
 }
 
-// v0.2.2 Day 4 — day-level free-text note, stored on session_meta.notes.
-// Debounced 500ms autosave; a pending edit also flushes on unmount (tab
-// switch / modal close) so nothing is lost inside the debounce window.
-export default function NotesTab({ date, note }: NotesTabProps) {
-  const [value, setValue] = useState(note ?? '')
+// v0.2.2 Day 4.5a — generalized from DayDetailModal/NotesTab, behavior-
+// preserving. Debounced 500ms autosave; a pending edit also flushes on unmount
+// (tab switch / modal close) so nothing is lost inside the debounce window.
+// The save target is now a callback so both Day (session_meta.notes) and Week
+// (week_notes) reuse it.
+export default function DetailNotesTab({
+  resetKey,
+  initialValue,
+  onSave,
+  label,
+  placeholder,
+}: DetailNotesTabProps) {
+  const [value, setValue] = useState(initialValue)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSaved = useRef(note ?? '')
-  // Mirror current value/date into refs so the unmount-only effect can flush
-  // the latest pending edit without re-subscribing on every keystroke.
+  const lastSaved = useRef(initialValue)
+  // Mirror current value + latest onSave into refs so the unmount-only effect
+  // can flush the latest pending edit without re-subscribing per keystroke.
   const valueRef = useRef(value)
-  const dateRef = useRef(date)
+  const onSaveRef = useRef(onSave)
   valueRef.current = value
-  dateRef.current = date
+  onSaveRef.current = onSave
 
-  // Reset when the modal switches to a different day.
+  // Reset when the editor switches to a different day/week.
   useEffect(() => {
-    setValue(note ?? '')
-    lastSaved.current = note ?? ''
+    setValue(initialValue)
+    lastSaved.current = initialValue
     setStatus('idle')
-  }, [date, note])
+  }, [resetKey, initialValue])
 
   // Flush a pending edit when this tab unmounts.
   useEffect(() => {
     return () => {
       if (timer.current) clearTimeout(timer.current)
       if (valueRef.current !== lastSaved.current) {
-        void dayRepo.saveDayNote(dateRef.current, valueRef.current)
+        void onSaveRef.current(valueRef.current)
       }
     }
   }, [])
@@ -48,8 +59,7 @@ export default function NotesTab({ date, note }: NotesTabProps) {
     timer.current = setTimeout(() => {
       if (next === lastSaved.current) return
       setStatus('saving')
-      void dayRepo
-        .saveDayNote(dateRef.current, next)
+      void Promise.resolve(onSaveRef.current(next))
         .then(() => {
           lastSaved.current = next
           setStatus('saved')
@@ -62,20 +72,20 @@ export default function NotesTab({ date, note }: NotesTabProps) {
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
         <label
-          htmlFor="day-note"
+          htmlFor="detail-note"
           className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
         >
-          Day notes
+          {label}
         </label>
         <span className="text-[11px] text-fg-tertiary">
           {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : ''}
         </span>
       </div>
       <textarea
-        id="day-note"
+        id="detail-note"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="How did the day go? Plan, execution, what to repeat or fix…"
+        placeholder={placeholder}
         className="min-h-[300px] w-full resize-y rounded-md border border-border-subtle bg-bg-2 p-3 text-sm leading-relaxed text-fg-primary placeholder:text-fg-tertiary focus:border-border focus:outline-none"
       />
     </div>
