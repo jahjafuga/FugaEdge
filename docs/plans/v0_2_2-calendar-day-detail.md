@@ -288,6 +288,18 @@ absorbs, so wire it here alongside that work (not in 4.5c, not v0.3.0) so the
 two land together. Mirror the day.ts hold-time accumulators (`day.ts` lines
 36-45, 89-109, 157-160) + add `week.test.ts` coverage.
 
+**Intraday MAE/MFE/Money-Left — finding (2026-05-29 diagnosis).** Enrichment
+(fetch→compute→store) is VERIFIED WORKING — `trades.mae`/`mfe` populated, bars
+join correctly (`open_time` is true UTC-with-Z), `computeMaeMfe`/`computeEma9Distance`
+produce real values. The remaining Day-5 task is **DISPLAY WIRING ONLY** (smaller
+than originally scoped): `SELECT mae,mfe` in `electron/trades/list.ts` + add the
+fields to `TradeListRow` + replace `day.ts`'s hardcoded `avgMfeDollars`/`avgMaeDollars`
+nulls with real aggregates + add a MAE/MFE field to `WeekMetrics` + render in both
+Execution Quality sections. **EMA9 distance is already fully wired end-to-end —
+use it as the template.** Also: the refresh status's "0 MAE/MFE · 0 EMA9" is a
+misleading write-delta counter (0 = nothing newly-changed, not 0 coverage) —
+relabel it to report coverage during this day's polish.
+
 ### Day 6 — Smoke test + cleanup
 
 - Re-import all fixture data (DAS, Webull, real DTSM testers) and click through random days
