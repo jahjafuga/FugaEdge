@@ -67,6 +67,11 @@ export default function Settings() {
   const [intradayResult, setIntradayResult] = useState<IntradayRefreshResult | null>(null)
   const [intradayError, setIntradayError] = useState<string | null>(null)
 
+  // Shared by both Market-data refresh buttons. Default unchecked → incremental
+  // (fetch only missing/errored). Checked → force=true (re-download everything).
+  // Reset to false after a successful run (mirrors DataBackfillCard).
+  const [force, setForce] = useState(false)
+
   useEffect(() => {
     let cancelled = false
     ipc
@@ -113,33 +118,40 @@ export default function Settings() {
 
   const runRefresh = useCallback(async () => {
     if (refreshing) return
+    // Capture the force flag at invocation. The post-success reset below only
+    // affects the NEXT run — this in-flight run keeps the value it started with.
+    const forceThisRun = force
     setRefreshing(true)
     setRefreshError(null)
     setRefreshResult(null)
     try {
-      const result = await ipc.marketRefresh(true)
+      const result = await ipc.marketRefresh(forceThisRun)
       setRefreshResult(result)
+      setForce(false)
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : String(e))
     } finally {
       setRefreshing(false)
     }
-  }, [refreshing])
+  }, [refreshing, force])
 
   const runIntradayRefresh = useCallback(async () => {
     if (intradayRefreshing) return
+    // Force captured at invocation; reset only affects the NEXT run.
+    const forceThisRun = force
     setIntradayRefreshing(true)
     setIntradayError(null)
     setIntradayResult(null)
     try {
-      const result = await ipc.marketIntradayRefresh(true)
+      const result = await ipc.marketIntradayRefresh(forceThisRun)
       setIntradayResult(result)
+      setForce(false)
     } catch (e) {
       setIntradayError(e instanceof Error ? e.message : String(e))
     } finally {
       setIntradayRefreshing(false)
     }
-  }, [intradayRefreshing])
+  }, [intradayRefreshing, force])
 
   const runExport = useCallback(async (kind: ExportKind) => {
     if (exporting) return
@@ -345,7 +357,7 @@ export default function Settings() {
                     ? 'Set an API key first.'
                     : dirty
                       ? 'Save settings first so the refresh uses the new key.'
-                      : 'Force a fresh fetch for every imported symbol.'
+                      : 'Fetches symbols missing or stale (>7d) market data. Check Force re-fetch to re-download every symbol.'
                 }
               >
                 {refreshing ? 'Refreshing…' : 'Refresh market data'}
@@ -356,7 +368,7 @@ export default function Settings() {
                 onClick={runIntradayRefresh}
                 disabled={intradayRefreshing || dirty || !editor.polygon_api_key}
                 className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
-                title="Fetch 1-minute bars for every (symbol, date) you've traded. Used to compute EMA9 distance for the Momentum analytics."
+                title="Fetches 1-minute bars for (symbol, date) pairs missing data. Check Force re-fetch to re-download all pairs. Used for EMA9 distance + MAE/MFE."
               >
                 {intradayRefreshing
                   ? 'Fetching intraday…'
@@ -382,6 +394,16 @@ export default function Settings() {
                 </span>
               )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-fg-secondary">
+              <input
+                type="checkbox"
+                checked={force}
+                onChange={(e) => setForce(e.target.checked)}
+                className="accent-gold"
+              />
+              Force re-fetch (re-download everything; overwrites Massive-sourced values, keeps manual edits)
+            </label>
 
             {refreshResult && refreshResult.errors.length > 0 && (
               <div className="rounded-md border border-red/40 bg-red/[0.06] p-3 text-xs">
