@@ -12,6 +12,7 @@ const KEYS = {
   mistakeList: 'mistake_list',
   dayTagList: 'day_tag_list',
   polygonApiKey: 'polygon_api_key',
+  fmpApiKey: 'fmp_api_key',
   lastCountryBackfill: 'last_country_backfill',
 } as const
 
@@ -22,6 +23,7 @@ const DEFAULTS: SettingsValues = {
   mistake_list: [],
   day_tag_list: [],
   polygon_api_key: '',
+  fmp_api_key: '',
   last_country_backfill: null,
 }
 
@@ -66,6 +68,7 @@ export function getSettings(): SettingsPayload {
     mistake_list: parseStringArray(map[KEYS.mistakeList]),
     day_tag_list: parseStringArray(map[KEYS.dayTagList]),
     polygon_api_key: (map[KEYS.polygonApiKey] ?? '').trim(),
+    fmp_api_key: (map[KEYS.fmpApiKey] ?? '').trim(),
     last_country_backfill: (map[KEYS.lastCountryBackfill] ?? '').trim() || null,
   }
   return {
@@ -114,6 +117,9 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
     }
     if (input.polygon_api_key != null) {
       upsert.run(KEYS.polygonApiKey, String(input.polygon_api_key).trim())
+    }
+    if (input.fmp_api_key != null) {
+      upsert.run(KEYS.fmpApiKey, String(input.fmp_api_key).trim())
     }
     if (input.last_country_backfill !== undefined) {
       upsert.run(KEYS.lastCountryBackfill, input.last_country_backfill ?? '')

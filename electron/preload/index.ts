@@ -43,6 +43,7 @@ import type {
   SettingsUpdate,
 } from '@shared/settings-types'
 import type { MassiveKeyStatus } from '@shared/massive-types'
+import type { FmpKeyStatus } from '@shared/fmp-types'
 import type {
   IntradayBarsPayload,
   IntradayRefreshResult,
@@ -138,6 +139,8 @@ const api = {
     ipcRenderer.invoke(IPC.SETTINGS_SAVE, input),
   testMassiveKey: (apiKey: string): Promise<MassiveKeyStatus> =>
     ipcRenderer.invoke(IPC.SETTINGS_TEST_MASSIVE_KEY, apiKey),
+  testFmpKey: (apiKey: string): Promise<FmpKeyStatus> =>
+    ipcRenderer.invoke(IPC.SETTINGS_TEST_FMP_KEY, apiKey),
   exportTrades: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_TRADES),
   exportJournal: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_JOURNAL),
   exportDatabase: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_DATABASE),

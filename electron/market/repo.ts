@@ -3,7 +3,13 @@ import { shouldRetryErrored } from '@/core/market/refresh-eligibility'
 
 export interface MarketRow {
   symbol: string
+  /** True tradable free float. Populated by Commit B's FMP enrichment.
+   *  NULL on rows the schema-21 migration cleared (legacy data was actually
+   *  shares-outstanding and got moved to shares_outstanding). */
   float: number | null
+  /** Issued share count. Preserved from the schema-21 migration and also
+   *  populated alongside float by Commit B's FMP enrichment. */
+  shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
   avg_volume: number | null
@@ -18,6 +24,7 @@ export interface MarketRow {
 interface MarketRowDb {
   symbol: string
   float: number | null
+  shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
   avg_volume: number | null
@@ -50,6 +57,7 @@ function rowToMarket(r: MarketRowDb): MarketRow {
   return {
     symbol: r.symbol,
     float: r.float,
+    shares_outstanding: r.shares_outstanding,
     market_cap: r.market_cap,
     sector: r.sector,
     avg_volume: r.avg_volume,
@@ -66,7 +74,7 @@ export function getMarketRow(symbol: string): MarketRow | null {
   const db = openDatabase()
   const row = db
     .prepare(`
-      SELECT symbol, float, market_cap, sector, avg_volume,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
              daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data WHERE symbol = ?
@@ -79,7 +87,7 @@ export function getAllMarketRows(): MarketRow[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT symbol, float, market_cap, sector, avg_volume,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
              daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data
@@ -92,28 +100,31 @@ export function upsertMarketRow(input: MarketRow): void {
   const db = openDatabase()
   db.prepare(`
     INSERT INTO market_data
-      (symbol, float, market_cap, sector, avg_volume, daily_volumes,
-       country, country_name, region, fetched_at, error)
-    VALUES (@symbol, @float, @market_cap, @sector, @avg_volume, @daily_volumes,
-            @country, @country_name, @region, @fetched_at, @error)
+      (symbol, float, shares_outstanding, market_cap, sector, avg_volume,
+       daily_volumes, country, country_name, region, fetched_at, error)
+    VALUES (@symbol, @float, @shares_outstanding, @market_cap, @sector,
+            @avg_volume, @daily_volumes, @country, @country_name, @region,
+            @fetched_at, @error)
     ON CONFLICT(symbol) DO UPDATE SET
-      float          = excluded.float,
-      market_cap     = excluded.market_cap,
-      sector         = excluded.sector,
-      avg_volume     = excluded.avg_volume,
-      daily_volumes  = excluded.daily_volumes,
+      float              = excluded.float,
+      shares_outstanding = excluded.shares_outstanding,
+      market_cap         = excluded.market_cap,
+      sector             = excluded.sector,
+      avg_volume         = excluded.avg_volume,
+      daily_volumes      = excluded.daily_volumes,
       -- Country fields use COALESCE so an error-path upsert (where country
       -- is null) does not wipe a previously-resolved country. Other fields
       -- overwrite because nulls there just mean "API gave nothing new",
       -- not "keep the old value".
-      country        = COALESCE(excluded.country, market_data.country),
-      country_name   = COALESCE(excluded.country_name, market_data.country_name),
-      region         = COALESCE(excluded.region, market_data.region),
-      fetched_at     = excluded.fetched_at,
-      error          = excluded.error
+      country            = COALESCE(excluded.country, market_data.country),
+      country_name       = COALESCE(excluded.country_name, market_data.country_name),
+      region             = COALESCE(excluded.region, market_data.region),
+      fetched_at         = excluded.fetched_at,
+      error              = excluded.error
   `).run({
     symbol: input.symbol,
     float: input.float,
+    shares_outstanding: input.shares_outstanding,
     market_cap: input.market_cap,
     sector: input.sector,
     avg_volume: input.avg_volume,

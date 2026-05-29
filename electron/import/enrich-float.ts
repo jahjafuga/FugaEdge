@@ -63,7 +63,14 @@ export async function enrichFloatForImportedSymbols(
       const existing = getMarketRow(symbol)
       upsertMarketRow({
         symbol,
+        // Commit A: existing Polygon flow still writes shares-outstanding
+        // into the `float` column (the legacy behaviour). Commit B will
+        // replace this with the FMP-shares-float wrapper that writes real
+        // float here and outstandingShares into shares_outstanding. Until
+        // then, shares_outstanding stays at the existing (post-migration)
+        // value or null.
         float: result.float,
+        shares_outstanding: existing?.shares_outstanding ?? null,
         market_cap: result.market_cap,
         sector: result.sector,
         avg_volume: existing?.avg_volume ?? null,

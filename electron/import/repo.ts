@@ -103,6 +103,39 @@ export function backfillFloatShares(symbols?: string[]): number {
   return info.changes
 }
 
+// v0.2.2 Commit A — mirror of backfillFloatShares, for the new
+// trades.shares_outstanding column. Populates from
+// market_data.shares_outstanding wherever the trade's shares_outstanding is
+// NULL. Commit A only ships this primitive; the call site lands in Commit
+// B alongside the FMP enrichment wrapper that writes both columns. Listed
+// here now so the repo surface for Commit B is complete and reviewable in
+// one place (mirrors how the country / float orchestrators were paired).
+//
+// Idempotent and non-destructive — user-edited shares_outstanding values
+// are never overwritten. Run after any change to market_data.
+export function backfillSharesOutstanding(symbols?: string[]): number {
+  const db = openDatabase()
+  if (symbols && symbols.length === 0) return 0
+  const where = symbols
+    ? `WHERE t.shares_outstanding IS NULL AND t.symbol IN (${symbols.map(() => '?').join(',')})`
+    : 'WHERE t.shares_outstanding IS NULL'
+  const sql = `
+    UPDATE trades
+    SET shares_outstanding = (
+      SELECT CAST(m.shares_outstanding AS INTEGER) FROM market_data m
+      WHERE m.symbol = trades.symbol AND m.shares_outstanding IS NOT NULL
+      LIMIT 1
+    )
+    WHERE id IN (
+      SELECT t.id FROM trades t
+      JOIN market_data m ON m.symbol = t.symbol
+      ${where} AND m.shares_outstanding IS NOT NULL
+    )
+  `
+  const info = symbols ? db.prepare(sql).run(...symbols) : db.prepare(sql).run()
+  return info.changes
+}
+
 // Populate trades.country/_name/region from market_data.* wherever the
 // trade row's country_source is NULL (so manual overrides and previously-
 // resolved Polygon hits both stay put). Idempotent.

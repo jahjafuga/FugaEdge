@@ -167,7 +167,13 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
 
       const row: MarketRow = {
         symbol,
+        // Commit A: refresh keeps writing Polygon's shares_outstanding into
+        // the `float` column (legacy behaviour). Commit B replaces this with
+        // an FMP-backed wrapper that writes real float here and the issued
+        // count into shares_outstanding. Until then, shares_outstanding is
+        // left null on this refresh path.
         float: details.shares_outstanding,
+        shares_outstanding: null,
         market_cap: details.market_cap,
         sector: details.sector,
         avg_volume: avg,
@@ -192,6 +198,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       upsertMarketRow({
         symbol,
         float: null,
+        shares_outstanding: null,
         market_cap: null,
         sector: null,
         avg_volume: null,

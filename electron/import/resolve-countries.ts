@@ -55,6 +55,7 @@ export async function resolveCountriesForImportedSymbols(
       upsertMarketRow({
         symbol,
         float: existing?.float ?? null,
+        shares_outstanding: existing?.shares_outstanding ?? null,
         market_cap: existing?.market_cap ?? null,
         sector: existing?.sector ?? null,
         avg_volume: existing?.avg_volume ?? null,

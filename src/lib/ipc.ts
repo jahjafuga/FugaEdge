@@ -70,6 +70,7 @@ export const ipc = {
   settingsGet: () => window.api.settingsGet(),
   settingsSave: (input: SettingsUpdate) => window.api.settingsSave(input),
   testMassiveKey: (apiKey: string) => window.api.testMassiveKey(apiKey),
+  testFmpKey: (apiKey: string) => window.api.testFmpKey(apiKey),
   exportTrades: () => window.api.exportTrades(),
   exportJournal: () => window.api.exportJournal(),
   exportDatabase: () => window.api.exportDatabase(),

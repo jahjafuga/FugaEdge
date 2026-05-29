@@ -18,6 +18,8 @@ export const IPC = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_SAVE: 'settings:save',
   SETTINGS_TEST_MASSIVE_KEY: 'settings:testMassiveKey',
+  /** v0.2.2 Commit A - verify an FMP key (mirrors testMassiveKey). */
+  SETTINGS_TEST_FMP_KEY: 'settings:testFmpKey',
   EXPORT_TRADES: 'export:trades',
   EXPORT_JOURNAL: 'export:journal',
   EXPORT_DATABASE: 'export:database',
