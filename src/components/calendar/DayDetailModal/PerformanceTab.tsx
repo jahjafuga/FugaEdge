@@ -198,12 +198,15 @@ export default function PerformanceTab({ detail }: { detail: DayDetail }) {
               : 'Avg max adverse excursion ($/share), over trades with intraday data.',
         },
         {
+          // Fill-based, NOT intraday — derived from each trade's own exit fills,
+          // so it populates regardless of intraday data availability. Null only
+          // when no trade scaled out with a better available exit.
           label: 'Money left on table',
-          value: m.moneyLeftOnTable == null ? <Awaiting /> : <span className="font-mono text-fg-primary">{money(m.moneyLeftOnTable)}</span>,
+          value: m.moneyLeftOnTable == null ? <Dash /> : <span className="font-mono text-fg-primary">{money(m.moneyLeftOnTable)}</span>,
           hint:
             m.moneyLeftCoverage
-              ? `${m.moneyLeftCoverage.withMfe} of ${m.moneyLeftCoverage.total} trades have intraday data.`
-              : 'Sum of per-trade best-exit gap — requires intraday market data.',
+              ? `${m.moneyLeftCoverage.withMfe} of ${m.moneyLeftCoverage.total} trades had a better exit fill than their average exit.`
+              : "Gap between a trade's average exit and its best exit fill — needs a scaled-out trade.",
         },
       ],
     },

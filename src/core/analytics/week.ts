@@ -1,5 +1,6 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { WeekMetrics } from '@shared/week-types'
+import type { ExitDelta } from '@shared/analytics-types'
 
 interface ComputeWeekMetricsInput {
   /** Trades already scoped to the week (the repo filters by trades.date). */
@@ -9,6 +10,9 @@ interface ComputeWeekMetricsInput {
   /** All-trades daily net P&L (date → net) so the streak can reach prior
    *  weeks. Falls back to the week's own days when omitted. */
   dailyPnl?: Map<string, number>
+  /** Per-trade best-exit gaps for the week's trades (derived in the repo via
+   *  computeExitDeltas). Omitted/empty → Money Left renders the empty state. */
+  exitDeltas?: ExitDelta[]
 }
 
 // v0.2.2 Day 4.5b — pure week-scoped metrics for the Weekly Review modal.
@@ -17,7 +21,7 @@ interface ComputeWeekMetricsInput {
 // computeWeekMetrics↔getWeeklySummaries grid overlap, are deliberately not
 // unified — logged for v0.3.0 consolidation, not built now.)
 export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics {
-  const { trades, weekEnd, dailyPnl } = input
+  const { trades, weekEnd, dailyPnl, exitDeltas } = input
 
   let grossPnl = 0
   let totalFees = 0
@@ -186,6 +190,16 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     dailyPnl ?? new Map(dayByDay.map((d) => [d.date, d.netPnl]))
   const streak = computeStreak(weekEnd, streakMap)
 
+  // Money Left on Table — week-scoped sum of per-trade ExitDelta.delta. Mirrors
+  // day.ts: 0 coverage surfaces as null (UI shows the empty state) rather than a
+  // misleading $0.00 total.
+  let moneyLeftOnTable: number | null = null
+  let moneyLeftCoverage: WeekMetrics['moneyLeftCoverage'] = null
+  if (exitDeltas && exitDeltas.length > 0) {
+    moneyLeftOnTable = exitDeltas.reduce((sum, ed) => sum + ed.delta, 0)
+    moneyLeftCoverage = { withMfe: exitDeltas.length, total: trades.length }
+  }
+
   return {
     netPnl,
     grossPnl,
@@ -205,6 +219,8 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     avgPerShareGainLoss,
     avgMfeDollars,
     avgMaeDollars,
+    moneyLeftOnTable,
+    moneyLeftCoverage,
     symbolBreakdown,
     mistakeTagCounts,
     dayByDay,

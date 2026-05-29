@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { TradeListRow } from '@shared/trades-types'
+import type { ExitDelta } from '@shared/analytics-types'
 import { computeWeekMetrics } from '../week'
 
 // Minimal TradeListRow factory — tests override only what they read. Mirrors
@@ -81,6 +82,43 @@ describe('computeWeekMetrics', () => {
     expect(r.avgRMultiple).toBeNull()
     expect(r.totalDollarVolume).toBe(0)
     expect(r.avgPerShareGainLoss).toBeNull()
+    expect(r.moneyLeftOnTable).toBeNull()
+    expect(r.moneyLeftCoverage).toBeNull()
+  })
+
+  it('sums moneyLeftOnTable from exitDeltas and reports coverage against total trades', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, symbol: 'HCTO', net_pnl: 100 }),
+      tradeRow({ id: 2, symbol: 'AMSS', net_pnl: 50 }),
+      tradeRow({ id: 3, symbol: 'MOBX', net_pnl: -20 }),
+    ]
+    // Only 2 of 3 trades scaled out with a better available exit fill.
+    const exitDeltas: ExitDelta[] = [
+      {
+        trade_id: 1, date: '2026-05-11', symbol: 'HCTO', side: 'long',
+        exit_count: 2, actual_avg_exit: 10.4, best_exit_price: 10.8,
+        actual_net_pnl: 100, best_exit_net_pnl: 280, delta: 180,
+      },
+      {
+        trade_id: 2, date: '2026-05-12', symbol: 'AMSS', side: 'long',
+        exit_count: 2, actual_avg_exit: 5.2, best_exit_price: 5.6,
+        actual_net_pnl: 50, best_exit_net_pnl: 130, delta: 80,
+      },
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END, exitDeltas })
+
+    expect(r.moneyLeftOnTable).toBeCloseTo(260, 5) // 180 + 80
+    expect(r.moneyLeftCoverage).toEqual({ withMfe: 2, total: 3 })
+  })
+
+  it('returns null moneyLeftOnTable + null coverage when no exitDeltas are available', () => {
+    const trades: TradeListRow[] = [tradeRow({ id: 1, symbol: 'HCTO', net_pnl: 100 })]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    // Mirrors the day pattern (Decision 3): 0 coverage shows the empty state,
+    // NOT a misleading $0.00 sum.
+    expect(r.moneyLeftOnTable).toBeNull()
+    expect(r.moneyLeftCoverage).toBeNull()
   })
 
   it('aggregates net / counts / win rate over the week (scratches excluded from win rate)', () => {

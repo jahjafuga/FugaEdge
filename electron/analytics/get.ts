@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
+import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { utcToEasternParts } from '@/lib/format'
 import type {
   AnalyticsData,
@@ -272,56 +273,21 @@ function computeSymbols(rows: TradeRow[]): { best: SymbolStat[]; worst: SymbolSt
 }
 
 function computeExitQuality(rows: TradeRow[], limit = 10): ExitDelta[] {
-  const out: ExitDelta[] = []
-  for (const r of rows) {
-    const execs = parseExecs(r.executions_json)
-    if (execs.length === 0) continue
-
-    const isLong = r.side === 'long'
-    const exitSide: 'B' | 'S' = isLong ? 'S' : 'B'
-    const entrySide: 'B' | 'S' = isLong ? 'B' : 'S'
-
-    const exits = execs.filter((e) => e.side === exitSide)
-    const entries = execs.filter((e) => e.side === entrySide)
-    if (exits.length < 2 || entries.length === 0) continue
-
-    const exitShares = exits.reduce((s, e) => s + e.qty, 0)
-    if (exitShares === 0) continue
-    const exitValue = exits.reduce((s, e) => s + e.qty * e.price, 0)
-    const actualAvgExit = exitValue / exitShares
-
-    const entryValue = entries.reduce((s, e) => s + e.qty * e.price, 0)
-
-    const bestExitPrice = isLong
-      ? Math.max(...exits.map((e) => e.price))
-      : Math.min(...exits.map((e) => e.price))
-
-    // Gross P&L formula: sell_value - buy_value, regardless of side.
-    // If all exits had filled at bestExitPrice:
-    const bestExitValue = exitShares * bestExitPrice
-    const bestGross = isLong
-      ? bestExitValue - entryValue
-      : entryValue - bestExitValue
-    const bestNet = bestGross - r.total_fees
-
-    const delta = bestNet - r.net_pnl
-    if (delta <= 0) continue // No money "left on the table" — best exit was the only one or worse.
-
-    out.push({
-      trade_id: r.id,
+  // Shared fill-based best-exit math lives in src/core/analytics/exit-quality.
+  // This view shows only the top-N worst gaps; the day/week Money-Left sum uses
+  // the full list from the same function.
+  const deltas = computeExitDeltas(
+    rows.map((r) => ({
+      id: r.id,
       date: r.date,
       symbol: r.symbol,
       side: r.side,
-      exit_count: exits.length,
-      actual_avg_exit: actualAvgExit,
-      best_exit_price: bestExitPrice,
-      actual_net_pnl: r.net_pnl,
-      best_exit_net_pnl: bestNet,
-      delta,
-    })
-  }
-  out.sort((a, b) => b.delta - a.delta)
-  return out.slice(0, limit)
+      net_pnl: r.net_pnl,
+      total_fees: r.total_fees,
+      executions: parseExecs(r.executions_json),
+    })),
+  )
+  return deltas.slice(0, limit)
 }
 
 // ── Momentum-specific analytics ────────────────────────────────────────────

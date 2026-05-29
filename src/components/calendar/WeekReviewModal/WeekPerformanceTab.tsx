@@ -170,7 +170,16 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
           value: m.avgMaeDollars == null ? <Awaiting /> : <Signed value={m.avgMaeDollars} />,
           hint: m.avgMaeDollars == null ? 'Max Adverse Excursion — requires intraday market data.' : 'Avg max adverse excursion ($/share), over trades with intraday data.',
         },
-        { label: 'Money left on table', value: <Awaiting />, hint: 'Sum of per-trade best-exit gap — requires intraday market data.' },
+        {
+          // Fill-based, NOT intraday — see day PerformanceTab. Populates whenever
+          // the week has a scaled-out trade with a better available exit fill.
+          label: 'Money left on table',
+          value: m.moneyLeftOnTable == null ? <Dash /> : <span className="font-mono text-fg-primary">{money(m.moneyLeftOnTable)}</span>,
+          hint:
+            m.moneyLeftCoverage
+              ? `${m.moneyLeftCoverage.withMfe} of ${m.moneyLeftCoverage.total} trades had a better exit fill than their average exit.`
+              : "Gap between a trade's average exit and its best exit fill — needs a scaled-out trade.",
+        },
       ],
     },
   ]

@@ -34,6 +34,11 @@ export interface WeekMetrics {
   // null when none do (keeps the "Awaiting intraday" placeholder). Mirrors day.ts.
   avgMfeDollars: number | null
   avgMaeDollars: number | null
+  // Week-scoped sum of per-trade ExitDelta.delta (best-exit gap from each trade's
+  // own exit fills — fill-based, not intraday). Null when no trade scaled out with
+  // a better available exit. Mirrors day.ts moneyLeftOnTable/moneyLeftCoverage.
+  moneyLeftOnTable: number | null
+  moneyLeftCoverage: { withMfe: number; total: number } | null
   // All symbols traded that week, sorted by net P&L desc (ties: count desc, then first-seen).
   symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   // Per-trade mistake tags aggregated across the week, sorted count desc then alpha.

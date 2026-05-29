@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { listTradesInRange } from '../trades/list'
 import { computeWeekMetrics } from '@/core/analytics/week'
+import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import type { WeekDetail } from '@shared/week-types'
 
 function addDaysStr(date: string, days: number): string {
@@ -30,7 +31,7 @@ export function getWeekDetail(weekStart: string): WeekDetail {
     .prepare('SELECT text FROM week_notes WHERE week_start = ?')
     .get(weekStart) as { text: string } | undefined
 
-  const metrics = computeWeekMetrics({ trades, weekEnd, dailyPnl })
+  const metrics = computeWeekMetrics({ trades, weekEnd, dailyPnl, exitDeltas: computeExitDeltas(trades) })
 
   return {
     weekStart,
