@@ -10,6 +10,7 @@ export interface OverviewStats {
   scratches: number
   win_rate: number | null         // null when there are no decided trades (winners+losers = 0)
   profit_factor: number | null    // null when there are no losing trades — UI shows "N/A"
+  pnl_ratio: number | null        // avg win ÷ |avg loss| (NOT profit factor). ∞ no losers; 0 no winners; null no decided
   avg_winner: number | null       // null when there are no winning trades — UI shows "—"
   avg_loser: number | null        // null when there are no losing trades — UI shows "—"
   largest_winner: number | null   // null when there are no winning trades

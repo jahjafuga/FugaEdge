@@ -127,6 +127,13 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     profitFactor = loserSum === 0 ? Infinity : winnerSum / -loserSum
   }
 
+  // P&L Ratio — avg win ÷ |avg loss| (distinct from profit factor). No losers →
+  // Infinity; no winners → 0; no decided → null. Mirrors day.ts.
+  let pnlRatio: number | null = null
+  if (decided > 0) {
+    pnlRatio = avgLoss === null ? Infinity : (avgWin ?? 0) / Math.abs(avgLoss)
+  }
+
   // Symbols: net desc, then count desc, then first-seen asc (stable).
   const symbolBreakdown = [...symbolAgg.entries()]
     .map(([symbol, a]) => ({ symbol, tradeCount: a.tradeCount, netPnl: a.netPnl, firstSeen: a.firstSeen }))
@@ -210,6 +217,7 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     scratchCount,
     winRate,
     profitFactor,
+    pnlRatio,
     avgWin,
     avgLoss,
     biggestWin,

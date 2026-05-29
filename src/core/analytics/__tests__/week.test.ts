@@ -84,6 +84,50 @@ describe('computeWeekMetrics', () => {
     expect(r.avgPerShareGainLoss).toBeNull()
     expect(r.moneyLeftOnTable).toBeNull()
     expect(r.moneyLeftCoverage).toBeNull()
+    expect(r.pnlRatio).toBeNull()
+  })
+
+  it('computes pnlRatio as avg win ÷ |avg loss| (distinct from profitFactor)', () => {
+    // avgWin = (300 + 100)/2 = 200 ; avgLoss = -100 ; ratio = 2.0.
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 300 }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 100 }),
+      tradeRow({ id: 3, date: '2026-05-13', net_pnl: -100 }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.pnlRatio).toBeCloseTo(2.0, 5)
+    expect(r.profitFactor).toBeCloseTo(4.0, 5) // 400/100 — confirms they differ
+  })
+
+  it('returns Infinity pnlRatio for a winning-only week (no losers)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 50 }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 100 }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.pnlRatio).toBe(Infinity)
+  })
+
+  it('returns pnlRatio 0 for a losing-only week (no winners)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: -40 }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: -60 }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.pnlRatio).toBe(0)
+  })
+
+  it('returns null pnlRatio when no decided trades (all scratches)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 0 }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 0 }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.pnlRatio).toBeNull()
   })
 
   it('sums moneyLeftOnTable from exitDeltas and reports coverage against total trades', () => {

@@ -46,6 +46,10 @@ export interface DayMetrics {
    *  `null` when no decided trades (all scratches or empty day). Renders
    *  via {@link formatProfitFactor}. */
   profitFactor: number | null
+  /** Avg win ÷ |avg loss| — a DIFFERENT metric from profitFactor (Σ wins ÷
+   *  |Σ losses|). `Infinity` = winners but no losers; `0` = only losers;
+   *  `null` = no decided trades. Renders via {@link formatPnlRatio}. */
+  pnlRatio: number | null
   /** Chronological scan of net_pnl signs; scratches break both streaks
    *  (matches Tradervue's max-consecutive convention). 0 on empty day. */
   maxConsecutiveWins: number

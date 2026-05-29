@@ -17,6 +17,9 @@ export interface WeekMetrics {
   winRate: number | null
   // Σ positive net / |Σ negative net|. Infinity = winners but no losers; null = no decided.
   profitFactor: number | null
+  // Avg win ÷ |avg loss| — DIFFERENT from profitFactor. Infinity = no losers;
+  // 0 = no winners; null = no decided. Renders via formatPnlRatio. Mirrors day.ts.
+  pnlRatio: number | null
   avgWin: number | null
   avgLoss: number | null
   // Single biggest winning / worst losing TRADE of the week (sign-gated, mirrors

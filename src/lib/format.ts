@@ -62,6 +62,17 @@ export function formatProfitFactor(n: number | null): string {
   return n.toFixed(2)
 }
 
+// Renders P&L Ratio (avg win ÷ |avg loss|) — a DIFFERENT metric from profit
+// factor (which is Σ wins ÷ |Σ losses|). Same null/∞/finite render convention:
+//   - finite → toFixed(2)   (0.00 is a real only-losers outcome)
+//   - Infinity → "∞"        (winners but no losers)
+//   - null → "—"            (no decided trades)
+export function formatPnlRatio(n: number | null): string {
+  if (n == null) return '—'
+  if (!Number.isFinite(n)) return '∞'
+  return n.toFixed(2)
+}
+
 // Returns the Tailwind class for a P&L value's color. Uses the themed
 // win/loss/muted tokens so the same green/red automatically darkens for
 // light mode (text-win → #16a34a) without each caller knowing.

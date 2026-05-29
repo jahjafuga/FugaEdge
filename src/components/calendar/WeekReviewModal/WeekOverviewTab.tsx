@@ -1,7 +1,14 @@
 import type { WeekDetail } from '@shared/week-types'
 import Card from '@/components/ui/Card'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
-import { int, signed, pnlClass, shortDate } from '@/lib/format'
+import StatStrip, {
+  type Kpi,
+  intCount,
+  moneyOrDash,
+  pctOrDash,
+  signedOrDash,
+} from '@/components/ui/StatStrip'
+import { formatPnlRatio, int, signed, pnlClass, shortDate } from '@/lib/format'
 
 // v0.2.2 Day 4.5b — Week Overview: the at-a-glance shape of the week. Equity
 // curve across the week (the shared CumulativePnlChart in 'datetime' mode) +
@@ -17,8 +24,26 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
     )
   }
 
+  // Quick-glance strip — same 10 cards as the dashboard, week-scoped. Reads the
+  // same WeekMetrics the Performance tab uses. Largest winner/loser are the
+  // single-TRADE extremes (biggestWin/worstLoss), NOT the best/worst DAY.
+  const kpis: Kpi[] = [
+    { label: 'Net P&L',        value: m.netPnl,             format: signedOrDash,  tone: 'auto' },
+    { label: 'Gross P&L',      value: m.grossPnl,           format: signedOrDash,  tone: 'auto' },
+    { label: 'Total fees',     value: m.totalFees,          format: moneyOrDash,   tone: 'red' },
+    { label: 'Trade count',    value: m.tradeCount,         format: intCount,      tone: 'neutral' },
+    { label: 'Win rate',       value: m.winRate,            format: pctOrDash,     tone: 'gold' },
+    { label: 'P&L ratio',      value: m.pnlRatio,           format: formatPnlRatio, tone: 'gold' },
+    { label: 'Avg winner',     value: m.avgWin,             format: moneyOrDash,   tone: 'green' },
+    { label: 'Avg loser',      value: m.avgLoss,            format: moneyOrDash,   tone: 'red' },
+    { label: 'Largest winner', value: m.biggestWin?.pnl ?? null, format: moneyOrDash, tone: 'green' },
+    { label: 'Largest loser',  value: m.worstLoss?.pnl ?? null,  format: moneyOrDash, tone: 'red' },
+  ]
+
   return (
     <div className="space-y-4">
+      <StatStrip items={kpis} />
+
       <Card
         title="Equity curve"
         subtitle="Cumulative net P&L across the week — steps at each trade close."

@@ -88,6 +88,7 @@ describe('computeDayMetrics', () => {
     expect(result.avgTradePnl).toBeNull()
     expect(result.avgPerShareGainLoss).toBeNull()
     expect(result.profitFactor).toBeNull()
+    expect(result.pnlRatio).toBeNull()
     expect(result.maxConsecutiveWins).toBe(0)
     expect(result.maxConsecutiveLosses).toBe(0)
     expect(result.avgHoldSeconds).toBeNull()
@@ -397,6 +398,54 @@ describe('computeDayMetrics', () => {
     const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
 
     expect(result.profitFactor).toBeNull()
+  })
+
+  it('computes pnlRatio as avg win ÷ |avg loss| (distinct from profitFactor)', () => {
+    // avgWin = (300 + 100)/2 = 200 ; avgLoss = -100 ; ratio = 2.0.
+    // profitFactor would be 400/100 = 4.0 — confirms they differ.
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 300 }),
+      tradeRow({ id: 2, net_pnl: 100 }),
+      tradeRow({ id: 3, net_pnl: -100 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.pnlRatio).toBeCloseTo(2.0, 5)
+    expect(result.profitFactor).toBeCloseTo(4.0, 5)
+  })
+
+  it('returns Infinity pnlRatio for a winning-only day (no losers)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 50 }),
+      tradeRow({ id: 2, net_pnl: 100 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.pnlRatio).toBe(Infinity)
+  })
+
+  it('returns pnlRatio 0 for a losing-only day (no winners — avg win is 0)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: -40 }),
+      tradeRow({ id: 2, net_pnl: -60 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.pnlRatio).toBe(0)
+  })
+
+  it('returns null pnlRatio when no decided trades (all scratches)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 0 }),
+      tradeRow({ id: 2, net_pnl: 0 }),
+    ]
+
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+
+    expect(result.pnlRatio).toBeNull()
   })
 
   it('counts max consecutive wins and losses chronologically; scratches break both streaks', () => {

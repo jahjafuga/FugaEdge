@@ -20,6 +20,7 @@ import {
   compactShares,
   easternToUtc,
   formatEastern,
+  formatPnlRatio,
   formatProfitFactor,
   int,
   localEasternToUtc,
@@ -258,5 +259,21 @@ describe('formatProfitFactor — single render path for Σ wins / |Σ losses|', 
 
   it('renders null as the em-dash placeholder (no decided trades on the day)', () => {
     expect(formatProfitFactor(null)).toBe('—')
+  })
+})
+
+describe('formatPnlRatio — avg win ÷ |avg loss| (distinct from profit factor)', () => {
+  it('formats a finite ratio to 2 decimal places', () => {
+    expect(formatPnlRatio(2.5)).toBe('2.50')
+    expect(formatPnlRatio(0)).toBe('0.00') // only-losers day is a real outcome
+    expect(formatPnlRatio(1.234)).toBe('1.23')
+  })
+
+  it('renders Infinity as "∞" (winners but no losers)', () => {
+    expect(formatPnlRatio(Infinity)).toBe('∞')
+  })
+
+  it('renders null as the em-dash placeholder (no decided trades)', () => {
+    expect(formatPnlRatio(null)).toBe('—')
   })
 })

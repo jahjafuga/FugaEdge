@@ -80,6 +80,10 @@ function readOverview(
     losers.n > 0 ? winners.sum / Math.abs(losers.sum) : null
   const avg_winner = winners.n > 0 ? winners.sum / winners.n : null
   const avg_loser = losers.n > 0 ? losers.sum / losers.n : null
+  // P&L Ratio — avg win ÷ |avg loss| (distinct from profit factor). No losers →
+  // Infinity; no winners → 0; no decided → null. Mirrors src/core day/week.
+  const pnl_ratio =
+    decided === 0 ? null : avg_loser === null ? Infinity : (avg_winner ?? 0) / Math.abs(avg_loser)
   const largest_winner = winners.n > 0 ? (winners.max ?? null) : null
   const largest_loser = losers.n > 0 ? (losers.min ?? null) : null
 
@@ -93,6 +97,7 @@ function readOverview(
     scratches: totals.scratches,
     win_rate,
     profit_factor,
+    pnl_ratio,
     avg_winner,
     avg_loser,
     largest_winner,

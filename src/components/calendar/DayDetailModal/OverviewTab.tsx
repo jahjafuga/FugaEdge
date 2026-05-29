@@ -1,7 +1,14 @@
 import type { DayDetail } from '@shared/day-types'
 import Card from '@/components/ui/Card'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
-import { compactShares, int, pnlClass, signed } from '@/lib/format'
+import StatStrip, {
+  type Kpi,
+  intCount,
+  moneyOrDash,
+  pctOrDash,
+  signedOrDash,
+} from '@/components/ui/StatStrip'
+import { compactShares, formatPnlRatio, int, pnlClass, signed } from '@/lib/format'
 
 // v0.2.2 Day 2 redesign (revised) — Overview is the at-a-glance NARRATIVE of
 // the day, distinct from Performance's stats table. Hero intraday equity curve
@@ -29,8 +36,26 @@ export default function OverviewTab({ detail }: { detail: DayDetail }) {
   const best = top && top.netPnl > 0 ? top : null
   const worst = bottom && bottom.netPnl < 0 ? bottom : null
 
+  // Quick-glance strip — same 10 cards as the dashboard, day-scoped. Reads the
+  // same DayMetrics the Performance tab uses, so the two can't disagree. P&L
+  // ratio (avg win ÷ |avg loss|) replaces the dashboard's old Profit Factor.
+  const kpis: Kpi[] = [
+    { label: 'Net P&L',        value: m.netPnl,             format: signedOrDash,  tone: 'auto' },
+    { label: 'Gross P&L',      value: m.grossPnl,           format: signedOrDash,  tone: 'auto' },
+    { label: 'Total fees',     value: m.totalFees,          format: moneyOrDash,   tone: 'red' },
+    { label: 'Trade count',    value: m.tradeCount,         format: intCount,      tone: 'neutral' },
+    { label: 'Win rate',       value: m.winRate,            format: pctOrDash,     tone: 'gold' },
+    { label: 'P&L ratio',      value: m.pnlRatio,           format: formatPnlRatio, tone: 'gold' },
+    { label: 'Avg winner',     value: m.avgWin,             format: moneyOrDash,   tone: 'green' },
+    { label: 'Avg loser',      value: m.avgLoss,            format: moneyOrDash,   tone: 'red' },
+    { label: 'Largest winner', value: m.biggestWin?.pnl ?? null, format: moneyOrDash, tone: 'green' },
+    { label: 'Largest loser',  value: m.worstLoss?.pnl ?? null,  format: moneyOrDash, tone: 'red' },
+  ]
+
   return (
     <div className="space-y-4">
+      <StatStrip items={kpis} />
+
       {/* Hero — reused IntradayPnLChart, tall so it owns the panel. */}
       <IntradayPnLChart trades={detail.trades} date={detail.date} height={340} />
 

@@ -160,6 +160,13 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     profitFactor = loserSum === 0 ? Infinity : winnerSum / -loserSum
   }
 
+  // P&L Ratio — avg win ÷ |avg loss|. Distinct from profit factor (which uses
+  // summed flow). No losers → Infinity; no winners → 0; no decided → null.
+  let pnlRatio: number | null = null
+  if (decided > 0) {
+    pnlRatio = avgLoss === null ? Infinity : (avgWin ?? 0) / Math.abs(avgLoss)
+  }
+
   // Sample std dev (n−1 denominator). Null when tradeCount < 3 — at small N
   // the value is statistical noise (Class C in the v0.2.2 plan addendum).
   let stdDevPnl: number | null = null
@@ -273,6 +280,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     avgTradePnl,
     avgPerShareGainLoss,
     profitFactor,
+    pnlRatio,
     maxConsecutiveWins,
     maxConsecutiveLosses,
     avgHoldSeconds,
@@ -316,6 +324,7 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     avgTradePnl: null,
     avgPerShareGainLoss: null,
     profitFactor: null,
+    pnlRatio: null,
     maxConsecutiveWins: 0,
     maxConsecutiveLosses: 0,
     avgHoldSeconds: null,
