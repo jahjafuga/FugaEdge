@@ -12,6 +12,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -97,6 +98,8 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_CATALYST_SAVE, input),
   tradeCountrySave: (input: UpdateCountryInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE, input),
+  tradeCountrySaveSymbol: (input: UpdateCountryForSymbolInput): Promise<number> =>
+    ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE_SYMBOL, input),
   countryResolve: (symbol: string): Promise<ResolvedCountry | null> =>
     ipcRenderer.invoke(IPC.COUNTRY_RESOLVE, symbol),
   countryBackfill: (force?: boolean): Promise<{

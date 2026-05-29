@@ -22,7 +22,12 @@ export interface ResolvedCountry {
   country: string | null
   country_name: string
   region: string
-  source: 'polygon' | 'unknown'
+  // 'polygon'  = from a real address.country (or a name/description hint) — confident.
+  // 'inferred' = guessed from listing locale / exchange only (US-listing ≠ US-domicile);
+  //              the free tier carries no domicile field, so US-listed foreign issuers
+  //              land here. Re-resolvable and flagged in the UI for confirmation.
+  // 'unknown'  = nothing to go on.
+  source: 'polygon' | 'inferred' | 'unknown'
 }
 
 const SHELL_SET: ReadonlySet<string> = new Set<string>(SHELL_JURISDICTIONS)
@@ -63,7 +68,7 @@ const EXCHANGE_PREFIX_MAP: Record<string, string> = {
   XSWX: 'CH',
 }
 
-function build(iso: string | null): ResolvedCountry {
+function build(iso: string | null, source: 'polygon' | 'inferred' = 'polygon'): ResolvedCountry {
   if (!iso) {
     return { country: null, country_name: 'Unknown', region: 'Unknown', source: 'unknown' }
   }
@@ -71,7 +76,7 @@ function build(iso: string | null): ResolvedCountry {
     country: iso,
     country_name: getCountryName(iso),
     region: getRegionForCountry(iso),
-    source: 'polygon',
+    source,
   }
 }
 
@@ -108,14 +113,17 @@ export function resolveCountryFromPolygon(ref: PolygonTickerRef): ResolvedCountr
     // Cayman-shelled company listed on XHKG is almost certainly Hong Kong.
   }
 
-  // No address.country (or it was a shell with no text hint) — try locale.
+  // No address.country (or it was a shell with no text hint) — fall back to
+  // listing signals. These tell us where it's LISTED, not its domicile, so
+  // they're marked 'inferred' (the free tier has no domicile field — US-listed
+  // foreign issuers are indistinguishable from US companies here).
   const locale = r.locale?.trim().toLowerCase() ?? ''
-  if (locale === 'us') return build('US')
+  if (locale === 'us') return build('US', 'inferred')
 
   // Last resort: primary_exchange prefix.
   const exch = r.primary_exchange?.trim().toUpperCase() ?? ''
   if (exch && EXCHANGE_PREFIX_MAP[exch]) {
-    return build(EXCHANGE_PREFIX_MAP[exch])
+    return build(EXCHANGE_PREFIX_MAP[exch], 'inferred')
   }
 
   return build(null)

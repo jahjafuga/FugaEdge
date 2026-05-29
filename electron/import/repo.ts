@@ -119,7 +119,10 @@ export function backfillTradeCountriesFromMarket(symbols?: string[]): number {
       country_name   = (SELECT m.country_name   FROM market_data m WHERE m.symbol = trades.symbol),
       region         = (SELECT m.region         FROM market_data m WHERE m.symbol = trades.symbol),
       country_source = (
-        SELECT CASE WHEN m.country IS NOT NULL THEN 'polygon' ELSE 'unknown' END
+        -- market_data carries no source, so a cache-copied country is
+        -- unverified (could be a US-from-listing guess) — label it 'inferred',
+        -- not the confident 'polygon'. Honest + re-resolvable.
+        SELECT CASE WHEN m.country IS NOT NULL THEN 'inferred' ELSE 'unknown' END
         FROM market_data m WHERE m.symbol = trades.symbol
       )
     WHERE id IN (

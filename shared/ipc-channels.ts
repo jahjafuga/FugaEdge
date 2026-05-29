@@ -42,6 +42,7 @@ export const IPC = {
   COUNTRY_BACKFILL: 'country:backfillAll',
   COUNTRY_BACKFILL_PROGRESS: 'country:backfillProgress',
   TRADE_COUNTRY_SAVE: 'trade:countrySave',
+  TRADE_COUNTRY_SAVE_SYMBOL: 'trade:countrySaveSymbol',
   SESSION_SENTIMENT_SAVE: 'session:sentimentSave',
   SESSION_LIST_ALL: 'session:listAll',
   SESSION_GET: 'session:get',

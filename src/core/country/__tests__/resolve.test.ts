@@ -45,20 +45,30 @@ describe('resolveCountryFromPolygon', () => {
     })
   })
 
-  it('falls back to locale="us" when address is missing', () => {
+  it('locale="us" with no address → US but marked inferred (US-listing ≠ US-domicile)', () => {
     const r = resolveCountryFromPolygon({ results: { locale: 'us' } })
     expect(r.country).toBe('US')
-    expect(r.source).toBe('polygon')
+    expect(r.source).toBe('inferred')
   })
 
-  it('falls back to primary_exchange XHKG → HK', () => {
+  it('falls back to primary_exchange XHKG → HK (inferred from listing)', () => {
     const r = resolveCountryFromPolygon({ results: { primary_exchange: 'XHKG' } })
     expect(r.country).toBe('HK')
+    expect(r.source).toBe('inferred')
   })
 
-  it('falls back to primary_exchange XNAS / XNYS → US', () => {
-    expect(resolveCountryFromPolygon({ results: { primary_exchange: 'XNAS' } }).country).toBe('US')
-    expect(resolveCountryFromPolygon({ results: { primary_exchange: 'XNYS' } }).country).toBe('US')
+  it('falls back to primary_exchange XNAS / XNYS → US (inferred)', () => {
+    const a = resolveCountryFromPolygon({ results: { primary_exchange: 'XNAS' } })
+    const b = resolveCountryFromPolygon({ results: { primary_exchange: 'XNYS' } })
+    expect(a.country).toBe('US')
+    expect(a.source).toBe('inferred')
+    expect(b.country).toBe('US')
+    expect(b.source).toBe('inferred')
+  })
+
+  it('real foreign address (IL) passes through confident', () => {
+    const r = resolveCountryFromPolygon({ results: { address: { country: 'IL' } } })
+    expect(r).toMatchObject({ country: 'IL', source: 'polygon' })
   })
 
   it('falls back to primary_exchange XSES → SG', () => {

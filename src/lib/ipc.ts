@@ -50,6 +50,8 @@ export const ipc = {
   tradeCatalystSave: (input: UpdateCatalystInput) =>
     window.api.tradeCatalystSave(input),
   tradeCountrySave: (input: UpdateCountryInput) => window.api.tradeCountrySave(input),
+  tradeCountrySaveSymbol: (input: import('@shared/trades-types').UpdateCountryForSymbolInput) =>
+    window.api.tradeCountrySaveSymbol(input),
   countryResolve: (symbol: string) => window.api.countryResolve(symbol),
   countryBackfill: (force?: boolean) => window.api.countryBackfill(force),
   countryOnBackfillProgress: (

@@ -176,7 +176,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       country: r.country,
       country_name: r.country_name ?? 'Unknown',
       region: r.region ?? 'Unknown',
-      country_source: (r.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
+      country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
     }
@@ -252,7 +252,7 @@ export function getTrade(id: number): TradeListRow | null {
     country: row.country,
     country_name: row.country_name ?? 'Unknown',
     region: row.region ?? 'Unknown',
-    country_source: (row.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
+    country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
   }

@@ -62,6 +62,10 @@ export function useTradeStack({ trades, reload }: UseTradeStackOptions): UseTrad
       onSaveFloat={(i) => persist(ipc.tradeFloatSave, i)}
       onSaveCatalyst={(i) => persist(ipc.tradeCatalystSave, i)}
       onSaveCountry={(i) => persist(ipc.tradeCountrySave, i)}
+      onSaveCountrySymbol={async (i) => {
+        const changed = await ipc.tradeCountrySaveSymbol(i)
+        if (changed > 0) await reload()
+      }}
     />
   )
 

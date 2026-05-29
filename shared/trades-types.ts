@@ -75,9 +75,12 @@ export interface TradeListRow {
   /** Bucket key (USA, China, Europe, ...). 'Unknown' when country is
    *  null. One country → exactly one region; see src/core/country. */
   region: string
-  /** Where the value came from. 'manual' overrides are never overwritten
-   *  by automatic backfill. 'unknown' means "we tried and couldn't resolve". */
-  country_source: 'polygon' | 'manual' | 'unknown'
+  /** Where the value came from. 'manual' overrides are never overwritten by
+   *  automatic backfill. 'inferred' = guessed from listing locale/exchange
+   *  (US-listing ≠ domicile; the free tier has no domicile field) — shown with
+   *  a "verify" cue and re-resolvable. 'unknown' means "we tried and couldn't
+   *  resolve". */
+  country_source: 'polygon' | 'inferred' | 'manual' | 'unknown'
   /** Number of screenshot attachments — drives the badge on the expand-row
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */
@@ -128,7 +131,14 @@ export interface UpdateCountryInput {
   /** Defaults to 'manual' when omitted. The IPC handler only ever stores
    *  'manual' from this entry point — 'polygon'/'unknown' come from the
    *  backfill flow. */
-  source?: 'polygon' | 'manual' | 'unknown'
+  source?: 'polygon' | 'inferred' | 'manual' | 'unknown'
+}
+
+export interface UpdateCountryForSymbolInput {
+  /** Apply to EVERY trade of this symbol (bulk manual override). */
+  symbol: string
+  /** ISO alpha-2 (any case) or null to clear to Unknown. Always stored manual. */
+  country: string | null
 }
 
 /** Canonical catalyst options for the trade detail modal's dropdown.

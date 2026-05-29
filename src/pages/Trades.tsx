@@ -18,11 +18,14 @@ import MigrationCollisionsBanner from '@/components/data-health/MigrationCollisi
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
+import { normalizeIso } from '@/core/country/source'
+import { getCountryName, getRegionForCountry } from '@/core/country/regions'
 import type {
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -170,6 +173,25 @@ export default function Trades() {
     )
   }, [])
 
+  // Bulk per-symbol manual override: update every loaded row of the ticker
+  // in place (the main process wrote them all to source 'manual').
+  const handleSaveCountrySymbol = useCallback(async (input: UpdateCountryForSymbolInput) => {
+    const changed = await ipc.tradeCountrySaveSymbol(input)
+    if (changed <= 0) return
+    const iso = normalizeIso(input.country)
+    const country_name = iso ? getCountryName(iso) : 'Unknown'
+    const region = iso ? getRegionForCountry(iso) : 'Unknown'
+    setTrades((prev) =>
+      prev
+        ? prev.map((t) =>
+            t.symbol === input.symbol
+              ? { ...t, country: iso, country_name, region, country_source: 'manual' as const }
+              : t,
+          )
+        : prev,
+    )
+  }, [])
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -303,6 +325,7 @@ export default function Trades() {
             onSaveFloat={handleSaveFloat}
             onSaveCatalyst={handleSaveCatalyst}
             onSaveCountry={handleSaveCountry}
+            onSaveCountrySymbol={handleSaveCountrySymbol}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}

@@ -13,9 +13,15 @@ interface CountryEditorProps {
   country: string | null
   countryName: string
   region: string
-  source: 'polygon' | 'manual' | 'unknown'
-  /** Always called with uppercase ISO alpha-2 or null to clear. */
+  source: 'polygon' | 'inferred' | 'manual' | 'unknown'
+  /** Always called with uppercase ISO alpha-2 or null to clear (this trade). */
   onChange: (next: string | null) => void
+  /** Ticker symbol — when provided alongside onApplyToSymbol, the picker offers
+   *  an "apply to all [symbol] trades" bulk option. */
+  symbol?: string
+  /** Bulk per-symbol override; called INSTEAD of onChange when the user ticks
+   *  "apply to all". Same ISO-or-null contract. */
+  onApplyToSymbol?: (next: string | null) => void
 }
 
 // Precomputed grouping: every COUNTRY_NAMES entry placed under its region
@@ -43,9 +49,21 @@ export default function CountryEditor({
   region,
   source,
   onChange,
+  symbol,
+  onApplyToSymbol,
 }: CountryEditorProps) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
+  const [applyAll, setApplyAll] = useState(false)
+  const canBulk = !!symbol && !!onApplyToSymbol
+
+  // Route a pick/clear to the per-symbol bulk path when the user opted in,
+  // else the per-trade path. Either way, close the modal.
+  const apply = (iso: string | null) => {
+    if (applyAll && onApplyToSymbol) onApplyToSymbol(iso)
+    else onChange(iso)
+    setOpen(false)
+  }
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -76,6 +94,14 @@ export default function CountryEditor({
           {source === 'manual' && (
             <span className="text-[10px] uppercase tracking-wider text-fg-muted" title="Manually set">
               · manual
+            </span>
+          )}
+          {source === 'inferred' && (
+            <span
+              className="text-[10px] uppercase tracking-wider text-fg-muted"
+              title="Assumed from listing — set country to confirm"
+            >
+              · assumed
             </span>
           )}
           <button
@@ -127,7 +153,7 @@ export default function CountryEditor({
                       <button
                         key={row.iso}
                         type="button"
-                        onClick={() => { onChange(row.iso); setOpen(false) }}
+                        onClick={() => apply(row.iso)}
                         className={`flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm transition-colors duration-150 ${
                           active
                             ? 'bg-gold/15 text-gold'
@@ -144,10 +170,21 @@ export default function CountryEditor({
               </div>
             ))}
           </div>
-          <div className="border-t border-border-subtle pt-3">
+          <div className="space-y-2 border-t border-border-subtle pt-3">
+            {canBulk && (
+              <label className="flex items-center gap-2 text-xs text-fg-secondary">
+                <input
+                  type="checkbox"
+                  checked={applyAll}
+                  onChange={(e) => setApplyAll(e.target.checked)}
+                  className="accent-gold"
+                />
+                Apply to all {symbol} trades
+              </label>
+            )}
             <button
               type="button"
-              onClick={() => { onChange(null); setOpen(false) }}
+              onClick={() => apply(null)}
               className="cursor-pointer text-xs text-fg-tertiary transition-colors duration-150 hover:text-loss"
             >
               Clear country (mark Unknown)

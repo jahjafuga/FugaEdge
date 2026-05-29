@@ -15,6 +15,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -41,6 +42,7 @@ interface TradesTableProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -89,6 +91,7 @@ export default function TradesTable({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -447,6 +450,7 @@ export default function TradesTable({
         onSaveFloat={onSaveFloat}
         onSaveCatalyst={onSaveCatalyst}
         onSaveCountry={onSaveCountry}
+        onSaveCountrySymbol={onSaveCountrySymbol}
       />
     </div>
   )

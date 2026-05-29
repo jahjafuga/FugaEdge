@@ -7,6 +7,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -44,6 +45,8 @@ interface TradeDetailModalProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
   /** When opened on top of another modal (e.g. stacked inside DayDetailModal),
    *  raises the overlay above it. Default false → standalone z-[60]; true →
    *  z-[210], above DayDetailModal's z-[110]. */
@@ -76,6 +79,7 @@ export default function TradeDetailModal({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
   stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
@@ -150,6 +154,7 @@ export default function TradeDetailModal({
               onSaveFloat={onSaveFloat}
               onSaveCatalyst={onSaveCatalyst}
               onSaveCountry={onSaveCountry}
+              onSaveCountrySymbol={onSaveCountrySymbol}
             />
           )}
           {tab === 'notes' && (
@@ -275,6 +280,8 @@ interface OverviewTabProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
 }
 
 function OverviewTab({
@@ -286,6 +293,7 @@ function OverviewTab({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
 }: OverviewTabProps) {
   const t = trade
   return (
@@ -345,6 +353,12 @@ function OverviewTab({
             source={t.country_source}
             onChange={(next) =>
               onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
+            }
+            symbol={t.symbol}
+            onApplyToSymbol={
+              onSaveCountrySymbol
+                ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
+                : undefined
             }
           />
         </FieldRow>
