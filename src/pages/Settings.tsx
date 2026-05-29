@@ -18,11 +18,12 @@ import type {
   SettingsPayload,
   SettingsValues,
 } from '@shared/settings-types'
-import type {
-  IntradayRefreshResult,
-  MarketRefreshProgress,
-  MarketRefreshResult,
-} from '@shared/market-types'
+import type { MarketRefreshProgress } from '@shared/market-types'
+import {
+  startIntradayRefresh,
+  startMarketRefresh,
+  useRefreshState,
+} from '@/lib/refreshStore'
 import type { MassiveKeyStatus } from '@shared/massive-types'
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -63,24 +64,22 @@ export default function Settings() {
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
 
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshResult, setRefreshResult] = useState<MarketRefreshResult | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
-
-  const [intradayRefreshing, setIntradayRefreshing] = useState(false)
-  const [intradayResult, setIntradayResult] = useState<IntradayRefreshResult | null>(null)
-  const [intradayError, setIntradayError] = useState<string | null>(null)
-
-  // Shared by both Market-data refresh buttons. Default unchecked → incremental
-  // (fetch only missing/errored). Checked → force=true (re-download everything).
-  // Reset to false after a successful run (mirrors DataBackfillCard).
+  // Force checkbox is a local pre-press input. The rest of the refresh state
+  // (running / progress / result / error) lives in the module-level
+  // refreshStore so it survives a tab switch — Settings can unmount and remount
+  // mid-run and still read the live running flag + latest progress (and the
+  // store owns the await, so completion clears even while away).
   const [force, setForce] = useState(false)
-
-  // Live progress pushed from main while a refresh runs. Rendered ONLY while the
-  // matching refreshing flag is true (see below), so a late event can never
-  // leave a bar stuck after the run settles.
-  const [refreshProgress, setRefreshProgress] = useState<MarketRefreshProgress | null>(null)
-  const [intradayProgress, setIntradayProgress] = useState<MarketRefreshProgress | null>(null)
+  const { market, intraday } = useRefreshState()
+  // Aliases keep the render + result/error JSX below unchanged.
+  const refreshing = market.running
+  const refreshResult = market.result
+  const refreshError = market.error
+  const refreshProgress = market.progress
+  const intradayRefreshing = intraday.running
+  const intradayResult = intraday.result
+  const intradayError = intraday.error
+  const intradayProgress = intraday.progress
 
   useEffect(() => {
     let cancelled = false
@@ -97,16 +96,6 @@ export default function Settings() {
       })
     return () => {
       cancelled = true
-    }
-  }, [])
-
-  // Subscribe to main→renderer refresh progress for the lifetime of the page.
-  useEffect(() => {
-    const offRefresh = ipc.marketOnRefreshProgress((p) => setRefreshProgress(p))
-    const offIntraday = ipc.marketOnIntradayProgress((p) => setIntradayProgress(p))
-    return () => {
-      offRefresh()
-      offIntraday()
     }
   }, [])
 
@@ -136,44 +125,20 @@ export default function Settings() {
     }
   }, [editor, saving, snapshot])
 
-  const runRefresh = useCallback(async () => {
-    if (refreshing) return
-    // Capture the force flag at invocation. The post-success reset below only
-    // affects the NEXT run — this in-flight run keeps the value it started with.
-    const forceThisRun = force
-    setRefreshing(true)
-    setRefreshError(null)
-    setRefreshResult(null)
-    setRefreshProgress(null)
-    try {
-      const result = await ipc.marketRefresh(forceThisRun)
-      setRefreshResult(result)
-      setForce(false)
-    } catch (e) {
-      setRefreshError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setRefreshing(false)
-    }
-  }, [refreshing, force])
+  // The store owns the running flag + await + progress subscription (so state
+  // survives a tab switch). It guards against double-runs internally; reset the
+  // local Force checkbox only when the run actually succeeded.
+  const runRefresh = useCallback(() => {
+    void startMarketRefresh(force).then((ok) => {
+      if (ok) setForce(false)
+    })
+  }, [force])
 
-  const runIntradayRefresh = useCallback(async () => {
-    if (intradayRefreshing) return
-    // Force captured at invocation; reset only affects the NEXT run.
-    const forceThisRun = force
-    setIntradayRefreshing(true)
-    setIntradayError(null)
-    setIntradayResult(null)
-    setIntradayProgress(null)
-    try {
-      const result = await ipc.marketIntradayRefresh(forceThisRun)
-      setIntradayResult(result)
-      setForce(false)
-    } catch (e) {
-      setIntradayError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setIntradayRefreshing(false)
-    }
-  }, [intradayRefreshing, force])
+  const runIntradayRefresh = useCallback(() => {
+    void startIntradayRefresh(force).then((ok) => {
+      if (ok) setForce(false)
+    })
+  }, [force])
 
   const runExport = useCallback(async (kind: ExportKind) => {
     if (exporting) return
@@ -427,9 +392,10 @@ export default function Settings() {
               Force re-fetch (re-download everything; overwrites Massive-sourced values, keeps manual edits)
             </label>
 
-            {/* Live progress while a refresh runs. Gated by the refreshing flag
-                (cleared in each handler's finally) so the bar can never stick —
-                including the all-403 case that ends with fetched=0. */}
+            {/* Live progress while a refresh runs. Gated by the running flag
+                from refreshStore (cleared in the store's finally) so the bar can
+                never stick — incl. the all-403 case that ends with fetched=0 —
+                and it rehydrates at the current progress after a tab switch. */}
             {refreshing && <RefreshProgressBar progress={refreshProgress} />}
             {intradayRefreshing && <RefreshProgressBar progress={intradayProgress} />}
 
