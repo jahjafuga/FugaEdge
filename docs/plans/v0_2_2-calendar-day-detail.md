@@ -300,6 +300,19 @@ use it as the template.** Also: the refresh status's "0 MAE/MFE · 0 EMA9" is a
 misleading write-delta counter (0 = nothing newly-changed, not 0 coverage) —
 relabel it to report coverage during this day's polish.
 
+**UX polish — "Awaiting" doesn't distinguish unfetched from plan-gated.** On the
+free Polygon/Massive tier, recent days are 403-gated (NOT_AUTHORIZED, delayed-data
+plan), so their bars never fetch and Execution Quality shows "Awaiting intraday."
+A beta tester reviewing THIS week — the most common cadence — therefore hits
+"Awaiting" on the freshest data with no explanation of *why*. 5a is correct (the
+empty state is honest), but the message conflates two cases: "awaiting fetch"
+(transient) vs "recent data not available on your plan" (won't resolve without
+an upgrade). Consider a hint that distinguishes them — surface the per-(symbol,
+date) 403 reason the refresh already records — with an upgrade/why link. Same
+honest-disclosure pattern as "Fees: not reported" vs a misleading "$0.00". The
+hint-distinction is Day-5-polish-sized; the plan-awareness + upgrade-link portion
+can slide to v0.3.0 if this day gets tight. Cohort UX gap, not a bug.
+
 ### Day 6 — Smoke test + cleanup
 
 - Re-import all fixture data (DAS, Webull, real DTSM testers) and click through random days
