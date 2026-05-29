@@ -12,6 +12,7 @@ import {
   upsertMarketRow,
   type MarketRow,
 } from './repo'
+import type { MarketRefreshProgress } from '@shared/market-types'
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
 const REQUEST_SPACING_MS = 350             // floor between requests (~3/s)
@@ -31,6 +32,9 @@ export interface RefreshResult {
 interface RefreshOptions {
   force?: boolean             // bypass cache
   symbols?: string[]          // limit to these (intersected with trade symbols)
+  /** Pushed once per symbol as it completes — drives the renderer loading bar.
+   *  Plain callback; the electron `wc.send` wrapping lives in the IPC handler. */
+  emitProgress?: (p: MarketRefreshProgress) => void
 }
 
 let inFlight: Promise<RefreshResult> | null = null
@@ -189,6 +193,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
   // Simple promise-pool. Iterates symbols, never more than MAX_CONCURRENT
   // in flight at once.
   const queue = [...symbols]
+  let completed = 0
   const workers: Promise<void>[] = []
   for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) {
     workers.push(
@@ -197,6 +202,8 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
           const s = queue.shift()
           if (!s) return
           await fetchOne(s)
+          completed += 1
+          opts.emitProgress?.({ current: completed, total: allSymbolsForLogging, symbol: s })
         }
       })(),
     )

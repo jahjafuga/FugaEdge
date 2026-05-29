@@ -7,6 +7,7 @@ import {
   type IntradayBar,
 } from './massive'
 import { withRateLimitRetry } from './rate-limit'
+import type { MarketRefreshProgress } from '@shared/market-types'
 import {
   getIntradayRow,
   intradayPairsNeedingFetch,
@@ -31,6 +32,10 @@ export interface IntradayRefreshResult {
 
 interface RefreshOptions {
   force?: boolean
+  /** Pushed once per (symbol, date) pair as it completes, so the renderer can
+   *  show a live loading bar. Plain callback — the electron `wc.send` wrapping
+   *  lives in the IPC handler, keeping this module web-portable. */
+  emitProgress?: (p: MarketRefreshProgress) => void
 }
 
 let inFlight: Promise<IntradayRefreshResult> | null = null
@@ -134,6 +139,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   }
 
   const queue = [...pairs]
+  let completed = 0
   const workers: Promise<void>[] = []
   for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) {
     workers.push(
@@ -142,6 +148,8 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
           const p = queue.shift()
           if (!p) return
           await fetchOne(p.symbol, p.date)
+          completed += 1
+          opts.emitProgress?.({ current: completed, total: attempted, symbol: p.symbol, date: p.date })
         }
       })(),
     )

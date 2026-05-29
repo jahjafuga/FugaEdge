@@ -1,3 +1,13 @@
+// Live per-item progress pushed main→renderer while a refresh runs, so the UI
+// can show a loading bar instead of a dead greyed-out button. `date` is set for
+// intraday (symbol, date) pairs and omitted for the per-symbol market refresh.
+export interface MarketRefreshProgress {
+  current: number
+  total: number
+  symbol: string
+  date?: string
+}
+
 export interface MarketRefreshResult {
   attempted: number
   fetched: number

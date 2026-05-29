@@ -18,7 +18,11 @@ import type {
   SettingsPayload,
   SettingsValues,
 } from '@shared/settings-types'
-import type { IntradayRefreshResult, MarketRefreshResult } from '@shared/market-types'
+import type {
+  IntradayRefreshResult,
+  MarketRefreshProgress,
+  MarketRefreshResult,
+} from '@shared/market-types'
 import type { MassiveKeyStatus } from '@shared/massive-types'
 
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -72,6 +76,12 @@ export default function Settings() {
   // Reset to false after a successful run (mirrors DataBackfillCard).
   const [force, setForce] = useState(false)
 
+  // Live progress pushed from main while a refresh runs. Rendered ONLY while the
+  // matching refreshing flag is true (see below), so a late event can never
+  // leave a bar stuck after the run settles.
+  const [refreshProgress, setRefreshProgress] = useState<MarketRefreshProgress | null>(null)
+  const [intradayProgress, setIntradayProgress] = useState<MarketRefreshProgress | null>(null)
+
   useEffect(() => {
     let cancelled = false
     ipc
@@ -87,6 +97,16 @@ export default function Settings() {
       })
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  // Subscribe to main→renderer refresh progress for the lifetime of the page.
+  useEffect(() => {
+    const offRefresh = ipc.marketOnRefreshProgress((p) => setRefreshProgress(p))
+    const offIntraday = ipc.marketOnIntradayProgress((p) => setIntradayProgress(p))
+    return () => {
+      offRefresh()
+      offIntraday()
     }
   }, [])
 
@@ -124,6 +144,7 @@ export default function Settings() {
     setRefreshing(true)
     setRefreshError(null)
     setRefreshResult(null)
+    setRefreshProgress(null)
     try {
       const result = await ipc.marketRefresh(forceThisRun)
       setRefreshResult(result)
@@ -142,6 +163,7 @@ export default function Settings() {
     setIntradayRefreshing(true)
     setIntradayError(null)
     setIntradayResult(null)
+    setIntradayProgress(null)
     try {
       const result = await ipc.marketIntradayRefresh(forceThisRun)
       setIntradayResult(result)
@@ -404,6 +426,12 @@ export default function Settings() {
               />
               Force re-fetch (re-download everything; overwrites Massive-sourced values, keeps manual edits)
             </label>
+
+            {/* Live progress while a refresh runs. Gated by the refreshing flag
+                (cleared in each handler's finally) so the bar can never stick —
+                including the all-403 case that ends with fetched=0. */}
+            {refreshing && <RefreshProgressBar progress={refreshProgress} />}
+            {intradayRefreshing && <RefreshProgressBar progress={intradayProgress} />}
 
             {refreshResult && refreshResult.errors.length > 0 && (
               <div className="rounded-md border border-red/40 bg-red/[0.06] p-3 text-xs">
@@ -717,6 +745,28 @@ function ExportButton({
     >
       {busy ? busyLabel : label}
     </button>
+  )
+}
+
+// Loading bar for an in-flight refresh. Mirrors DataBackfillCard's progress
+// markup. Before the first progress event arrives, shows an indeterminate
+// "Starting…" line (no width) so the user gets immediate feedback.
+function RefreshProgressBar({ progress }: { progress: MarketRefreshProgress | null }) {
+  const pct =
+    progress && progress.total > 0
+      ? Math.floor((progress.current / progress.total) * 100)
+      : 0
+  return (
+    <div>
+      <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+        <div className="h-full bg-gold transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+        {progress
+          ? `Fetching ${progress.symbol} (${progress.current}/${progress.total})`
+          : 'Starting…'}
+      </div>
+    </div>
   )
 }
 

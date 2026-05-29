@@ -45,6 +45,7 @@ import type { MassiveKeyStatus } from '@shared/massive-types'
 import type {
   IntradayBarsPayload,
   IntradayRefreshResult,
+  MarketRefreshProgress,
   MarketRefreshResult,
 } from '@shared/market-types'
 import type {
@@ -141,6 +142,22 @@ const api = {
     ipcRenderer.invoke(IPC.MARKET_REFRESH, { force: !!force }),
   marketIntradayRefresh: (force?: boolean): Promise<IntradayRefreshResult> =>
     ipcRenderer.invoke(IPC.MARKET_INTRADAY_REFRESH, { force: !!force }),
+  /** Subscribe to per-symbol market-refresh progress. Returns an unsubscribe fn. */
+  marketOnRefreshProgress: (cb: (p: MarketRefreshProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: MarketRefreshProgress) => cb(p)
+    ipcRenderer.on(IPC.MARKET_REFRESH_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.MARKET_REFRESH_PROGRESS, listener)
+    }
+  },
+  /** Subscribe to per-(symbol,date) intraday-refresh progress. Returns an unsubscribe fn. */
+  marketOnIntradayProgress: (cb: (p: MarketRefreshProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: MarketRefreshProgress) => cb(p)
+    ipcRenderer.on(IPC.MARKET_INTRADAY_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.MARKET_INTRADAY_PROGRESS, listener)
+    }
+  },
   intradayBarsGet: (
     symbol: string,
     date: string,

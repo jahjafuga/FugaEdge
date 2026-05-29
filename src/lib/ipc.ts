@@ -73,6 +73,12 @@ export const ipc = {
   exportDatabase: () => window.api.exportDatabase(),
   marketRefresh: (force?: boolean) => window.api.marketRefresh(force),
   marketIntradayRefresh: (force?: boolean) => window.api.marketIntradayRefresh(force),
+  marketOnRefreshProgress: (
+    cb: (p: import('@shared/market-types').MarketRefreshProgress) => void,
+  ) => window.api.marketOnRefreshProgress(cb),
+  marketOnIntradayProgress: (
+    cb: (p: import('@shared/market-types').MarketRefreshProgress) => void,
+  ) => window.api.marketOnIntradayProgress(cb),
   intradayBarsGet: (symbol: string, date: string, force?: boolean) =>
     window.api.intradayBarsGet(symbol, date, force),
   playbooksList: () => window.api.playbooksList(),
