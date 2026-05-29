@@ -44,6 +44,8 @@ function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
     region: 'Unknown',
     country_source: 'unknown',
     attachment_count: 0,
+    mae: null,
+    mfe: null,
     ...overrides,
   }
 }
@@ -96,6 +98,30 @@ describe('computeDayMetrics', () => {
     expect(result.avgMfeDollars).toBeNull()
     expect(result.avgMaeDollars).toBeNull()
     expect(result.mistakeTagCounts).toEqual([])
+  })
+
+  // v0.2.2 Day 5a — intraday MAE/MFE display wiring. avgMfe/avgMae are the
+  // mean per-share excursion over trades that HAVE intraday data (covered-only).
+  it('averages MFE/MAE in $/share over covered trades only', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, mfe: 0.60, mae: 0.20 }),
+      tradeRow({ id: 2, mfe: 0.20, mae: 0.40 }),
+      tradeRow({ id: 3, mfe: null, mae: null }), // no intraday data — excluded from both means
+    ]
+    const r = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+    // (0.60 + 0.20) / 2 covered = 0.40 ; (0.20 + 0.40) / 2 = 0.30
+    expect(r.avgMfeDollars).toBeCloseTo(0.4, 5)
+    expect(r.avgMaeDollars).toBeCloseTo(0.3, 5)
+  })
+
+  it('avgMfe/avgMae are null when no trade has intraday data (keeps Awaiting)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, net_pnl: 100, mfe: null, mae: null }),
+      tradeRow({ id: 2, net_pnl: -50, mfe: null, mae: null }),
+    ]
+    const r = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+    expect(r.avgMfeDollars).toBeNull()
+    expect(r.avgMaeDollars).toBeNull()
   })
 
   it('counts wins, losses, scratches and sums gross/fees/net across the day', () => {

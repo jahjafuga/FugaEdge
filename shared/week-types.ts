@@ -30,6 +30,10 @@ export interface WeekMetrics {
   totalDollarVolume: number
   // netPnl ÷ total shares traded (bought + sold); null when no shares.
   avgPerShareGainLoss: number | null
+  // Mean MFE / MAE in $/share over the week's trades that have intraday data;
+  // null when none do (keeps the "Awaiting intraday" placeholder). Mirrors day.ts.
+  avgMfeDollars: number | null
+  avgMaeDollars: number | null
   // All symbols traded that week, sorted by net P&L desc (ties: count desc, then first-seen).
   symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   // Per-trade mistake tags aggregated across the week, sorted count desc then alpha.

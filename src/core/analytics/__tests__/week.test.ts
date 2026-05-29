@@ -42,6 +42,8 @@ function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
     region: 'Unknown',
     country_source: 'unknown',
     attachment_count: 0,
+    mae: null,
+    mfe: null,
     ...overrides,
   }
 }
@@ -340,5 +342,27 @@ describe('computeWeekMetrics', () => {
     ]
     // netPnl 300 / totalShares 300 = 1.0 per share
     expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgPerShareGainLoss).toBeCloseTo(1.0, 5)
+  })
+
+  // v0.2.2 Day 5a — intraday MAE/MFE display wiring (mean $/share over covered).
+  it('averages MFE/MAE in $/share over covered trades only', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', mfe: 0.60, mae: 0.20 }),
+      tradeRow({ id: 2, date: '2026-05-12', mfe: 0.20, mae: 0.40 }),
+      tradeRow({ id: 3, date: '2026-05-13', mfe: null, mae: null }), // excluded
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+    expect(r.avgMfeDollars).toBeCloseTo(0.4, 5)
+    expect(r.avgMaeDollars).toBeCloseTo(0.3, 5)
+  })
+
+  it('avgMfe/avgMae null when no trade has intraday data', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', mfe: null, mae: null }),
+      tradeRow({ id: 2, date: '2026-05-12', mfe: null, mae: null }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+    expect(r.avgMfeDollars).toBeNull()
+    expect(r.avgMaeDollars).toBeNull()
   })
 })

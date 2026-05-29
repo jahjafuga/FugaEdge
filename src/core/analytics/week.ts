@@ -31,6 +31,11 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   let rCount = 0
   let totalShares = 0
   let totalDollarVolume = 0
+  // MAE/MFE in $/share — averaged over covered trades only (v0.2.2 Day 5a).
+  let mfeSum = 0
+  let mfeCount = 0
+  let maeSum = 0
+  let maeCount = 0
   // Single biggest winning / worst losing TRADE (sign-gated, mirrors day.ts).
   let biggestWin: { symbol: string; pnl: number } | null = null
   let worstLoss: { symbol: string; pnl: number } | null = null
@@ -69,6 +74,14 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
       rSum += t.r_multiple
       rCount += 1
     }
+    if (t.mfe !== null) {
+      mfeSum += t.mfe
+      mfeCount += 1
+    }
+    if (t.mae !== null) {
+      maeSum += t.mae
+      maeCount += 1
+    }
     totalShares += t.shares_bought + t.shares_sold
     totalDollarVolume += t.shares_bought * t.avg_buy_price + t.shares_sold * t.avg_sell_price
 
@@ -102,6 +115,8 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   const avgLoss = lossCount > 0 ? loserSum / lossCount : null
   const avgRMultiple = rCount > 0 ? rSum / rCount : null
   const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
+  const avgMfeDollars = mfeCount > 0 ? mfeSum / mfeCount : null
+  const avgMaeDollars = maeCount > 0 ? maeSum / maeCount : null
 
   let profitFactor: number | null = null
   if (decided > 0) {
@@ -188,6 +203,8 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     avgRMultiple,
     totalDollarVolume,
     avgPerShareGainLoss,
+    avgMfeDollars,
+    avgMaeDollars,
     symbolBreakdown,
     mistakeTagCounts,
     dayByDay,

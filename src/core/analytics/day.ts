@@ -29,6 +29,12 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   let rCount = 0
   let totalShares = 0
   let totalDollarVolume = 0
+  // MAE/MFE in $/share — averaged over covered trades only (those with
+  // intraday bars; the rest stay null). v0.2.2 Day 5a display wiring.
+  let mfeSum = 0
+  let mfeCount = 0
+  let maeSum = 0
+  let maeCount = 0
   let earliestOpen: string | null = null
   let latestClose: string | null = null
   let biggestWin: { symbol: string; pnl: number } | null = null
@@ -73,6 +79,14 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     if (t.r_multiple !== null) {
       rSum += t.r_multiple
       rCount += 1
+    }
+    if (t.mfe !== null) {
+      mfeSum += t.mfe
+      mfeCount += 1
+    }
+    if (t.mae !== null) {
+      maeSum += t.mae
+      maeCount += 1
     }
 
     totalShares += t.shares_bought + t.shares_sold
@@ -133,6 +147,8 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   const avgRMultiple = rCount > 0 ? rSum / rCount : null
   const avgTradePnl = trades.length > 0 ? netPnl / trades.length : null
   const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
+  const avgMfeDollars = mfeCount > 0 ? mfeSum / mfeCount : null
+  const avgMaeDollars = maeCount > 0 ? maeSum / maeCount : null
 
   // Profit factor convention (see v0.2.2 plan addendum):
   //   - finite (>0) when both sides have flow
@@ -254,8 +270,6 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     mostUsedPlaybook,
     moneyLeftOnTable,
     moneyLeftCoverage,
-    // Day 2 fields — placeholder defaults; each gets a real computation
-    // below as its TDD cycle lands.
     avgTradePnl,
     avgPerShareGainLoss,
     profitFactor,
@@ -266,8 +280,8 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     avgHoldSecondsLosers,
     avgHoldSecondsScratches,
     stdDevPnl,
-    avgMfeDollars: null,
-    avgMaeDollars: null,
+    avgMfeDollars,
+    avgMaeDollars,
     mistakeTagCounts,
   }
 }

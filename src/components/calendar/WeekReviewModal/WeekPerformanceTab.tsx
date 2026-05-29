@@ -160,8 +160,16 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
     {
       title: 'Execution quality',
       rows: [
-        { label: 'Avg MFE', value: <Awaiting />, hint: 'Max Favorable Excursion — requires intraday market data.' },
-        { label: 'Avg MAE', value: <Awaiting />, hint: 'Max Adverse Excursion — requires intraday market data.' },
+        {
+          label: 'Avg MFE',
+          value: m.avgMfeDollars == null ? <Awaiting /> : <Signed value={m.avgMfeDollars} />,
+          hint: m.avgMfeDollars == null ? 'Max Favorable Excursion — requires intraday market data.' : 'Avg max favorable excursion ($/share), over trades with intraday data.',
+        },
+        {
+          label: 'Avg MAE',
+          value: m.avgMaeDollars == null ? <Awaiting /> : <Signed value={m.avgMaeDollars} />,
+          hint: m.avgMaeDollars == null ? 'Max Adverse Excursion — requires intraday market data.' : 'Avg max adverse excursion ($/share), over trades with intraday data.',
+        },
         { label: 'Money left on table', value: <Awaiting />, hint: 'Sum of per-trade best-exit gap — requires intraday market data.' },
       ],
     },

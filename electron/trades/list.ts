@@ -27,6 +27,8 @@ interface TradeRowDb {
   executions_json: string
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
+  mae: number | null
+  mfe: number | null
   playbook_id: number | null
   playbook_name: string | null
   playbook_tier: string | null
@@ -117,7 +119,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
-        t.entry_timeframe, t.entry_ema9_distance_pct,
+        t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
@@ -156,6 +158,8 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       executions: parseExecutions(r.executions_json),
       entry_timeframe: parseTimeframe(r.entry_timeframe),
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
+      mae: r.mae,
+      mfe: r.mfe,
       playbook_id: r.playbook_id,
       playbook_name: r.playbook_name,
       playbook_tier: parsePlaybookTier(r.playbook_tier),
@@ -193,7 +197,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
-        t.entry_timeframe, t.entry_ema9_distance_pct,
+        t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares,
@@ -230,6 +234,8 @@ export function getTrade(id: number): TradeListRow | null {
     executions: parseExecutions(row.executions_json),
     entry_timeframe: parseTimeframe(row.entry_timeframe),
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,
+    mae: row.mae,
+    mfe: row.mfe,
     playbook_id: row.playbook_id,
     playbook_name: row.playbook_name,
     playbook_tier: parsePlaybookTier(row.playbook_tier),

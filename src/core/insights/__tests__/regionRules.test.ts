@@ -16,6 +16,7 @@ function mkTrade(over: Partial<TradeListRow>): TradeListRow {
     float_shares: null, catalyst_type: null, days_since_catalyst: null,
     country: 'US', country_name: 'United States', region: 'USA', country_source: 'polygon',
     attachment_count: 0,
+    mae: null, mfe: null,
     ...over,
   }
 }

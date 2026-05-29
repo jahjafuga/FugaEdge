@@ -184,12 +184,18 @@ export default function PerformanceTab({ detail }: { detail: DayDetail }) {
         {
           label: 'Avg MFE',
           value: m.avgMfeDollars == null ? <Awaiting /> : <Signed value={m.avgMfeDollars} />,
-          hint: 'Max Favorable Excursion — requires intraday market data.',
+          hint:
+            m.avgMfeDollars == null
+              ? 'Max Favorable Excursion — requires intraday market data.'
+              : 'Avg max favorable excursion ($/share), over trades with intraday data.',
         },
         {
           label: 'Avg MAE',
           value: m.avgMaeDollars == null ? <Awaiting /> : <Signed value={m.avgMaeDollars} />,
-          hint: 'Max Adverse Excursion — requires intraday market data.',
+          hint:
+            m.avgMaeDollars == null
+              ? 'Max Adverse Excursion — requires intraday market data.'
+              : 'Avg max adverse excursion ($/share), over trades with intraday data.',
         },
         {
           label: 'Money left on table',

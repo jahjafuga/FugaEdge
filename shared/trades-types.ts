@@ -26,6 +26,11 @@ export interface TradeListRow {
   note: TradeNote | null
   entry_timeframe: EntryTimeframe | null
   entry_ema9_distance_pct: number | null
+  /** Max adverse / favorable excursion in $/share between entry and exit,
+   *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
+   *  intraday bars cover the trade's window. */
+  mae: number | null
+  mfe: number | null
   playbook_id: number | null
   playbook_name: string | null
   /** Quality tier of the trade's playbook, joined in from `playbooks.tier`.
