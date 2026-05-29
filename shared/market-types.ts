@@ -16,6 +16,9 @@ export interface MarketRefreshResult {
   apiKeyMissing: boolean
   errors: { symbol: string; message: string }[]
   durationMs: number
+  /** True when the user clicked Cancel; the run still resolved cleanly (no
+   *  throw) with partial counts and any already-fetched pairs kept. */
+  cancelled: boolean
 }
 
 export interface IntradayRefreshResult {
@@ -27,6 +30,9 @@ export interface IntradayRefreshResult {
   emaBackfilled: number
   maeMfeBackfilled: number
   durationMs: number
+  /** True when the user clicked Cancel; the run still resolved cleanly (no
+   *  throw) with partial counts and any already-fetched pairs kept. */
+  cancelled: boolean
 }
 
 // Single-trade intraday lookup — backs the per-trade Chart tab.

@@ -20,6 +20,10 @@ import type {
 
 interface RefreshSlice<R> {
   running: boolean
+  /** True from the moment the user clicks Cancel until the run actually settles
+   *  (and the same finally clears `running` + `cancelling` together). Drives
+   *  the "Cancelling…" UI label. */
+  cancelling: boolean
   progress: MarketRefreshProgress | null
   result: R | null
   error: string | null
@@ -32,6 +36,7 @@ export interface RefreshState {
 
 const emptySlice = <R>(): RefreshSlice<R> => ({
   running: false,
+  cancelling: false,
   progress: null,
   result: null,
   error: null,
@@ -95,7 +100,7 @@ function ensureSubscribed(): void {
 export async function startMarketRefresh(force: boolean): Promise<boolean> {
   if (state.market.running) return false
   ensureSubscribed()
-  patchMarket({ running: true, progress: null, result: null, error: null })
+  patchMarket({ running: true, cancelling: false, progress: null, result: null, error: null })
   try {
     const result = await ipc.marketRefresh(force)
     patchMarket({ result })
@@ -104,7 +109,9 @@ export async function startMarketRefresh(force: boolean): Promise<boolean> {
     patchMarket({ error: e instanceof Error ? e.message : String(e) })
     return false
   } finally {
-    patchMarket({ running: false, progress: null })
+    // Single finally clears running AND cancelling together — no stuck
+    // "Cancelling…" state can outlive the run.
+    patchMarket({ running: false, cancelling: false, progress: null })
   }
 }
 
@@ -112,7 +119,7 @@ export async function startMarketRefresh(force: boolean): Promise<boolean> {
 export async function startIntradayRefresh(force: boolean): Promise<boolean> {
   if (state.intraday.running) return false
   ensureSubscribed()
-  patchIntraday({ running: true, progress: null, result: null, error: null })
+  patchIntraday({ running: true, cancelling: false, progress: null, result: null, error: null })
   try {
     const result = await ipc.marketIntradayRefresh(force)
     patchIntraday({ result })
@@ -121,8 +128,24 @@ export async function startIntradayRefresh(force: boolean): Promise<boolean> {
     patchIntraday({ error: e instanceof Error ? e.message : String(e) })
     return false
   } finally {
-    patchIntraday({ running: false, progress: null })
+    patchIntraday({ running: false, cancelling: false, progress: null })
   }
+}
+
+/** Ask the in-flight market refresh to stop. Sets `cancelling: true` for the UI
+ *  cue; the existing await above still resolves naturally with cancelled:true,
+ *  and the shared `finally` clears both flags. No-op when nothing is running. */
+export function cancelMarketRefresh(): void {
+  if (!state.market.running || state.market.cancelling) return
+  patchMarket({ cancelling: true })
+  void ipc.marketRefreshCancel() // fire-and-forget; settle path is unchanged
+}
+
+/** Ask the in-flight intraday refresh to stop. Same contract. */
+export function cancelIntradayRefresh(): void {
+  if (!state.intraday.running || state.intraday.cancelling) return
+  patchIntraday({ cancelling: true })
+  void ipc.marketIntradayCancel()
 }
 
 /** Component-facing hook — re-renders subscribers on any store change. */

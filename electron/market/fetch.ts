@@ -27,6 +27,7 @@ export interface RefreshResult {
   apiKeyMissing: boolean
   errors: { symbol: string; message: string }[]
   durationMs: number
+  cancelled: boolean
 }
 
 interface RefreshOptions {
@@ -38,6 +39,18 @@ interface RefreshOptions {
 }
 
 let inFlight: Promise<RefreshResult> | null = null
+
+// Coarse cancel — module flag flipped by cancelMarketRefresh(). The worker
+// loop checks it between symbols; the promise still resolves cleanly with
+// cancelled:true so the renderer settle chain stays airtight.
+let cancelRequested = false
+
+/** Signal the in-flight market refresh to stop starting new symbols. The
+ *  refresh promise still resolves (cancelled:true) once in-flight symbols
+ *  finish. No-op when nothing is running. */
+export function cancelMarketRefresh(): void {
+  if (inFlight) cancelRequested = true
+}
 
 /** Fetch daily aggregates (date → volume map + avg) for a single symbol
  *  over an explicit date range. Mirrors the aggregates-fetch portion of
@@ -69,6 +82,7 @@ export function refreshMarketData(opts: RefreshOptions = {}): Promise<RefreshRes
 
 async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
   const startedAt = Date.now()
+  cancelRequested = false // reset for this run
   const { polygon_api_key } = getSettings().values
 
   if (!polygon_api_key) {
@@ -80,6 +94,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       apiKeyMissing: true,
       errors: [],
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -97,6 +112,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       apiKeyMissing: false,
       errors: [],
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -199,6 +215,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
     workers.push(
       (async () => {
         while (queue.length) {
+          if (cancelRequested) return
           const s = queue.shift()
           if (!s) return
           await fetchOne(s)
@@ -218,9 +235,10 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
     apiKeyMissing: false,
     errors,
     durationMs: Date.now() - startedAt,
+    cancelled: cancelRequested,
   }
   console.info(
-    `[FE market] refresh done: fetched=${fetched} failed=${failed} in ${result.durationMs}ms`,
+    `[FE market] refresh ${result.cancelled ? 'cancelled' : 'done'}: fetched=${fetched} failed=${failed} in ${result.durationMs}ms`,
   )
   return result
 }

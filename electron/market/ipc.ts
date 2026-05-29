@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
-import { refreshMarketData } from './fetch'
-import { refreshIntraday } from './intraday'
+import { refreshMarketData, cancelMarketRefresh } from './fetch'
+import { refreshIntraday, cancelIntradayRefresh } from './intraday'
 import { getIntradayBars } from './bars-get'
 
 interface RefreshInput {
@@ -32,4 +32,12 @@ export function registerMarketIpc(): void {
   ipcMain.handle(IPC.INTRADAY_BARS_GET, (_e, input: BarsGetInput) =>
     getIntradayBars(input.symbol, input.date, { force: input.force === true }),
   )
+  // Coarse cancel — fire-and-forget; the refresh promise still resolves with
+  // cancelled:true once in-flight pairs finish (the airtight settle chain).
+  ipcMain.handle(IPC.MARKET_REFRESH_CANCEL, () => {
+    cancelMarketRefresh()
+  })
+  ipcMain.handle(IPC.MARKET_INTRADAY_CANCEL, () => {
+    cancelIntradayRefresh()
+  })
 }

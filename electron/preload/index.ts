@@ -143,8 +143,10 @@ const api = {
   exportDatabase: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_DATABASE),
   marketRefresh: (force?: boolean): Promise<MarketRefreshResult> =>
     ipcRenderer.invoke(IPC.MARKET_REFRESH, { force: !!force }),
+  marketRefreshCancel: (): Promise<void> => ipcRenderer.invoke(IPC.MARKET_REFRESH_CANCEL),
   marketIntradayRefresh: (force?: boolean): Promise<IntradayRefreshResult> =>
     ipcRenderer.invoke(IPC.MARKET_INTRADAY_REFRESH, { force: !!force }),
+  marketIntradayCancel: (): Promise<void> => ipcRenderer.invoke(IPC.MARKET_INTRADAY_CANCEL),
   /** Subscribe to per-symbol market-refresh progress. Returns an unsubscribe fn. */
   marketOnRefreshProgress: (cb: (p: MarketRefreshProgress) => void): (() => void) => {
     const listener = (_e: unknown, p: MarketRefreshProgress) => cb(p)

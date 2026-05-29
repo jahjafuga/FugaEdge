@@ -20,6 +20,8 @@ import type {
 } from '@shared/settings-types'
 import type { MarketRefreshProgress } from '@shared/market-types'
 import {
+  cancelIntradayRefresh,
+  cancelMarketRefresh,
   startIntradayRefresh,
   startMarketRefresh,
   useRefreshState,
@@ -76,10 +78,12 @@ export default function Settings() {
   const refreshResult = market.result
   const refreshError = market.error
   const refreshProgress = market.progress
+  const refreshCancelling = market.cancelling
   const intradayRefreshing = intraday.running
   const intradayResult = intraday.result
   const intradayError = intraday.error
   const intradayProgress = intraday.progress
+  const intradayCancelling = intraday.cancelling
 
   useEffect(() => {
     let cancelled = false
@@ -396,8 +400,20 @@ export default function Settings() {
                 from refreshStore (cleared in the store's finally) so the bar can
                 never stick — incl. the all-403 case that ends with fetched=0 —
                 and it rehydrates at the current progress after a tab switch. */}
-            {refreshing && <RefreshProgressBar progress={refreshProgress} />}
-            {intradayRefreshing && <RefreshProgressBar progress={intradayProgress} />}
+            {refreshing && (
+              <RefreshProgressBar
+                progress={refreshProgress}
+                cancelling={refreshCancelling}
+                onCancel={cancelMarketRefresh}
+              />
+            )}
+            {intradayRefreshing && (
+              <RefreshProgressBar
+                progress={intradayProgress}
+                cancelling={intradayCancelling}
+                onCancel={cancelIntradayRefresh}
+              />
+            )}
 
             {refreshResult && refreshResult.errors.length > 0 && (
               <div className="rounded-md border border-red/40 bg-red/[0.06] p-3 text-xs">
@@ -716,8 +732,18 @@ function ExportButton({
 
 // Loading bar for an in-flight refresh. Mirrors DataBackfillCard's progress
 // markup. Before the first progress event arrives, shows an indeterminate
-// "Starting…" line (no width) so the user gets immediate feedback.
-function RefreshProgressBar({ progress }: { progress: MarketRefreshProgress | null }) {
+// "Starting…" line. Inline Cancel link sits on the label row; once clicked the
+// label flips to "Cancelling…" (coarse: in-flight pairs finish first; typical
+// lag is seconds, worst case ~42s under sustained 429 backoff).
+function RefreshProgressBar({
+  progress,
+  cancelling,
+  onCancel,
+}: {
+  progress: MarketRefreshProgress | null
+  cancelling: boolean
+  onCancel: () => void
+}) {
   const pct =
     progress && progress.total > 0
       ? Math.floor((progress.current / progress.total) * 100)
@@ -727,10 +753,23 @@ function RefreshProgressBar({ progress }: { progress: MarketRefreshProgress | nu
       <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
         <div className="h-full bg-gold transition-all" style={{ width: `${pct}%` }} />
       </div>
-      <div className="mt-1 text-[10px] text-fg-tertiary tnum">
-        {progress
-          ? `Fetching ${progress.symbol} (${progress.current}/${progress.total})`
-          : 'Starting…'}
+      <div className="mt-1 flex items-center justify-between gap-3 text-[10px] tnum">
+        <span className="text-fg-tertiary">
+          {cancelling
+            ? 'Cancelling…'
+            : progress
+              ? `Fetching ${progress.symbol} (${progress.current}/${progress.total})`
+              : 'Starting…'}
+        </span>
+        {!cancelling && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="cursor-pointer uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-loss"
+          >
+            Cancel
+          </button>
+        )}
       </div>
     </div>
   )

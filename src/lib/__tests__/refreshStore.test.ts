@@ -54,6 +54,7 @@ describe('refreshStore — survives a tab switch (module-level retention)', () =
     resolveRun({
       attempted: 6, fetched: 0, failed: 6, apiKeyMissing: false,
       errors: [], emaBackfilled: 0, maeMfeBackfilled: 0, durationMs: 1,
+      cancelled: false,
     })
     await run
 

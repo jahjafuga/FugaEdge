@@ -74,7 +74,9 @@ export const ipc = {
   exportJournal: () => window.api.exportJournal(),
   exportDatabase: () => window.api.exportDatabase(),
   marketRefresh: (force?: boolean) => window.api.marketRefresh(force),
+  marketRefreshCancel: () => window.api.marketRefreshCancel(),
   marketIntradayRefresh: (force?: boolean) => window.api.marketIntradayRefresh(force),
+  marketIntradayCancel: () => window.api.marketIntradayCancel(),
   marketOnRefreshProgress: (
     cb: (p: import('@shared/market-types').MarketRefreshProgress) => void,
   ) => window.api.marketOnRefreshProgress(cb),
