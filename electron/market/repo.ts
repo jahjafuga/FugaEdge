@@ -1,4 +1,5 @@
 import { openDatabase } from '../db/database'
+import { shouldRetryErrored } from '@/core/market/refresh-eligibility'
 
 export interface MarketRow {
   symbol: string
@@ -142,14 +143,18 @@ export function symbolsNeedingFetch(staleAfterMs: number, force: boolean): strin
   for (const { symbol } of distinct) {
     const row = known.get(symbol)
     if (!row) {
-      out.push(symbol)
+      out.push(symbol) // never fetched
       continue
     }
-    const fetched = Date.parse(row.fetched_at)
-    if (Number.isFinite(fetched) && now - fetched < staleAfterMs && !row.error) {
-      continue // fresh and OK
+    if (row.error) {
+      // Errored: retry transient failures; skip a plan-gated symbol while it's
+      // still inside the cooldown window (don't re-hammer a 403 every refresh).
+      if (shouldRetryErrored(row.error, row.fetched_at, now)) out.push(symbol)
+      continue
     }
-    out.push(symbol)
+    // No error: re-fetch only when stale.
+    const fetched = Date.parse(row.fetched_at)
+    if (!(Number.isFinite(fetched) && now - fetched < staleAfterMs)) out.push(symbol)
   }
   return out
 }
@@ -241,16 +246,18 @@ export function intradayPairsNeedingFetch(force: boolean): { symbol: string; dat
   if (force) return all
 
   const existing = db
-    .prepare('SELECT symbol, date, error FROM intraday_bars')
-    .all() as { symbol: string; date: string; error: string | null }[]
-  const cached = new Map<string, string | null>()
-  for (const r of existing) cached.set(`${r.symbol}|${r.date}`, r.error)
+    .prepare('SELECT symbol, date, error, fetched_at FROM intraday_bars')
+    .all() as { symbol: string; date: string; error: string | null; fetched_at: string }[]
+  const cached = new Map<string, { error: string | null; fetched_at: string }>()
+  for (const r of existing) cached.set(`${r.symbol}|${r.date}`, { error: r.error, fetched_at: r.fetched_at })
 
+  const now = Date.now()
   return all.filter((p) => {
-    const err = cached.get(`${p.symbol}|${p.date}`)
-    if (err === undefined) return true  // not cached
-    if (err !== null) return true        // last attempt errored — retry
-    return false                          // cached cleanly
+    const row = cached.get(`${p.symbol}|${p.date}`)
+    if (row === undefined) return true       // never fetched
+    if (row.error === null) return false      // cached cleanly
+    // Errored: retry transient failures; skip a plan-gated pair within cooldown.
+    return shouldRetryErrored(row.error, row.fetched_at, now)
   })
 }
 
