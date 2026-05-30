@@ -7,6 +7,15 @@
 // US-listed foreign issuers); Polygon's /v3/reference/tickers is the
 // FALLBACK, only hit when FMP returns no country. The Polygon path is
 // otherwise UNCHANGED.
+//
+// v0.2.3 Stage 2 — the SAME FMP profile call also yields marketCap, sector,
+// and industry. These ride through the orchestrator as passenger fields and
+// are persisted to market_data here (ZERO extra requests). A null passenger
+// never wipes a previously-populated value — we prefer the fresh FMP value
+// and fall back to whatever the row already had. The market-refresh path
+// (electron/market/fetch.ts) still sources cap/sector from Polygon — out of
+// scope for Stage 2. TAXONOMY: FMP sector/industry are GICS-style
+// ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
 
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference } from '../market/massive'
@@ -48,8 +57,8 @@ export async function resolveCountriesForImportedSymbols(
     // it's absent the orchestrator skips straight to the Polygon fallback.
     // fetchCompanyProfile never throws except on a real 15s timeout, which
     // the orchestrator records without suppressing the fallback.
-    fetchProfileCountry: fmp_api_key
-      ? (symbol) => fetchCompanyProfile(fmp_api_key, symbol)
+    fetchProfile: fmp_api_key
+      ? (symbol: string) => fetchCompanyProfile(fmp_api_key, symbol)
       : undefined,
     // FALLBACK: Polygon ticker-ref. Only wired when a Polygon key exists; an
     // FMP-only setup leaves this off and relies on FMP alone.
@@ -57,33 +66,37 @@ export async function resolveCountriesForImportedSymbols(
       ? (symbol) =>
           withRateLimitRetry(() => fetchTickerReference(polygon_api_key, symbol))
       : async () => ({}),
-    applyToTrades: (symbol, resolved) => {
-      // Pass the resolver's confidence through verbatim — 'polygon' (real
-      // address/text hint), 'inferred' (listing/exchange guess), or 'unknown'.
-      const source: CountrySource = resolved.source
+    applyToTrades: (symbol, r) => {
+      // Pass the resolver's confidence through verbatim — 'fmp' (real
+      // domicile), 'polygon' (address/text hint), 'inferred' (listing guess),
+      // or 'unknown'. trades stores only the country fields.
+      const source: CountrySource = r.resolved.source
       applyCountryToSymbol(symbol, {
-        country: resolved.country,
-        country_name: resolved.country_name,
-        region: resolved.region,
+        country: r.resolved.country,
+        country_name: r.resolved.country_name,
+        region: r.resolved.region,
         source,
       })
     },
-    applyToCache: (symbol, resolved) => {
-      // Keep the market_data row in sync so a follow-up refreshMarketData()
-      // doesn't re-call Polygon just for country. Float / market_cap come
-      // from the broader refresh; leave those untouched here.
+    applyToCache: (symbol, r) => {
+      // Keep the market_data row in sync. v0.2.3 Stage 2: market_cap / sector
+      // / industry now come from the FMP profile passenger fields (replacing
+      // the old preserve-only nulls). A null passenger never wipes a
+      // previously-populated value — prefer fresh FMP, else keep existing.
+      // float / shares_outstanding stay owned by the float phase + refresh.
       const existing = getMarketRow(symbol)
       upsertMarketRow({
         symbol,
         float: existing?.float ?? null,
         shares_outstanding: existing?.shares_outstanding ?? null,
-        market_cap: existing?.market_cap ?? null,
-        sector: existing?.sector ?? null,
+        market_cap: r.marketCap ?? existing?.market_cap ?? null,
+        sector: r.sector ?? existing?.sector ?? null,
+        industry: r.industry ?? existing?.industry ?? null,
         avg_volume: existing?.avg_volume ?? null,
         daily_volumes: existing?.daily_volumes ?? {},
-        country: resolved.country,
-        country_name: resolved.country_name,
-        region: resolved.region,
+        country: r.resolved.country,
+        country_name: r.resolved.country_name,
+        region: r.resolved.region,
         fetched_at: existing?.fetched_at ?? new Date().toISOString(),
         error: existing?.error ?? null,
       })

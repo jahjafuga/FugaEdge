@@ -12,6 +12,9 @@ export interface MarketRow {
   shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
+  /** GICS-style industry from FMP /stable/profile (e.g. "Biotechnology"),
+   *  the finer companion to sector. v0.2.3 Stage 2. NOT Polygon SIC text. */
+  industry: string | null
   avg_volume: number | null
   daily_volumes: Record<string, number>
   country: string | null
@@ -27,6 +30,7 @@ interface MarketRowDb {
   shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
+  industry: string | null
   avg_volume: number | null
   daily_volumes: string
   country: string | null
@@ -60,6 +64,7 @@ function rowToMarket(r: MarketRowDb): MarketRow {
     shares_outstanding: r.shares_outstanding,
     market_cap: r.market_cap,
     sector: r.sector,
+    industry: r.industry,
     avg_volume: r.avg_volume,
     daily_volumes: parseDailyVolumes(r.daily_volumes),
     country: r.country,
@@ -74,8 +79,8 @@ export function getMarketRow(symbol: string): MarketRow | null {
   const db = openDatabase()
   const row = db
     .prepare(`
-      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-             daily_volumes, country, country_name, region,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, industry,
+             avg_volume, daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data WHERE symbol = ?
     `)
@@ -87,8 +92,8 @@ export function getAllMarketRows(): MarketRow[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-             daily_volumes, country, country_name, region,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, industry,
+             avg_volume, daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data
     `)
@@ -100,9 +105,9 @@ export function upsertMarketRow(input: MarketRow): void {
   const db = openDatabase()
   db.prepare(`
     INSERT INTO market_data
-      (symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-       daily_volumes, country, country_name, region, fetched_at, error)
-    VALUES (@symbol, @float, @shares_outstanding, @market_cap, @sector,
+      (symbol, float, shares_outstanding, market_cap, sector, industry,
+       avg_volume, daily_volumes, country, country_name, region, fetched_at, error)
+    VALUES (@symbol, @float, @shares_outstanding, @market_cap, @sector, @industry,
             @avg_volume, @daily_volumes, @country, @country_name, @region,
             @fetched_at, @error)
     ON CONFLICT(symbol) DO UPDATE SET
@@ -110,6 +115,12 @@ export function upsertMarketRow(input: MarketRow): void {
       shares_outstanding = excluded.shares_outstanding,
       market_cap         = excluded.market_cap,
       sector             = excluded.sector,
+      -- industry is FMP-only (Polygon has no GICS industry), so the
+      -- market-refresh path passes null for it. COALESCE keeps a
+      -- previously-imported industry instead of letting a refresh wipe it.
+      -- v0.2.3 Stage 2; mirrors the country-field protection below. (cap /
+      -- sector overwrite because BOTH providers supply them with real data.)
+      industry           = COALESCE(excluded.industry, market_data.industry),
       avg_volume         = excluded.avg_volume,
       daily_volumes      = excluded.daily_volumes,
       -- Country fields use COALESCE so an error-path upsert (where country
@@ -127,6 +138,7 @@ export function upsertMarketRow(input: MarketRow): void {
     shares_outstanding: input.shares_outstanding,
     market_cap: input.market_cap,
     sector: input.sector,
+    industry: input.industry,
     avg_volume: input.avg_volume,
     daily_volumes: JSON.stringify(input.daily_volumes ?? {}),
     country: input.country,

@@ -5,6 +5,12 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 22 for v0.2.3 Stage 2 — additive market_data.industry column
+// (FMP /stable/profile GICS-style industry, companion to sector). Purely
+// additive: a NULL column added via the PRAGMA-gated ALTER in
+// migrateAfterSchema (no data move, no module, no backup latch). The version
+// bump is for release-tracking only.
+//
 // Bumped to 21 for v0.2.2 Commit A — float-rename migration: legacy
 // `trades.float_shares` and `market_data.float` were shares-outstanding
 // values mislabeled as "float". This bump preserves them under the new
@@ -19,7 +25,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '21'
+export const SCHEMA_VERSION = '22'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -211,6 +217,10 @@ CREATE TABLE IF NOT EXISTS market_data (
   shares_outstanding REAL,
   market_cap         REAL,
   sector             TEXT,
+  -- v0.2.3 Stage 2 — FMP /stable/profile GICS-style industry (e.g.
+  -- "Biotechnology"), the finer-grained companion to sector
+  -- ("Healthcare"). NOT Polygon SIC text. Additive in schema 22.
+  industry           TEXT,
   avg_volume         REAL,
   daily_volumes      TEXT    NOT NULL DEFAULT '{}',
   country            TEXT,

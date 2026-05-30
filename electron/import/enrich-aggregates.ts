@@ -59,9 +59,9 @@ export async function enrichAggregatesForImportedSymbols(
     },
     persistAggregates: (symbol, result) => {
       // Preserve everything the prior two phases wrote — country block +
-      // float/market_cap/sector. Only daily_volumes + avg_volume change
-      // here. upsertMarketRow's COALESCE on country fields means writing
-      // existing values is belt-and-suspenders.
+      // float/market_cap/sector/industry. Only daily_volumes + avg_volume
+      // change here. upsertMarketRow's COALESCE on country/industry fields
+      // means writing existing values is belt-and-suspenders.
       const existing = getMarketRow(symbol)
       upsertMarketRow({
         symbol,
@@ -69,6 +69,7 @@ export async function enrichAggregatesForImportedSymbols(
         shares_outstanding: existing?.shares_outstanding ?? null,
         market_cap: existing?.market_cap ?? null,
         sector: existing?.sector ?? null,
+        industry: existing?.industry ?? null,
         avg_volume: result.avg_volume,
         daily_volumes: result.daily_volumes,
         country: existing?.country ?? null,

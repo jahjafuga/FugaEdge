@@ -176,6 +176,10 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         shares_outstanding: null,
         market_cap: details.market_cap,
         sector: details.sector,
+        // v0.2.3 Stage 2 — industry is FMP-only and out of scope for the
+        // refresh path. Pass null; the upsert COALESCEs it so a prior
+        // FMP-imported industry is preserved (not wiped) on refresh.
+        industry: null,
         avg_volume: avg,
         daily_volumes: dailyVolumes,
         country: country.country,
@@ -201,6 +205,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         shares_outstanding: null,
         market_cap: null,
         sector: null,
+        industry: null,  // COALESCEd in upsert — preserves any prior value
         avg_volume: null,
         daily_volumes: {},
         country: null,

@@ -93,9 +93,12 @@ export async function enrichFloatForImportedSymbols(
         // of silently showing shares-outstanding.
         float: result.float,
         shares_outstanding: result.shares_outstanding,
-        // Passenger fields — NOT fetched here in Commit B.
+        // Passenger fields — NOT fetched here (FMP shares-float endpoint has
+        // no cap/sector/industry; the country/profile phase writes those).
+        // Preserved as-is so this phase never clobbers them.
         market_cap: existing?.market_cap ?? null,
         sector: existing?.sector ?? null,
+        industry: existing?.industry ?? null,
         // Other phases' values preserved as-is.
         avg_volume: existing?.avg_volume ?? null,
         daily_volumes: existing?.daily_volumes ?? {},

@@ -37,3 +37,32 @@ export interface SharesFloatResult {
   outstandingShares: number | null
   freeFloatPercent: number | null
 }
+
+/**
+ * Per-symbol response from FMP's /stable/profile endpoint, narrowed to the
+ * fields FugaEdge persists.
+ *
+ * v0.2.3 Stage 1 introduced this call for `country` (real domicile — ISO
+ * 3166-1 alpha-2 — which Polygon's free tier omits for US-listed foreign
+ * issuers). Stage 2 widens it to also carry market_cap, sector, and industry
+ * from the SAME response (zero extra requests).
+ *
+ * TAXONOMY NOTE: FMP `sector` is GICS-style buckets ("Healthcare",
+ * "Technology", "Industrials") with finer granularity in `industry`
+ * ("Biotechnology", "Semiconductors"). This is NOT Polygon's SIC-description
+ * text (e.g. "PHARMACEUTICAL PREPARATIONS"). Future sector/industry analytics
+ * must expect GICS buckets, not SEC SIC strings.
+ *
+ * Every field is independently nullable — a symbol can have a country but a
+ * null industry, etc. Empty strings / missing values normalize to null.
+ */
+export interface CompanyProfile {
+  /** ISO 3166-1 alpha-2 uppercase, or null. The domicile. */
+  country: string | null
+  /** Market capitalization (numeric), or null. Via toNullableNumber. */
+  marketCap: number | null
+  /** GICS-style sector bucket ("Healthcare"), or null. NOT SIC text. */
+  sector: string | null
+  /** GICS-style industry ("Biotechnology"), finer than sector, or null. */
+  industry: string | null
+}

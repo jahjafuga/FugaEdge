@@ -297,15 +297,22 @@ describe('verifyFmp — 15s AbortController timeout', () => {
   })
 })
 
-// ── fetchCompanyProfile (v0.2.3 Stage 1 — country) ──────────────────────────
-// Mirrors fetchSharesFloat's contract: returns the alpha-2 country string or
-// null, NEVER throws except on a real 15s timeout. Grounded in the 2026-05-31
-// basket verification (SPRC→IL, ZZZZZ→[]).
+// ── fetchCompanyProfile (v0.2.3 — country + Stage 2 cap/sector/industry) ─────
+// Returns a CompanyProfile { country, marketCap, sector, industry } (each
+// field independently nullable) or null on a TOTAL miss (non-200 / empty
+// array / malformed / network). NEVER throws except on a real 15s timeout.
+// Grounded in the 2026-05-31 basket verification (SPRC→IL/567401/Healthcare/
+// Biotechnology, ZZZZZ→[]).
 
-describe('fetchCompanyProfile — country extraction', () => {
-  it('returns the alpha-2 country from the SPRC fixture (happy path)', async () => {
+describe('fetchCompanyProfile — country + Stage 2 fields', () => {
+  it('parses the full SPRC fixture (country + marketCap + sector + industry)', async () => {
     mockFetchOnce({ status: 200, body: SPRC_PROFILE })
-    expect(await fetchCompanyProfile('test-key', 'SPRC')).toBe('IL')
+    expect(await fetchCompanyProfile('test-key', 'SPRC')).toEqual({
+      country: 'IL',
+      marketCap: 567401,
+      sector: 'Healthcare',
+      industry: 'Biotechnology',
+    })
   })
 
   it('returns null on an empty array (unknown symbol — ZZZZZ case)', async () => {
@@ -313,26 +320,62 @@ describe('fetchCompanyProfile — country extraction', () => {
     expect(await fetchCompanyProfile('test-key', 'ZZZZZ')).toBeNull()
   })
 
-  it('returns null when the country field is missing', async () => {
-    mockFetchOnce({ status: 200, body: [{ symbol: 'X', companyName: 'No Country Co.' }] })
-    expect(await fetchCompanyProfile('test-key', 'X')).toBeNull()
+  it('country missing → object with country null (NOT a total-miss null)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', marketCap: 100, sector: 'Tech', industry: 'Software' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toEqual({
+      country: null, marketCap: 100, sector: 'Tech', industry: 'Software',
+    })
   })
 
-  it('returns null when country is an empty string (not coerced to a bogus code)', async () => {
-    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: '' }] })
-    expect(await fetchCompanyProfile('test-key', 'X')).toBeNull()
+  it('country empty string → country null (not a bogus code), other fields intact', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: '', marketCap: 5 }] })
+    const r = await fetchCompanyProfile('test-key', 'X')
+    expect(r).toMatchObject({ country: null, marketCap: 5 })
   })
 
-  it('returns null when country is malformed (not a clean 2-letter code)', async () => {
+  it('country malformed ("USA") → country null', async () => {
     mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'USA' }] })
-    expect(await fetchCompanyProfile('test-key', 'X')).toBeNull()
+    expect((await fetchCompanyProfile('test-key', 'X'))?.country).toBeNull()
   })
 
   it('normalizes a lowercase country to uppercase alpha-2', async () => {
     mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'il' }] })
-    expect(await fetchCompanyProfile('test-key', 'X')).toBe('IL')
+    expect((await fetchCompanyProfile('test-key', 'X'))?.country).toBe('IL')
   })
 
+  // ── Stage 2: marketCap / sector / industry coercion ──
+  it('marketCap: empty string → null (not 0)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', marketCap: '' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBeNull()
+  })
+
+  it('marketCap: string-typed number → coerced to number (FMP has been inconsistent)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', marketCap: '1207504' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBe(1207504)
+  })
+
+  it('marketCap: missing → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBeNull()
+  })
+
+  it('sector / industry: present → trimmed strings', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', sector: '  Technology ', industry: ' Semiconductors ' }] })
+    const r = await fetchCompanyProfile('test-key', 'X')
+    expect(r).toMatchObject({ sector: 'Technology', industry: 'Semiconductors' })
+  })
+
+  it('sector / industry: empty string → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', sector: '', industry: '   ' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toMatchObject({ sector: null, industry: null })
+  })
+
+  it('sector / industry: missing → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toMatchObject({ sector: null, industry: null })
+  })
+
+  // ── Total-miss → null (unchanged contract) ──
   it('returns null on 401/403 (invalid or plan-gated key)', async () => {
     mockFetchOnce({ status: 403 })
     expect(await fetchCompanyProfile('bad-key', 'SPRC')).toBeNull()

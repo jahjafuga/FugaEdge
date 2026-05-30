@@ -43,8 +43,12 @@ export async function resolveForTicker(symbol: string): Promise<ResolvedCountry 
   // 15s timeout; for an on-demand single lookup let that propagate to the IPC
   // caller (unlike the import path, there's no batch to protect).
   if (fmp_api_key) {
-    const country = await fetchCompanyProfile(fmp_api_key, symbol)
-    const fromFmp = resolveCountryFromFmp(country)
+    // v0.2.3 Stage 2 — fetchCompanyProfile now returns the full CompanyProfile
+    // (country + marketCap/sector/industry). This on-demand single-ticker
+    // resolve only needs the country; pull it off the profile. (The import
+    // path persists the passengers; this IPC path resolves country only.)
+    const profile = await fetchCompanyProfile(fmp_api_key, symbol)
+    const fromFmp = resolveCountryFromFmp(profile?.country ?? null)
     if (fromFmp.country) return fromFmp
   }
 
