@@ -1,7 +1,12 @@
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference, MassiveError } from '../market/massive'
+import { fetchCompanyProfile } from '@/services/fmp'
 import { withRateLimitRetry } from '../market/rate-limit'
-import { resolveCountryFromPolygon, type ResolvedCountry } from '@/core/country/resolve'
+import {
+  resolveCountryFromFmp,
+  resolveCountryFromPolygon,
+  type ResolvedCountry,
+} from '@/core/country/resolve'
 import {
   tradesNeedingCountryFetch,
   applyCountryToSymbol,
@@ -23,12 +28,30 @@ export interface CountryBackfillResult {
 
 let inFlight: Promise<CountryBackfillResult> | null = null
 
-/** One-shot resolve for a single ticker. Used by the on-demand IPC and
- *  not subject to the singleton in-flight lock. Returns null when the
- *  Polygon API key isn't configured. */
+/** One-shot resolve for a single ticker. Used by the on-demand IPC and not
+ *  subject to the singleton in-flight lock.
+ *
+ *  v0.2.3 Stage 1 — FMP profile domicile is PRIMARY; Polygon ticker-ref is
+ *  the FALLBACK, hit only when FMP returns no country. Returns null when NO
+ *  usable key is configured (neither FMP nor Polygon). A confident FMP hit
+ *  short-circuits before Polygon is called. */
 export async function resolveForTicker(symbol: string): Promise<ResolvedCountry | null> {
-  const { polygon_api_key } = getSettings().values
-  if (!polygon_api_key) return null
+  const { polygon_api_key, fmp_api_key } = getSettings().values
+  if (!polygon_api_key && !fmp_api_key) return null
+
+  // PRIMARY: FMP domicile. fetchCompanyProfile never throws except on a real
+  // 15s timeout; for an on-demand single lookup let that propagate to the IPC
+  // caller (unlike the import path, there's no batch to protect).
+  if (fmp_api_key) {
+    const country = await fetchCompanyProfile(fmp_api_key, symbol)
+    const fromFmp = resolveCountryFromFmp(country)
+    if (fromFmp.country) return fromFmp
+  }
+
+  // FALLBACK: Polygon ticker-ref. If there's no Polygon key, FMP was all we
+  // had — return its (unknown) result rather than null so the caller still
+  // gets a shaped answer.
+  if (!polygon_api_key) return resolveCountryFromFmp(null)
   const ref = await fetchTickerReference(polygon_api_key, symbol)
   return resolveCountryFromPolygon(ref)
 }

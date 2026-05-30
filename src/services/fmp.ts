@@ -14,12 +14,22 @@ import type { FmpKeyStatus, SharesFloatResult } from '@shared/fmp-types'
 //     Empty floatShares / freeFloat surface as '' (empty string) in some
 //     small-cap responses (Step 1 verification 2026-05-29: LABT case).
 //     Free tier: 250 calls/day at the time of verification.
+//   /stable/profile?symbol=...&apikey=...
+//     Returns [{ symbol, companyName, country, exchange, marketCap, sector, ... }].
+//     country is ISO 3166-1 alpha-2 uppercase (e.g. "IL" for SPRC) — the
+//     DOMICILE, which Polygon's free tier omits for US-listed foreign issuers
+//     (the country-default bug). Empty array = unknown symbol (verified
+//     2026-05-31: ZZZZZ → []). Stage 1 reads ONLY country; market_cap / sector
+//     ride the same response but are deferred to Stage 2 (not wired here yet).
 //
 // Secrets-handling rule (mirror massive.ts): NEVER log the full URL — the
 // key is in the query string. Log status code + symbol only.
 
 const SHARES_FLOAT_ENDPOINT =
   'https://financialmodelingprep.com/stable/shares-float'
+
+const COMPANY_PROFILE_ENDPOINT =
+  'https://financialmodelingprep.com/stable/profile'
 
 // Per-request hard timeout — mirrors electron/market/massive.ts's
 // REQUEST_TIMEOUT_MS so a stalled FMP request can't silently hang the
@@ -151,4 +161,79 @@ function toNullableNumber(v: unknown): number | null {
     return Number.isFinite(n) ? n : null
   }
   return null
+}
+
+/**
+ * Fetch the company DOMICILE country for a symbol from /stable/profile.
+ *
+ * Stage 1 (country) — the reason this endpoint exists in our codebase: FMP's
+ * profile carries the real domicile as `country` (ISO 3166-1 alpha-2, e.g.
+ * "IL" for SPRC), which Polygon's free tier omits for US-listed foreign
+ * issuers — the source of the wrong "US (inferred)" bug. Verified across a
+ * 12-ticker basket on 2026-05-31 (SPRC→IL, HTCO→SG, BABA/NIO→CN, ASML→NL,
+ * NVO→DK, TSM→TW, SHOP→CA; US names→US; ZZZZZ→[]).
+ *
+ * Contract — a byte-for-byte mirror of fetchSharesFloat:
+ * - Pure: apiKey as a parameter, no process.env / electron / fs / sqlite.
+ * - NEVER throws on non-200 / empty / malformed → returns null. The country
+ *   resolver treats null as "FMP had nothing" and falls back to Polygon.
+ * - 15s AbortController; a genuine timeout THROWS (same as fetchSharesFloat)
+ *   so the orchestrator can record it in errors[] rather than silently
+ *   masking a stall as "no data".
+ * - Secrets rule: never log the URL/key — status + symbol only.
+ *
+ * Stage 1 deliberately returns ONLY the country string. market_cap / sector
+ * live in this same response but are Stage 2 — do not read them here yet.
+ */
+export async function fetchCompanyProfile(
+  apiKey: string,
+  symbol: string,
+): Promise<string | null> {
+  const url = `${COMPANY_PROFILE_ENDPOINT}?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`
+  // Per-request timeout: the AbortController fires after REQUEST_TIMEOUT_MS
+  // and the same timer also bounds a stalled response stream. Cleared in
+  // `finally`. Mirrors fetchSharesFloat verbatim.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'GET', signal: controller.signal })
+    } catch (e) {
+      // Distinguish timeout-abort from genuine network failure — same split
+      // as fetchSharesFloat. Timeout throws so the orchestrator records a
+      // clear diagnostic; a plain network failure returns null (silent
+      // "no data → fall back to Polygon"; the import path can't block on a
+      // single unreachable symbol).
+      const timedOut =
+        !!e && typeof e === 'object' && (e as { name?: unknown }).name === 'AbortError'
+      if (timedOut) {
+        throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`)
+      }
+      return null
+    }
+    if (res.status !== 200) return null
+
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      return null
+    }
+
+    // FMP returns an array. Empty = unknown symbol (verified: ZZZZZ → []).
+    if (!Array.isArray(body) || body.length === 0) return null
+    const row = body[0] as Record<string, unknown>
+
+    // country is ISO alpha-2 uppercase. Normalize defensively: trim +
+    // uppercase, and reject anything that isn't a clean 2-letter code
+    // (empty string, null, or a malformed value) by returning null so the
+    // resolver falls back to Polygon rather than persisting garbage.
+    const raw = row.country
+    if (typeof raw !== 'string') return null
+    const iso = raw.trim().toUpperCase()
+    return /^[A-Z]{2}$/.test(iso) ? iso : null
+  } finally {
+    clearTimeout(timer)
+  }
 }

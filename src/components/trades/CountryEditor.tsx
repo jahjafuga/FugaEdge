@@ -8,12 +8,13 @@ import {
   REGIONS,
   getRegionForCountry,
 } from '@/core/country/regions'
+import { countrySourceBadge, type CountrySource } from '@/core/country/source'
 
 interface CountryEditorProps {
   country: string | null
   countryName: string
   region: string
-  source: 'polygon' | 'inferred' | 'manual' | 'unknown'
+  source: CountrySource
   /** Always called with uppercase ISO alpha-2 or null to clear (this trade). */
   onChange: (next: string | null) => void
   /** Ticker symbol — when provided alongside onApplyToSymbol, the picker offers
@@ -91,19 +92,21 @@ export default function CountryEditor({
           <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold">
             {region}
           </span>
-          {source === 'manual' && (
-            <span className="text-[10px] uppercase tracking-wider text-fg-muted" title="Manually set">
-              · manual
-            </span>
-          )}
-          {source === 'inferred' && (
-            <span
-              className="text-[10px] uppercase tracking-wider text-fg-muted"
-              title="Assumed from listing — set country to confirm"
-            >
-              · assumed
-            </span>
-          )}
+          {/* Confidence tag — null for confident auto-sources ('fmp',
+              'polygon'), shown only for 'manual' / 'inferred'. Single source
+              of truth in countrySourceBadge so the 'fmp' case (added v0.2.3)
+              renders no caveat without a special-case here. */}
+          {(() => {
+            const badge = countrySourceBadge(source)
+            return badge ? (
+              <span
+                className="text-[10px] uppercase tracking-wider text-fg-muted"
+                title={badge.title}
+              >
+                · {badge.label}
+              </span>
+            ) : null
+          })()}
           <button
             type="button"
             onClick={() => { setQ(''); setOpen(true) }}

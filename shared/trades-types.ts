@@ -83,12 +83,17 @@ export interface TradeListRow {
   /** Bucket key (USA, China, Europe, ...). 'Unknown' when country is
    *  null. One country → exactly one region; see src/core/country. */
   region: string
-  /** Where the value came from. 'manual' overrides are never overwritten by
-   *  automatic backfill. 'inferred' = guessed from listing locale/exchange
-   *  (US-listing ≠ domicile; the free tier has no domicile field) — shown with
-   *  a "verify" cue and re-resolvable. 'unknown' means "we tried and couldn't
-   *  resolve". */
-  country_source: 'polygon' | 'inferred' | 'manual' | 'unknown'
+  /** Where the value came from. Canonical union is CountrySource in
+   *  src/core/country/source.ts; kept as an inline literal here because
+   *  `shared` is the lowest layer and must not import from `src`. Keep in
+   *  sync with that type.
+   *  'fmp'      = real domicile from FMP /stable/profile (v0.2.3 primary) — confident.
+   *  'polygon'  = real address.country / text hint from Polygon — confident.
+   *  'inferred' = guessed from listing locale/exchange (US-listing ≠ domicile)
+   *               — shown with a "verify" cue and re-resolvable.
+   *  'manual'   = user override; never overwritten by automatic backfill.
+   *  'unknown'  = we tried and couldn't resolve. */
+  country_source: 'fmp' | 'polygon' | 'inferred' | 'manual' | 'unknown'
   /** Number of screenshot attachments — drives the badge on the expand-row
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */

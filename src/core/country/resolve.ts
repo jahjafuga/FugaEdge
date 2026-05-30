@@ -1,11 +1,18 @@
-// Pure Polygon ticker-ref → country/region resolver. Web-portable per
-// ARCHITECTURE.md — no electron/fs/sqlite/http imports.
+// Pure country/region resolvers. Web-portable per ARCHITECTURE.md — no
+// electron/fs/sqlite/http imports.
+//
+// Two entry points, used PRIMARY → FALLBACK by the orchestrators:
+//   - resolveCountryFromFmp(country)  — v0.2.3 PRIMARY. FMP /stable/profile's
+//     real domicile (ISO alpha-2). Confident → source 'fmp'.
+//   - resolveCountryFromPolygon(ref)  — FALLBACK. Polygon ticker-ref
+//     address/text/listing heuristics. Confident 'polygon' or guessed 'inferred'.
 
 import {
   SHELL_JURISDICTIONS,
   getCountryName,
   getRegionForCountry,
 } from './regions'
+import { normalizeIso, type ResolvedSource } from './source'
 
 export interface PolygonTickerRef {
   results?: {
@@ -22,12 +29,14 @@ export interface ResolvedCountry {
   country: string | null
   country_name: string
   region: string
-  // 'polygon'  = from a real address.country (or a name/description hint) — confident.
+  // Source confidence — see ResolvedSource in ./source for the full set.
+  // 'fmp'      = real domicile from FMP /stable/profile — confident, PRIMARY.
+  // 'polygon'  = real address.country (or a name/description hint) — confident, FALLBACK.
   // 'inferred' = guessed from listing locale / exchange only (US-listing ≠ US-domicile);
-  //              the free tier carries no domicile field, so US-listed foreign issuers
-  //              land here. Re-resolvable and flagged in the UI for confirmation.
+  //              Polygon's free tier carries no domicile field, so US-listed foreign
+  //              issuers land here. Re-resolvable and flagged in the UI for confirmation.
   // 'unknown'  = nothing to go on.
-  source: 'polygon' | 'inferred' | 'unknown'
+  source: ResolvedSource
 }
 
 const SHELL_SET: ReadonlySet<string> = new Set<string>(SHELL_JURISDICTIONS)
@@ -68,7 +77,7 @@ const EXCHANGE_PREFIX_MAP: Record<string, string> = {
   XSWX: 'CH',
 }
 
-function build(iso: string | null, source: 'polygon' | 'inferred' = 'polygon'): ResolvedCountry {
+function build(iso: string | null, source: 'fmp' | 'polygon' | 'inferred' = 'polygon'): ResolvedCountry {
   if (!iso) {
     return { country: null, country_name: 'Unknown', region: 'Unknown', source: 'unknown' }
   }
@@ -127,4 +136,25 @@ export function resolveCountryFromPolygon(ref: PolygonTickerRef): ResolvedCountr
   }
 
   return build(null)
+}
+
+/**
+ * v0.2.3 Stage 1 — PRIMARY country resolver, from FMP /stable/profile's
+ * `country` field (already normalized to ISO alpha-2 or null by
+ * fetchCompanyProfile). FMP returns the real DOMICILE, which Polygon's free
+ * tier omits for US-listed foreign issuers — so a valid FMP country is always
+ * confident: source 'fmp', NEVER 'inferred'.
+ *
+ * Pure (no API/key/fs) — same web-portable contract as resolveCountryFromPolygon.
+ *
+ * A valid alpha-2 → confident { country, country_name, region, source: 'fmp' }.
+ * null / empty / malformed → the same unknown sentinel build(null) returns,
+ * which the orchestrator reads as "FMP had nothing → fall back to Polygon".
+ * normalizeIso re-validates defensively even though fetchCompanyProfile
+ * already screened the value (pure functions don't trust their callers).
+ */
+export function resolveCountryFromFmp(country: string | null): ResolvedCountry {
+  const iso = normalizeIso(country)
+  if (!iso) return build(null)
+  return build(iso, 'fmp')
 }
