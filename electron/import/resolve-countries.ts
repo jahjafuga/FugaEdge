@@ -37,7 +37,9 @@ export async function resolveCountriesForImportedSymbols(
     fetchRef: (symbol) =>
       withRateLimitRetry(() => fetchTickerReference(polygon_api_key, symbol)),
     applyToTrades: (symbol, resolved) => {
-      const source: CountrySource = resolved.country ? 'polygon' : 'unknown'
+      // Pass the resolver's confidence through verbatim — 'polygon' (real
+      // address/text hint), 'inferred' (listing/exchange guess), or 'unknown'.
+      const source: CountrySource = resolved.source
       applyCountryToSymbol(symbol, {
         country: resolved.country,
         country_name: resolved.country_name,
@@ -53,6 +55,7 @@ export async function resolveCountriesForImportedSymbols(
       upsertMarketRow({
         symbol,
         float: existing?.float ?? null,
+        shares_outstanding: existing?.shares_outstanding ?? null,
         market_cap: existing?.market_cap ?? null,
         sector: existing?.sector ?? null,
         avg_volume: existing?.avg_volume ?? null,

@@ -7,6 +7,7 @@ import {
   type IntradayBar,
 } from './massive'
 import { withRateLimitRetry } from './rate-limit'
+import type { MarketRefreshProgress } from '@shared/market-types'
 import {
   getIntradayRow,
   intradayPairsNeedingFetch,
@@ -27,13 +28,25 @@ export interface IntradayRefreshResult {
   emaBackfilled: number
   maeMfeBackfilled: number
   durationMs: number
+  cancelled: boolean
 }
 
 interface RefreshOptions {
   force?: boolean
+  /** Pushed once per (symbol, date) pair as it completes, so the renderer can
+   *  show a live loading bar. Plain callback — the electron `wc.send` wrapping
+   *  lives in the IPC handler, keeping this module web-portable. */
+  emitProgress?: (p: MarketRefreshProgress) => void
 }
 
 let inFlight: Promise<IntradayRefreshResult> | null = null
+
+// Coarse cancel signal: a module-level flag flipped by cancelIntradayRefresh().
+// The worker loop checks it between pairs, so already-in-flight pairs finish
+// naturally (≤15s per fetch, ≤42s under sustained 429) and the refresh promise
+// still RESOLVES cleanly with cancelled:true. The settle chain (main finally →
+// store finally → spinner clears) is preserved by construction.
+let cancelRequested = false
 
 export function refreshIntraday(opts: RefreshOptions = {}): Promise<IntradayRefreshResult> {
   if (inFlight) return inFlight
@@ -43,8 +56,18 @@ export function refreshIntraday(opts: RefreshOptions = {}): Promise<IntradayRefr
   return inFlight
 }
 
+/** Signal the in-flight intraday refresh to stop starting new pairs. The
+ *  refresh promise still resolves (with cancelled:true) once the ≤2 in-flight
+ *  pairs finish. No-op when nothing is running. */
+export function cancelIntradayRefresh(): void {
+  if (inFlight) cancelRequested = true
+}
+
 async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> {
   const startedAt = Date.now()
+  // Reset the cancel flag for this run — a stale flag from a previous run must
+  // not pre-cancel a fresh one.
+  cancelRequested = false
   const { polygon_api_key } = getSettings().values
 
   if (!polygon_api_key) {
@@ -57,6 +80,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       emaBackfilled: 0,
       maeMfeBackfilled: 0,
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -78,6 +102,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       emaBackfilled: backfilled,
       maeMfeBackfilled,
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -134,28 +159,37 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   }
 
   const queue = [...pairs]
+  let completed = 0
   const workers: Promise<void>[] = []
   for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) {
     workers.push(
       (async () => {
         while (queue.length) {
+          // Coarse cancel check: stop starting NEW pairs. The current in-flight
+          // pair (if any in another worker) finishes naturally on the next
+          // iteration's check.
+          if (cancelRequested) return
           const p = queue.shift()
           if (!p) return
           await fetchOne(p.symbol, p.date)
+          completed += 1
+          opts.emitProgress?.({ current: completed, total: attempted, symbol: p.symbol, date: p.date })
         }
       })(),
     )
   }
   await Promise.all(workers)
 
-  // Once bars are in place, backfill EMA9 distance + MAE/MFE for every
-  // trade whose (symbol, date) pair we now have data for.
-  const emaBackfilled = backfillAllEma9Distances()
-  const maeMfeBackfilled = backfillAllMaeMfe()
+  const cancelled = cancelRequested
+  // Skip the post-loop backfills when cancelled so the run returns fast — the
+  // user explicitly asked for it to stop. Backfills are idempotent and will
+  // run on the next normal refresh.
+  const emaBackfilled = cancelled ? 0 : backfillAllEma9Distances()
+  const maeMfeBackfilled = cancelled ? 0 : backfillAllMaeMfe()
 
   const durationMs = Date.now() - startedAt
   console.info(
-    `[FE intraday] refresh done: fetched=${fetched} failed=${failed} ema_backfilled=${emaBackfilled} mae_mfe_backfilled=${maeMfeBackfilled} in ${durationMs}ms`,
+    `[FE intraday] refresh ${cancelled ? 'cancelled' : 'done'}: fetched=${fetched} failed=${failed} ema_backfilled=${emaBackfilled} mae_mfe_backfilled=${maeMfeBackfilled} in ${durationMs}ms`,
   )
 
   return {
@@ -167,6 +201,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     emaBackfilled,
     maeMfeBackfilled,
     durationMs,
+    cancelled,
   }
 }
 

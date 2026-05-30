@@ -50,11 +50,17 @@ export const ipc = {
   tradeCatalystSave: (input: UpdateCatalystInput) =>
     window.api.tradeCatalystSave(input),
   tradeCountrySave: (input: UpdateCountryInput) => window.api.tradeCountrySave(input),
+  tradeCountrySaveSymbol: (input: import('@shared/trades-types').UpdateCountryForSymbolInput) =>
+    window.api.tradeCountrySaveSymbol(input),
   countryResolve: (symbol: string) => window.api.countryResolve(symbol),
   countryBackfill: (force?: boolean) => window.api.countryBackfill(force),
   countryOnBackfillProgress: (
     cb: (p: { current: number; total: number; symbol: string }) => void,
   ) => window.api.countryOnBackfillProgress(cb),
+  floatBackfill: () => window.api.floatBackfill(),
+  floatOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').FloatBackfillProgress) => void,
+  ) => window.api.floatOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),
@@ -68,11 +74,20 @@ export const ipc = {
   settingsGet: () => window.api.settingsGet(),
   settingsSave: (input: SettingsUpdate) => window.api.settingsSave(input),
   testMassiveKey: (apiKey: string) => window.api.testMassiveKey(apiKey),
+  testFmpKey: (apiKey: string) => window.api.testFmpKey(apiKey),
   exportTrades: () => window.api.exportTrades(),
   exportJournal: () => window.api.exportJournal(),
   exportDatabase: () => window.api.exportDatabase(),
   marketRefresh: (force?: boolean) => window.api.marketRefresh(force),
+  marketRefreshCancel: () => window.api.marketRefreshCancel(),
   marketIntradayRefresh: (force?: boolean) => window.api.marketIntradayRefresh(force),
+  marketIntradayCancel: () => window.api.marketIntradayCancel(),
+  marketOnRefreshProgress: (
+    cb: (p: import('@shared/market-types').MarketRefreshProgress) => void,
+  ) => window.api.marketOnRefreshProgress(cb),
+  marketOnIntradayProgress: (
+    cb: (p: import('@shared/market-types').MarketRefreshProgress) => void,
+  ) => window.api.marketOnIntradayProgress(cb),
   intradayBarsGet: (symbol: string, date: string, force?: boolean) =>
     window.api.intradayBarsGet(symbol, date, force),
   playbooksList: () => window.api.playbooksList(),

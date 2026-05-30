@@ -89,7 +89,7 @@ async function run(opts: {
         fetchTickerReference(polygon_api_key, symbol),
       )
       const resolved = resolveCountryFromPolygon(ref)
-      const source: CountrySource = resolved.source === 'polygon' ? 'polygon' : 'unknown'
+      const source: CountrySource = resolved.source // 'polygon' | 'inferred' | 'unknown'
       const changed = applyCountryToSymbol(symbol, {
         country: resolved.country,
         country_name: resolved.country_name,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CalendarDays, Upload } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
@@ -6,24 +6,11 @@ import Skeleton from '@/components/ui/Skeleton'
 import CalendarHeader from '@/components/calendar/CalendarHeader'
 import CalendarGrid from '@/components/calendar/CalendarGrid'
 import CalendarCompareStrip from '@/components/calendar/CalendarCompareStrip'
-import DayTradesPanel from '@/components/calendar/DayTradesPanel'
-import WeeklyReviewModal from '@/components/calendar/WeeklyReviewModal'
+import DayDetailModal from '@/components/calendar/DayDetailModal'
+import WeekReviewModal from '@/components/calendar/WeekReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
 import type { CalendarMonth } from '@shared/calendar-types'
-import type {
-  TradeListRow,
-  UpdateCatalystInput,
-  UpdateConfidenceInput,
-  UpdateCountryInput,
-  UpdateFloatInput,
-  UpdateMistakesInput,
-  UpdateNoteInput,
-  UpdatePlannedRiskInput,
-  UpdatePlannedStopLossInput,
-  UpdateTimeframeInput,
-} from '@shared/trades-types'
-import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
 function todayISO(): string {
   const d = new Date()
@@ -50,10 +37,6 @@ export default function Calendar() {
   const [initialized, setInitialized] = useState(false)
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
-  const [dayTrades, setDayTrades] = useState<TradeListRow[] | null>(null)
-  // Wraps DayTradesPanel so the trades-fetch effect can scroll it into view —
-  // on laptop screens the panel renders below the fold under the calendar grid.
-  const dayPanelRef = useRef<HTMLDivElement>(null)
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null)
   // Clicking an empty in-month cell (no trades) opens the quick sit-out
   // modal instead of the full day-trades panel.
@@ -104,112 +87,7 @@ export default function Calendar() {
   // Clear selection when navigating to a different month.
   useEffect(() => {
     setSelectedDate(null)
-    setDayTrades(null)
   }, [view.y, view.m])
-
-  // Fetch the trades for the selected day.
-  useEffect(() => {
-    if (!selectedDate) return
-    let cancelled = false
-    setDayTrades(null)
-    // The panel renders inline below the ~660px calendar grid; on a laptop
-    // viewport it lands below the fold, so bring it into view on open.
-    dayPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    ipc
-      .tradesList({ date: selectedDate })
-      .then((list) => {
-        if (!cancelled) setDayTrades(list)
-      })
-      .catch(() => {
-        if (!cancelled) setDayTrades([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedDate])
-
-  const handleSaveNote = useCallback(async (input: UpdateNoteInput) => {
-    const updated = await ipc.tradeNoteSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveTimeframe = useCallback(async (input: UpdateTimeframeInput) => {
-    const updated = await ipc.tradeTimeframeSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSavePlaybook = useCallback(async (input: SetPlaybookOnTradeInput) => {
-    const updated = await ipc.tradePlaybookSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveConfidence = useCallback(async (input: UpdateConfidenceInput) => {
-    const updated = await ipc.tradeConfidenceSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveMistakes = useCallback(async (input: UpdateMistakesInput) => {
-    const updated = await ipc.tradeMistakesSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSavePlannedRisk = useCallback(async (input: UpdatePlannedRiskInput) => {
-    const updated = await ipc.tradePlannedRiskSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSavePlannedStopLoss = useCallback(
-    async (input: UpdatePlannedStopLossInput) => {
-      const updated = await ipc.tradePlannedStopLossSave(input)
-      if (!updated) return
-      setDayTrades((prev) =>
-        prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-      )
-    },
-    [],
-  )
-
-  const handleSaveFloat = useCallback(async (input: UpdateFloatInput) => {
-    const updated = await ipc.tradeFloatSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveCatalyst = useCallback(async (input: UpdateCatalystInput) => {
-    const updated = await ipc.tradeCatalystSave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveCountry = useCallback(async (input: UpdateCountryInput) => {
-    const updated = await ipc.tradeCountrySave(input)
-    if (!updated) return
-    setDayTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
 
   // Cycle the day's sentiment through 1 → 2 → 3 → 4 → 5 → null. Saves
   // optimistically (local state first, then IPC) so the badge updates with
@@ -251,65 +129,6 @@ export default function Calendar() {
     [],
   )
 
-  const handleWeekNotesSaved = useCallback(
-    (text: string) => {
-      if (!selectedWeek) return
-      setData((prev) => {
-        if (!prev) return prev
-        const idx = prev.weeks.findIndex((w) => w.week_start === selectedWeek)
-        if (idx < 0) return prev
-        const next = [...prev.weeks]
-        next[idx] = { ...next[idx], notes: text }
-        return { ...prev, weeks: next }
-      })
-    },
-    [selectedWeek],
-  )
-
-  const handleSaveDayTags = useCallback(
-    (nextTags: string[]) => {
-      if (!selectedDate) return
-      setData((prev) => {
-        if (!prev) return prev
-        const existingIdx = prev.days.findIndex((d) => d.date === selectedDate)
-        if (existingIdx >= 0) {
-          const next = [...prev.days]
-          const wasNoTrade = next[existingIdx].no_trade_day
-          // Optimistic update of the unified no-trade flag too — keeps the
-          // gold marker on the day cell in sync with the tag chip without
-          // waiting for a full month refetch. We keep the flag on when
-          // session_meta still has it set (wasNoTrade is true and the user
-          // is just editing OTHER tags).
-          const nowHasTag = nextTags.includes('no-trade-day')
-          next[existingIdx] = {
-            ...next[existingIdx],
-            day_tags: nextTags,
-            no_trade_day: nowHasTag || wasNoTrade,
-          }
-          return { ...prev, days: next }
-        }
-        // No row for this date yet (no-trade day getting its first tag). Insert
-        // a stub so the cell picks up the dots immediately. The query will
-        // re-include it on the next month fetch.
-        if (nextTags.length === 0) return prev
-        const stub = {
-          date: selectedDate,
-          net_pnl: 0,
-          gross_pnl: 0,
-          total_fees: 0,
-          trade_count: 0,
-          winners: 0,
-          losers: 0,
-          day_tags: nextTags,
-          has_journal: true, // setting a tag IS a journal action
-          no_trade_day: nextTags.includes('no-trade-day'),
-          sentiment: null,
-        }
-        return { ...prev, days: [...prev.days, stub] }
-      })
-    },
-    [selectedDate],
-  )
 
   if (err) {
     return (
@@ -437,41 +256,15 @@ export default function Calendar() {
           />
         )}
 
-        {selectedWeek && data.weeks && (() => {
-          const summary = data.weeks.find((w) => w.week_start === selectedWeek)
-          if (!summary) return null
-          return (
-            <WeeklyReviewModal
-              summary={summary}
-              onClose={() => setSelectedWeek(null)}
-              onNotesSaved={handleWeekNotesSaved}
-            />
-          )
-        })()}
+        <WeekReviewModal
+          weekStart={selectedWeek}
+          onClose={() => setSelectedWeek(null)}
+        />
 
-        {selectedDate && (
-          <div ref={dayPanelRef}>
-            <DayTradesPanel
-              date={selectedDate}
-              trades={dayTrades}
-              dayTags={
-                data.days.find((d) => d.date === selectedDate)?.day_tags ?? []
-              }
-              onSaveDayTags={handleSaveDayTags}
-              onClose={() => setSelectedDate(null)}
-              onSaveNote={handleSaveNote}
-              onSaveTimeframe={handleSaveTimeframe}
-              onSavePlaybook={handleSavePlaybook}
-              onSaveConfidence={handleSaveConfidence}
-              onSaveMistakes={handleSaveMistakes}
-              onSavePlannedRisk={handleSavePlannedRisk}
-              onSavePlannedStopLoss={handleSavePlannedStopLoss}
-              onSaveFloat={handleSaveFloat}
-              onSaveCatalyst={handleSaveCatalyst}
-              onSaveCountry={handleSaveCountry}
-            />
-          </div>
-        )}
+        <DayDetailModal
+          date={selectedDate}
+          onClose={() => setSelectedDate(null)}
+        />
       </div>
     </PageShell>
   )

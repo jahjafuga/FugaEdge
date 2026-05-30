@@ -17,9 +17,9 @@ export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS'
 /** Which export shape produced this row. 'summary' = daily aggregate,
  *  'execution' = per-fill (DAS Trades.csv), 'tradehistory' = per-fill
  *  with separate Date+Time columns and broker P/L (DAS Trades window /
- *  Executed Orders export, "Tester A variant"), 'trades_window' = per-fill
+ *  Executed Orders export, "tradehistory variant"), 'trades_window' = per-fill
  *  Trades-window export with Cloid + LiqType + Broker columns and bare
- *  HH:MM:SS time ("Tester B variant"), 'orders' = per-order, 'xlsx' =
+ *  HH:MM:SS time ("trades_window variant"), 'orders' = per-order, 'xlsx' =
  *  Webull desktop, 'account_report' = DAS fee statement. */
 export type SourceFormat =
   | 'summary'

@@ -43,35 +43,58 @@ export function parseRetryAfterHeader(raw: string | null): number | null {
   return Math.round(n * 1000)
 }
 
+// Per-request ceiling. A single Massive/Polygon GET here is small — one day of
+// 1-minute bars, or a reference/aggregates payload — and normally returns in
+// 1–3s. 15s gives generous headroom for a cold TLS handshake or a slow link
+// without false timeouts, while bounding a stalled socket so EVERY request
+// settles: the refresh worker pool always drains and the Settings promise
+// always resolves, even if the server never responds. A timeout surfaces as a
+// non-429 MassiveError, so withRateLimitRetry treats it as terminal (it does
+// NOT trip the 429 backoff/retry ladder) — the (symbol, date) pair is recorded
+// as failed and the batch moves on.
+const REQUEST_TIMEOUT_MS = 15_000
+
 async function massiveGet<T>(apiKey: string, path: string): Promise<T> {
   const url = `${BASE_URL}${path}${path.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(apiKey)}`
-  let res: Response
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    res = await fetch(url, { method: 'GET' })
+    const res = await fetch(url, { method: 'GET', signal: controller.signal })
+    // The body read stays inside the try so the same timer also bounds a
+    // stalled response stream (headers arrived, body never finishes).
+    if (!res.ok) {
+      let body = ''
+      try {
+        body = await res.text()
+      } catch {
+        // ignore
+      }
+      const retryAfterMs =
+        res.status === 429 ? parseRetryAfterHeader(res.headers.get('Retry-After')) : null
+      throw new MassiveError(
+        `${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 180)}` : ''}`,
+        res.status,
+        path,
+        retryAfterMs,
+      )
+    }
+    return (await res.json()) as T
   } catch (e) {
+    // The !res.ok branch already threw a typed MassiveError — re-throw it
+    // untouched so the status code and Retry-After survive.
+    if (e instanceof MassiveError) throw e
+    const timedOut =
+      !!e && typeof e === 'object' && (e as { name?: unknown }).name === 'AbortError'
     throw new MassiveError(
-      `Network error: ${e instanceof Error ? e.message : String(e)}`,
+      timedOut
+        ? `Request timed out after ${REQUEST_TIMEOUT_MS}ms`
+        : `Network error: ${e instanceof Error ? e.message : String(e)}`,
       0,
       path,
     )
+  } finally {
+    clearTimeout(timer)
   }
-  if (!res.ok) {
-    let body = ''
-    try {
-      body = await res.text()
-    } catch {
-      // ignore
-    }
-    const retryAfterMs =
-      res.status === 429 ? parseRetryAfterHeader(res.headers.get('Retry-After')) : null
-    throw new MassiveError(
-      `${res.status} ${res.statusText}${body ? ` — ${body.slice(0, 180)}` : ''}`,
-      res.status,
-      path,
-      retryAfterMs,
-    )
-  }
-  return (await res.json()) as T
 }
 
 // ── /v3/reference/tickers/{ticker} ──────────────────────────────────────────

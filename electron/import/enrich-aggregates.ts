@@ -66,6 +66,7 @@ export async function enrichAggregatesForImportedSymbols(
       upsertMarketRow({
         symbol,
         float: existing?.float ?? null,
+        shares_outstanding: existing?.shares_outstanding ?? null,
         market_cap: existing?.market_cap ?? null,
         sector: existing?.sector ?? null,
         avg_volume: result.avg_volume,

@@ -6,13 +6,18 @@ import {
   resolveForTicker,
   saveTradeCountry,
 } from './fetch'
+import { applySymbolCountryManual } from '../trades/country'
 
 interface BackfillInput { force?: boolean }
 interface SaveCountryInput {
   trade_id: number
   country: string | null
   /** When omitted, defaults to 'manual' (user pressed Save in the picker). */
-  source?: 'polygon' | 'manual' | 'unknown'
+  source?: 'polygon' | 'inferred' | 'manual' | 'unknown'
+}
+interface SaveCountrySymbolInput {
+  symbol: string
+  country: string | null
 }
 
 export function registerCountryIpc(): void {
@@ -40,5 +45,12 @@ export function registerCountryIpc(): void {
     })
     bumpDataVersion()
     return result
+  })
+
+  // Bulk per-symbol manual override — sets every trade of the ticker.
+  ipcMain.handle(IPC.TRADE_COUNTRY_SAVE_SYMBOL, (_e, input: SaveCountrySymbolInput) => {
+    const changed = applySymbolCountryManual(input.symbol, input.country)
+    if (changed > 0) bumpDataVersion()
+    return changed
   })
 }

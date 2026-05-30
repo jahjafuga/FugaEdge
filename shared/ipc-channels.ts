@@ -18,11 +18,17 @@ export const IPC = {
   SETTINGS_GET: 'settings:get',
   SETTINGS_SAVE: 'settings:save',
   SETTINGS_TEST_MASSIVE_KEY: 'settings:testMassiveKey',
+  /** v0.2.2 Commit A - verify an FMP key (mirrors testMassiveKey). */
+  SETTINGS_TEST_FMP_KEY: 'settings:testFmpKey',
   EXPORT_TRADES: 'export:trades',
   EXPORT_JOURNAL: 'export:journal',
   EXPORT_DATABASE: 'export:database',
   MARKET_REFRESH: 'market:refresh',
+  MARKET_REFRESH_PROGRESS: 'market:refreshProgress',
+  MARKET_REFRESH_CANCEL: 'market:refreshCancel',
   MARKET_INTRADAY_REFRESH: 'market:intradayRefresh',
+  MARKET_INTRADAY_PROGRESS: 'market:intradayProgress',
+  MARKET_INTRADAY_CANCEL: 'market:intradayCancel',
   INTRADAY_BARS_GET: 'market:intradayBarsGet',
   TRADE_TIMEFRAME_SAVE: 'trade:timeframeSave',
   PLAYBOOKS_LIST: 'playbooks:list',
@@ -39,7 +45,13 @@ export const IPC = {
   COUNTRY_RESOLVE: 'country:resolveForTicker',
   COUNTRY_BACKFILL: 'country:backfillAll',
   COUNTRY_BACKFILL_PROGRESS: 'country:backfillProgress',
+  // v0.2.2 — standalone float backfill over existing trades (FMP). Separate
+  // channel from COUNTRY_BACKFILL: different API + rate limits, independent
+  // trigger/progress/result (never coupled into one combined action).
+  FLOAT_BACKFILL: 'float:backfillAll',
+  FLOAT_BACKFILL_PROGRESS: 'float:backfillProgress',
   TRADE_COUNTRY_SAVE: 'trade:countrySave',
+  TRADE_COUNTRY_SAVE_SYMBOL: 'trade:countrySaveSymbol',
   SESSION_SENTIMENT_SAVE: 'session:sentimentSave',
   SESSION_LIST_ALL: 'session:listAll',
   SESSION_GET: 'session:get',
@@ -59,6 +71,15 @@ export const IPC = {
   // dismissed.
   DATA_HEALTH_GET: 'dataHealth:get',
   DATA_HEALTH_ACKNOWLEDGE_COLLISIONS: 'dataHealth:acknowledgeCollisions',
+  // v0.2.2 — Day Detail Modal data source. Returns DayDetail (trades + metrics
+  // + day-level notes/mistakes) for the given date.
+  DAY_GET_DETAIL: 'day:getDetail',
+  // v0.2.2 Day 4 — Day Detail writable fields, both stored on session_meta.
+  DAY_NOTE_SAVE: 'day:noteSave',
+  DAY_MISTAKES_SAVE: 'day:mistakesSave',
+  // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
+  // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
+  WEEK_GET_DETAIL: 'week:getDetail',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

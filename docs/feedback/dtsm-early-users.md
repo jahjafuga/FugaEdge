@@ -1,3 +1,5 @@
+> **Anonymization note.** Beta-tester identities are coded: **Tester A** and **Tester B** are DAS Trader participants, **Tester C** is a Webull participant. Real names, account names/numbers, balances, and traded symbols have been removed.
+
 \## 2026-05-15 — First public testing day
 
 
@@ -18,7 +20,7 @@
 
 
 
-\*\*User 2: Tester B Hogan (DTSM founder, DAS Trader)\*\*
+\*\*User 2: Tester B (DAS Trader)\*\*
 
 \- Asked for installer link directly
 
@@ -28,9 +30,9 @@
 
 \- Confirmed ECN rebates (negative fees) in his data
 
-\- Account: ACCOUNT_A, \[redacted], BP [redacted]
+\- Account: ACCOUNT_A
 
-\- Trades AUUD, SKYQ, TMDE, SLE, MEMX in pre-market
+\- Trades pre-market momentum names
 
 \- Status: actively testing, dual-file workflow validated
 
@@ -44,7 +46,7 @@
 
 \- Both Webull formats, neither supported in v0.1.6
 
-\- Trades AIIO, AUUD, XRTX, ARTL, MYSE, ALGS
+\- Trades pre-market momentum names
 
 \- Has both cash account and paper trading account
 
@@ -94,15 +96,15 @@
 
 For marketing/positioning intel:
 
-\- AUUD, SKYQ, TMDE, SLE, MEMX (Tester B)
+\- pre-market momentum names (Tester B)
 
-\- AIIO, AUUD, XRTX, ARTL, MYSE, ALGS (Webull user)
+\- pre-market momentum names (Webull user)
 
 \- ODYS, MOBX (Lao)
 
 
 
-AUUD appears across multiple users — likely a runner this period.
+One name appeared across multiple users — likely a runner this period.
 
 
 
@@ -174,7 +176,7 @@ behavior is bit-for-bit preserved.
 
 
 
-User 1 (Tester B, DTSM founder):
+User 1 (Tester B):
 
 \- Successfully imported full day of trades using dual-file workflow
 

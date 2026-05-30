@@ -1,3 +1,13 @@
+// Live per-item progress pushed main→renderer while a refresh runs, so the UI
+// can show a loading bar instead of a dead greyed-out button. `date` is set for
+// intraday (symbol, date) pairs and omitted for the per-symbol market refresh.
+export interface MarketRefreshProgress {
+  current: number
+  total: number
+  symbol: string
+  date?: string
+}
+
 export interface MarketRefreshResult {
   attempted: number
   fetched: number
@@ -6,6 +16,9 @@ export interface MarketRefreshResult {
   apiKeyMissing: boolean
   errors: { symbol: string; message: string }[]
   durationMs: number
+  /** True when the user clicked Cancel; the run still resolved cleanly (no
+   *  throw) with partial counts and any already-fetched pairs kept. */
+  cancelled: boolean
 }
 
 export interface IntradayRefreshResult {
@@ -16,6 +29,33 @@ export interface IntradayRefreshResult {
   errors: { symbol: string; date: string; message: string }[]
   emaBackfilled: number
   maeMfeBackfilled: number
+  durationMs: number
+  /** True when the user clicked Cancel; the run still resolved cleanly (no
+   *  throw) with partial counts and any already-fetched pairs kept. */
+  cancelled: boolean
+}
+
+// v0.2.2 — standalone float backfill (Settings → Data backfill, "Backfill
+// float" button). Independent of the country backfill: different API (FMP, not
+// Massive/Polygon), different rate limits, separate trigger + progress + result.
+export interface FloatBackfillProgress {
+  current: number
+  total: number
+  symbol: string
+}
+
+export interface FloatBackfillResult {
+  /** Distinct symbols that had a null-float trade and were attempted. */
+  attempted: number
+  /** Symbols whose float is now populated (no longer null). */
+  filled: number
+  /** Symbols still null after the run — FMP has no float (LABT-style) or a
+   *  transient failure. Count mirrors unavailableSymbols.length. */
+  unavailable: number
+  /** The named still-null symbols, so the user knows which to fill manually. */
+  unavailableSymbols: string[]
+  /** True when no FMP key is configured — nothing was fetched. */
+  apiKeyMissing: boolean
   durationMs: number
 }
 

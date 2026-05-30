@@ -37,10 +37,17 @@ export interface EnrichFloatProgress {
 }
 
 /** Per-symbol payload returned by the wrapper's fetchFloat callback.
- *  Counters in EnrichFloatResult are driven off `float`; market_cap and
- *  sector ride along as passengers and are written through persistFloat. */
+ *  Counters in EnrichFloatResult are driven off `float`; market_cap,
+ *  sector, and shares_outstanding ride along as passengers and are written
+ *  through persistFloat. */
 export interface FloatFetchResult {
+  /** Tradable free float. v0.2.2 Commit B — real FMP `floatShares`. NULL
+   *  on coverage gaps (~10% of small-caps; see Step 1 LABT case). */
   float: number | null
+  /** v0.2.2 Commit B — issued share count, written alongside `float` so
+   *  one FMP call populates both market_data columns from a single phase.
+   *  NULL for legacy Polygon-backed callers (Commit A's coexist path). */
+  shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
 }

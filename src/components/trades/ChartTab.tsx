@@ -1151,7 +1151,7 @@ function buildFillMarkers(
   for (const e of trade.executions) {
     // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
     // The pre-Commit-B `${e.time}Z` append now doubles the Z → NaN → the
-    // marker silently vanishes; that bug is what Tester A's chart surfaced.
+    // marker silently vanishes; that bug surfaced via a real user's chart.
     const epoch = Date.parse(e.time)
     if (!Number.isFinite(epoch)) continue
     const sec = Math.floor(epoch / 1000)

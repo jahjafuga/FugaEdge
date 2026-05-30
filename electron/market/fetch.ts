@@ -12,6 +12,7 @@ import {
   upsertMarketRow,
   type MarketRow,
 } from './repo'
+import type { MarketRefreshProgress } from '@shared/market-types'
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
 const REQUEST_SPACING_MS = 350             // floor between requests (~3/s)
@@ -26,14 +27,30 @@ export interface RefreshResult {
   apiKeyMissing: boolean
   errors: { symbol: string; message: string }[]
   durationMs: number
+  cancelled: boolean
 }
 
 interface RefreshOptions {
   force?: boolean             // bypass cache
   symbols?: string[]          // limit to these (intersected with trade symbols)
+  /** Pushed once per symbol as it completes — drives the renderer loading bar.
+   *  Plain callback; the electron `wc.send` wrapping lives in the IPC handler. */
+  emitProgress?: (p: MarketRefreshProgress) => void
 }
 
 let inFlight: Promise<RefreshResult> | null = null
+
+// Coarse cancel — module flag flipped by cancelMarketRefresh(). The worker
+// loop checks it between symbols; the promise still resolves cleanly with
+// cancelled:true so the renderer settle chain stays airtight.
+let cancelRequested = false
+
+/** Signal the in-flight market refresh to stop starting new symbols. The
+ *  refresh promise still resolves (cancelled:true) once in-flight symbols
+ *  finish. No-op when nothing is running. */
+export function cancelMarketRefresh(): void {
+  if (inFlight) cancelRequested = true
+}
 
 /** Fetch daily aggregates (date → volume map + avg) for a single symbol
  *  over an explicit date range. Mirrors the aggregates-fetch portion of
@@ -65,6 +82,7 @@ export function refreshMarketData(opts: RefreshOptions = {}): Promise<RefreshRes
 
 async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
   const startedAt = Date.now()
+  cancelRequested = false // reset for this run
   const { polygon_api_key } = getSettings().values
 
   if (!polygon_api_key) {
@@ -76,6 +94,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       apiKeyMissing: true,
       errors: [],
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -93,6 +112,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       apiKeyMissing: false,
       errors: [],
       durationMs: Date.now() - startedAt,
+      cancelled: false,
     }
   }
 
@@ -147,7 +167,13 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
 
       const row: MarketRow = {
         symbol,
+        // Commit A: refresh keeps writing Polygon's shares_outstanding into
+        // the `float` column (legacy behaviour). Commit B replaces this with
+        // an FMP-backed wrapper that writes real float here and the issued
+        // count into shares_outstanding. Until then, shares_outstanding is
+        // left null on this refresh path.
         float: details.shares_outstanding,
+        shares_outstanding: null,
         market_cap: details.market_cap,
         sector: details.sector,
         avg_volume: avg,
@@ -172,6 +198,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       upsertMarketRow({
         symbol,
         float: null,
+        shares_outstanding: null,
         market_cap: null,
         sector: null,
         avg_volume: null,
@@ -189,14 +216,18 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
   // Simple promise-pool. Iterates symbols, never more than MAX_CONCURRENT
   // in flight at once.
   const queue = [...symbols]
+  let completed = 0
   const workers: Promise<void>[] = []
   for (let i = 0; i < Math.min(MAX_CONCURRENT, queue.length); i++) {
     workers.push(
       (async () => {
         while (queue.length) {
+          if (cancelRequested) return
           const s = queue.shift()
           if (!s) return
           await fetchOne(s)
+          completed += 1
+          opts.emitProgress?.({ current: completed, total: allSymbolsForLogging, symbol: s })
         }
       })(),
     )
@@ -211,9 +242,10 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
     apiKeyMissing: false,
     errors,
     durationMs: Date.now() - startedAt,
+    cancelled: cancelRequested,
   }
   console.info(
-    `[FE market] refresh done: fetched=${fetched} failed=${failed} in ${result.durationMs}ms`,
+    `[FE market] refresh ${result.cancelled ? 'cancelled' : 'done'}: fetched=${fetched} failed=${failed} in ${result.durationMs}ms`,
   )
   return result
 }

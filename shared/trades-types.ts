@@ -26,6 +26,11 @@ export interface TradeListRow {
   note: TradeNote | null
   entry_timeframe: EntryTimeframe | null
   entry_ema9_distance_pct: number | null
+  /** Max adverse / favorable excursion in $/share between entry and exit,
+   *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
+   *  intraday bars cover the trade's window. */
+  mae: number | null
+  mfe: number | null
   playbook_id: number | null
   playbook_name: string | null
   /** Quality tier of the trade's playbook, joined in from `playbooks.tier`.
@@ -50,10 +55,18 @@ export interface TradeListRow {
   /** Computed: net_pnl / total_risk. Falls back to net_pnl / planned_risk
    *  when stop price is unset. Null when neither path yields a value. */
   r_multiple: number | null
-  /** Tradable share float at the time of the trade. Auto-populated from
-   *  market_data.float on import; user-editable in the detail modal. Null
-   *  when neither cached market data nor a user override exists. */
+  /** Tradable free float — CURRENT snapshot (not point-in-time-of-trade;
+   *  point-in-time stays a v0.3.0 tentpole). v0.2.2 Commit B onward this
+   *  holds REAL FMP float, not the legacy shares-outstanding mislabel.
+   *  Auto-populated from market_data.float on import; user-editable in
+   *  the detail modal's Float row. Null when FMP returned no data
+   *  ("Unavailable" UI cue) or before Commit B's enrichment has run. */
   float_shares: number | null
+  /** Issued share count (current). v0.2.2 Commit B — populated from FMP
+   *  outstandingShares; also preserved from the schema-21 legacy data
+   *  move for pre-Commit-B trades. Display-only in the modal "Shares
+   *  Out" row; not a momentum-quality choice so no user override path. */
+  shares_outstanding: number | null
   /** Catalyst type for the trade (News / Earnings / Halt Resume / etc.).
    *  Free-form text so the dropdown can grow without a schema change. */
   catalyst_type: string | null
@@ -70,9 +83,12 @@ export interface TradeListRow {
   /** Bucket key (USA, China, Europe, ...). 'Unknown' when country is
    *  null. One country → exactly one region; see src/core/country. */
   region: string
-  /** Where the value came from. 'manual' overrides are never overwritten
-   *  by automatic backfill. 'unknown' means "we tried and couldn't resolve". */
-  country_source: 'polygon' | 'manual' | 'unknown'
+  /** Where the value came from. 'manual' overrides are never overwritten by
+   *  automatic backfill. 'inferred' = guessed from listing locale/exchange
+   *  (US-listing ≠ domicile; the free tier has no domicile field) — shown with
+   *  a "verify" cue and re-resolvable. 'unknown' means "we tried and couldn't
+   *  resolve". */
+  country_source: 'polygon' | 'inferred' | 'manual' | 'unknown'
   /** Number of screenshot attachments — drives the badge on the expand-row
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */
@@ -123,7 +139,14 @@ export interface UpdateCountryInput {
   /** Defaults to 'manual' when omitted. The IPC handler only ever stores
    *  'manual' from this entry point — 'polygon'/'unknown' come from the
    *  backfill flow. */
-  source?: 'polygon' | 'manual' | 'unknown'
+  source?: 'polygon' | 'inferred' | 'manual' | 'unknown'
+}
+
+export interface UpdateCountryForSymbolInput {
+  /** Apply to EVERY trade of this symbol (bulk manual override). */
+  symbol: string
+  /** ISO alpha-2 (any case) or null to clear to Unknown. Always stored manual. */
+  country: string | null
 }
 
 /** Canonical catalyst options for the trade detail modal's dropdown.

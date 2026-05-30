@@ -25,6 +25,7 @@ import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
+import { backfillAllFloat } from './backfill-float'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { backupBeforeImport } from '@/core/import/backup'
 import { electronBackupStorage } from '../db/backup'
@@ -43,6 +44,20 @@ import {
 } from '@/core/import/import-errors'
 
 export function registerImportIpc(): void {
+  // v0.2.2 — standalone float backfill over existing trades. Handler is a thin
+  // shell (ARCHITECTURE rule 1): it wires per-symbol progress to the renderer
+  // and delegates all logic to backfillAllFloat. Independent of COUNTRY_BACKFILL.
+  ipcMain.handle(IPC.FLOAT_BACKFILL, async (e) => {
+    const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
+    const result = await backfillAllFloat({
+      emitProgress: wc
+        ? (p) => wc.send(IPC.FLOAT_BACKFILL_PROGRESS, p)
+        : undefined,
+    })
+    if (result.filled > 0) bumpDataVersion()
+    return result
+  })
+
   ipcMain.handle(
     IPC.IMPORT_PREVIEW,
     async (_e, files: PreviewInputFile[]): Promise<PreviewResult> => {

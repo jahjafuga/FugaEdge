@@ -27,6 +27,8 @@ interface TradeRowDb {
   executions_json: string
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
+  mae: number | null
+  mfe: number | null
   playbook_id: number | null
   playbook_name: string | null
   playbook_tier: string | null
@@ -35,6 +37,7 @@ interface TradeRowDb {
   planned_risk: number | null
   planned_stop_loss_price: number | null
   float_shares: number | null
+  shares_outstanding: number | null
   catalyst_type: string | null
   days_since_catalyst: number | null
   country: string | null
@@ -92,22 +95,35 @@ function buildNote(row: TradeRowDb): TradeNote | null {
 
 export interface ListTradesOptions {
   date?: string
+  /** Inclusive Eastern-trading-day range (YYYY-MM-DD). Used by the Weekly
+   *  Review modal. `date` takes precedence if both are given. */
+  from?: string
+  to?: string
 }
 
 export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
   const db = openDatabase()
-  const where = opts.date ? 'WHERE t.date = ?' : ''
-  const params = opts.date ? [opts.date] : []
+  let where = ''
+  let params: string[] = []
+  if (opts.date) {
+    where = 'WHERE t.date = ?'
+    params = [opts.date]
+  } else if (opts.from && opts.to) {
+    // Inclusive range on the Eastern trading-day column (no clock component,
+    // so the full day at each end is covered; lexicographic = chronological).
+    where = 'WHERE t.date >= ? AND t.date <= ?'
+    params = [opts.from, opts.to]
+  }
   const rows = db
     .prepare(`
       SELECT
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
-        t.entry_timeframe, t.entry_ema9_distance_pct,
+        t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
-        t.float_shares,
+        t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
         n.note_text,
@@ -143,6 +159,8 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       executions: parseExecutions(r.executions_json),
       entry_timeframe: parseTimeframe(r.entry_timeframe),
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
+      mae: r.mae,
+      mfe: r.mfe,
       playbook_id: r.playbook_id,
       playbook_name: r.playbook_name,
       playbook_tier: parsePlaybookTier(r.playbook_tier),
@@ -154,16 +172,23 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       total_risk: risk.total_risk,
       r_multiple: risk.r_multiple,
       float_shares: r.float_shares,
+      shares_outstanding: r.shares_outstanding,
       catalyst_type: r.catalyst_type,
       days_since_catalyst: r.days_since_catalyst,
       country: r.country,
       country_name: r.country_name ?? 'Unknown',
       region: r.region ?? 'Unknown',
-      country_source: (r.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
+      country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
     }
   })
+}
+
+// All trades whose Eastern trading day falls in [from, to] (inclusive).
+// Backs the Weekly Review modal's week range.
+export function listTradesInRange(from: string, to: string): TradeListRow[] {
+  return listTrades({ from, to })
 }
 
 export function getTrade(id: number): TradeListRow | null {
@@ -174,10 +199,10 @@ export function getTrade(id: number): TradeListRow | null {
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
-        t.entry_timeframe, t.entry_ema9_distance_pct,
+        t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
-        t.float_shares,
+        t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
         n.note_text,
@@ -211,6 +236,8 @@ export function getTrade(id: number): TradeListRow | null {
     executions: parseExecutions(row.executions_json),
     entry_timeframe: parseTimeframe(row.entry_timeframe),
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,
+    mae: row.mae,
+    mfe: row.mfe,
     playbook_id: row.playbook_id,
     playbook_name: row.playbook_name,
     playbook_tier: parsePlaybookTier(row.playbook_tier),
@@ -222,12 +249,13 @@ export function getTrade(id: number): TradeListRow | null {
     total_risk: risk.total_risk,
     r_multiple: risk.r_multiple,
     float_shares: row.float_shares,
+    shares_outstanding: row.shares_outstanding,
     catalyst_type: row.catalyst_type,
     days_since_catalyst: row.days_since_catalyst,
     country: row.country,
     country_name: row.country_name ?? 'Unknown',
     region: row.region ?? 'Unknown',
-    country_source: (row.country_source as 'polygon' | 'manual' | 'unknown' | null) ?? 'unknown',
+    country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
   }

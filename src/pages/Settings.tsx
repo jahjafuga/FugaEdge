@@ -18,8 +18,16 @@ import type {
   SettingsPayload,
   SettingsValues,
 } from '@shared/settings-types'
-import type { IntradayRefreshResult, MarketRefreshResult } from '@shared/market-types'
+import type { MarketRefreshProgress } from '@shared/market-types'
+import {
+  cancelIntradayRefresh,
+  cancelMarketRefresh,
+  startIntradayRefresh,
+  startMarketRefresh,
+  useRefreshState,
+} from '@/lib/refreshStore'
 import type { MassiveKeyStatus } from '@shared/massive-types'
+import type { FmpKeyStatus } from '@shared/fmp-types'
 
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
@@ -31,6 +39,7 @@ function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (saved.max_daily_loss !== current.max_daily_loss) return true
   if (saved.account_size !== current.account_size) return true
   if (saved.polygon_api_key !== current.polygon_api_key) return true
+  if (saved.fmp_api_key !== current.fmp_api_key) return true
   if (!arraysEqual(saved.journal_rules, current.journal_rules)) return true
   if (!arraysEqual(saved.mistake_list, current.mistake_list)) return true
   if (!arraysEqual(saved.day_tag_list, current.day_tag_list)) return true
@@ -53,19 +62,31 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [keyStatus, setKeyStatus] = useState<MassiveKeyStatus | null>(null)
+  const [fmpKeyStatus, setFmpKeyStatus] = useState<FmpKeyStatus | null>(null)
   const [resetOpen, setResetOpen] = useState(false)
 
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
 
-  const [refreshing, setRefreshing] = useState(false)
-  const [refreshResult, setRefreshResult] = useState<MarketRefreshResult | null>(null)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
-
-  const [intradayRefreshing, setIntradayRefreshing] = useState(false)
-  const [intradayResult, setIntradayResult] = useState<IntradayRefreshResult | null>(null)
-  const [intradayError, setIntradayError] = useState<string | null>(null)
+  // Force checkbox is a local pre-press input. The rest of the refresh state
+  // (running / progress / result / error) lives in the module-level
+  // refreshStore so it survives a tab switch — Settings can unmount and remount
+  // mid-run and still read the live running flag + latest progress (and the
+  // store owns the await, so completion clears even while away).
+  const [force, setForce] = useState(false)
+  const { market, intraday } = useRefreshState()
+  // Aliases keep the render + result/error JSX below unchanged.
+  const refreshing = market.running
+  const refreshResult = market.result
+  const refreshError = market.error
+  const refreshProgress = market.progress
+  const refreshCancelling = market.cancelling
+  const intradayRefreshing = intraday.running
+  const intradayResult = intraday.result
+  const intradayError = intraday.error
+  const intradayProgress = intraday.progress
+  const intradayCancelling = intraday.cancelling
 
   useEffect(() => {
     let cancelled = false
@@ -89,6 +110,7 @@ export default function Settings() {
     if (saving || !editor || !snapshot) return
     setSaving(true)
     setKeyStatus(null) // clear any prior validity result before this save
+    setFmpKeyStatus(null)
     try {
       const updated = await ipc.settingsSave(editor)
       setPayload(updated)
@@ -98,48 +120,42 @@ export default function Settings() {
 
       // Save-then-verify: the key is already persisted by this point, so
       // every keyStatus outcome below describes a key that IS saved. Ping
-      // Massive only when the key field actually changed in this save and
-      // is non-empty — don't hit the network on unrelated settings saves.
-      const keyChanged = editor.polygon_api_key !== snapshot.polygon_api_key
-      const keyPresent = editor.polygon_api_key.trim().length > 0
-      if (keyChanged && keyPresent) {
+      // each provider only when its key field actually changed in this save
+      // and is non-empty — don't hit the network on unrelated settings saves.
+      const massiveChanged = editor.polygon_api_key !== snapshot.polygon_api_key
+      const massivePresent = editor.polygon_api_key.trim().length > 0
+      if (massiveChanged && massivePresent) {
         const status = await ipc.testMassiveKey(editor.polygon_api_key.trim())
         setKeyStatus(status)
+      }
+
+      // v0.2.2 Commit A — mirror of the Massive verify path for the new FMP
+      // key. Independent state + independent fetch — neither blocks the other.
+      const fmpChanged = editor.fmp_api_key !== snapshot.fmp_api_key
+      const fmpPresent = editor.fmp_api_key.trim().length > 0
+      if (fmpChanged && fmpPresent) {
+        const status = await ipc.testFmpKey(editor.fmp_api_key.trim())
+        setFmpKeyStatus(status)
       }
     } finally {
       setSaving(false)
     }
   }, [editor, saving, snapshot])
 
-  const runRefresh = useCallback(async () => {
-    if (refreshing) return
-    setRefreshing(true)
-    setRefreshError(null)
-    setRefreshResult(null)
-    try {
-      const result = await ipc.marketRefresh(true)
-      setRefreshResult(result)
-    } catch (e) {
-      setRefreshError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setRefreshing(false)
-    }
-  }, [refreshing])
+  // The store owns the running flag + await + progress subscription (so state
+  // survives a tab switch). It guards against double-runs internally; reset the
+  // local Force checkbox only when the run actually succeeded.
+  const runRefresh = useCallback(() => {
+    void startMarketRefresh(force).then((ok) => {
+      if (ok) setForce(false)
+    })
+  }, [force])
 
-  const runIntradayRefresh = useCallback(async () => {
-    if (intradayRefreshing) return
-    setIntradayRefreshing(true)
-    setIntradayError(null)
-    setIntradayResult(null)
-    try {
-      const result = await ipc.marketIntradayRefresh(true)
-      setIntradayResult(result)
-    } catch (e) {
-      setIntradayError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setIntradayRefreshing(false)
-    }
-  }, [intradayRefreshing])
+  const runIntradayRefresh = useCallback(() => {
+    void startIntradayRefresh(force).then((ok) => {
+      if (ok) setForce(false)
+    })
+  }, [force])
 
   const runExport = useCallback(async (kind: ExportKind) => {
     if (exporting) return
@@ -334,6 +350,65 @@ export default function Settings() {
               )}
             </div>
 
+            {/* v0.2.2 Commit A — FMP API key. Companion to the Massive key
+                for real-float enrichment. Optional in Commit A (no enrichment
+                wired yet); becomes load-bearing once Commit B ships. Mirrors
+                the Massive entry: external signup link → password input →
+                save-then-verify cue. */}
+            <div className="border-t border-border-subtle pt-4">
+              <button
+                type="button"
+                onClick={() =>
+                  void ipc.openExternal(
+                    'https://site.financialmodelingprep.com/developer/docs/dashboard',
+                  )
+                }
+                className="inline-flex h-8 cursor-pointer items-center gap-1.5 self-start rounded-md border border-border-strong bg-bg-1 px-3 text-xs font-semibold text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+              >
+                Get a free FMP API key
+                <ArrowUpRight size={12} strokeWidth={2.25} />
+              </button>
+              <div className="mt-4">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                  FMP API key
+                </div>
+                <input
+                  type="password"
+                  value={editor.fmp_api_key}
+                  onChange={(e) =>
+                    setEditor((prev) =>
+                      prev ? { ...prev, fmp_api_key: e.target.value } : prev,
+                    )
+                  }
+                  placeholder="paste your financialmodelingprep.com API key"
+                  className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
+                />
+                <div className="mt-1.5 text-xs text-fg-tertiary">
+                  Cached locally. Never logged. Powers real-float enrichment
+                  (shipping in the next update — Commit B). Save to verify.
+                </div>
+                {fmpKeyStatus && (
+                  <div
+                    className={`mt-1.5 text-xs ${
+                      fmpKeyStatus.kind === 'valid'
+                        ? 'text-win'
+                        : fmpKeyStatus.kind === 'invalid'
+                          ? 'text-danger'
+                          : 'text-warning'
+                    }`}
+                  >
+                    {fmpKeyStatus.kind === 'valid' && '✓ Key verified.'}
+                    {fmpKeyStatus.kind === 'invalid' &&
+                      "✗ FMP didn't accept that key. Double-check the value and try saving again."}
+                    {fmpKeyStatus.kind === 'rate-limited' &&
+                      "Key saved. Couldn't fully verify right now — FMP's rate limit was hit. Try Save again in a minute to verify."}
+                    {fmpKeyStatus.kind === 'network-error' &&
+                      "Key saved. Couldn't reach FMP — check your connection and try Save again to verify."}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4">
               <button
                 type="button"
@@ -345,7 +420,7 @@ export default function Settings() {
                     ? 'Set an API key first.'
                     : dirty
                       ? 'Save settings first so the refresh uses the new key.'
-                      : 'Force a fresh fetch for every imported symbol.'
+                      : 'Fetches symbols missing or stale (>7d) market data. Check Force re-fetch to re-download every symbol.'
                 }
               >
                 {refreshing ? 'Refreshing…' : 'Refresh market data'}
@@ -356,7 +431,7 @@ export default function Settings() {
                 onClick={runIntradayRefresh}
                 disabled={intradayRefreshing || dirty || !editor.polygon_api_key}
                 className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
-                title="Fetch 1-minute bars for every (symbol, date) you've traded. Used to compute EMA9 distance for the Momentum analytics."
+                title="Fetches 1-minute bars for (symbol, date) pairs missing data. Check Force re-fetch to re-download all pairs. Used for EMA9 distance + MAE/MFE."
               >
                 {intradayRefreshing
                   ? 'Fetching intraday…'
@@ -382,6 +457,35 @@ export default function Settings() {
                 </span>
               )}
             </div>
+
+            <label className="flex items-center gap-2 text-xs text-fg-secondary">
+              <input
+                type="checkbox"
+                checked={force}
+                onChange={(e) => setForce(e.target.checked)}
+                className="accent-gold"
+              />
+              Force re-fetch (re-download everything; overwrites Massive-sourced values, keeps manual edits)
+            </label>
+
+            {/* Live progress while a refresh runs. Gated by the running flag
+                from refreshStore (cleared in the store's finally) so the bar can
+                never stick — incl. the all-403 case that ends with fetched=0 —
+                and it rehydrates at the current progress after a tab switch. */}
+            {refreshing && (
+              <RefreshProgressBar
+                progress={refreshProgress}
+                cancelling={refreshCancelling}
+                onCancel={cancelMarketRefresh}
+              />
+            )}
+            {intradayRefreshing && (
+              <RefreshProgressBar
+                progress={intradayProgress}
+                cancelling={intradayCancelling}
+                onCancel={cancelIntradayRefresh}
+              />
+            )}
 
             {refreshResult && refreshResult.errors.length > 0 && (
               <div className="rounded-md border border-red/40 bg-red/[0.06] p-3 text-xs">
@@ -423,11 +527,11 @@ export default function Settings() {
                   <span className="font-mono text-gold">
                     {intradayResult.emaBackfilled}
                   </span>{' '}
-                  <span className="text-muted">EMA9 · </span>
+                  <span className="text-muted">EMA9 updated · </span>
                   <span className="font-mono text-gold">
                     {intradayResult.maeMfeBackfilled}
                   </span>{' '}
-                  <span className="text-muted">MAE/MFE · </span>
+                  <span className="text-muted">MAE/MFE updated · </span>
                   <span className="font-mono text-text">
                     {(intradayResult.durationMs / 1000).toFixed(1)}s
                   </span>
@@ -695,6 +799,51 @@ function ExportButton({
     >
       {busy ? busyLabel : label}
     </button>
+  )
+}
+
+// Loading bar for an in-flight refresh. Mirrors DataBackfillCard's progress
+// markup. Before the first progress event arrives, shows an indeterminate
+// "Starting…" line. Inline Cancel link sits on the label row; once clicked the
+// label flips to "Cancelling…" (coarse: in-flight pairs finish first; typical
+// lag is seconds, worst case ~42s under sustained 429 backoff).
+function RefreshProgressBar({
+  progress,
+  cancelling,
+  onCancel,
+}: {
+  progress: MarketRefreshProgress | null
+  cancelling: boolean
+  onCancel: () => void
+}) {
+  const pct =
+    progress && progress.total > 0
+      ? Math.floor((progress.current / progress.total) * 100)
+      : 0
+  return (
+    <div>
+      <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+        <div className="h-full bg-gold transition-all" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3 text-[10px] tnum">
+        <span className="text-fg-tertiary">
+          {cancelling
+            ? 'Cancelling…'
+            : progress
+              ? `Fetching ${progress.symbol} (${progress.current}/${progress.total})`
+              : 'Starting…'}
+        </span>
+        {!cancelling && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="cursor-pointer uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-loss"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
 

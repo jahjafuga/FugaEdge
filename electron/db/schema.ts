@@ -5,17 +5,21 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
-// Bumped to 20 for v0.2.1: trades.content_hash backfill — second dedup
-// hash computed from intrinsic fill content (symbol, UTC ts, side, qty,
-// price) so duplicates that share content but differ on per-fill IDs
-// (cross-format scenarios b1/b2/b3 from the 2026-05-26 dedup investigation)
-// are caught. The bump is the one-shot trigger for migrateContentHash
-// (see migrate-content-hash.ts). Column ALTER + partial UNIQUE index are
-// added in migrateAfterSchema.
+// Bumped to 21 for v0.2.2 Commit A — float-rename migration: legacy
+// `trades.float_shares` and `market_data.float` were shares-outstanding
+// values mislabeled as "float". This bump preserves them under the new
+// correctly-named `shares_outstanding` columns and NULLs the old columns
+// so a subsequent FMP enrichment (Commit B) can repopulate with REAL
+// free float. Data move + latch live in migrate-float-rename.ts; the
+// shares_outstanding columns themselves are added as additive ALTERs in
+// migrateAfterSchema.
+//
+// Prior bump (20, v0.2.1): trades.content_hash backfill — second dedup
+// hash computed from intrinsic fill content. See migrate-content-hash.ts.
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '20'
+export const SCHEMA_VERSION = '21'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -192,23 +196,28 @@ CREATE TABLE IF NOT EXISTS playbooks (
 -- migrateAfterSchema(). Deleting one in the UI must stay deleted. The
 -- defaults_seeded settings flag below is the latch.
 
--- Massive ticker metadata, keyed by symbol. The \`float\` column holds the
--- share_class_shares_outstanding figure from /v3/reference/tickers; for
--- true tradable float use the dedicated fetchFreeFloat() client.
+-- Market metadata, keyed by symbol. As of schema 21 the columns carry their
+-- semantically-correct values: \`float\` is real tradable free float (from
+-- FMP /stable/shares-float, populated by Commit B's enrichment) and
+-- \`shares_outstanding\` is issued share count (preserved from the legacy
+-- float-mislabel + also populated by FMP). Until Commit B ships the
+-- enrichment wire-up, \`float\` will be NULL on rows the schema-21 migration
+-- cleared; the UI shows "Float unavailable" in that state.
 -- daily_volumes is a JSON map of YYYY-MM-DD → volume so we can compute RVOL
 -- for individual trade dates without an extra round trip.
 CREATE TABLE IF NOT EXISTS market_data (
-  symbol         TEXT    PRIMARY KEY,
-  float          REAL,
-  market_cap     REAL,
-  sector         TEXT,
-  avg_volume     REAL,
-  daily_volumes  TEXT    NOT NULL DEFAULT '{}',
-  country        TEXT,
-  country_name   TEXT,
-  region         TEXT,
-  fetched_at     TEXT    NOT NULL DEFAULT (datetime('now')),
-  error          TEXT
+  symbol             TEXT    PRIMARY KEY,
+  float              REAL,
+  shares_outstanding REAL,
+  market_cap         REAL,
+  sector             TEXT,
+  avg_volume         REAL,
+  daily_volumes      TEXT    NOT NULL DEFAULT '{}',
+  country            TEXT,
+  country_name       TEXT,
+  region             TEXT,
+  fetched_at         TEXT    NOT NULL DEFAULT (datetime('now')),
+  error              TEXT
 );
 
 CREATE TABLE IF NOT EXISTS trade_notes (
@@ -257,12 +266,13 @@ CREATE TABLE IF NOT EXISTS week_notes (
 -- on the trading day at the session level (distinct from the longer-form
 -- journal entry which has its own table).
 CREATE TABLE IF NOT EXISTS session_meta (
-  date            TEXT PRIMARY KEY,
-  sentiment       INTEGER,                          -- 1..5 or NULL
-  notes           TEXT NOT NULL DEFAULT '',
-  no_trade_day    INTEGER NOT NULL DEFAULT 0,       -- 1 = trader sat out
-  no_trade_reason TEXT NOT NULL DEFAULT '',         -- free-form reason
-  updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+  date              TEXT PRIMARY KEY,
+  sentiment         INTEGER,                          -- 1..5 or NULL
+  notes             TEXT NOT NULL DEFAULT '',
+  no_trade_day      INTEGER NOT NULL DEFAULT 0,       -- 1 = trader sat out
+  no_trade_reason   TEXT NOT NULL DEFAULT '',         -- free-form reason
+  day_mistakes_json TEXT NOT NULL DEFAULT '[]',       -- v0.2.2 Day 4: JSON array of day-level mistake tags (Day Detail Modal)
+  updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS settings (
@@ -281,6 +291,11 @@ INSERT OR IGNORE INTO settings (key, value) VALUES (
 -- in Settings → Market Data; the value lives in the user's local DB only,
 -- never in source.
 INSERT OR IGNORE INTO settings (key, value) VALUES ('polygon_api_key', '');
+-- FMP (Financial Modeling Prep) API key — paired with polygon_api_key for
+-- v0.2.2+ enrichment: FMP supplies real tradable float, Polygon supplies
+-- market_cap + sector + country (free riders). Same convention — empty on
+-- fresh install, user pastes in Settings → Market data → FMP API key card.
+INSERT OR IGNORE INTO settings (key, value) VALUES ('fmp_api_key', '');
 INSERT OR IGNORE INTO settings (key, value) VALUES (
   'mistake_list',
   '["Chased extended entry","FOMO entry","Revenge trade","Sized too big","Took profit too early","Cut winner too early","Held loser too long","Ignored stop loss","Traded outside playbook","Forced trade on choppy day"]'

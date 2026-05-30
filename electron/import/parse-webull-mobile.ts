@@ -106,7 +106,7 @@ export function parseWebullMobileTimestamp(
 }
 
 // Deterministic per-row ID. Same construction shape as the trades_window
-// synth (Tester B parser) so the dedup contract is consistent across
+// synth (trades_window parser) so the dedup contract is consistent across
 // formats — re-import a file → same hash → existing row preserved.
 function synthId(
   date: string,

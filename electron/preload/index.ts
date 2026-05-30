@@ -12,6 +12,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -42,9 +43,13 @@ import type {
   SettingsUpdate,
 } from '@shared/settings-types'
 import type { MassiveKeyStatus } from '@shared/massive-types'
+import type { FmpKeyStatus } from '@shared/fmp-types'
 import type {
+  FloatBackfillProgress,
+  FloatBackfillResult,
   IntradayBarsPayload,
   IntradayRefreshResult,
+  MarketRefreshProgress,
   MarketRefreshResult,
 } from '@shared/market-types'
 import type {
@@ -58,6 +63,8 @@ import type {
   SessionMeta,
 } from '@shared/session-types'
 import type { DataHealth } from '@shared/data-health-types'
+import type { DayDetail } from '@shared/day-types'
+import type { WeekDetail } from '@shared/week-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -94,6 +101,8 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_CATALYST_SAVE, input),
   tradeCountrySave: (input: UpdateCountryInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE, input),
+  tradeCountrySaveSymbol: (input: UpdateCountryForSymbolInput): Promise<number> =>
+    ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE_SYMBOL, input),
   countryResolve: (symbol: string): Promise<ResolvedCountry | null> =>
     ipcRenderer.invoke(IPC.COUNTRY_RESOLVE, symbol),
   countryBackfill: (force?: boolean): Promise<{
@@ -107,6 +116,15 @@ const api = {
     ipcRenderer.on(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
     return () => {
       ipcRenderer.removeListener(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
+    }
+  },
+  floatBackfill: (): Promise<FloatBackfillResult> =>
+    ipcRenderer.invoke(IPC.FLOAT_BACKFILL),
+  floatOnBackfillProgress: (cb: (p: FloatBackfillProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: FloatBackfillProgress) => cb(p)
+    ipcRenderer.on(IPC.FLOAT_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.FLOAT_BACKFILL_PROGRESS, listener)
     }
   },
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>
@@ -132,13 +150,33 @@ const api = {
     ipcRenderer.invoke(IPC.SETTINGS_SAVE, input),
   testMassiveKey: (apiKey: string): Promise<MassiveKeyStatus> =>
     ipcRenderer.invoke(IPC.SETTINGS_TEST_MASSIVE_KEY, apiKey),
+  testFmpKey: (apiKey: string): Promise<FmpKeyStatus> =>
+    ipcRenderer.invoke(IPC.SETTINGS_TEST_FMP_KEY, apiKey),
   exportTrades: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_TRADES),
   exportJournal: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_JOURNAL),
   exportDatabase: (): Promise<ExportResult> => ipcRenderer.invoke(IPC.EXPORT_DATABASE),
   marketRefresh: (force?: boolean): Promise<MarketRefreshResult> =>
     ipcRenderer.invoke(IPC.MARKET_REFRESH, { force: !!force }),
+  marketRefreshCancel: (): Promise<void> => ipcRenderer.invoke(IPC.MARKET_REFRESH_CANCEL),
   marketIntradayRefresh: (force?: boolean): Promise<IntradayRefreshResult> =>
     ipcRenderer.invoke(IPC.MARKET_INTRADAY_REFRESH, { force: !!force }),
+  marketIntradayCancel: (): Promise<void> => ipcRenderer.invoke(IPC.MARKET_INTRADAY_CANCEL),
+  /** Subscribe to per-symbol market-refresh progress. Returns an unsubscribe fn. */
+  marketOnRefreshProgress: (cb: (p: MarketRefreshProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: MarketRefreshProgress) => cb(p)
+    ipcRenderer.on(IPC.MARKET_REFRESH_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.MARKET_REFRESH_PROGRESS, listener)
+    }
+  },
+  /** Subscribe to per-(symbol,date) intraday-refresh progress. Returns an unsubscribe fn. */
+  marketOnIntradayProgress: (cb: (p: MarketRefreshProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: MarketRefreshProgress) => cb(p)
+    ipcRenderer.on(IPC.MARKET_INTRADAY_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.MARKET_INTRADAY_PROGRESS, listener)
+    }
+  },
   intradayBarsGet: (
     symbol: string,
     date: string,
@@ -184,6 +222,14 @@ const api = {
     ipcRenderer.invoke(IPC.DATA_HEALTH_GET),
   dataHealthAcknowledgeCollisions: (): Promise<DataHealth> =>
     ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
+  dayDetailGet: (date: string): Promise<DayDetail> =>
+    ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
+  dayNoteSave: (date: string, body: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
+  dayMistakesSave: (date: string, tags: string[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.DAY_MISTAKES_SAVE, { date, tags }),
+  weekDetailGet: (weekStart: string): Promise<WeekDetail> =>
+    ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

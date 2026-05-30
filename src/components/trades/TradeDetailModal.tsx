@@ -7,6 +7,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -44,6 +45,12 @@ interface TradeDetailModalProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** When opened on top of another modal (e.g. stacked inside DayDetailModal),
+   *  raises the overlay above it. Default false → standalone z-[60]; true →
+   *  z-[210], above DayDetailModal's z-[110]. */
+  stacked?: boolean
 }
 
 type TabKey = 'overview' | 'notes' | 'attachments' | 'mistakes' | 'chart'
@@ -72,6 +79,8 @@ export default function TradeDetailModal({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
+  stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
 
@@ -99,7 +108,7 @@ export default function TradeDetailModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="trade-detail-title"
-      className="fixed inset-0 z-[60] flex items-center justify-center p-6"
+      className={`fixed inset-0 ${stacked ? 'z-[210]' : 'z-[60]'} flex items-center justify-center p-6`}
     >
       <div
         className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
@@ -145,6 +154,7 @@ export default function TradeDetailModal({
               onSaveFloat={onSaveFloat}
               onSaveCatalyst={onSaveCatalyst}
               onSaveCountry={onSaveCountry}
+              onSaveCountrySymbol={onSaveCountrySymbol}
             />
           )}
           {tab === 'notes' && (
@@ -270,6 +280,8 @@ interface OverviewTabProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
 }
 
 function OverviewTab({
@@ -281,6 +293,7 @@ function OverviewTab({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
 }: OverviewTabProps) {
   const t = trade
   return (
@@ -324,13 +337,35 @@ function OverviewTab({
             }
           />
         </FieldRow>
+        {/* v0.2.2 Commit B — Float (real tradable supply from FMP) is the
+            momentum-relevant primary number. User-editable so a trader can
+            override with a better data source. Honest "Unavailable" hint
+            when null — NEVER silently falls back to shares_outstanding;
+            that was the bug being fixed. NOTE: this is CURRENT float, not
+            point-in-time-of-trade (v0.3.0 tentpole separately). */}
+        <FieldRow label="Float">
+          <div>
+            <FloatEditor
+              value={t.float_shares}
+              onChange={(next) =>
+                onSaveFloat({ trade_id: t.id, float_shares: next })
+              }
+            />
+            {t.float_shares == null && (
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
+                Unavailable — FMP returned no float for this symbol
+              </div>
+            )}
+          </div>
+        </FieldRow>
+        {/* Issued share count. Display-only — a fact about the company,
+            not a momentum-quality choice, so no override path. Read from
+            the schema-21 shares_outstanding column (preserved migration
+            data + populated alongside float by the FMP enrichment). */}
         <FieldRow label="Shares Out">
-          <FloatEditor
-            value={t.float_shares}
-            onChange={(next) =>
-              onSaveFloat({ trade_id: t.id, float_shares: next })
-            }
-          />
+          <div className="font-mono text-sm text-fg-secondary tnum">
+            {t.shares_outstanding == null ? '—' : int(t.shares_outstanding)}
+          </div>
         </FieldRow>
         <FieldRow label="Country">
           <CountryEditor
@@ -340,6 +375,12 @@ function OverviewTab({
             source={t.country_source}
             onChange={(next) =>
               onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
+            }
+            symbol={t.symbol}
+            onApplyToSymbol={
+              onSaveCountrySymbol
+                ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
+                : undefined
             }
           />
         </FieldRow>

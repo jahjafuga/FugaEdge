@@ -4,7 +4,7 @@ import type { Execution } from '@shared/import-types'
 import { parseFilenameDate } from './parse-filename'
 import { localEasternToUtc } from '@/lib/format'
 
-// DAS Trades window export — Tester B variant. Columns:
+// DAS Trades window export (trades_window format). Columns:
 //   Time, Symbol, Side, Price, Qty, Route, LiqType, Broker, Account, Type, Cloid
 //
 // Distinct from both other DAS shapes:
@@ -207,7 +207,7 @@ export function parseTradesWindowCsv(
       trade_id: synth,
       order_id: cloid || synth,
       account: account || undefined,
-      // Tester B-shape files are v0.2.0-only — no v0.1.6 dedup hash to
+      // trades_window files are v0.2.0-only — no v0.1.6 dedup hash to
       // preserve (Decision D's compat concern doesn't apply) — so we set
       // account_name too. Future multi-account users will get
       // (symbol, account_name) partitioning in buildRoundTrips.

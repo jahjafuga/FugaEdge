@@ -75,6 +75,52 @@ export function saveSentiment(date: string, sentiment: number | null): SessionMe
   }
 }
 
+// Upsert the day-level free-text note (session_meta.notes) only — sentiment
+// and no_trade_* are preserved. Backs the Day Detail Modal's Notes tab.
+// Trimmed; an empty note is stored as '' (read back as null by the day repo).
+export function saveDayNote(date: string, body: string): void {
+  const db = openDatabase()
+  db.prepare(`
+    INSERT INTO session_meta (date, notes, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(date) DO UPDATE SET
+      notes      = excluded.notes,
+      updated_at = excluded.updated_at
+  `).run(date, body.trim())
+}
+
+// Day-level mistake tags (session_meta.day_mistakes_json). Parsed defensively
+// — a malformed value reads as []. Backs the Day Detail Modal's Mistakes tab
+// (day-level tags, distinct from per-trade mistakes on trades.mistakes_json).
+export function getDayMistakes(date: string): string[] {
+  const db = openDatabase()
+  const row = db
+    .prepare('SELECT day_mistakes_json FROM session_meta WHERE date = ?')
+    .get(date) as { day_mistakes_json: string } | undefined
+  if (!row) return []
+  try {
+    const arr = JSON.parse(row.day_mistakes_json)
+    return Array.isArray(arr) ? arr.map((s) => String(s)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+// Upsert day-level mistake tags only — sentiment / notes / no_trade_* are
+// preserved (same per-column ON CONFLICT pattern as the other session_meta
+// writers).
+export function saveDayMistakes(date: string, tags: string[]): void {
+  const db = openDatabase()
+  const json = JSON.stringify(tags.map((s) => String(s)).filter(Boolean))
+  db.prepare(`
+    INSERT INTO session_meta (date, day_mistakes_json, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(date) DO UPDATE SET
+      day_mistakes_json = excluded.day_mistakes_json,
+      updated_at        = excluded.updated_at
+  `).run(date, json)
+}
+
 // Combined save for the Today's Session card. Sentiment + no-trade-day +
 // reason in one write. When `no_trade_day` is false we clear the reason
 // so a flipped-off day doesn't keep stale copy hanging around.

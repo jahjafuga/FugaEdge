@@ -15,6 +15,7 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
+  UpdateCountryForSymbolInput,
   UpdateFloatInput,
   UpdateMistakesInput,
   UpdateNoteInput,
@@ -41,6 +42,7 @@ interface TradesTableProps {
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
+  onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -89,6 +91,7 @@ export default function TradesTable({
   onSaveFloat,
   onSaveCatalyst,
   onSaveCountry,
+  onSaveCountrySymbol,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -135,7 +138,11 @@ export default function TradesTable({
     })
     const floatColumn = col.accessor('float_shares', {
       id: 'float',
-      header: () => <span className="block text-right">Shares Out</span>,
+      // v0.2.2 Commit B — column accessor stays on `float_shares` (Commit B
+      // now populates it with REAL FMP float, not shares-outstanding).
+      // Lao decision: rename-only, no second Shares Out column. Shares Out
+      // lives in the modal as a reference field.
+      header: () => <span className="block text-right">Float</span>,
       size: COLUMN_WIDTHS.float,
       cell: (info) => (
         <div className="text-right font-mono text-fg-secondary tnum">
@@ -447,6 +454,7 @@ export default function TradesTable({
         onSaveFloat={onSaveFloat}
         onSaveCatalyst={onSaveCatalyst}
         onSaveCountry={onSaveCountry}
+        onSaveCountrySymbol={onSaveCountrySymbol}
       />
     </div>
   )

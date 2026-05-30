@@ -72,6 +72,19 @@ export interface CommitOutcome {
   affectedPairs: number
 }
 
+// Distinct symbols that still have at least one trade with a NULL
+// float_shares — the work list for the standalone float backfill
+// (electron/import/backfill-float.ts). A symbol drops out of this list the
+// moment all its trades carry a float, so calling it again after a backfill
+// run yields exactly the symbols FMP couldn't fill (the "unavailable" set).
+export function symbolsNeedingFloatFetch(): string[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare('SELECT DISTINCT symbol FROM trades WHERE float_shares IS NULL ORDER BY symbol ASC')
+    .all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
+}
+
 // Populate trades.float_shares from market_data.float wherever the trade
 // row's float_shares is NULL and market_data has a value for the symbol.
 // Optional `symbols` filter narrows the scope to a recently-imported set;
@@ -103,6 +116,39 @@ export function backfillFloatShares(symbols?: string[]): number {
   return info.changes
 }
 
+// v0.2.2 Commit A — mirror of backfillFloatShares, for the new
+// trades.shares_outstanding column. Populates from
+// market_data.shares_outstanding wherever the trade's shares_outstanding is
+// NULL. Commit A only ships this primitive; the call site lands in Commit
+// B alongside the FMP enrichment wrapper that writes both columns. Listed
+// here now so the repo surface for Commit B is complete and reviewable in
+// one place (mirrors how the country / float orchestrators were paired).
+//
+// Idempotent and non-destructive — user-edited shares_outstanding values
+// are never overwritten. Run after any change to market_data.
+export function backfillSharesOutstanding(symbols?: string[]): number {
+  const db = openDatabase()
+  if (symbols && symbols.length === 0) return 0
+  const where = symbols
+    ? `WHERE t.shares_outstanding IS NULL AND t.symbol IN (${symbols.map(() => '?').join(',')})`
+    : 'WHERE t.shares_outstanding IS NULL'
+  const sql = `
+    UPDATE trades
+    SET shares_outstanding = (
+      SELECT CAST(m.shares_outstanding AS INTEGER) FROM market_data m
+      WHERE m.symbol = trades.symbol AND m.shares_outstanding IS NOT NULL
+      LIMIT 1
+    )
+    WHERE id IN (
+      SELECT t.id FROM trades t
+      JOIN market_data m ON m.symbol = t.symbol
+      ${where} AND m.shares_outstanding IS NOT NULL
+    )
+  `
+  const info = symbols ? db.prepare(sql).run(...symbols) : db.prepare(sql).run()
+  return info.changes
+}
+
 // Populate trades.country/_name/region from market_data.* wherever the
 // trade row's country_source is NULL (so manual overrides and previously-
 // resolved Polygon hits both stay put). Idempotent.
@@ -119,7 +165,10 @@ export function backfillTradeCountriesFromMarket(symbols?: string[]): number {
       country_name   = (SELECT m.country_name   FROM market_data m WHERE m.symbol = trades.symbol),
       region         = (SELECT m.region         FROM market_data m WHERE m.symbol = trades.symbol),
       country_source = (
-        SELECT CASE WHEN m.country IS NOT NULL THEN 'polygon' ELSE 'unknown' END
+        -- market_data carries no source, so a cache-copied country is
+        -- unverified (could be a US-from-listing guess) — label it 'inferred',
+        -- not the confident 'polygon'. Honest + re-resolvable.
+        SELECT CASE WHEN m.country IS NOT NULL THEN 'inferred' ELSE 'unknown' END
         FROM market_data m WHERE m.symbol = trades.symbol
       )
     WHERE id IN (

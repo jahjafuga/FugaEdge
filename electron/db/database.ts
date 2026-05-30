@@ -6,6 +6,7 @@ import { SCHEMA_SQL } from './schema'
 import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 import { migrateTimestampsToUtc } from './migrate-tz-utc'
 import { migrateContentHash } from './migrate-content-hash'
+import { migrateFloatRename } from './migrate-float-rename'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -18,6 +19,9 @@ const TZ_BACKUP_LATCH_KEY = 'tz_migration_backup_done'
 
 // Latch for the v0.2.1 content_hash migration's pre-migration backup (schema 19→20).
 const CONTENT_HASH_BACKUP_LATCH_KEY = 'content_hash_migration_backup_done'
+
+// Latch for the v0.2.2 float-rename migration's pre-migration backup (schema 20→21).
+const FLOAT_RENAME_BACKUP_LATCH_KEY = 'float_rename_migration_backup_done'
 
 let db: Database.Database | null = null
 
@@ -249,6 +253,64 @@ function backupBeforeTzMigration(conn: Database.Database, dbPath: string): void 
   }
 }
 
+// Pre-migration backup for the v0.2.2 float-rename data move. Same shape
+// as backupBeforeContentHashMigration: checkpoint WAL → copy DB aside →
+// throw on failure so migrateFloatRename aborts without mutating data.
+// Latch lives in settings so a successful backup on a prior launch is
+// never repeated.
+function backupBeforeFloatRenameMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(FLOAT_RENAME_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-v0.2.2-float-rename-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before float-rename backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so
+  // the migration aborts instead of mutating data with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] float-rename pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(FLOAT_RENAME_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(
+      `[FE db] float-rename backup latch write failed: ${e}`,
+    )
+  }
+}
+
 // Pre-migration backup for the v0.2.1 content_hash backfill. Same shape as
 // backupBeforeTzMigration: checkpoint WAL → copy DB aside → throw on failure
 // so migrateContentHash aborts without mutating data. Latch lives in
@@ -381,6 +443,15 @@ function migrateAfterSchema(
     // user can override via the trade detail modal's Float field.
     conn.exec('ALTER TABLE trades ADD COLUMN float_shares INTEGER')
   }
+  if (!has('shares_outstanding')) {
+    // v0.2.2 Commit A — issued share count, preserved when the legacy
+    // shares-outstanding-mislabeled-as-float was renamed. Populated by
+    // migrate-float-rename (legacy data move) and by Commit B's FMP
+    // enrichment (going forward). float_shares stays the float column;
+    // shares_outstanding is the new, honestly-labeled column for issued
+    // share count.
+    conn.exec('ALTER TABLE trades ADD COLUMN shares_outstanding INTEGER')
+  }
   if (!has('catalyst_type')) {
     // Free-form catalyst tag for the trade (News, Earnings, Halt Resume,
     // FDA/Clinical, Offering, etc.). Stored as TEXT so the picker can grow
@@ -470,6 +541,13 @@ function migrateAfterSchema(
   if (!hasMarket('country'))      conn.exec('ALTER TABLE market_data ADD COLUMN country TEXT')
   if (!hasMarket('country_name')) conn.exec('ALTER TABLE market_data ADD COLUMN country_name TEXT')
   if (!hasMarket('region'))       conn.exec('ALTER TABLE market_data ADD COLUMN region TEXT')
+  // v0.2.2 Commit A — issued share count, parallel to the float column.
+  // On a fresh install SCHEMA_SQL already creates this column (so the
+  // guard is false here); on the v20 → v21 upgrade path the ALTER fires
+  // before migrate-float-rename copies the legacy values in.
+  if (!hasMarket('shares_outstanding')) {
+    conn.exec('ALTER TABLE market_data ADD COLUMN shares_outstanding REAL')
+  }
 
   const journalCols = conn.prepare('PRAGMA table_info(journal)').all() as {
     name: string
@@ -493,6 +571,14 @@ function migrateAfterSchema(
   if (!hasSession('no_trade_reason')) {
     conn.exec(
       "ALTER TABLE session_meta ADD COLUMN no_trade_reason TEXT NOT NULL DEFAULT ''",
+    )
+  }
+  // v0.2.2 Day 4 — day-level mistake tags for the Day Detail Modal. Additive,
+  // nullable-with-default; existing rows get '[]'. No data migration / version
+  // bump needed (same as the no_trade_* adds above).
+  if (!hasSession('day_mistakes_json')) {
+    conn.exec(
+      "ALTER TABLE session_meta ADD COLUMN day_mistakes_json TEXT NOT NULL DEFAULT '[]'",
     )
   }
 
@@ -561,6 +647,16 @@ function migrateAfterSchema(
         `see prior warn lines for trade IDs`,
     )
   }
+
+  // v0.2.2 Commit A — float-rename data move. The shares_outstanding
+  // columns themselves are added by the additive ALTERs above; this call
+  // copies legacy float_shares/float values into them, then NULLs the
+  // old columns so Commit B's FMP enrichment can repopulate. Gated by
+  // priorVersion + settings latch so it runs exactly once on the v20→v21
+  // upgrade and never on fresh installs or subsequent launches.
+  migrateFloatRename(conn, priorVersion, {
+    backup: () => backupBeforeFloatRenameMigration(conn, dbPath),
+  })
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The
