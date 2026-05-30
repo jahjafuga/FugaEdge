@@ -45,6 +45,8 @@ import type {
 import type { MassiveKeyStatus } from '@shared/massive-types'
 import type { FmpKeyStatus } from '@shared/fmp-types'
 import type {
+  FloatBackfillProgress,
+  FloatBackfillResult,
   IntradayBarsPayload,
   IntradayRefreshResult,
   MarketRefreshProgress,
@@ -114,6 +116,15 @@ const api = {
     ipcRenderer.on(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
     return () => {
       ipcRenderer.removeListener(IPC.COUNTRY_BACKFILL_PROGRESS, listener)
+    }
+  },
+  floatBackfill: (): Promise<FloatBackfillResult> =>
+    ipcRenderer.invoke(IPC.FLOAT_BACKFILL),
+  floatOnBackfillProgress: (cb: (p: FloatBackfillProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: FloatBackfillProgress) => cb(p)
+    ipcRenderer.on(IPC.FLOAT_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.FLOAT_BACKFILL_PROGRESS, listener)
     }
   },
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>

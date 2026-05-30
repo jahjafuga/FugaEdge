@@ -3,6 +3,7 @@ import Card from '@/components/ui/Card'
 import BackfillKeyModal from '@/components/settings/BackfillKeyModal'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
+import type { FloatBackfillProgress } from '@shared/market-types'
 
 interface DataBackfillCardProps {
   lastRun: string | null
@@ -24,8 +25,25 @@ export default function DataBackfillCard({
   const [err, setErr] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
 
+  // ── Float backfill — fully independent of the country action above.
+  // Different API (FMP vs Massive/Polygon), different rate limits; separate
+  // trigger, progress, and result so a hang in one never blocks the other.
+  const [floatRunning, setFloatRunning] = useState(false)
+  const [floatProgress, setFloatProgress] = useState<FloatBackfillProgress | null>(null)
+  const [floatResult, setFloatResult] = useState<{
+    filled: number
+    unavailable: number
+    unavailableSymbols: string[]
+  } | null>(null)
+  const [floatErr, setFloatErr] = useState<string | null>(null)
+
   useEffect(() => {
     const off = ipc.countryOnBackfillProgress((p) => setProgress(p))
+    return off
+  }, [])
+
+  useEffect(() => {
+    const off = ipc.floatOnBackfillProgress((p) => setFloatProgress(p))
     return off
   }, [])
 
@@ -54,14 +72,46 @@ export default function DataBackfillCard({
     }
   }
 
+  const runFloat = async () => {
+    if (floatRunning) return
+    setFloatRunning(true)
+    setFloatResult(null)
+    setFloatErr(null)
+    setFloatProgress(null)
+    try {
+      const r = await ipc.floatBackfill()
+      if (r.apiKeyMissing) {
+        setFloatErr(
+          'No FMP key set — add your Financial Modeling Prep key under Market data above, then retry.',
+        )
+      } else {
+        setFloatResult({
+          filled: r.filled,
+          unavailable: r.unavailable,
+          unavailableSymbols: r.unavailableSymbols,
+        })
+      }
+    } catch (e) {
+      setFloatErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFloatRunning(false)
+      setFloatProgress(null)
+    }
+  }
+
   const pct = progress && progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0
+  const floatPct =
+    floatProgress && floatProgress.total > 0
+      ? Math.floor((floatProgress.current / floatProgress.total) * 100)
+      : 0
 
   return (
     <Card
       title="Data backfill"
-      subtitle="Backfill missing country data from Massive for trades you imported before this feature existed."
+      subtitle="Backfill market data for trades you imported before these features existed. Each action runs independently."
     >
       <div className="space-y-3">
+        <div className="text-xs font-medium text-fg-secondary">Country (Massive)</div>
         <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
@@ -104,6 +154,53 @@ export default function DataBackfillCard({
         {err && (
           <div className="text-xs text-loss">{err}</div>
         )}
+
+        {/* ── Float backfill — independent FMP action ───────────────────── */}
+        <div className="border-t border-border-strong pt-3">
+          <div className="mb-2 text-xs font-medium text-fg-secondary">Float (FMP)</div>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={runFloat}
+              disabled={floatRunning}
+              className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {floatRunning ? 'Backfilling…' : 'Backfill float'}
+            </button>
+            <p className="text-xs text-fg-tertiary">
+              Fetches real tradable float from FMP for trades with no float yet.
+              Never overwrites a float you already have.
+            </p>
+            {floatProgress && (
+              <div>
+                <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+                  <div className="h-full bg-gold transition-all" style={{ width: `${floatPct}%` }} />
+                </div>
+                <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+                  Fetching {floatProgress.current} of {floatProgress.total}… ({floatProgress.symbol})
+                </div>
+              </div>
+            )}
+            {floatResult && (
+              <div className="space-y-1 text-xs">
+                <div className="font-mono">
+                  Filled float on <span className="text-win">{floatResult.filled}</span>{' '}
+                  symbol{floatResult.filled === 1 ? '' : 's'},{' '}
+                  <span className="text-fg-tertiary">{floatResult.unavailable}</span> unavailable
+                </div>
+                {floatResult.unavailableSymbols.length > 0 && (
+                  <div className="text-fg-tertiary">
+                    No FMP float (fill manually):{' '}
+                    <span className="font-mono text-fg-secondary">
+                      {floatResult.unavailableSymbols.join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {floatErr && <div className="text-xs text-loss">{floatErr}</div>}
+          </div>
+        </div>
       </div>
       <BackfillKeyModal
         open={modalOpen}

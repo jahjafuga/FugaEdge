@@ -35,6 +35,30 @@ export interface IntradayRefreshResult {
   cancelled: boolean
 }
 
+// v0.2.2 — standalone float backfill (Settings → Data backfill, "Backfill
+// float" button). Independent of the country backfill: different API (FMP, not
+// Massive/Polygon), different rate limits, separate trigger + progress + result.
+export interface FloatBackfillProgress {
+  current: number
+  total: number
+  symbol: string
+}
+
+export interface FloatBackfillResult {
+  /** Distinct symbols that had a null-float trade and were attempted. */
+  attempted: number
+  /** Symbols whose float is now populated (no longer null). */
+  filled: number
+  /** Symbols still null after the run — FMP has no float (LABT-style) or a
+   *  transient failure. Count mirrors unavailableSymbols.length. */
+  unavailable: number
+  /** The named still-null symbols, so the user knows which to fill manually. */
+  unavailableSymbols: string[]
+  /** True when no FMP key is configured — nothing was fetched. */
+  apiKeyMissing: boolean
+  durationMs: number
+}
+
 // Single-trade intraday lookup — backs the per-trade Chart tab.
 export interface IntradayBar {
   t: number  // epoch ms (UTC) at bar start

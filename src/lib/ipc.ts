@@ -57,6 +57,10 @@ export const ipc = {
   countryOnBackfillProgress: (
     cb: (p: { current: number; total: number; symbol: string }) => void,
   ) => window.api.countryOnBackfillProgress(cb),
+  floatBackfill: () => window.api.floatBackfill(),
+  floatOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').FloatBackfillProgress) => void,
+  ) => window.api.floatOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),

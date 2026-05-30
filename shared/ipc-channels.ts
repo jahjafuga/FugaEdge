@@ -45,6 +45,11 @@ export const IPC = {
   COUNTRY_RESOLVE: 'country:resolveForTicker',
   COUNTRY_BACKFILL: 'country:backfillAll',
   COUNTRY_BACKFILL_PROGRESS: 'country:backfillProgress',
+  // v0.2.2 — standalone float backfill over existing trades (FMP). Separate
+  // channel from COUNTRY_BACKFILL: different API + rate limits, independent
+  // trigger/progress/result (never coupled into one combined action).
+  FLOAT_BACKFILL: 'float:backfillAll',
+  FLOAT_BACKFILL_PROGRESS: 'float:backfillProgress',
   TRADE_COUNTRY_SAVE: 'trade:countrySave',
   TRADE_COUNTRY_SAVE_SYMBOL: 'trade:countrySaveSymbol',
   SESSION_SENTIMENT_SAVE: 'session:sentimentSave',

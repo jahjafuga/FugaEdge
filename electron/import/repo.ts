@@ -72,6 +72,19 @@ export interface CommitOutcome {
   affectedPairs: number
 }
 
+// Distinct symbols that still have at least one trade with a NULL
+// float_shares — the work list for the standalone float backfill
+// (electron/import/backfill-float.ts). A symbol drops out of this list the
+// moment all its trades carry a float, so calling it again after a backfill
+// run yields exactly the symbols FMP couldn't fill (the "unavailable" set).
+export function symbolsNeedingFloatFetch(): string[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare('SELECT DISTINCT symbol FROM trades WHERE float_shares IS NULL ORDER BY symbol ASC')
+    .all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
+}
+
 // Populate trades.float_shares from market_data.float wherever the trade
 // row's float_shares is NULL and market_data has a value for the symbol.
 // Optional `symbols` filter narrows the scope to a recently-imported set;
