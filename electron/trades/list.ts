@@ -37,6 +37,7 @@ interface TradeRowDb {
   planned_risk: number | null
   planned_stop_loss_price: number | null
   float_shares: number | null
+  shares_outstanding: number | null
   catalyst_type: string | null
   days_since_catalyst: number | null
   country: string | null
@@ -122,7 +123,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
-        t.float_shares,
+        t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
         n.note_text,
@@ -171,6 +172,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       total_risk: risk.total_risk,
       r_multiple: risk.r_multiple,
       float_shares: r.float_shares,
+      shares_outstanding: r.shares_outstanding,
       catalyst_type: r.catalyst_type,
       days_since_catalyst: r.days_since_catalyst,
       country: r.country,
@@ -200,7 +202,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe,
         t.playbook_id, p.name AS playbook_name, p.tier AS playbook_tier,
         t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
-        t.float_shares,
+        t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
         n.note_text,
@@ -247,6 +249,7 @@ export function getTrade(id: number): TradeListRow | null {
     total_risk: risk.total_risk,
     r_multiple: risk.r_multiple,
     float_shares: row.float_shares,
+    shares_outstanding: row.shares_outstanding,
     catalyst_type: row.catalyst_type,
     days_since_catalyst: row.days_since_catalyst,
     country: row.country,

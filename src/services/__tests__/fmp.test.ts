@@ -187,3 +187,101 @@ describe('fetchSharesFloat — happy path + edge cases from Step 1 verification'
     })
   })
 })
+
+// ── 15s AbortController timeout (mirrors Polygon massive.ts:55-91) ────────
+// Smoke-found gap: the FMP fetch had no timeout protection — a stalled
+// request could silently hang in the fire-and-forget import path forever.
+// These guards pin the AbortController wiring so a future regression
+// (drop the signal, drop the timer) is caught at test time.
+
+describe('fetchSharesFloat — 15s AbortController timeout', () => {
+  it('passes an AbortSignal to fetch (timeout plumbing wired)', async () => {
+    let signalCapture: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { signal?: AbortSignal }) => {
+        signalCapture = init?.signal
+        return new Response(
+          JSON.stringify([
+            { symbol: 'CLIK', floatShares: 132507, outstandingShares: 632201, freeFloat: 20.96 },
+          ]),
+          { status: 200 },
+        )
+      }),
+    )
+
+    await fetchSharesFloat('test-key', 'CLIK')
+
+    // The signal must be plumbed for the AbortController timeout to bite a
+    // real stalled fetch — without it the controller.abort() in the
+    // setTimeout callback would do nothing.
+    expect(signalCapture).toBeDefined()
+    expect(signalCapture).toBeInstanceOf(AbortSignal)
+  })
+
+  it('aborts and throws after 15s when the fetch stalls (no infinite hang)', async () => {
+    vi.useFakeTimers()
+    // Mock fetch as a never-resolving promise that DOES honor the signal —
+    // the implementation under test must pass signal AND the controller
+    // must fire abort after the 15s timer for this to reject.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: { signal?: AbortSignal }) => {
+        return new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err: Error & { name: string } = new Error('aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+          // Otherwise: hang forever.
+        })
+      }),
+    )
+
+    const promise = fetchSharesFloat('test-key', 'STALL')
+    // Catch the eventual rejection on this branch so unhandled-rejection
+    // warnings don't pollute the test output between assertion points.
+    const caught = promise.catch((e) => e)
+
+    // Step well past the 15s timeout so the timer callback fires.
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    const e = await caught
+    expect(e).toBeInstanceOf(Error)
+    // The message matches Polygon's massive.ts pattern verbatim so future
+    // consumers persisting this to market_data.error can prefix with the
+    // same `${e.status === 0 ? 'network' : e.status}: ${e.message}` shape,
+    // which the existing refresh-eligibility.ts classifier treats as
+    // transient (NOT plan-gated 403:NOT_AUTHORIZED) and retries.
+    expect((e as Error).message).toBe('Request timed out after 15000ms')
+
+    vi.useRealTimers()
+  })
+})
+
+describe('verifyFmp — 15s AbortController timeout', () => {
+  it('aborts and returns network-error after 15s when the verify call stalls', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: { signal?: AbortSignal }) => {
+        return new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err: Error & { name: string } = new Error('aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        })
+      }),
+    )
+
+    const promise = verifyFmp('test-key')
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    // verifyFmp keeps its existing "never throws" contract — a timeout
+    // surfaces as network-error, consistent with the other catch branches.
+    expect(await promise).toEqual({ kind: 'network-error' })
+
+    vi.useRealTimers()
+  })
+})

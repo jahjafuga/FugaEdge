@@ -138,7 +138,11 @@ export default function TradesTable({
     })
     const floatColumn = col.accessor('float_shares', {
       id: 'float',
-      header: () => <span className="block text-right">Shares Out</span>,
+      // v0.2.2 Commit B — column accessor stays on `float_shares` (Commit B
+      // now populates it with REAL FMP float, not shares-outstanding).
+      // Lao decision: rename-only, no second Shares Out column. Shares Out
+      // lives in the modal as a reference field.
+      header: () => <span className="block text-right">Float</span>,
       size: COLUMN_WIDTHS.float,
       cell: (info) => (
         <div className="text-right font-mono text-fg-secondary tnum">

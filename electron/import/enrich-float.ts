@@ -1,19 +1,42 @@
-// Electron-side wiring around the pure import-time float orchestrator.
-// Mirrors electron/import/resolve-countries.ts: pulls the API key + DB
-// writers in here so src/core/float/orchestrator.ts can stay portable per
-// ARCHITECTURE.md.
+// v0.2.2 Commit B — FMP-backed import-time float enrichment.
 //
-// The orchestrator's fetchFloat returns FloatFetchResult ({float,
-// market_cap, sector}) — all three come back in the same Polygon ticker
-// reference call, so persisting market_cap + sector alongside float costs
-// zero extra API spend. v0.3.0 Pillars work (small-cap / sector pillars)
-// reads those fields.
+// Replaces the legacy Polygon-shares-outstanding flow (which wrote
+// shares-outstanding into the column NAMED float — the bug). The wrapper
+// now sources REAL tradable float from FMP `/stable/shares-float` and
+// writes:
+//   market_data.float              ← FMP floatShares  (real tradable float)
+//   market_data.shares_outstanding ← FMP outstandingShares (issued count)
+//
+// Honesty rules (mirrored in enrich-float-fmp.test.ts):
+//   - market_data.float receives FMP floatShares, NEVER outstandingShares.
+//   - LABT-case (FMP returns null float): row.float = NULL. NO silent
+//     fallback to shares_outstanding. The UI then surfaces "Unavailable".
+//   - market_cap + sector are NOT fetched here in Commit B. FMP's
+//     shares-float endpoint doesn't return them; pulling them from FMP
+//     profile would double the API spend per symbol. The market refresh
+//     button (separate path, electron/market/fetch.ts) still populates
+//     them from Polygon. Existing market_cap/sector values are preserved
+//     via upsertMarketRow's behaviour: error-path null doesn't wipe a
+//     prior value (we explicitly pass through `existing?.market_cap`).
+//
+// Web-portable per ARCHITECTURE.md Rule 4: the FMP key is read from
+// settings here (main process) and passed as a parameter into the pure
+// src/services/fmp.ts service module. The service module never reads
+// process.env — same shape as src/services/massive.ts.
+//
+// Convention notes:
+//   - The orchestrator's contract is unchanged. Only the injected
+//     fetchFloat impl swaps from Polygon → FMP. The orchestrator's
+//     `missing` counter still gates on result.float === null, so the
+//     LABT case correctly counts as missing without losing the
+//     outstanding-shares payload.
+//   - On settle, both backfill primitives run: trades.float_shares ←
+//     market_data.float, trades.shares_outstanding ← market_data.shares_outstanding.
 
 import { getSettings } from '../settings/repo'
-import { fetchTickerDetails } from '../market/massive'
-import { withRateLimitRetry } from '../market/rate-limit'
+import { fetchSharesFloat } from '@/services/fmp'
 import { getMarketRow, upsertMarketRow } from '../market/repo'
-import { backfillFloatShares } from './repo'
+import { backfillFloatShares, backfillSharesOutstanding } from './repo'
 import {
   enrichFloatForSymbols,
   type EnrichFloatResult,
@@ -21,13 +44,11 @@ import {
 
 const REQUEST_SPACING_MS = 350
 
-/** Fetch ticker details (float + market_cap + sector from one Polygon
- *  call) for each newly-imported symbol, upsert the market_data row, and
- *  propagate float to trades.float_shares via a per-symbol backfill.
- *  Bypasses the symbolsNeedingFetch 7-day TTL gate entirely — the import
- *  flow already knows these symbols are new and must be fetched. Awaited
- *  by the post-commit-enrich composer so the toast can report a consistent
- *  post-enrichment state. */
+/** Fetch real tradable float (FMP) for each newly-imported symbol, upsert
+ *  the market_data row with float + shares_outstanding, and propagate to
+ *  trades via the per-symbol backfills. Bypasses the symbolsNeedingFetch
+ *  7-day TTL gate entirely — the import flow already knows these symbols
+ *  are new. */
 export async function enrichFloatForImportedSymbols(
   symbols: string[],
   onProgress?: (p: { current: number; total: number; symbol: string }) => void,
@@ -35,44 +56,47 @@ export async function enrichFloatForImportedSymbols(
   if (symbols.length === 0) {
     return { fetched: 0, missing: 0, errored: 0, errors: [] }
   }
-  const { polygon_api_key } = getSettings().values
-  if (!polygon_api_key) {
-    // No key → can't fetch. Count as missing so the toast can nudge the
-    // user toward Settings → API key. Mirrors the country-side handling.
+  const { fmp_api_key } = getSettings().values
+  if (!fmp_api_key) {
+    // No FMP key → can't fetch real float. Count as missing so a future
+    // toast / status surface can nudge the user toward Settings → FMP key
+    // (mirrors the existing Massive-key handling).
     return { fetched: 0, missing: symbols.length, errored: 0, errors: [] }
   }
 
   return enrichFloatForSymbols({
     symbols,
-    fetchFloat: (symbol) =>
-      withRateLimitRetry(async () => {
-        const d = await fetchTickerDetails(polygon_api_key, symbol)
-        return {
-          float: d.shares_outstanding,
-          market_cap: d.market_cap,
-          sector: d.sector,
-        }
-      }),
+    fetchFloat: async (symbol) => {
+      // fetchSharesFloat never throws — all-null on transient errors or
+      // coverage gaps. The orchestrator interprets null float as MISSING.
+      const r = await fetchSharesFloat(fmp_api_key, symbol)
+      return {
+        float: r.floatShares,
+        shares_outstanding: r.outstandingShares,
+        // FMP shares-float endpoint doesn't supply these; the existing
+        // market refresh button still populates them from Polygon when run.
+        market_cap: null,
+        sector: null,
+      }
+    },
     persistFloat: (symbol, result) => {
-      // Update the market_data cache so a later refresh sees the values.
-      // Country fields written by the country phase in the prior step are
-      // preserved by upsertMarketRow's COALESCE on country/country_name/
-      // region — passing the existing row's values is belt-and-suspenders.
-      // Aggregates fields (daily_volumes / avg_volume) are preserved here
-      // too — they're written by the aggregates phase that runs next.
+      // Preserve everything other phases wrote — country block from
+      // resolve-countries.ts, aggregates fields from enrich-aggregates.ts,
+      // and any cached market_cap / sector from a prior Polygon refresh.
       const existing = getMarketRow(symbol)
       upsertMarketRow({
         symbol,
-        // Commit A: existing Polygon flow still writes shares-outstanding
-        // into the `float` column (the legacy behaviour). Commit B will
-        // replace this with the FMP-shares-float wrapper that writes real
-        // float here and outstandingShares into shares_outstanding. Until
-        // then, shares_outstanding stays at the existing (post-migration)
-        // value or null.
+        // ── Load-bearing honesty ──
+        // .float gets REAL FMP float. NEVER falls back to outstanding —
+        // a null FMP float persists as a null .float column, which the
+        // UI surfaces as "Unavailable" rather than the historical bug
+        // of silently showing shares-outstanding.
         float: result.float,
-        shares_outstanding: existing?.shares_outstanding ?? null,
-        market_cap: result.market_cap,
-        sector: result.sector,
+        shares_outstanding: result.shares_outstanding,
+        // Passenger fields — NOT fetched here in Commit B.
+        market_cap: existing?.market_cap ?? null,
+        sector: existing?.sector ?? null,
+        // Other phases' values preserved as-is.
         avg_volume: existing?.avg_volume ?? null,
         daily_volumes: existing?.daily_volumes ?? {},
         country: existing?.country ?? null,
@@ -81,10 +105,11 @@ export async function enrichFloatForImportedSymbols(
         fetched_at: new Date().toISOString(),
         error: null,
       })
-      // Copy the float onto trades.float_shares for this symbol. The
-      // backfill is idempotent and only touches rows whose float_shares
-      // is still NULL, so manual overrides survive.
+      // Propagate to trades — both columns. Each backfill is idempotent
+      // and only touches rows whose target column is still NULL, so user
+      // manual overrides survive.
       backfillFloatShares([symbol])
+      backfillSharesOutstanding([symbol])
     },
     emitProgress: onProgress,
     spacingMs: REQUEST_SPACING_MS,

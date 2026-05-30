@@ -242,6 +242,47 @@ describe('FloatEditor parseInput — round-trips the int() seed exactly', () => 
   })
 })
 
+// v0.2.2 — smoke-found 2026-05-30: typing `1.5M` in the Trade Detail Modal's
+// Float field, then reopening the modal, showed the field as `2` — not
+// `1,500,000`. The bug surface is the parser silently treating a bare
+// decimal as a literal share count and rounding it: `Math.round(1.5 * 1) = 2`.
+//
+// Honest framing — the user case shape: the user reported "1.5M" but the
+// Node trace shows that exact string parses correctly to 1,500,000. The
+// only inputs that produce 2 are bare decimals (no suffix detected). So
+// either the M wasn't typed (or wasn't registered), or some upstream path
+// stripped it. Either way, the LOSSY conversion is the failure: any bare
+// decimal smaller than the K bucket boundary is almost certainly user
+// error (forgot the suffix), and silently rounding to 2 shares corrupts
+// data. The integer-only contract should reject bare decimals — null
+// leaves the field at its prior value, no silent save, no surprise.
+describe('FloatEditor parseInput — bare-decimal honesty (smoke-found 2026-05-30)', () => {
+  it('parses suffixed decimal forms to the full magnitude (HONEST suffix application)', () => {
+    expect(parseInput('1.5M')).toBe(1_500_000)
+    expect(parseInput('1.5m')).toBe(1_500_000)
+    expect(parseInput('1.2K')).toBe(1_200)
+  })
+
+  it('parses raw integers as-is (no surprise transformation)', () => {
+    expect(parseInput('132507')).toBe(132_507)
+    expect(parseInput('850')).toBe(850)
+    expect(parseInput('1500000')).toBe(1_500_000)
+  })
+
+  it('REJECTS bare decimals — must NOT silently round to a nonsense share count', () => {
+    // The reported bug: 1.5 → 2 (rounding 1.5 shares to 2). Recommend null
+    // (reject) so the field stays at its prior value rather than saving a
+    // value the user almost certainly didn't intend. Bare decimals are
+    // ambiguous: "1.5" looks more like a forgotten-suffix typo than a
+    // genuine "1 or 2 shares" intent. Integers stay legal (850 = 850).
+    expect(parseInput('1.5')).toBeNull()
+    expect(parseInput('0.5')).toBeNull()
+    expect(parseInput('3.14')).toBeNull()
+    // Edge: an explicit ".5M" SHOULD still work (suffixed shorthand).
+    expect(parseInput('.5M')).toBe(500_000)
+  })
+})
+
 describe('formatProfitFactor — single render path for Σ wins / |Σ losses|', () => {
   // Day 2 of the v0.2.2 sprint promotes the inline pf() helper from
   // FullStatsTable.tsx into a shared util so the new day-scoped Performance

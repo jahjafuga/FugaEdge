@@ -36,6 +36,7 @@ function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
     total_risk: null,
     r_multiple: null,
     float_shares: null,
+    shares_outstanding: null,
     catalyst_type: null,
     days_since_catalyst: null,
     country: null,

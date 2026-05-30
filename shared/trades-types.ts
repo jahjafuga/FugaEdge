@@ -55,10 +55,18 @@ export interface TradeListRow {
   /** Computed: net_pnl / total_risk. Falls back to net_pnl / planned_risk
    *  when stop price is unset. Null when neither path yields a value. */
   r_multiple: number | null
-  /** Tradable share float at the time of the trade. Auto-populated from
-   *  market_data.float on import; user-editable in the detail modal. Null
-   *  when neither cached market data nor a user override exists. */
+  /** Tradable free float — CURRENT snapshot (not point-in-time-of-trade;
+   *  point-in-time stays a v0.3.0 tentpole). v0.2.2 Commit B onward this
+   *  holds REAL FMP float, not the legacy shares-outstanding mislabel.
+   *  Auto-populated from market_data.float on import; user-editable in
+   *  the detail modal's Float row. Null when FMP returned no data
+   *  ("Unavailable" UI cue) or before Commit B's enrichment has run. */
   float_shares: number | null
+  /** Issued share count (current). v0.2.2 Commit B — populated from FMP
+   *  outstandingShares; also preserved from the schema-21 legacy data
+   *  move for pre-Commit-B trades. Display-only in the modal "Shares
+   *  Out" row; not a momentum-quality choice so no user override path. */
+  shares_outstanding: number | null
   /** Catalyst type for the trade (News / Earnings / Halt Resume / etc.).
    *  Free-form text so the dropdown can grow without a schema change. */
   catalyst_type: string | null

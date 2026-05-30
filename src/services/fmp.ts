@@ -21,6 +21,13 @@ import type { FmpKeyStatus, SharesFloatResult } from '@shared/fmp-types'
 const SHARES_FLOAT_ENDPOINT =
   'https://financialmodelingprep.com/stable/shares-float'
 
+// Per-request hard timeout — mirrors electron/market/massive.ts's
+// REQUEST_TIMEOUT_MS so a stalled FMP request can't silently hang the
+// fire-and-forget import path. Smoke-found 2026-05-30: without this,
+// a stuck FMP fetch would never settle and no error would surface —
+// the same failure mode commit edcf2a4 already fixed for Polygon.
+const REQUEST_TIMEOUT_MS = 15_000
+
 /**
  * Test whether an FMP API key is accepted by FMP.
  *
@@ -36,8 +43,10 @@ const SHARES_FLOAT_ENDPOINT =
  */
 export async function verifyFmp(apiKey: string): Promise<FmpKeyStatus> {
   const url = `${SHARES_FLOAT_ENDPOINT}?symbol=AAPL&apikey=${encodeURIComponent(apiKey)}`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    const res = await fetch(url, { method: 'GET' })
+    const res = await fetch(url, { method: 'GET', signal: controller.signal })
     if (res.status === 200) return { kind: 'valid' }
     if (res.status === 401 || res.status === 403) return { kind: 'invalid' }
     if (res.status === 429) return { kind: 'rate-limited' }
@@ -45,9 +54,13 @@ export async function verifyFmp(apiKey: string): Promise<FmpKeyStatus> {
     // as invalid. If a 5xx ever needs distinct handling, add a state.
     return { kind: 'invalid' }
   } catch {
-    // fetch() rejects only on network-level failure (DNS, offline, TLS) —
-    // never on a non-2xx HTTP status.
+    // fetch() rejects on network-level failure (DNS, offline, TLS) OR on
+    // the AbortController firing — both collapse to network-error here,
+    // keeping the Settings "Test key" flow's contract of returning a
+    // discriminated union without ever throwing.
     return { kind: 'network-error' }
+  } finally {
+    clearTimeout(timer)
   }
 }
 
@@ -73,29 +86,54 @@ export async function fetchSharesFloat(
     freeFloatPercent: null,
   }
   const url = `${SHARES_FLOAT_ENDPOINT}?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`
-  let res: Response
+  // Per-request timeout: the AbortController fires after REQUEST_TIMEOUT_MS
+  // and the same timer also bounds a stalled response stream (headers
+  // arrived, body never finishes). Cleared in `finally`.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
   try {
-    res = await fetch(url, { method: 'GET' })
-  } catch {
-    return nullResult
-  }
-  if (res.status !== 200) return nullResult
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'GET', signal: controller.signal })
+    } catch (e) {
+      // Distinguish timeout-abort from genuine network failure. Timeout
+      // throws so the orchestrator records it in errors[] under a clear
+      // diagnostic; network failures keep the existing nullResult contract
+      // (silent "missing" — the import path can't block on a single
+      // unreachable symbol). The timeout message mirrors Polygon's
+      // massive.ts verbatim so a future consumer persisting this to
+      // market_data.error can use the same `${status === 0 ? 'network' :
+      // status}: ${e.message}` prefix shape — that lands as
+      // "network: Request timed out after 15000ms", which the existing
+      // refresh-eligibility.ts classifier treats as transient (NOT
+      // plan-gated 403:NOT_AUTHORIZED) and retries on next refresh.
+      const timedOut =
+        !!e && typeof e === 'object' && (e as { name?: unknown }).name === 'AbortError'
+      if (timedOut) {
+        throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`)
+      }
+      return nullResult
+    }
+    if (res.status !== 200) return nullResult
 
-  let body: unknown
-  try {
-    body = await res.json()
-  } catch {
-    return nullResult
-  }
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      return nullResult
+    }
 
-  // FMP returns an array. Empty = unknown symbol. Read the first row.
-  if (!Array.isArray(body) || body.length === 0) return nullResult
-  const row = body[0] as Record<string, unknown>
+    // FMP returns an array. Empty = unknown symbol. Read the first row.
+    if (!Array.isArray(body) || body.length === 0) return nullResult
+    const row = body[0] as Record<string, unknown>
 
-  return {
-    floatShares: toNullableNumber(row.floatShares),
-    outstandingShares: toNullableNumber(row.outstandingShares),
-    freeFloatPercent: toNullableNumber(row.freeFloat),
+    return {
+      floatShares: toNullableNumber(row.floatShares),
+      outstandingShares: toNullableNumber(row.outstandingShares),
+      freeFloatPercent: toNullableNumber(row.freeFloat),
+    }
+  } finally {
+    clearTimeout(timer)
   }
 }
 

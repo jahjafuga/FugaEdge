@@ -337,13 +337,35 @@ function OverviewTab({
             }
           />
         </FieldRow>
+        {/* v0.2.2 Commit B — Float (real tradable supply from FMP) is the
+            momentum-relevant primary number. User-editable so a trader can
+            override with a better data source. Honest "Unavailable" hint
+            when null — NEVER silently falls back to shares_outstanding;
+            that was the bug being fixed. NOTE: this is CURRENT float, not
+            point-in-time-of-trade (v0.3.0 tentpole separately). */}
+        <FieldRow label="Float">
+          <div>
+            <FloatEditor
+              value={t.float_shares}
+              onChange={(next) =>
+                onSaveFloat({ trade_id: t.id, float_shares: next })
+              }
+            />
+            {t.float_shares == null && (
+              <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
+                Unavailable — FMP returned no float for this symbol
+              </div>
+            )}
+          </div>
+        </FieldRow>
+        {/* Issued share count. Display-only — a fact about the company,
+            not a momentum-quality choice, so no override path. Read from
+            the schema-21 shares_outstanding column (preserved migration
+            data + populated alongside float by the FMP enrichment). */}
         <FieldRow label="Shares Out">
-          <FloatEditor
-            value={t.float_shares}
-            onChange={(next) =>
-              onSaveFloat({ trade_id: t.id, float_shares: next })
-            }
-          />
+          <div className="font-mono text-sm text-fg-secondary tnum">
+            {t.shares_outstanding == null ? '—' : int(t.shares_outstanding)}
+          </div>
         </FieldRow>
         <FieldRow label="Country">
           <CountryEditor
