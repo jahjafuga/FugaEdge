@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WeekDetail, WeekMetrics } from '@shared/week-types'
 import Card from '@/components/ui/Card'
-import { formatProfitFactor, int, money, pnlClass, price, shortDate, signed } from '@/lib/format'
+import { duration, formatProfitFactor, int, money, pnlClass, price, shortDate, signed } from '@/lib/format'
 
 interface Row {
   label: string
@@ -17,9 +17,9 @@ interface Section {
 // v0.2.2 Day 4.5c — Week Performance: the pattern-spotting tab. Mirrors the Day
 // Performance tab's dense sectioned stat-table chrome, scoped to a week, with
 // day-by-day P&L bars on top as the one week-specific visual. Consumes the pure
-// WeekMetrics (computeWeekMetrics) — no business logic here. Hold-time and
-// per-trade dispersion are intentionally absent (week scope; see plan addendum);
-// Execution Quality renders the awaiting-intraday placeholder like the day tab.
+// WeekMetrics (computeWeekMetrics) — no business logic here. Hold time is wired
+// in Day 5b (mirrors the day tab's section); Execution Quality renders the
+// awaiting-intraday placeholder like the day tab.
 export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
   const m = detail.metrics
 
@@ -101,6 +101,15 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
           value: <span className="font-mono text-gold">{m.winRate == null ? '—' : `${(m.winRate * 100).toFixed(1)}%`}</span>,
           hint: m.winRate == null ? 'All scratches — no decided trades.' : 'Winners ÷ (winners + losers).',
         },
+      ],
+    },
+    {
+      title: 'Hold time',
+      rows: [
+        { label: 'Avg hold (all)', value: <Hold seconds={m.avgHoldSeconds} /> },
+        { label: 'Avg hold (winners)', value: <Hold seconds={m.avgHoldSecondsWinners} tone="win" /> },
+        { label: 'Avg hold (losers)', value: <Hold seconds={m.avgHoldSecondsLosers} tone="loss" /> },
+        { label: 'Avg hold (scratches)', value: <Hold seconds={m.avgHoldSecondsScratches} /> },
       ],
     },
     {
@@ -298,6 +307,14 @@ function SignedWithSymbol({ pnl, symbol }: { pnl: number; symbol: string }) {
       <span className="ml-1 text-fg-tertiary">{symbol}</span>
     </span>
   )
+}
+
+// Mirrors the day PerformanceTab's Hold helper: duration() format, tone-colored
+// for winner/loser buckets, dash when the bucket is empty (null).
+function Hold({ seconds, tone }: { seconds: number | null; tone?: 'win' | 'loss' }) {
+  if (seconds == null) return <Dash />
+  const cls = tone === 'win' ? 'text-win' : tone === 'loss' ? 'text-loss' : 'text-fg-primary'
+  return <span className={`font-mono ${cls}`}>{duration(seconds)}</span>
 }
 
 function DayValue({ date, pnl }: { date: string; pnl: number }) {

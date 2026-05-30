@@ -37,6 +37,13 @@ export interface WeekMetrics {
   // null when none do (keeps the "Awaiting intraday" placeholder). Mirrors day.ts.
   avgMfeDollars: number | null
   avgMaeDollars: number | null
+  // Avg hold time in SECONDS, over the week's trades that have a close_time
+  // (still-open trades are skipped). Bucketed by net_pnl sign. Each is null
+  // when its bucket is empty. v0.2.2 Day 5b — mirrors day.ts hold-time logic.
+  avgHoldSeconds: number | null
+  avgHoldSecondsWinners: number | null
+  avgHoldSecondsLosers: number | null
+  avgHoldSecondsScratches: number | null
   // Week-scoped sum of per-trade ExitDelta.delta (best-exit gap from each trade's
   // own exit fills — fill-based, not intraday). Null when no trade scaled out with
   // a better available exit. Mirrors day.ts moneyLeftOnTable/moneyLeftCoverage.

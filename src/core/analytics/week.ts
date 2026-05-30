@@ -40,6 +40,16 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   let mfeCount = 0
   let maeSum = 0
   let maeCount = 0
+  // Hold-time accumulators (v0.2.2 Day 5b). Trades without close_time (still
+  // open) are skipped — mirrors day.ts.
+  let holdSecondsTotal = 0
+  let holdSecondsTotalCount = 0
+  let holdSecondsWinnersTotal = 0
+  let holdSecondsWinnersCount = 0
+  let holdSecondsLosersTotal = 0
+  let holdSecondsLosersCount = 0
+  let holdSecondsScratchesTotal = 0
+  let holdSecondsScratchesCount = 0
   // Single biggest winning / worst losing TRADE (sign-gated, mirrors day.ts).
   let biggestWin: { symbol: string; pnl: number } | null = null
   let worstLoss: { symbol: string; pnl: number } | null = null
@@ -89,6 +99,28 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     totalShares += t.shares_bought + t.shares_sold
     totalDollarVolume += t.shares_bought * t.avg_buy_price + t.shares_sold * t.avg_sell_price
 
+    // Hold seconds — only when close_time is present and both timestamps parse.
+    // Both timestamps are in the same TZ so the delta is TZ-independent.
+    if (t.close_time !== null) {
+      const open = Date.parse(t.open_time)
+      const close = Date.parse(t.close_time)
+      if (!Number.isNaN(open) && !Number.isNaN(close)) {
+        const seconds = (close - open) / 1000
+        holdSecondsTotal += seconds
+        holdSecondsTotalCount += 1
+        if (t.net_pnl > 0) {
+          holdSecondsWinnersTotal += seconds
+          holdSecondsWinnersCount += 1
+        } else if (t.net_pnl < 0) {
+          holdSecondsLosersTotal += seconds
+          holdSecondsLosersCount += 1
+        } else {
+          holdSecondsScratchesTotal += seconds
+          holdSecondsScratchesCount += 1
+        }
+      }
+    }
+
     const sym = symbolAgg.get(t.symbol) ?? { tradeCount: 0, netPnl: 0, firstSeen: i }
     sym.tradeCount += 1
     sym.netPnl += t.net_pnl
@@ -121,6 +153,11 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
   const avgMfeDollars = mfeCount > 0 ? mfeSum / mfeCount : null
   const avgMaeDollars = maeCount > 0 ? maeSum / maeCount : null
+
+  const avgHoldSeconds = holdSecondsTotalCount > 0 ? holdSecondsTotal / holdSecondsTotalCount : null
+  const avgHoldSecondsWinners = holdSecondsWinnersCount > 0 ? holdSecondsWinnersTotal / holdSecondsWinnersCount : null
+  const avgHoldSecondsLosers = holdSecondsLosersCount > 0 ? holdSecondsLosersTotal / holdSecondsLosersCount : null
+  const avgHoldSecondsScratches = holdSecondsScratchesCount > 0 ? holdSecondsScratchesTotal / holdSecondsScratchesCount : null
 
   let profitFactor: number | null = null
   if (decided > 0) {
@@ -227,6 +264,10 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     avgPerShareGainLoss,
     avgMfeDollars,
     avgMaeDollars,
+    avgHoldSeconds,
+    avgHoldSecondsWinners,
+    avgHoldSecondsLosers,
+    avgHoldSecondsScratches,
     moneyLeftOnTable,
     moneyLeftCoverage,
     symbolBreakdown,

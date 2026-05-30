@@ -448,4 +448,70 @@ describe('computeWeekMetrics', () => {
     expect(r.avgMfeDollars).toBeNull()
     expect(r.avgMaeDollars).toBeNull()
   })
+
+  // ── v0.2.2 Day 5b — Week Performance Hold Time. Mirrors day.ts: hold seconds
+  //    = (close_time − open_time)/1000, bucketed by net_pnl sign, still-open
+  //    trades (close_time null) skipped, empty buckets → null.
+
+  it('computes avgHoldSeconds as the mean hold across the week’s trades', () => {
+    const trades: TradeListRow[] = [
+      // 10 min = 600s
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, open_time: '2026-05-11T13:30:00Z', close_time: '2026-05-11T13:40:00Z' }),
+      // 20 min = 1200s
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 50, open_time: '2026-05-12T13:30:00Z', close_time: '2026-05-12T13:50:00Z' }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.avgHoldSeconds).toBeCloseTo(900, 5) // (600 + 1200) / 2
+  })
+
+  it('partitions hold time into winners / losers / scratches by net_pnl sign', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, open_time: '2026-05-11T13:30:00Z', close_time: '2026-05-11T13:40:00Z' }), // win 600s
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 200, open_time: '2026-05-12T13:30:00Z', close_time: '2026-05-12T13:50:00Z' }), // win 1200s
+      tradeRow({ id: 3, date: '2026-05-13', net_pnl: -50, open_time: '2026-05-13T13:30:00Z', close_time: '2026-05-13T14:00:00Z' }), // loss 1800s
+      tradeRow({ id: 4, date: '2026-05-14', net_pnl: 0, open_time: '2026-05-14T13:30:00Z', close_time: '2026-05-14T13:35:00Z' }),   // scratch 300s
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.avgHoldSecondsWinners).toBeCloseTo(900, 5)   // (600 + 1200) / 2
+    expect(r.avgHoldSecondsLosers).toBeCloseTo(1800, 5)
+    expect(r.avgHoldSecondsScratches).toBeCloseTo(300, 5)
+    expect(r.avgHoldSeconds).toBeCloseTo(975, 5)          // (600 + 1200 + 1800 + 300) / 4
+  })
+
+  it('skips still-open trades (close_time null) — no NaN', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, open_time: '2026-05-11T13:30:00Z', close_time: '2026-05-11T13:40:00Z' }), // closed, 600s
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 0, is_open: true, open_time: '2026-05-12T13:30:00Z', close_time: null }),        // open position
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(Number.isNaN(r.avgHoldSeconds as number)).toBe(false)
+    expect(r.avgHoldSeconds).toBeCloseTo(600, 5)   // only the closed trade counts
+    // The open trade is net 0 but is skipped entirely — the scratch bucket
+    // never sees it, so it stays empty → null (mirrors day.ts guard).
+    expect(r.avgHoldSecondsScratches).toBeNull()
+  })
+
+  it('all four hold fields null for an empty week', () => {
+    const r = computeWeekMetrics({ trades: [], weekEnd: WEEK_END })
+
+    expect(r.avgHoldSeconds).toBeNull()
+    expect(r.avgHoldSecondsWinners).toBeNull()
+    expect(r.avgHoldSecondsLosers).toBeNull()
+    expect(r.avgHoldSecondsScratches).toBeNull()
+  })
+
+  it('empty buckets are null on a winners-only week (no losers / scratches)', () => {
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 100, open_time: '2026-05-11T13:30:00Z', close_time: '2026-05-11T13:40:00Z' }),
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 60, open_time: '2026-05-12T13:30:00Z', close_time: '2026-05-12T13:50:00Z' }),
+    ]
+    const r = computeWeekMetrics({ trades, weekEnd: WEEK_END })
+
+    expect(r.avgHoldSecondsWinners).toBeCloseTo(900, 5)
+    expect(r.avgHoldSecondsLosers).toBeNull()
+    expect(r.avgHoldSecondsScratches).toBeNull()
+  })
 })
