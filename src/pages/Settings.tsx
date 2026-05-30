@@ -527,11 +527,11 @@ export default function Settings() {
                   <span className="font-mono text-gold">
                     {intradayResult.emaBackfilled}
                   </span>{' '}
-                  <span className="text-muted">EMA9 · </span>
+                  <span className="text-muted">EMA9 updated · </span>
                   <span className="font-mono text-gold">
                     {intradayResult.maeMfeBackfilled}
                   </span>{' '}
-                  <span className="text-muted">MAE/MFE · </span>
+                  <span className="text-muted">MAE/MFE updated · </span>
                   <span className="font-mono text-text">
                     {(intradayResult.durationMs / 1000).toFixed(1)}s
                   </span>
