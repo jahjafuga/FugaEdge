@@ -60,7 +60,7 @@ describe('parseTradeHistoryTime', () => {
 })
 
 describe('parseTradeHistoryCsv — happy path', () => {
-  it('parses Tester A-shape CSV into Execution[]', () => {
+  it('parses tradehistory-shape CSV into Execution[]', () => {
     const result = parseTradeHistoryCsv(SAMPLE)
     expect(result.skipped).toBe(0)
     expect(result.executions).toHaveLength(6)
@@ -90,9 +90,9 @@ describe('parseTradeHistoryCsv — happy path', () => {
   })
 
   it('propagates source_file when a filename is passed in', () => {
-    const result = parseTradeHistoryCsv(SAMPLE, 'tester-a-may-2026.csv')
+    const result = parseTradeHistoryCsv(SAMPLE, 'tradehistory-may-2026.csv')
     for (const e of result.executions) {
-      expect(e.source_file).toBe('tester-a-may-2026.csv')
+      expect(e.source_file).toBe('tradehistory-may-2026.csv')
     }
   })
 
@@ -155,7 +155,7 @@ describe('parseTradeHistoryCsv — bad-row handling', () => {
 })
 
 describe('detectFormat routing — tradehistory shape', () => {
-  it('routes Tester A-shape CSV to "tradehistory"', () => {
+  it('routes tradehistory-shape CSV to "tradehistory"', () => {
     expect(detectFormat(SAMPLE)).toBe('tradehistory')
   })
 
@@ -178,16 +178,16 @@ describe('buildRoundTrips on tradehistory executions', () => {
     expect(trip.is_open).toBe(false)
     expect(trip.source_format).toBe('tradehistory')
     expect(trip.source_broker).toBe('DAS')
-    // Tester A's file ships no fee columns → builder reports fees as not-reported.
+    // The tradehistory file ships no fee columns → builder reports fees as not-reported.
     expect(trip.fees_reported).toBe(false)
     expect(trip.total_fees).toBe(0)
   })
 })
 
-// Real-fixture smoke test (Tester A's actual file, permission granted).
+// Real-fixture smoke test (a tester's actual file, permission granted).
 const TESTER_A_FIXTURE = resolve(__dirname, '../../../test-fixtures/dtsm-tester-a-das-executed-orders-may-2026.csv')
 
-describe('Tester A fixture — end-to-end', () => {
+describe('tradehistory fixture — end-to-end', () => {
   if (!existsSync(TESTER_A_FIXTURE)) {
     it.skip('skipped: fixture not present', () => {})
     return

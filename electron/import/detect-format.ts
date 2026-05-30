@@ -33,7 +33,7 @@ export function detectFormat(csvText: string): CsvFormat {
   // Executions file (Trades.csv) — first column is TradeID.
   if (first === 'tradeid') return 'executions'
 
-  // TradeHistory / DAS Trades window export (Tester A variant) — first column
+  // TradeHistory / DAS Trades window export (tradehistory variant) — first column
   // is Date, separate Time + Symbol + Side + Quantity + Price columns.
   // Header check is strict enough to avoid colliding with other date-first
   // formats we might encounter later (e.g. Webull mobile, which starts
@@ -49,7 +49,7 @@ export function detectFormat(csvText: string): CsvFormat {
     return 'tradehistory'
   }
 
-  // DAS Trades window export (Tester B variant) — first column is Time,
+  // DAS Trades window export (trades_window variant) — first column is Time,
   // bare HH:MM:SS without a date prefix. Cloid is the distinctive header
   // that disambiguates this from a hypothetical "Time"-led Webull export.
   if (

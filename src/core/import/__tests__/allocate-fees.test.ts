@@ -79,7 +79,7 @@ describe('allocateFees — multi-trip pro-rata', () => {
   })
 
   it('end-to-end sign preservation: negative ECN flows into total_fees', () => {
-    // Realistic Tester B-shape day: 5 trips on the same (date, symbol)
+    // Realistic trades_window-shape day: 5 trips on the same (date, symbol)
     // with a −$2.00 ECN rebate spread across them. Every trip's
     // total_fees must be ≤ 0 (rebate exceeds zero debits in this test).
     const trips = [

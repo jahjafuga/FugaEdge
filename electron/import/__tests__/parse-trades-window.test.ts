@@ -167,7 +167,7 @@ describe('parseTradesWindowCsv — partial fills (shared Cloid)', () => {
 })
 
 describe('detectFormat routing — trades_window', () => {
-  it('routes Tester B-shape CSV to "trades_window"', () => {
+  it('routes trades_window-shape CSV to "trades_window"', () => {
     expect(detectFormat(SAMPLE)).toBe('trades_window')
   })
 
@@ -218,7 +218,7 @@ const TESTER_B_FIXTURE = resolve(
   '../../../test-fixtures/Tester B Trades Example.csv',
 )
 
-describe('Tester B real fixture — generic invariants only', () => {
+describe('trades_window real fixture — generic invariants only', () => {
   if (!existsSync(TESTER_B_FIXTURE)) {
     it.skip('skipped: fixture not present', () => {})
     return

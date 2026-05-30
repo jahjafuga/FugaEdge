@@ -92,8 +92,8 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
   // Pre-computed round-trip / order exports across brokers — same role
   // (one row per filled order or per round trip). Filename and the
   // per-file row-count label differentiate the source. Covers:
-  //   - DAS TradeHistory (Tester A variant)
-  //   - DAS Trades window (Tester B variant)
+  //   - DAS TradeHistory (tradehistory variant)
+  //   - DAS Trades window (trades_window variant)
   //   - Webull Mobile (Name-led CSV)
   //   - Webull Desktop (XLSX)
   if (

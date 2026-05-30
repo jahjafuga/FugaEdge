@@ -6,7 +6,7 @@ import {
 } from '../refresh-eligibility'
 
 // Commit B (5c grind-shortener): a force=false refresh must STOP re-attempting
-// plan-gated 403 pairs every run (Tester A's grind), while still retrying genuinely
+// plan-gated 403 pairs every run (a heavy daily grind), while still retrying genuinely
 // transient failures. Conservative bias: skip ONLY on the high-confidence
 // plan-gate signal; everything else (incl. ambiguous) retries.
 
