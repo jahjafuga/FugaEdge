@@ -106,7 +106,7 @@ Solo trader = user, champion, decision-maker, and financial buyer in one. No mul
 |Sentiment rating|1–5 emotional-state tag attached to each trade.|
 |Catalyst|The news / fundamental reason a small-cap is in play that day.|
 |DAS Trader|The execution platform most ICP users trade through (Windows only).|
-|DTSM|Tester B Hogan's trading community (joindtsm.com) — first beta cohort partner.|
+|DTSM|The DTSM founder's trading community (joindtsm.com) — first beta cohort partner.|
 
 ## Brand Voice
 
@@ -117,7 +117,7 @@ Solo trader = user, champion, decision-maker, and financial buyer in one. No mul
 ## Proof Points
 
 **Metrics:** *(pre-launch — none to cite yet)*
-**Customers:** First beta cohort via DTSM (Tester B Hogan, joindtsm.com) — planned alongside v0.2.0, currently in active development.
+**Customers:** First beta cohort via DTSM (joindtsm.com) — planned alongside v0.2.0, currently in active development.
 **Testimonials:** *(TBD post-beta)*
 **Value themes:**
 

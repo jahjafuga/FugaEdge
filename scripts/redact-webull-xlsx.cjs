@@ -18,7 +18,7 @@ const fs = require('node:fs')
 const ExcelJS = require('exceljs')
 
 const REPO = path.resolve(__dirname, '..')
-const SRC = path.join(REPO, 'test-fixtures', 'webull-source-hash.xlsx')
+const SRC = path.join(REPO, 'test-fixtures', 'webull-desktop-source.xlsx')
 const DST = path.join(REPO, 'test-fixtures', 'webull-desktop-paper-2026-05-14.xlsx')
 const REDACTED_USER_ID = '100000000'
 
