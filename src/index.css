@@ -228,6 +228,17 @@
       scroll-behavior: auto !important;
     }
   }
+
+  /* Theme-switch flicker fix: while <html> carries .theme-switching, kill all
+     transitions so a dark/light flip repaints in a single frame instead of
+     each element animating its color independently (which read as "tearing").
+     applyTheme() adds this class, swaps the theme, forces a reflow, then
+     removes it on the next frame so normal hover/focus transitions resume. */
+  html.theme-switching *,
+  html.theme-switching *::before,
+  html.theme-switching *::after {
+    transition: none !important;
+  }
 }
 
 @layer components {

@@ -33,9 +33,20 @@ export function resolveTheme(mode: ThemeMode): ResolvedTheme {
 // in index.html does this once before React mounts; we do it again on
 // every change so the toggle works without a reload.
 export function applyTheme(resolved: ResolvedTheme): void {
-  const cls = document.documentElement.classList
+  const root = document.documentElement
+  const cls = root.classList
+  // Disable transitions for this one frame so the dark/light swap repaints
+  // instantly instead of each element animating its color independently (the
+  // "tearing" flicker). Paired with the `html.theme-switching` rule in
+  // index.css.
+  cls.add('theme-switching')
+  // ── Existing theme toggle (unchanged) ──
   if (resolved === 'light') cls.add('light')
   else cls.remove('light')
+  // Force a synchronous reflow so the new colors commit while transitions are
+  // still suppressed, then restore them next frame for normal hover/focus.
+  void root.offsetHeight
+  requestAnimationFrame(() => cls.remove('theme-switching'))
 }
 
 // Tiny external store so multiple components can subscribe to mode changes.
