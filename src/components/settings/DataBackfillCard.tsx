@@ -264,7 +264,7 @@ export default function DataBackfillCard({
               {profileRunning ? 'Backfilling…' : 'Backfill sector & industry'}
             </button>
             <p className="text-xs text-fg-tertiary">
-              Fetches clean GICS sector &amp; industry from FMP for symbols with no
+              Fetches sector &amp; industry from FMP for symbols with no
               industry yet. Leaves symbols FMP has no data for untouched.
             </p>
             <label className="flex items-center gap-2 text-xs text-fg-secondary">

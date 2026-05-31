@@ -14,8 +14,8 @@
 // never wipes a previously-populated value — we prefer the fresh FMP value
 // and fall back to whatever the row already had. The market-refresh path
 // (electron/market/fetch.ts) still sources cap/sector from Polygon — out of
-// scope for Stage 2. TAXONOMY: FMP sector/industry are GICS-style
-// ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
+// scope for Stage 2. TAXONOMY: FMP sector/industry use FMP's own
+// taxonomy ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
 
 import { getSettings } from '../settings/repo'
 import { fetchTickerReference } from '../market/massive'

@@ -20,8 +20,8 @@
 // country (Option B threading) so the import country phase can persist them to
 // market_data with ZERO extra requests. They have no bearing on country
 // resolution — a symbol with a null country but a non-null marketCap still
-// carries the marketCap through. TAXONOMY: FMP sector/industry are GICS-style
-// ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
+// carries the marketCap through. TAXONOMY: FMP sector/industry use FMP's
+// own taxonomy ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
 //
 // Contract:
 //   - One result per symbol (import groups trades by symbol).

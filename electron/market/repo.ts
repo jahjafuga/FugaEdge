@@ -12,7 +12,7 @@ export interface MarketRow {
   shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
-  /** GICS-style industry from FMP /stable/profile (e.g. "Biotechnology"),
+  /** FMP industry from /stable/profile (e.g. "Biotechnology"),
    *  the finer companion to sector. v0.2.3 Stage 2. NOT Polygon SIC text. */
   industry: string | null
   avg_volume: number | null
@@ -115,7 +115,7 @@ export function upsertMarketRow(input: MarketRow): void {
       shares_outstanding = excluded.shares_outstanding,
       market_cap         = excluded.market_cap,
       sector             = excluded.sector,
-      -- industry is FMP-only (Polygon has no GICS industry), so the
+      -- industry is FMP-only (Polygon has no industry field), so the
       -- market-refresh path passes null for it. COALESCE keeps a
       -- previously-imported industry instead of letting a refresh wipe it.
       -- v0.2.3 Stage 2; mirrors the country-field protection below. (cap /

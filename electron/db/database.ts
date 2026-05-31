@@ -542,7 +542,7 @@ function migrateAfterSchema(
   if (!hasMarket('country_name')) conn.exec('ALTER TABLE market_data ADD COLUMN country_name TEXT')
   if (!hasMarket('region'))       conn.exec('ALTER TABLE market_data ADD COLUMN region TEXT')
   // v0.2.3 Stage 2 (schema 21 → 22) — FMP /stable/profile `industry`, the
-  // GICS-style companion to `sector`. Purely additive: a NULL column, no
+  // finer-grained companion to `sector`. Purely additive: a NULL column, no
   // data transform, no backfill — existing rows stay NULL until a future
   // import re-touches them. Same lightweight pattern as country/region above
   // (PRAGMA-gated ALTER is the idempotency mechanism; no module/latch/backup

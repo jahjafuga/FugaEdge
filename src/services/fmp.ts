@@ -21,7 +21,7 @@ import type { FmpKeyStatus, SharesFloatResult, CompanyProfile } from '@shared/fm
 //     foreign issuers (the country-default bug). Empty array = unknown symbol
 //     (verified 2026-05-31: ZZZZZ → []). v0.2.3 Stage 2 reads country +
 //     marketCap + sector + industry from this ONE call (zero extra requests).
-//     TAXONOMY: FMP sector/industry are GICS-style ("Healthcare" /
+//     TAXONOMY: FMP sector/industry use FMP's own taxonomy ("Healthcare" /
 //     "Biotechnology"), NOT Polygon SIC text ("PHARMACEUTICAL PREPARATIONS").
 //
 // Secrets-handling rule (mirror massive.ts): NEVER log the full URL — the
@@ -194,8 +194,8 @@ function toNullableIso(v: unknown): string | null {
  * SHOP→CA; US names→US; ZZZZZ→[]).
  *
  * Stage 2 widens the return to carry marketCap + sector + industry from the
- * SAME response (zero extra requests). TAXONOMY: FMP sector/industry are
- * GICS-style ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
+ * SAME response (zero extra requests). TAXONOMY: FMP sector/industry use
+ * FMP's own taxonomy ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
  *
  * Contract — a byte-for-byte mirror of fetchSharesFloat:
  * - Pure: apiKey as a parameter, no process.env / electron / fs / sqlite.

@@ -1,4 +1,4 @@
-// v0.2.3 Stage A — one-off FMP /stable/profile backfill that writes clean GICS
+// v0.2.3 Stage A — one-off FMP /stable/profile backfill that writes clean
 // sector + industry onto EXISTING market_data rows. Mirrors backfill-float.ts:
 // user-triggered from Settings → Data backfill, independent of country/float.
 //
@@ -187,7 +187,7 @@ describe('backfillAllProfiles — Stage A sector/industry backfill', () => {
     expect(result.filled).toBe(3)
   })
 
-  it('(a2) writes FMP GICS sector + industry, overwriting stale SIC sector', async () => {
+  it('(a2) writes FMP sector + industry, overwriting stale SIC sector', async () => {
     fmpReturns({
       AMPG: { country: null, marketCap: null, sector: 'Technology', industry: 'Communication Equipment' },
       AMSS: null,

@@ -6,7 +6,7 @@
 // whose `industry` is still NULL (imported before FMP profile wiring existed,
 // or carrying stale Polygon SIC `sector` text). It calls the EXISTING
 // fetchCompanyProfile (src/services/fmp.ts) once per symbol and writes the
-// GICS-style `sector` + `industry` back — NOTHING else.
+// FMP `sector` + `industry` back — NOTHING else.
 //
 // Scope discipline (Lao-approved): the SAME /stable/profile response also
 // carries `country` + `marketCap`, but Stage A deliberately does NOT write them.
@@ -43,7 +43,7 @@ const REQUEST_SPACING_MS = 350
 
 let inFlight: Promise<ProfileBackfillResult> | null = null
 
-/** Backfill GICS sector + industry onto every market_data row whose industry is
+/** Backfill FMP sector + industry onto every market_data row whose industry is
  *  NULL (or every row when force=true). Singleton-locked (mirrors
  *  backfillAllFloat / backfillAllCountries) so a double-click or racing import
  *  can't run two FMP profile sweeps at once. */

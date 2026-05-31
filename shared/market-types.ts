@@ -61,7 +61,7 @@ export interface FloatBackfillResult {
 
 // v0.2.3 Stage A — standalone sector/industry backfill (Settings → Data
 // backfill, "Backfill sector & industry" button). Calls FMP /stable/profile
-// once per market_data symbol and writes GICS sector + industry. Independent of
+// once per market_data symbol and writes FMP sector + industry. Independent of
 // the country (Massive) and float (FMP shares-float) actions: own API call, own
 // trigger + progress + result. Shape mirrors FloatBackfillResult.
 export interface ProfileBackfillProgress {
