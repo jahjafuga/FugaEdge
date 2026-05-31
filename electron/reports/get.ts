@@ -28,6 +28,10 @@ interface TradeForReport {
   mfe: number | null
   country: string | null
   region: string | null
+  // v0.2.3 Stage B — sourced from market_data by symbol (NOT trades columns);
+  // enriched in getReports after the SELECT. Optional: absent until enriched.
+  sector?: string | null
+  industry?: string | null
 }
 
 const SCRATCH_THRESHOLD = 2 // |net_pnl| <= $2 counts as a scratch
@@ -560,6 +564,41 @@ function buildByRegion(trades: TradeForReport[]): BucketStats[] {
   return out
 }
 
+// v0.2.3 Stage B — sector/industry breakdowns. Both mirror buildByRegion
+// exactly (group, 'Unknown' bucketed and sorted last, count-desc otherwise),
+// because sector/industry are a coarse closed-ish set like region — every
+// group is shown, none dropped, no min-trades collapse. Exported for direct
+// unit testing (the only exported builders today; region/country stay internal).
+export function buildBySector(trades: TradeForReport[]): BucketStats[] {
+  const groups = groupBy(trades, (t) => t.sector ?? 'Unknown')
+  const out: BucketStats[] = []
+  let i = 0
+  for (const [key, group] of groups) {
+    out.push(computeStats(group, key, i++))
+  }
+  out.sort((a, b) => {
+    if (a.key === 'Unknown' && b.key !== 'Unknown') return 1
+    if (b.key === 'Unknown' && a.key !== 'Unknown') return -1
+    return b.trade_count - a.trade_count
+  })
+  return out
+}
+
+export function buildByIndustry(trades: TradeForReport[]): BucketStats[] {
+  const groups = groupBy(trades, (t) => t.industry ?? 'Unknown')
+  const out: BucketStats[] = []
+  let i = 0
+  for (const [key, group] of groups) {
+    out.push(computeStats(group, key, i++))
+  }
+  out.sort((a, b) => {
+    if (a.key === 'Unknown' && b.key !== 'Unknown') return 1
+    if (b.key === 'Unknown' && a.key !== 'Unknown') return -1
+    return b.trade_count - a.trade_count
+  })
+  return out
+}
+
 const COUNTRY_MIN_TRADES = 3
 
 function buildByCountry(trades: TradeForReport[]): BucketStats[] {
@@ -589,6 +628,19 @@ export function getReports(): ReportsData {
       FROM trades
     `)
     .all() as TradeForReport[]
+
+  // v0.2.3 Stage B — enrich each trade with sector/industry from market_data
+  // (keyed by symbol; these columns live in market_data, not on `trades`, so
+  // the SELECT above can't carry them). One map build, reused for both
+  // dimensions. No network — getAllMarketRows reads cached rows.
+  // (computeVolumeAnalysis builds its own market map separately; left as-is.)
+  const marketBySymbol = new Map<string, MarketRow>()
+  for (const row of getAllMarketRows()) marketBySymbol.set(row.symbol, row)
+  for (const t of trades) {
+    const md = marketBySymbol.get(t.symbol)
+    t.sector = md?.sector ?? null
+    t.industry = md?.industry ?? null
+  }
 
   // Price range
   const byPriceMap = new Map<number, TradeForReport[]>()
@@ -652,6 +704,8 @@ export function getReports(): ReportsData {
     byShareSize,
     byRegion: buildByRegion(trades),
     byCountry: buildByCountry(trades),
+    bySector: buildBySector(trades),
+    byIndustry: buildByIndustry(trades),
     fullStats: computeFullStats(trades),
     volumeAnalysis: computeVolumeAnalysis(trades),
     winLossDays: computeWinLossDays(trades),
