@@ -120,3 +120,44 @@ describe('market repo — industry round-trip (Stage 2)', () => {
     expect(getMarketRow('X')?.industry).toBeNull()
   })
 })
+
+// v0.2.3 Commit A — guard `sector` in the ON CONFLICT clause with the same
+// null-preserving COALESCE the industry/country fields already use. Recon
+// found the Polygon refresh path wipes sector to NULL on its error path
+// (fetch.ts:202). These assert the SQL shape + bound param, mirroring the
+// industry-guard test above — no real-SQL harness (better-sqlite3's native
+// binary won't load under vitest).
+describe('market repo — sector guard (Commit A)', () => {
+  it('upsertMarketRow COALESCE-guards sector in the ON CONFLICT clause', () => {
+    upsertMarketRow(fullRow({ sector: 'Healthcare' }))
+    const insert = prepared.find((p) => /INSERT INTO market_data/i.test(p.sql))
+    expect(insert).toBeDefined()
+    // Argument order matters: excluded first so a non-null new value still
+    // wins (explicit overwrite), market_data second so a null never wipes.
+    expect(insert!.sql).toMatch(
+      /sector\s*=\s*COALESCE\(excluded\.sector,\s*market_data\.sector\)/i,
+    )
+    // Non-null sector still binds (and, per COALESCE, overwrites).
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.sector).toBe('Healthcare')
+  })
+
+  it('binds a null sector so the COALESCE guard is what preserves the prior value', () => {
+    upsertMarketRow(fullRow({ sector: null }))
+    const insert = prepared.find((p) => /INSERT INTO market_data/i.test(p.sql))
+    expect(insert).toBeDefined()
+    // The column is still bound — null reaches SQL, and the COALESCE in the
+    // ON CONFLICT clause is what keeps the existing value (not a dropped col).
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.sector).toBeNull()
+  })
+
+  it('leaves the industry guard intact (regression sanity)', () => {
+    upsertMarketRow(fullRow())
+    const insert = prepared.find((p) => /INSERT INTO market_data/i.test(p.sql))
+    expect(insert).toBeDefined()
+    expect(insert!.sql).toMatch(
+      /industry\s*=\s*COALESCE\(excluded\.industry,\s*market_data\.industry\)/i,
+    )
+  })
+})

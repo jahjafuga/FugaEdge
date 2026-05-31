@@ -113,13 +113,20 @@ export function upsertMarketRow(input: MarketRow): void {
     ON CONFLICT(symbol) DO UPDATE SET
       float              = excluded.float,
       shares_outstanding = excluded.shares_outstanding,
+      -- market_cap stays unconditional: both Polygon and FMP supply a real,
+      -- comparable cap figure, so a fresh value should always win.
       market_cap         = excluded.market_cap,
-      sector             = excluded.sector,
+      -- sector is COALESCE-guarded because the two providers speak different
+      -- taxonomies: Polygon supplies SIC text (sic_description, e.g.
+      -- "PHARMACEUTICAL PREPARATIONS") while FMP/import supplies a GICS-style
+      -- sector (e.g. "Healthcare"). A null from the refresh path must never
+      -- wipe a good FMP sector. (v0.2.3 Commit A; the caller stops passing SIC
+      -- into this column in Commit B.)
+      sector             = COALESCE(excluded.sector, market_data.sector),
       -- industry is FMP-only (Polygon has no industry field), so the
       -- market-refresh path passes null for it. COALESCE keeps a
       -- previously-imported industry instead of letting a refresh wipe it.
-      -- v0.2.3 Stage 2; mirrors the country-field protection below. (cap /
-      -- sector overwrite because BOTH providers supply them with real data.)
+      -- v0.2.3 Stage 2; mirrors the country-field protection below.
       industry           = COALESCE(excluded.industry, market_data.industry),
       avg_volume         = excluded.avg_volume,
       daily_volumes      = excluded.daily_volumes,
