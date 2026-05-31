@@ -9,9 +9,8 @@ import {
 } from '@/core/country/resolve'
 import {
   tradesNeedingCountryFetch,
-  applyCountryToSymbol,
+  applyCountryToBoth,
   saveTradeCountry,
-  type CountrySource,
 } from '../trades/country'
 
 const REQUEST_SPACING_MS = 350
@@ -75,8 +74,11 @@ async function run(opts: {
   emitProgress?: (p: { current: number; total: number; symbol: string }) => void
 }): Promise<CountryBackfillResult> {
   const startedAt = Date.now()
-  const { polygon_api_key } = getSettings().values
-  if (!polygon_api_key) {
+  // v0.2.3 Stage 1.5 — FMP is now PRIMARY for the batch backfill too (mirrors
+  // resolveForTicker / the import orchestrator). Only short-circuit when NO
+  // usable key is configured at all; FMP alone is enough to run.
+  const { polygon_api_key, fmp_api_key } = getSettings().values
+  if (!polygon_api_key && !fmp_api_key) {
     return {
       updated: 0, skipped: 0, failed: 0,
       apiKeyMissing: true, errors: [], durationMs: Date.now() - startedAt,
@@ -112,16 +114,39 @@ async function run(opts: {
     }
     try {
       await respectSpacing()
-      const ref = await withRateLimitRetry(() =>
-        fetchTickerReference(polygon_api_key, symbol),
-      )
-      const resolved = resolveCountryFromPolygon(ref)
-      const source: CountrySource = resolved.source // 'polygon' | 'inferred' | 'unknown'
-      const changed = applyCountryToSymbol(symbol, {
+      // PRIMARY: FMP domicile (mirror resolveForTicker). A confident FMP
+      // country short-circuits Polygon — the request-count win and the fix for
+      // Polygon's free tier omitting domicile on US-listed foreign issuers.
+      let resolved: ResolvedCountry | null = null
+      if (fmp_api_key) {
+        try {
+          const profile = await withRateLimitRetry(() =>
+            fetchCompanyProfile(fmp_api_key, symbol),
+          )
+          const fromFmp = resolveCountryFromFmp(profile?.country ?? null)
+          if (fromFmp.country) resolved = fromFmp // source 'fmp'
+        } catch (e) {
+          // FMP threw (e.g. a 15s timeout). Log and fall through to Polygon —
+          // an FMP error must NOT break per-symbol resolution or the loop.
+          console.info(
+            `[FE country] ${symbol} fmp failed: ${e instanceof Error ? e.message : String(e)}`,
+          )
+        }
+      }
+      // FALLBACK: Polygon ticker-ref, only when FMP gave no confident country.
+      if (!resolved && polygon_api_key) {
+        const ref = await withRateLimitRetry(() =>
+          fetchTickerReference(polygon_api_key, symbol),
+        )
+        resolved = resolveCountryFromPolygon(ref) // 'polygon' | 'inferred' | 'unknown'
+      }
+      // FMP-only key with no domicile on file → unknown sentinel.
+      if (!resolved) resolved = resolveCountryFromFmp(null)
+      const changed = applyCountryToBoth(symbol, {
         country: resolved.country,
         country_name: resolved.country_name,
         region: resolved.region,
-        source,
+        source: resolved.source,
       })
       if (changed > 0) updated += changed
       else skipped += trade_ids.length
