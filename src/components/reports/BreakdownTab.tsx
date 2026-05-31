@@ -98,6 +98,28 @@ export default function BreakdownTab({ data }: BreakdownTabProps) {
       </CollapsibleCard>
 
       <CollapsibleCard
+        title="By sector"
+        subtitle="Bucketed by sector. Unknown means a symbol with no market data."
+      >
+        <ReportBucketTable
+          keyHeader="Sector"
+          buckets={data.bySector}
+          emptyText="No sector data yet — run the sector & industry backfill in Settings."
+        />
+      </CollapsibleCard>
+
+      <CollapsibleCard
+        title="By industry"
+        subtitle="Bucketed by industry. Unknown means a symbol with no market data."
+      >
+        <ReportBucketTable
+          keyHeader="Industry"
+          buckets={data.byIndustry}
+          emptyText="No industry data yet — run the sector & industry backfill in Settings."
+        />
+      </CollapsibleCard>
+
+      <CollapsibleCard
         title="By symbol"
         subtitle="Top 25 tickers by trade count."
       >
