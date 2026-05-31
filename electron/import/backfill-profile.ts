@@ -130,19 +130,13 @@ async function run(opts: {
         fetched_at: new Date().toISOString(),
         error: null,
       })
-
-      // TEMPORARY sandbox-inspection log (remove before commit if noisy): the
-      // raw strings FMP returns for our 19 symbols, so we can judge whether a
-      // GICS normalization pass is needed before Stage B. Not persisted, not
-      // surfaced in the UI. Secrets rule: symbol + values only, never the URL.
-      console.info(
-        `[stage-a] ${symbol} sector="${profile.sector ?? ''}" industry="${profile.industry ?? ''}"`,
-      )
     } catch (e) {
       // fetchCompanyProfile throws ONLY on a genuine 15s timeout. One stall must
-      // not abort the batch — treat as a miss (row untouched, retried next run).
+      // not abort the batch — the ground-truth recompute below surfaces this
+      // symbol in unavailableSymbols. Log it so a transient failure still leaves
+      // a diagnostic trail (mirrors country/fetch.ts's per-symbol failure log).
       console.info(
-        `[stage-a] ${symbol} fetch failed: ${e instanceof Error ? e.message : String(e)}`,
+        `[FE profile] ${symbol} failed: ${e instanceof Error ? e.message : String(e)}`,
       )
     }
   }

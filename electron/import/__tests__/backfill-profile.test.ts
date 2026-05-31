@@ -273,20 +273,4 @@ describe('backfillAllProfiles — Stage A sector/industry backfill', () => {
     expect(result.attempted).toBe(0)
     expect(fetchCompanyProfile).not.toHaveBeenCalled()
   })
-
-  it('logs [stage-a] <symbol> sector/industry on each successful fetch', async () => {
-    const spy = vi.spyOn(console, 'info').mockImplementation(() => {})
-    fmpReturns({
-      AMSS: { country: null, marketCap: null, sector: 'Energy', industry: 'Oil & Gas Midstream' },
-      AMPG: null,
-      JFB: null,
-    })
-
-    await backfillAllProfiles()
-
-    expect(spy).toHaveBeenCalledWith(
-      '[stage-a] AMSS sector="Energy" industry="Oil & Gas Midstream"',
-    )
-    spy.mockRestore()
-  })
 })
