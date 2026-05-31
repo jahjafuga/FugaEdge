@@ -51,6 +51,8 @@ import type {
   IntradayRefreshResult,
   MarketRefreshProgress,
   MarketRefreshResult,
+  ProfileBackfillProgress,
+  ProfileBackfillResult,
 } from '@shared/market-types'
 import type {
   AddAttachmentsInput,
@@ -125,6 +127,15 @@ const api = {
     ipcRenderer.on(IPC.FLOAT_BACKFILL_PROGRESS, listener)
     return () => {
       ipcRenderer.removeListener(IPC.FLOAT_BACKFILL_PROGRESS, listener)
+    }
+  },
+  profileBackfill: (force?: boolean): Promise<ProfileBackfillResult> =>
+    ipcRenderer.invoke(IPC.PROFILE_BACKFILL, { force: !!force }),
+  profileOnBackfillProgress: (cb: (p: ProfileBackfillProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: ProfileBackfillProgress) => cb(p)
+    ipcRenderer.on(IPC.PROFILE_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.PROFILE_BACKFILL_PROGRESS, listener)
     }
   },
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>

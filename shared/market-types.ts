@@ -59,6 +59,32 @@ export interface FloatBackfillResult {
   durationMs: number
 }
 
+// v0.2.3 Stage A — standalone sector/industry backfill (Settings → Data
+// backfill, "Backfill sector & industry" button). Calls FMP /stable/profile
+// once per market_data symbol and writes GICS sector + industry. Independent of
+// the country (Massive) and float (FMP shares-float) actions: own API call, own
+// trigger + progress + result. Shape mirrors FloatBackfillResult.
+export interface ProfileBackfillProgress {
+  current: number
+  total: number
+  symbol: string
+}
+
+export interface ProfileBackfillResult {
+  /** market_data rows attempted (industry-NULL rows, or all rows under force). */
+  attempted: number
+  /** Rows whose industry is now populated (no longer null). */
+  filled: number
+  /** Rows still industry-null after the run — FMP had no data, a partial hit
+   *  (sector only), or a transient failure. Mirrors unavailableSymbols.length. */
+  unavailable: number
+  /** The named still-null symbols, so the user can inspect / fill manually. */
+  unavailableSymbols: string[]
+  /** True when no FMP key is configured — nothing was fetched. */
+  apiKeyMissing: boolean
+  durationMs: number
+}
+
 // Single-trade intraday lookup — backs the per-trade Chart tab.
 export interface IntradayBar {
   t: number  // epoch ms (UTC) at bar start

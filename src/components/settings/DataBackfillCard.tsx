@@ -3,7 +3,7 @@ import Card from '@/components/ui/Card'
 import BackfillKeyModal from '@/components/settings/BackfillKeyModal'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
-import type { FloatBackfillProgress } from '@shared/market-types'
+import type { FloatBackfillProgress, ProfileBackfillProgress } from '@shared/market-types'
 
 interface DataBackfillCardProps {
   lastRun: string | null
@@ -37,6 +37,18 @@ export default function DataBackfillCard({
   } | null>(null)
   const [floatErr, setFloatErr] = useState<string | null>(null)
 
+  // ── Sector & industry backfill — independent FMP /stable/profile action.
+  // Separate trigger/progress/result so a hang here never blocks Country/Float.
+  const [profileRunning, setProfileRunning] = useState(false)
+  const [profileForce, setProfileForce] = useState(false)
+  const [profileProgress, setProfileProgress] = useState<ProfileBackfillProgress | null>(null)
+  const [profileResult, setProfileResult] = useState<{
+    filled: number
+    unavailable: number
+    unavailableSymbols: string[]
+  } | null>(null)
+  const [profileErr, setProfileErr] = useState<string | null>(null)
+
   useEffect(() => {
     const off = ipc.countryOnBackfillProgress((p) => setProgress(p))
     return off
@@ -44,6 +56,11 @@ export default function DataBackfillCard({
 
   useEffect(() => {
     const off = ipc.floatOnBackfillProgress((p) => setFloatProgress(p))
+    return off
+  }, [])
+
+  useEffect(() => {
+    const off = ipc.profileOnBackfillProgress((p) => setProfileProgress(p))
     return off
   }, [])
 
@@ -99,10 +116,42 @@ export default function DataBackfillCard({
     }
   }
 
+  const runProfile = async () => {
+    if (profileRunning) return
+    setProfileRunning(true)
+    setProfileResult(null)
+    setProfileErr(null)
+    setProfileProgress(null)
+    try {
+      const r = await ipc.profileBackfill(profileForce)
+      if (r.apiKeyMissing) {
+        setProfileErr(
+          'No FMP key set — add your Financial Modeling Prep key under Market data above, then retry.',
+        )
+      } else {
+        setProfileResult({
+          filled: r.filled,
+          unavailable: r.unavailable,
+          unavailableSymbols: r.unavailableSymbols,
+        })
+        setProfileForce(false)
+      }
+    } catch (e) {
+      setProfileErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setProfileRunning(false)
+      setProfileProgress(null)
+    }
+  }
+
   const pct = progress && progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0
   const floatPct =
     floatProgress && floatProgress.total > 0
       ? Math.floor((floatProgress.current / floatProgress.total) * 100)
+      : 0
+  const profilePct =
+    profileProgress && profileProgress.total > 0
+      ? Math.floor((profileProgress.current / profileProgress.total) * 100)
       : 0
 
   return (
@@ -199,6 +248,62 @@ export default function DataBackfillCard({
               </div>
             )}
             {floatErr && <div className="text-xs text-loss">{floatErr}</div>}
+          </div>
+        </div>
+
+        {/* ── Sector & industry backfill — independent FMP profile action ── */}
+        <div className="border-t border-border-strong pt-3">
+          <div className="mb-2 text-xs font-medium text-fg-secondary">Sector &amp; industry (FMP)</div>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={runProfile}
+              disabled={profileRunning}
+              className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {profileRunning ? 'Backfilling…' : 'Backfill sector & industry'}
+            </button>
+            <p className="text-xs text-fg-tertiary">
+              Fetches clean GICS sector &amp; industry from FMP for symbols with no
+              industry yet. Leaves symbols FMP has no data for untouched.
+            </p>
+            <label className="flex items-center gap-2 text-xs text-fg-secondary">
+              <input
+                type="checkbox"
+                checked={profileForce}
+                onChange={(e) => setProfileForce(e.target.checked)}
+                className="accent-gold"
+              />
+              Force re-fetch (overwrites FMP sector/industry on a hit; misses keep existing values)
+            </label>
+            {profileProgress && (
+              <div>
+                <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+                  <div className="h-full bg-gold transition-all" style={{ width: `${profilePct}%` }} />
+                </div>
+                <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+                  Fetching {profileProgress.current} of {profileProgress.total}… ({profileProgress.symbol})
+                </div>
+              </div>
+            )}
+            {profileResult && (
+              <div className="space-y-1 text-xs">
+                <div className="font-mono">
+                  Filled sector &amp; industry on <span className="text-win">{profileResult.filled}</span>{' '}
+                  symbol{profileResult.filled === 1 ? '' : 's'},{' '}
+                  <span className="text-fg-tertiary">{profileResult.unavailable}</span> unavailable
+                </div>
+                {profileResult.unavailableSymbols.length > 0 && (
+                  <div className="text-fg-tertiary">
+                    No FMP profile data:{' '}
+                    <span className="font-mono text-fg-secondary">
+                      {profileResult.unavailableSymbols.join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+            {profileErr && <div className="text-xs text-loss">{profileErr}</div>}
           </div>
         </div>
       </div>

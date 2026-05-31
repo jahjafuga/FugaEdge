@@ -26,6 +26,7 @@ import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
 import { backfillAllFloat } from './backfill-float'
+import { backfillAllProfiles } from './backfill-profile'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { backupBeforeImport } from '@/core/import/backup'
 import { electronBackupStorage } from '../db/backup'
@@ -52,6 +53,22 @@ export function registerImportIpc(): void {
     const result = await backfillAllFloat({
       emitProgress: wc
         ? (p) => wc.send(IPC.FLOAT_BACKFILL_PROGRESS, p)
+        : undefined,
+    })
+    if (result.filled > 0) bumpDataVersion()
+    return result
+  })
+
+  // v0.2.3 Stage A — standalone sector/industry backfill over existing
+  // market_data rows. Thin shell (ARCHITECTURE rule 1): wires per-symbol
+  // progress to the renderer and delegates to backfillAllProfiles. Independent
+  // of FLOAT_BACKFILL / COUNTRY_BACKFILL.
+  ipcMain.handle(IPC.PROFILE_BACKFILL, async (e, input?: { force?: boolean }) => {
+    const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
+    const result = await backfillAllProfiles({
+      force: input?.force === true,
+      emitProgress: wc
+        ? (p) => wc.send(IPC.PROFILE_BACKFILL_PROGRESS, p)
         : undefined,
     })
     if (result.filled > 0) bumpDataVersion()

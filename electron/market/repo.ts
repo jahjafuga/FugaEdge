@@ -182,6 +182,20 @@ export function symbolsNeedingFetch(staleAfterMs: number, force: boolean): strin
   return out
 }
 
+// v0.2.3 Stage A — worklist for the sector/industry backfill. `industry` is
+// written ONLY by Stage A, so a NULL industry is the clean "not done yet"
+// signal: it correctly includes the rows that carry stale Polygon SIC `sector`
+// text (their industry is still NULL). `force` re-fetches every row regardless.
+// Mirrors symbolsNeedingFloatFetch's role for the float backfill.
+export function symbolsNeedingProfileBackfill(force: boolean): string[] {
+  const db = openDatabase()
+  const sql = force
+    ? 'SELECT symbol FROM market_data ORDER BY symbol ASC'
+    : 'SELECT symbol FROM market_data WHERE industry IS NULL ORDER BY symbol ASC'
+  const rows = db.prepare(sql).all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
+}
+
 // ── Intraday 1-minute bars ────────────────────────────────────────────────
 
 import type { IntradayBar } from './massive'

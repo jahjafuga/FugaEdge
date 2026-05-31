@@ -61,6 +61,10 @@ export const ipc = {
   floatOnBackfillProgress: (
     cb: (p: import('@shared/market-types').FloatBackfillProgress) => void,
   ) => window.api.floatOnBackfillProgress(cb),
+  profileBackfill: (force?: boolean) => window.api.profileBackfill(force),
+  profileOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').ProfileBackfillProgress) => void,
+  ) => window.api.profileOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),

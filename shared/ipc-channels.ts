@@ -50,6 +50,11 @@ export const IPC = {
   // trigger/progress/result (never coupled into one combined action).
   FLOAT_BACKFILL: 'float:backfillAll',
   FLOAT_BACKFILL_PROGRESS: 'float:backfillProgress',
+  // v0.2.3 Stage A — standalone sector/industry backfill (FMP /stable/profile).
+  // Separate channel from FLOAT/COUNTRY: own API call, independent
+  // trigger/progress/result.
+  PROFILE_BACKFILL: 'profile:backfillAll',
+  PROFILE_BACKFILL_PROGRESS: 'profile:backfillProgress',
   TRADE_COUNTRY_SAVE: 'trade:countrySave',
   TRADE_COUNTRY_SAVE_SYMBOL: 'trade:countrySaveSymbol',
   SESSION_SENTIMENT_SAVE: 'session:sentimentSave',
