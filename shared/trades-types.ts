@@ -177,3 +177,8 @@ export interface UpdateNoteInput {
   trade_id: number
   text: string
 }
+
+// v0.2.3 P2b — soft-delete lifecycle IPC payloads. Single-trade ops carry one
+// trade_id (mirrors the Update*Input family); bulk ops carry an id array.
+export type SingleTradeIdInput = { trade_id: number }
+export type BulkLifecycleInput = { trade_ids: number[] }

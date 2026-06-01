@@ -297,6 +297,11 @@ export interface CommitInput {
 export interface CommitResult {
   insertedTrips: number
   skippedTrips: number
+  /** v0.2.3: closed soft-deleted trades revived by a matching re-import
+   *  (deleted_at cleared in commit()'s INSERT OR IGNORE else-branch). Distinct
+   *  from skippedTrips — a resurrect brings a trashed trade back, a skip is an
+   *  ordinary live duplicate. */
+  resurrectedTrips: number
   insertedFees: number
   replacedFees: number
   affectedDates: string[]

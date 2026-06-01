@@ -81,8 +81,21 @@ const api = {
     ipcRenderer.invoke(IPC.IMPORT_COMMIT, input),
   dashboardGet: (range?: TimeRange): Promise<DashboardData> =>
     ipcRenderer.invoke(IPC.DASHBOARD_GET, { range }),
-  tradesList: (opts?: { date?: string }): Promise<TradeListRow[]> =>
+  tradesList: (opts?: { date?: string; deleted?: boolean }): Promise<TradeListRow[]> =>
     ipcRenderer.invoke(IPC.TRADES_LIST, opts),
+  // ── v0.2.3 P2b — soft-delete lifecycle ───────────────────────────────────
+  tradeSoftDelete: (trade_id: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADE_SOFT_DELETE, { trade_id }),
+  tradesSoftDeleteBulk: (trade_ids: number[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADES_SOFT_DELETE_BULK, { trade_ids }),
+  tradeRestore: (trade_id: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADE_RESTORE, { trade_id }),
+  tradesRestoreBulk: (trade_ids: number[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADES_RESTORE_BULK, { trade_ids }),
+  tradeHardDelete: (trade_id: number): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADE_HARD_DELETE, { trade_id }),
+  tradesHardDeleteBulk: (trade_ids: number[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.TRADES_HARD_DELETE_BULK, { trade_ids }),
   tradeNoteSave: (input: UpdateNoteInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_NOTE_SAVE, input),
   tradeTimeframeSave: (input: UpdateTimeframeInput): Promise<TradeListRow | null> =>

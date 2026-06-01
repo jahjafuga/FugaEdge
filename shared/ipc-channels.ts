@@ -9,6 +9,14 @@ export const IPC = {
   IMPORT_PROGRESS: 'import:progress',
   DASHBOARD_GET: 'dashboard:get',
   TRADES_LIST: 'trades:list',
+  // v0.2.3 P2b — soft-delete lifecycle. Singular TRADE_ for single-trade ops
+  // (matches TRADE_NOTE_SAVE etc.); plural TRADES_*_BULK for batch ops.
+  TRADE_SOFT_DELETE: 'trade:softDelete',
+  TRADE_RESTORE: 'trade:restore',
+  TRADE_HARD_DELETE: 'trade:hardDelete',
+  TRADES_SOFT_DELETE_BULK: 'trades:softDeleteBulk',
+  TRADES_RESTORE_BULK: 'trades:restoreBulk',
+  TRADES_HARD_DELETE_BULK: 'trades:hardDeleteBulk',
   TRADE_NOTE_SAVE: 'trade:noteSave',
   CALENDAR_GET: 'calendar:get',
   REPORTS_GET: 'reports:get',

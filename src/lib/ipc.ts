@@ -33,7 +33,17 @@ export const ipc = {
   importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
-  tradesList: (opts?: { date?: string }) => window.api.tradesList(opts),
+  tradesList: (opts?: { date?: string; deleted?: boolean }) =>
+    window.api.tradesList(opts),
+  tradeSoftDelete: (trade_id: number) => window.api.tradeSoftDelete(trade_id),
+  tradesSoftDeleteBulk: (trade_ids: number[]) =>
+    window.api.tradesSoftDeleteBulk(trade_ids),
+  tradeRestore: (trade_id: number) => window.api.tradeRestore(trade_id),
+  tradesRestoreBulk: (trade_ids: number[]) =>
+    window.api.tradesRestoreBulk(trade_ids),
+  tradeHardDelete: (trade_id: number) => window.api.tradeHardDelete(trade_id),
+  tradesHardDeleteBulk: (trade_ids: number[]) =>
+    window.api.tradesHardDeleteBulk(trade_ids),
   tradeNoteSave: (input: UpdateNoteInput) => window.api.tradeNoteSave(input),
   tradeTimeframeSave: (input: UpdateTimeframeInput) =>
     window.api.tradeTimeframeSave(input),

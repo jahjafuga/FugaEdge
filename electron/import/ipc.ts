@@ -21,6 +21,7 @@ import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, commit } from './repo'
+import { formatCommitLog } from './format-commit-log'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
@@ -628,12 +629,14 @@ export function registerImportIpc(): void {
       // counters land in their own [FE import] log lines as each
       // background phase completes.
       console.info(
-        `[FJ commit] trips_in=${trips.length}(insert=${toInsertTrips.length}) ` +
-          `fees_in=${fees.length} (dropped_no_date=${droppedNoDate}) ` +
-          `inserted_trips=${out.insertedTrips} skipped_trips=${out.skippedTrips} ` +
-          `inserted_fees=${out.insertedFees} replaced_fees=${out.replacedFees} ` +
-          `pairs=${out.affectedPairs} dates=[${out.affectedDates.join(',')}] ` +
-          `country_resolved=${countriesResolved} country_unknown=${countriesUnknown}`,
+        formatCommitLog(out, {
+          tripsIn: trips.length,
+          toInsert: toInsertTrips.length,
+          feesIn: fees.length,
+          droppedNoDate,
+          countriesResolved,
+          countriesUnknown,
+        }),
       )
 
       console.log('[FJ commit return]', {
