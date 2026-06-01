@@ -192,6 +192,23 @@ export default function Trades() {
     )
   }, [])
 
+  // v0.2.3 soft-delete: move a live trade to Trash, then drop it from the
+  // loaded list so it disappears from the table + stats immediately. The IPC
+  // returns void (the lifecycle op doesn't echo a row), so we filter rather
+  // than map-replace.
+  const handleSoftDelete = useCallback(async (id: number) => {
+    await ipc.tradeSoftDelete(id)
+    setTrades((prev) => (prev ? prev.filter((t) => t.id !== id) : prev))
+  }, [])
+
+  // Restore is dormant in P3 — nothing on the live Trades page can open a
+  // deleted trade (the Trash view is P5). Wired for completeness so the modal
+  // contract is whole; filters the id out of the live list the same way.
+  const handleRestore = useCallback(async (id: number) => {
+    await ipc.tradeRestore(id)
+    setTrades((prev) => (prev ? prev.filter((t) => t.id !== id) : prev))
+  }, [])
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -326,6 +343,8 @@ export default function Trades() {
             onSaveCatalyst={handleSaveCatalyst}
             onSaveCountry={handleSaveCountry}
             onSaveCountrySymbol={handleSaveCountrySymbol}
+            onSoftDelete={handleSoftDelete}
+            onRestore={handleRestore}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}

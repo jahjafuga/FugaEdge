@@ -27,6 +27,7 @@ import CatalystEditor from './CatalystEditor'
 import NoteEditor from './NoteEditor'
 import AttachmentManager from './AttachmentManager'
 import MistakesChecklist from './MistakesChecklist'
+import TradeLifecycleFooter from './TradeLifecycleFooter'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -47,6 +48,11 @@ interface TradeDetailModalProps {
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** v0.2.3 soft-delete lifecycle. When provided, the modal shows a footer
+   *  action: "Move to Trash" (live trades) or "Restore" (deleted trades).
+   *  Hosts that omit both render no footer (e.g. the calendar/review hosts). */
+  onSoftDelete?: (trade_id: number) => Promise<void>
+  onRestore?: (trade_id: number) => Promise<void>
   /** When opened on top of another modal (e.g. stacked inside DayDetailModal),
    *  raises the overlay above it. Default false → standalone z-[60]; true →
    *  z-[210], above DayDetailModal's z-[110]. */
@@ -80,6 +86,8 @@ export default function TradeDetailModal({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  onSoftDelete,
+  onRestore,
   stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
@@ -177,6 +185,13 @@ export default function TradeDetailModal({
             </Suspense>
           )}
         </div>
+        {(onSoftDelete || onRestore) && (
+          <TradeLifecycleFooter
+            trade={trade}
+            onSoftDelete={onSoftDelete}
+            onRestore={onRestore}
+          />
+        )}
       </div>
     </div>,
     document.body,

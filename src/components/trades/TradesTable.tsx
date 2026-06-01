@@ -43,6 +43,9 @@ interface TradesTableProps {
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** v0.2.3 soft-delete lifecycle — threaded into the row's TradeDetailModal. */
+  onSoftDelete?: (trade_id: number) => Promise<void>
+  onRestore?: (trade_id: number) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -92,6 +95,8 @@ export default function TradesTable({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  onSoftDelete,
+  onRestore,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -455,6 +460,22 @@ export default function TradesTable({
         onSaveCatalyst={onSaveCatalyst}
         onSaveCountry={onSaveCountry}
         onSaveCountrySymbol={onSaveCountrySymbol}
+        onSoftDelete={
+          onSoftDelete
+            ? async (id) => {
+                await onSoftDelete(id)
+                setSelectedId(null)
+              }
+            : undefined
+        }
+        onRestore={
+          onRestore
+            ? async (id) => {
+                await onRestore(id)
+                setSelectedId(null)
+              }
+            : undefined
+        }
       />
     </div>
   )
