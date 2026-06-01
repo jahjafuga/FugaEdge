@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -27,8 +27,10 @@ import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares, formatEastern } from '@/lib/format'
 import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
+import TradesBulkActionBar from './TradesBulkActionBar'
 
 interface TradesTableProps {
   trades: TradeListRow[]
@@ -46,6 +48,10 @@ interface TradesTableProps {
   /** v0.2.3 soft-delete lifecycle — threaded into the row's TradeDetailModal. */
   onSoftDelete?: (trade_id: number) => Promise<void>
   onRestore?: (trade_id: number) => Promise<void>
+  /** v0.2.3 Phase 4 — bulk soft-delete. When provided, the table renders a
+   *  leading selection checkbox column + a bottom action bar. Absent on the
+   *  calendar/review hosts, so those render no selection UI. */
+  onBulkSoftDelete?: (ids: number[]) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -62,6 +68,12 @@ interface TradesTableProps {
 // Row height locked at 40px so the virtualizer has a stable estimateSize and
 // the sticky header math stays correct.
 const ROW_HEIGHT = 40
+
+// v0.2.3 Phase 4 — UX cap on a single bulk selection. Deliberately well below
+// SQLite's actual bind limit (32766 in better-sqlite3 11.x / SQLite 3.49); this
+// is a usability ceiling, not a technical one, so the `WHERE id IN (...)` op
+// never needs chunking.
+const MAX_BULK = 500
 
 const col = createColumnHelper<TradeListRow>()
 
@@ -97,6 +109,7 @@ export default function TradesTable({
   onSaveCountrySymbol,
   onSoftDelete,
   onRestore,
+  onBulkSoftDelete,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -105,6 +118,16 @@ export default function TradesTable({
     { id: 'open_time', desc: true },
   ])
   const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  // v0.2.3 Phase 4 — bulk selection. Greenfield (no prior multi-select in the
+  // app); mirrors PreviewTable's Set<number> idiom. State lives here so it
+  // survives sort + scroll; the parent owns only the bulk IPC handler.
+  const bulkEnabled = onBulkSoftDelete != null
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
 
   const columns = useMemo(() => {
     const countryColumn = col.accessor('country', {
@@ -363,6 +386,136 @@ export default function TradesTable({
   const selectedTrade =
     selectedId === null ? null : trades.find((t) => t.id === selectedId) ?? null
 
+  // --- v0.2.3 Phase 4 bulk selection ------------------------------------
+  // Effective selection = the chosen ids intersected with what's currently
+  // visible. Everything user-facing (count, total, action payload) reads this.
+  const selectedTrades = useMemo(
+    () => (bulkEnabled ? trades.filter((t) => selectedIds.has(t.id)) : []),
+    [bulkEnabled, trades, selectedIds],
+  )
+  const selectedCount = selectedTrades.length
+  const bulkNetPnl = useMemo(
+    () => selectedTrades.reduce((sum, t) => sum + t.net_pnl, 0),
+    [selectedTrades],
+  )
+  const selectableMax = Math.min(trades.length, MAX_BULK)
+  const allSelected = selectedCount > 0 && selectedCount >= selectableMax
+  const someSelected = selectedCount > 0 && !allSelected
+  const atCap = selectedCount >= MAX_BULK
+
+  const bulkSymbolSummary = useMemo(() => {
+    if (selectedTrades.length === 0) return ''
+    const distinct = Array.from(new Set(selectedTrades.map((t) => t.symbol)))
+    // ≤3 trades: just list the distinct symbols. Otherwise show the first 3
+    // DISTINCT symbols + how many more trades, across how many symbols.
+    if (selectedTrades.length <= 3) return distinct.join(', ')
+    const head = distinct.slice(0, 3).join(', ')
+    const moreTrades = selectedTrades.length - 3
+    return `${head} and ${moreTrades} more trade${moreTrades === 1 ? '' : 's'} across ${distinct.length} symbol${distinct.length === 1 ? '' : 's'}`
+  }, [selectedTrades])
+
+  // Intersection guard (Q6): when the visible/filtered set changes, drop any
+  // selected id that's no longer shown. Load-bearing — without it a bulk
+  // "Move to Trash" could soft-delete rows the user can't see because a filter
+  // is hiding them.
+  useEffect(() => {
+    if (!bulkEnabled) return
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev
+      const visible = new Set(trades.map((t) => t.id))
+      let changed = false
+      const next = new Set<number>()
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id)
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [bulkEnabled, trades])
+
+  // Escape clears the selection — but only when nothing else owns Escape.
+  // Ordering (Q7): a stacked modal (the bulk confirm OR the detail modal) gets
+  // Escape first to close itself; we must NOT also clear the selection in that
+  // case. Same discipline as the P3 Esc-stacking note.
+  useEffect(() => {
+    if (!bulkEnabled) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (bulkConfirmOpen || selectedId !== null) return
+      setSelectedIds((prev) => (prev.size === 0 ? prev : new Set()))
+      setLastClickedIndex(null)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [bulkEnabled, bulkConfirmOpen, selectedId])
+
+  const toggleRow = (id: number, index: number, shiftKey: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (shiftKey && lastClickedIndex !== null) {
+        // Range select walks the SORTED rows (not the DOM — most rows are
+        // virtualized away), capping at MAX_BULK.
+        const lo = Math.min(lastClickedIndex, index)
+        const hi = Math.max(lastClickedIndex, index)
+        for (let i = lo; i <= hi && next.size < MAX_BULK; i++) {
+          const rid = sortedRows[i]?.original.id
+          if (rid != null) next.add(rid)
+        }
+      } else if (next.has(id)) {
+        next.delete(id)
+      } else if (next.size < MAX_BULK) {
+        next.add(id)
+      }
+      // else: at cap — single add ignored; the bar shows the persistent note.
+      return next
+    })
+    setLastClickedIndex(index)
+  }
+
+  const toggleAll = () => {
+    setSelectedIds((prev) => {
+      if (prev.size >= selectableMax) return new Set()
+      const next = new Set<number>()
+      for (const t of trades) {
+        if (next.size >= MAX_BULK) break
+        next.add(t.id)
+      }
+      return next
+    })
+    setLastClickedIndex(null)
+  }
+
+  const clearSelection = () => {
+    setSelectedIds(new Set())
+    setLastClickedIndex(null)
+    setBulkError(null)
+  }
+
+  const handleBulkSoftDelete = async () => {
+    if (!onBulkSoftDelete || bulkBusy) return
+    const ids = selectedTrades.map((t) => t.id)
+    if (ids.length === 0) return
+    setBulkBusy(true)
+    setBulkError(null)
+    try {
+      await onBulkSoftDelete(ids)
+      // Success: the host filters these rows out of `trades`; clear local state.
+      setSelectedIds(new Set())
+      setLastClickedIndex(null)
+      setBulkConfirmOpen(false)
+    } catch (e) {
+      // Atomic op (Q5): the whole batch rolled back. Keep the selection so the
+      // user can retry; surface the error on the (persistent) action bar.
+      setBulkConfirmOpen(false)
+      setBulkError(
+        e instanceof Error ? e.message : 'Failed to move trades to Trash.',
+      )
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+  const colCount = columns.length + (bulkEnabled ? 1 : 0)
+
   return (
     <div className="overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm">
       {/* Scroll container is on the OUTER wrapper, with a fixed height — the
@@ -375,6 +528,20 @@ export default function TradesTable({
                 key={hg.id}
                 className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
               >
+                {bulkEnabled && (
+                  <th style={{ width: 36 }} className="px-3 py-2.5 text-center">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all trades"
+                      ref={(el) => {
+                        if (el) el.indeterminate = someSelected
+                      }}
+                      checked={allSelected}
+                      onChange={toggleAll}
+                      className="h-3.5 w-3.5 cursor-pointer accent-gold"
+                    />
+                  </th>
+                )}
                 {hg.headers.map((h) => {
                   const sorted = h.column.getIsSorted()
                   const canSort = h.column.getCanSort()
@@ -405,7 +572,7 @@ export default function TradesTable({
           <tbody>
             {paddingTop > 0 && (
               <tr style={{ height: paddingTop }}>
-                <td colSpan={columns.length} />
+                <td colSpan={colCount} />
               </tr>
             )}
             {items.map((vi) => {
@@ -425,6 +592,27 @@ export default function TradesTable({
                   style={{ height: ROW_HEIGHT }}
                   className={`cursor-pointer border-b border-border-subtle/60 transition-colors duration-150 ease-out-soft ${tint}`}
                 >
+                  {bulkEnabled && (
+                    <td
+                      style={{ width: 36 }}
+                      className="px-3 text-center align-middle"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${t.symbol} ${longDate(t.date)}`}
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => {}}
+                        onClick={(e) => {
+                          // stop the row's onClick (which opens the modal) and
+                          // read shiftKey for range select.
+                          e.stopPropagation()
+                          toggleRow(t.id, vi.index, e.shiftKey)
+                        }}
+                        className="h-3.5 w-3.5 cursor-pointer accent-gold"
+                      />
+                    </td>
+                  )}
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
@@ -439,12 +627,68 @@ export default function TradesTable({
             })}
             {paddingBottom > 0 && (
               <tr style={{ height: paddingBottom }}>
-                <td colSpan={columns.length} />
+                <td colSpan={colCount} />
               </tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {bulkEnabled && (
+        <TradesBulkActionBar
+          count={selectedCount}
+          netPnlTotal={bulkNetPnl}
+          atCap={atCap}
+          busy={bulkBusy}
+          error={bulkError}
+          onMoveToTrash={() => {
+            setBulkError(null)
+            setBulkConfirmOpen(true)
+          }}
+          onClear={clearSelection}
+        />
+      )}
+
+      {bulkEnabled && (
+        <ConfirmModal
+          open={bulkConfirmOpen}
+          onClose={() => setBulkConfirmOpen(false)}
+          title="Move trades to Trash?"
+          confirmLabel={`Move ${selectedCount} to Trash`}
+          busyLabel="Moving…"
+          busy={bulkBusy}
+          tone="destructive"
+          onConfirm={handleBulkSoftDelete}
+          body={
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border-subtle bg-bg-2 px-4 py-3">
+                <div className="min-w-0">
+                  <div className="font-mono text-base font-semibold text-fg-primary tnum">
+                    {selectedCount} trade{selectedCount === 1 ? '' : 's'}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-fg-tertiary">
+                    {bulkSymbolSummary}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                    Combined Net P&amp;L
+                  </div>
+                  <div
+                    className={`font-mono text-sm font-semibold tnum ${pnlClass(bulkNetPnl)}`}
+                  >
+                    {signed(bulkNetPnl)}
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-fg-secondary">
+                You can restore {selectedCount === 1 ? 'it' : 'them'} from Trash
+                for 30 days.
+              </p>
+            </div>
+          }
+        />
+      )}
 
       <TradeDetailModal
         trade={selectedTrade}

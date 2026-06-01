@@ -209,6 +209,16 @@ export default function Trades() {
     setTrades((prev) => (prev ? prev.filter((t) => t.id !== id) : prev))
   }, [])
 
+  // v0.2.3 P4 — bulk soft-delete. Mirrors handleSoftDelete: the bulk IPC is
+  // atomic and returns void, so on success we filter every id out of the
+  // loaded list at once. A reject leaves the list untouched (the batch rolled
+  // back) and TradesTable retains the selection for retry.
+  const handleBulkSoftDelete = useCallback(async (ids: number[]) => {
+    await ipc.tradesSoftDeleteBulk(ids)
+    const idSet = new Set(ids)
+    setTrades((prev) => (prev ? prev.filter((t) => !idSet.has(t.id)) : prev))
+  }, [])
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -345,6 +355,7 @@ export default function Trades() {
             onSaveCountrySymbol={handleSaveCountrySymbol}
             onSoftDelete={handleSoftDelete}
             onRestore={handleRestore}
+            onBulkSoftDelete={handleBulkSoftDelete}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}
