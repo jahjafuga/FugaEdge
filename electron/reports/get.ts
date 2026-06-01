@@ -626,6 +626,7 @@ export function getReports(): ReportsData {
         mae, mfe,
         country, region
       FROM trades
+      WHERE deleted_at IS NULL
     `)
     .all() as TradeForReport[]
 

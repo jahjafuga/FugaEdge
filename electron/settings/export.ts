@@ -48,6 +48,7 @@ export async function exportTradesCsv(sender: Electron.WebContents): Promise<Exp
              gross_pnl, fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat,
              total_fees, net_pnl, executions_json
       FROM trades
+      WHERE deleted_at IS NULL
       ORDER BY open_time ASC
     `)
     .all() as TradeForExport[]

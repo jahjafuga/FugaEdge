@@ -17,6 +17,7 @@ function trade(over: Partial<TradeListRow>): TradeListRow {
     float_shares: null, shares_outstanding: null, catalyst_type: null, days_since_catalyst: null,
     country: 'US', country_name: 'United States', region: 'USA', country_source: 'polygon',
     attachment_count: 0,
+    deleted_at: null,
     mae: null, mfe: null,
     ...over,
   }

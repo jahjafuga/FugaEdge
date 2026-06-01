@@ -36,7 +36,7 @@ function readOverview(
   db: ReturnType<typeof openDatabase>,
   start: string | null,
 ): OverviewStats {
-  const where = start ? 'WHERE date >= ?' : ''
+  const where = start ? 'WHERE deleted_at IS NULL AND date >= ?' : 'WHERE deleted_at IS NULL'
   const params = start ? [start] : []
 
   const totals = db
@@ -54,11 +54,11 @@ function readOverview(
     }
 
   const winnersWhere = start
-    ? 'WHERE net_pnl > 0 AND date >= ?'
-    : 'WHERE net_pnl > 0'
+    ? 'WHERE deleted_at IS NULL AND net_pnl > 0 AND date >= ?'
+    : 'WHERE deleted_at IS NULL AND net_pnl > 0'
   const losersWhere = start
-    ? 'WHERE net_pnl < 0 AND date >= ?'
-    : 'WHERE net_pnl < 0'
+    ? 'WHERE deleted_at IS NULL AND net_pnl < 0 AND date >= ?'
+    : 'WHERE deleted_at IS NULL AND net_pnl < 0'
 
   const winners = db
     .prepare(`
@@ -144,7 +144,7 @@ function readDailySeries(
 
 function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
   const row = db
-    .prepare('SELECT MAX(date) AS date FROM trades')
+    .prepare('SELECT MAX(date) AS date FROM trades WHERE deleted_at IS NULL')
     .get() as { date: string | null }
   const date = row?.date ?? ''
   if (!date) {
@@ -182,7 +182,7 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
              p.name AS playbook_name, p.tier AS playbook_tier, t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
-      WHERE t.date = ? ORDER BY t.net_pnl DESC
+      WHERE t.date = ? AND t.deleted_at IS NULL ORDER BY t.net_pnl DESC
     `)
     .all(date) as SessionTradeDb[]
   const trades: SessionTrade[] = rawTrades.map((r) => ({
@@ -237,7 +237,7 @@ function readDisciplineStreak(
   now: Date,
 ): number {
   const tradedDays = new Set(
-    (db.prepare('SELECT DISTINCT date FROM trades').all() as { date: string }[])
+    (db.prepare('SELECT DISTINCT date FROM trades WHERE deleted_at IS NULL').all() as { date: string }[])
       .map((r) => r.date),
   )
   const journalDays = new Set(
@@ -314,7 +314,7 @@ export function getDashboardData(
   // current range happens to be empty. Otherwise switching to 7d on a fresh
   // install would show the "Go import" CTA instead of the no-data state for
   // the chosen range.
-  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades').get() as {
+  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL').get() as {
     n: number
   }
   const empty = totalRows.n === 0

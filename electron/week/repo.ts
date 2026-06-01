@@ -22,7 +22,7 @@ export function getWeekDetail(weekStart: string): WeekDetail {
 
   // All-trades daily net P&L so the streak can reach back beyond this week.
   const dailyRows = db
-    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades GROUP BY date')
+    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL GROUP BY date')
     .all() as { date: string; pnl: number }[]
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)

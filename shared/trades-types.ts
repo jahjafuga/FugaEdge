@@ -98,6 +98,10 @@ export interface TradeListRow {
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */
   attachment_count: number
+  /** v0.2.3 soft-delete. NULL = live; ISO-8601 UTC timestamp = in Trash.
+   *  List reads exclude deleted rows; getTrade returns them so the modal /
+   *  Trash UI can render the deleted state. */
+  deleted_at: string | null
 }
 
 export interface UpdateTimeframeInput {

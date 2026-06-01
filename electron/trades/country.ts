@@ -134,7 +134,7 @@ export function applySymbolCountryManual(symbol: string, country: string | null)
 export function countTradesByRegion(): Record<string, number> {
   const db = openDatabase()
   const rows = db
-    .prepare(`SELECT COALESCE(region, 'Unknown') AS k, COUNT(*) AS n FROM trades GROUP BY region`)
+    .prepare(`SELECT COALESCE(region, 'Unknown') AS k, COUNT(*) AS n FROM trades WHERE deleted_at IS NULL GROUP BY region`)
     .all() as { k: string; n: number }[]
   const out: Record<string, number> = {}
   for (const r of rows) out[r.k] = r.n
@@ -145,7 +145,7 @@ export function countTradesByCountry(): Record<string, number> {
   const db = openDatabase()
   const rows = db
     .prepare(
-      `SELECT COALESCE(country, '') AS k, COUNT(*) AS n FROM trades GROUP BY country`,
+      `SELECT COALESCE(country, '') AS k, COUNT(*) AS n FROM trades WHERE deleted_at IS NULL GROUP BY country`,
     )
     .all() as { k: string; n: number }[]
   const out: Record<string, number> = {}

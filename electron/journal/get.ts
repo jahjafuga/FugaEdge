@@ -80,7 +80,7 @@ function readDaySummary(
         COALESCE(SUM(total_fees), 0)                  AS total_fees,
         SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END)  AS winners,
         SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END)  AS losers
-      FROM trades WHERE date = ?
+      FROM trades WHERE date = ? AND deleted_at IS NULL
     `)
     .get(date) as DaySummaryRow | undefined
   if (!row || row.trade_count === 0) return null

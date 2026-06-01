@@ -80,7 +80,7 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
       SELECT net_pnl, side, avg_buy_price, avg_sell_price,
              shares_bought, shares_sold,
              planned_risk, planned_stop_loss_price
-      FROM trades WHERE playbook_id = ?
+      FROM trades WHERE playbook_id = ? AND deleted_at IS NULL
     `)
     .all(playbookId) as TradeRowForStats[]
 

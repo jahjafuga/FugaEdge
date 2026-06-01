@@ -893,6 +893,7 @@ export function getAnalytics(): AnalyticsData {
              sm.sentiment AS sentiment
       FROM trades t
       LEFT JOIN session_meta sm ON sm.date = t.date
+      WHERE t.deleted_at IS NULL
     `)
     .all() as TradeRow[]
 

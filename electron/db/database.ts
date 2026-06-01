@@ -7,6 +7,7 @@ import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
 import { migrateTimestampsToUtc } from './migrate-tz-utc'
 import { migrateContentHash } from './migrate-content-hash'
 import { migrateFloatRename } from './migrate-float-rename'
+import { migrateAddDeletedAt } from './migrate-add-deleted-at'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -509,6 +510,10 @@ function migrateAfterSchema(
   }
   // Index on region for fast breakdown queries (group-by region).
   conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_region ON trades(region)')
+
+  // v0.2.3 soft-delete — add trades.deleted_at + its partial index. Additive
+  // and idempotent (own module so it's unit-testable; see migrate-add-deleted-at.ts).
+  migrateAddDeletedAt(conn)
 
   // v0.2.0 universal-import provenance. Defaults pin existing v0.1.6 rows
   // to DAS/execution — every legacy round trip was produced by parsing a

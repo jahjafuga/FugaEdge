@@ -46,6 +46,7 @@ interface TradeRowDb {
   country_source: string | null
   note_text: string | null
   attachment_count: number
+  deleted_at: string | null
 }
 
 function rowRisk(row: TradeRowDb) {
@@ -99,21 +100,31 @@ export interface ListTradesOptions {
    *  Review modal. `date` takes precedence if both are given. */
   from?: string
   to?: string
+  /** v0.2.3 soft-delete. Omitted/false → only live trades (deleted_at IS
+   *  NULL). true → only soft-deleted trades (deleted_at IS NOT NULL), backing
+   *  the Settings → Trash card. */
+  deleted?: boolean
 }
 
 export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
   const db = openDatabase()
-  let where = ''
-  let params: string[] = []
+  // The soft-delete predicate is always present: the default list shows only
+  // live trades; { deleted: true } shows only the Trash. Other filters AND on.
+  const conds: string[] = [
+    opts.deleted ? 't.deleted_at IS NOT NULL' : 't.deleted_at IS NULL',
+  ]
+  const params: string[] = []
   if (opts.date) {
-    where = 'WHERE t.date = ?'
-    params = [opts.date]
+    conds.push('t.date = ?')
+    params.push(opts.date)
   } else if (opts.from && opts.to) {
     // Inclusive range on the Eastern trading-day column (no clock component,
     // so the full day at each end is covered; lexicographic = chronological).
-    where = 'WHERE t.date >= ? AND t.date <= ?'
-    params = [opts.from, opts.to]
+    conds.push('t.date >= ?')
+    conds.push('t.date <= ?')
+    params.push(opts.from, opts.to)
   }
+  const where = `WHERE ${conds.join(' AND ')}`
   const rows = db
     .prepare(`
       SELECT
@@ -126,6 +137,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        t.deleted_at,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count
       FROM trades t
@@ -181,6 +193,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
+      deleted_at: r.deleted_at,
     }
   })
 }
@@ -205,6 +218,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        t.deleted_at,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count
       FROM trades t
@@ -258,5 +272,6 @@ export function getTrade(id: number): TradeListRow | null {
     country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
+    deleted_at: row.deleted_at,
   }
 }

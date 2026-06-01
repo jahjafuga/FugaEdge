@@ -24,12 +24,12 @@ function parseTags(raw: string | null | undefined): string[] {
 
 function readRange(db: ReturnType<typeof openDatabase>): CalendarRange {
   const bounds = db
-    .prepare('SELECT MIN(date) AS earliest, MAX(date) AS latest FROM trades')
+    .prepare('SELECT MIN(date) AS earliest, MAX(date) AS latest FROM trades WHERE deleted_at IS NULL')
     .get() as { earliest: string | null; latest: string | null }
 
   const months = db
     .prepare(
-      "SELECT DISTINCT substr(date, 1, 7) AS m FROM trades ORDER BY m ASC",
+      "SELECT DISTINCT substr(date, 1, 7) AS m FROM trades WHERE deleted_at IS NULL ORDER BY m ASC",
     )
     .all() as { m: string }[]
 
@@ -74,7 +74,7 @@ function readMonthDays(
           SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END) AS winners,
           SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END) AS losers
         FROM trades
-        WHERE date LIKE ?
+        WHERE date LIKE ? AND deleted_at IS NULL
         GROUP BY date
       ),
       jr AS (
