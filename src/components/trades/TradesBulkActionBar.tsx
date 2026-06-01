@@ -36,7 +36,7 @@ export default function TradesBulkActionBar({
   if (count === 0) return null
 
   return (
-    <div className="flex items-center justify-between gap-4 border-t border-border-subtle bg-bg-header px-5 py-3">
+    <div className="flex items-center justify-between gap-4 border-t border-border-subtle bg-bg-header px-5 py-3 shadow-[0_-2px_8px_-2px_rgba(0,0,0,0.25)]">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
         <span className="font-semibold text-fg-primary">
           <span className="font-mono tnum">{int(count)}</span> selected

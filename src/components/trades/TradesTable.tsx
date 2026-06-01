@@ -517,10 +517,14 @@ export default function TradesTable({
   const colCount = columns.length + (bulkEnabled ? 1 : 0)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm">
-      {/* Scroll container is on the OUTER wrapper, with a fixed height — the
-          virtualizer reads scrollTop from this element. */}
-      <div ref={containerRef} className="max-h-[calc(100vh-280px)] overflow-auto">
+    <div className="flex max-h-[calc(100vh-280px)] flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm">
+      {/* Card is a flex column capped at the viewport: the scroll container
+          flexes to fill, and the bulk action bar (below) lands at the card
+          bottom instead of being pushed off-screen. min-h-0 is load-bearing —
+          a flex child won't shrink below its content height without it, which
+          would break the inner scroll AND push the bar off-screen again. Do
+          not remove it. The virtualizer still reads scrollTop from this el. */}
+      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
           <thead className="sticky top-0 z-10 bg-bg-header">
             {table.getHeaderGroups().map((hg) => (
@@ -529,7 +533,10 @@ export default function TradesTable({
                 className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
               >
                 {bulkEnabled && (
-                  <th style={{ width: 36 }} className="px-3 py-2.5 text-center">
+                  <th
+                    style={{ width: 36 }}
+                    className="group cursor-pointer px-3 py-2.5 text-center transition-colors duration-150 hover:bg-gold/10"
+                  >
                     <input
                       type="checkbox"
                       aria-label="Select all trades"
@@ -538,7 +545,7 @@ export default function TradesTable({
                       }}
                       checked={allSelected}
                       onChange={toggleAll}
-                      className="h-3.5 w-3.5 cursor-pointer accent-gold"
+                      className="h-3.5 w-3.5 cursor-pointer rounded-[3px] accent-gold transition-shadow group-hover:ring-2 group-hover:ring-gold/50"
                     />
                   </th>
                 )}
@@ -595,7 +602,7 @@ export default function TradesTable({
                   {bulkEnabled && (
                     <td
                       style={{ width: 36 }}
-                      className="px-3 text-center align-middle"
+                      className="group cursor-pointer px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <input
@@ -609,7 +616,7 @@ export default function TradesTable({
                           e.stopPropagation()
                           toggleRow(t.id, vi.index, e.shiftKey)
                         }}
-                        className="h-3.5 w-3.5 cursor-pointer accent-gold"
+                        className="h-3.5 w-3.5 cursor-pointer rounded-[3px] accent-gold transition-shadow group-hover:ring-2 group-hover:ring-gold/50"
                       />
                     </td>
                   )}
