@@ -22,7 +22,7 @@ export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
   const trips = db
     .prepare(`
       SELECT id, (shares_bought + shares_sold) AS total_shares
-      FROM trades WHERE date = ? AND symbol = ?
+      FROM trades WHERE date = ? AND symbol = ? AND deleted_at IS NULL
     `)
     .all(date, symbol) as TripShare[]
 
@@ -64,7 +64,7 @@ export function recomputeFeesForDates(dates: string[]): void {
   const placeholders = dates.map(() => '?').join(',')
   const pairs = db
     .prepare(`
-      SELECT DISTINCT date, symbol FROM trades WHERE date IN (${placeholders})
+      SELECT DISTINCT date, symbol FROM trades WHERE date IN (${placeholders}) AND deleted_at IS NULL
     `)
     .all(...dates) as { date: string; symbol: string }[]
   for (const { date, symbol } of pairs) {
