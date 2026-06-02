@@ -23,6 +23,10 @@ export interface IntradayRefreshResult {
   attempted: number
   fetched: number
   failed: number
+  // Mirrors @shared/market-types IntradayRefreshResult — kept in lockstep with
+  // the shared copy (duplicate-interface drift logged as v0.3.0 parking-lot
+  // tech debt; do not consolidate here).
+  skipped: number
   apiKeyMissing: boolean
   errors: { symbol: string; date: string; message: string }[]
   emaBackfilled: number
@@ -75,6 +79,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       attempted: 0,
       fetched: 0,
       failed: 0,
+      skipped: 0,
       apiKeyMissing: true,
       errors: [],
       emaBackfilled: 0,
@@ -84,7 +89,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     }
   }
 
-  const pairs = intradayPairsNeedingFetch(!!opts.force)
+  const { pairs, cooldownSkipped } = intradayPairsNeedingFetch(!!opts.force)
   const attempted = pairs.length
 
   if (attempted === 0) {
@@ -97,6 +102,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       attempted: 0,
       fetched: 0,
       failed: 0,
+      skipped: cooldownSkipped,
       apiKeyMissing: false,
       errors: [],
       emaBackfilled: backfilled,
@@ -196,6 +202,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     attempted,
     fetched,
     failed,
+    skipped: cooldownSkipped,
     apiKeyMissing: false,
     errors,
     emaBackfilled,
@@ -275,6 +282,15 @@ function entryPriceOf(t: TradeForEma): number {
 // The window is [entry bar … exit bar], inclusive. If close_time is missing
 // (still-open trade), we walk to the end of the bars array.
 
+// v0.2.3 — 1-minute Polygon bars can't resolve excursion for holds shorter
+// than the bar window: a sub-2-bar scalp yields an inflated or arbitrary
+// MAE/MFE (the entry/exit can land inside a single bar whose high/low reflect
+// price action the trader never held through). α = 120s (= 2 bars) is the
+// shortest hold we trust; below it we store NULL ("unknown") rather than a
+// misleading value. Finer resolution waits on the v0.4.0+ webapp tick/second-
+// bar work. Open trades (exitMs = +Inf → holdMs not finite) are unaffected.
+const MAE_MFE_MIN_HOLD_MS = 120_000
+
 interface TradeForMaeMfe {
   side: 'long' | 'short'
   avg_buy_price: number
@@ -302,6 +318,14 @@ export function computeMaeMfe(
   const exitMs = trade.close_time
     ? Date.parse(trade.close_time)
     : Number.POSITIVE_INFINITY
+
+  // v0.2.3 sub-resolution guard. holdMs is non-finite for open trades
+  // (exitMs = +Inf), so the finite check leaves the existing open-trade path
+  // unchanged; only closed trades held < α are nulled out before we touch bars.
+  const holdMs = exitMs - entryMs
+  if (Number.isFinite(holdMs) && holdMs < MAE_MFE_MIN_HOLD_MS) {
+    return { mae: null, mfe: null }
+  }
 
   const entry = entryPriceOf(trade)
   if (!Number.isFinite(entry) || entry <= 0) return { mae: null, mfe: null }
@@ -368,6 +392,38 @@ export function backfillAllMaeMfe(): number {
     }
   }
   return written
+}
+
+// v0.2.3 — one-shot post-migration recompute. The schema-25 migration nulls
+// every trades.mae/mfe and sets the `mae_mfe_backfill_pending` settings flag;
+// main schedules this at ready-to-show so the recompute runs off the cached
+// intraday_bars (NO new API calls) without blocking first paint. Durable +
+// self-retrying: the flag is cleared only after a clean backfill, so a crash
+// or throw mid-recompute leaves it set and the next launch retries. Idempotent
+// — backfillAllMaeMfe only writes rows whose value actually changed.
+export function runPendingMaeMfeBackfill(): void {
+  const conn = openDatabase()
+  const pending = conn
+    .prepare("SELECT value FROM settings WHERE key = 'mae_mfe_backfill_pending'")
+    .get() as { value: string } | undefined
+  if (pending?.value !== 'true') return
+
+  try {
+    const written = backfillAllMaeMfe()
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES ('mae_mfe_backfill_pending', 'false')
+         ON CONFLICT(key) DO UPDATE SET value = 'false'`,
+      )
+      .run()
+    console.info(
+      `[FE intraday] post-migration MAE/MFE backfill done: ${written} trade(s) recomputed`,
+    )
+  } catch (e) {
+    // Leave the flag set → retried next launch. The wipe already happened, so
+    // the worst case is the values stay NULL ("Awaiting") until a clean retry.
+    console.error(`[FE intraday] post-migration MAE/MFE backfill failed: ${e}`)
+  }
 }
 
 export function computeEma9Distance(

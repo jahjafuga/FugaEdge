@@ -9,6 +9,7 @@ import {
   type PlaybookWithStats,
   type UpdatePlaybookInput,
 } from '@shared/playbook-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 interface PlaybookRowDb {
   id: number
@@ -42,8 +43,6 @@ function rowToPlaybook(r: PlaybookRowDb): Playbook {
     created_at: r.created_at,
   }
 }
-
-const SCRATCH_THRESHOLD = 2
 
 function emptyStats(): PlaybookStats {
   return {
@@ -80,7 +79,7 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
       SELECT net_pnl, side, avg_buy_price, avg_sell_price,
              shares_bought, shares_sold,
              planned_risk, planned_stop_loss_price
-      FROM trades WHERE playbook_id = ?
+      FROM trades WHERE playbook_id = ? AND deleted_at IS NULL
     `)
     .all(playbookId) as TradeRowForStats[]
 
@@ -97,11 +96,11 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
 
   for (const t of trades) {
     net += t.net_pnl
-    if (t.net_pnl > SCRATCH_THRESHOLD) {
+    if (isWin(t.net_pnl)) {
       winners++
       winnersSum += t.net_pnl
       if (largestWinner == null || t.net_pnl > largestWinner) largestWinner = t.net_pnl
-    } else if (t.net_pnl < -SCRATCH_THRESHOLD) {
+    } else if (isLoss(t.net_pnl)) {
       losers++
       losersSum += t.net_pnl
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl

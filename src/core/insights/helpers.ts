@@ -3,6 +3,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import { utcToEasternParts } from '@/lib/format'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 const USD = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -88,10 +89,10 @@ export function aggregate(trades: TradeListRow[]): TradeAggregate {
   let loserSum = 0
   for (const t of trades) {
     net += t.net_pnl
-    if (t.net_pnl > 0) {
+    if (isWin(t.net_pnl)) {
       winners += 1
       winnerSum += t.net_pnl
-    } else if (t.net_pnl < 0) {
+    } else if (isLoss(t.net_pnl)) {
       losers += 1
       loserSum += t.net_pnl
     }

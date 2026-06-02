@@ -20,11 +20,14 @@ vi.mock('../../db/database', () => ({
 }))
 
 vi.mock('../repo', () => ({
-  intradayPairsNeedingFetch: () => [
-    { symbol: 'AAA', date: '2026-05-01' },
-    { symbol: 'STALL', date: '2026-05-01' },
-    { symbol: 'BBB', date: '2026-05-01' },
-  ],
+  intradayPairsNeedingFetch: () => ({
+    pairs: [
+      { symbol: 'AAA', date: '2026-05-01' },
+      { symbol: 'STALL', date: '2026-05-01' },
+      { symbol: 'BBB', date: '2026-05-01' },
+    ],
+    cooldownSkipped: 0,
+  }),
   upsertIntradayRow: vi.fn(),
   getIntradayRow: () => null,
   setTradeEma9Distance: vi.fn(),

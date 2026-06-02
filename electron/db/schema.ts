@@ -5,6 +5,29 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 24 for v0.2.3 scratch-fix — daily_summary cache backfill. The
+// scratch definition changed from a ±$2 band / bare-sign to
+// |net_pnl| <= SCRATCH_EPSILON (shared/trade-classification.ts). The stored
+// daily_summary.winners/losers (written by recompute-summary.ts, read by the
+// dashboard's per-day card) hold pre-fix counts, so migrate-scratch-reclassify.ts
+// recomputes every live date once. Non-destructive (derived cache rebuilt from
+// trades); version-gated + settings-latched, with a pre-migration backup. No
+// schema-shape change — the bump drives the one-shot backfill + release tracking.
+//
+// Bumped to 23 for v0.2.3 delete-trade — additive trades.deleted_at column
+// (nullable ISO-8601 UTC timestamp; NULL = live, set = soft-deleted/in Trash)
+// plus a partial index. Purely additive, no data move: added via the
+// migrateAddDeletedAt helper (mirror of the industry/country PRAGMA-gated
+// ALTER pattern, in its own type-only module so it's unit-testable). Reads
+// filter `deleted_at IS NULL`; getTrade deliberately does NOT (it returns
+// deleted rows so the Trash UI / detail modal can render them).
+//
+// Bumped to 22 for v0.2.3 Stage 2 — additive market_data.industry column
+// (FMP /stable/profile industry, companion to sector). Purely
+// additive: a NULL column added via the PRAGMA-gated ALTER in
+// migrateAfterSchema (no data move, no module, no backup latch). The version
+// bump is for release-tracking only.
+//
 // Bumped to 21 for v0.2.2 Commit A — float-rename migration: legacy
 // `trades.float_shares` and `market_data.float` were shares-outstanding
 // values mislabeled as "float". This bump preserves them under the new
@@ -19,7 +42,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '21'
+export const SCHEMA_VERSION = '25'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -60,7 +83,12 @@ CREATE TABLE IF NOT EXISTS trades (
   -- legacy NULL rows can coexist with the constraint.
   entry_timeframe TEXT,                                       -- user-input: '10s' | '1m' | '5m'
   entry_ema9_distance_pct REAL,                               -- backfilled from intraday_bars
-  created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  -- v0.2.3 soft-delete. NULL = live; ISO-8601 UTC timestamp = in Trash
+  -- (recoverable). Readers filter on deleted_at IS NULL; getTrade() does NOT
+  -- (it returns deleted rows so the UI can render them differently). Also
+  -- added via the migrateAddDeletedAt ALTER for upgraded DBs.
+  deleted_at      TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_date        ON trades(date);
@@ -211,6 +239,10 @@ CREATE TABLE IF NOT EXISTS market_data (
   shares_outstanding REAL,
   market_cap         REAL,
   sector             TEXT,
+  -- v0.2.3 Stage 2 — FMP /stable/profile industry (e.g.
+  -- "Biotechnology"), the finer-grained companion to sector
+  -- ("Healthcare"). NOT Polygon SIC text. Additive in schema 22.
+  industry           TEXT,
   avg_volume         REAL,
   daily_volumes      TEXT    NOT NULL DEFAULT '{}',
   country            TEXT,

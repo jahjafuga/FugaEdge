@@ -126,6 +126,8 @@ export interface ReportsData {
   byShareSize: BucketStats[]
   byRegion: BucketStats[]
   byCountry: BucketStats[]
+  bySector: BucketStats[]
+  byIndustry: BucketStats[]
   fullStats: FullStats
   volumeAnalysis: VolumeAnalysis
   winLossDays: DayBreakdown[]      // ordered by date ASC

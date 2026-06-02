@@ -12,6 +12,9 @@ export interface MarketRow {
   shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
+  /** FMP industry from /stable/profile (e.g. "Biotechnology"),
+   *  the finer companion to sector. v0.2.3 Stage 2. NOT Polygon SIC text. */
+  industry: string | null
   avg_volume: number | null
   daily_volumes: Record<string, number>
   country: string | null
@@ -27,6 +30,7 @@ interface MarketRowDb {
   shares_outstanding: number | null
   market_cap: number | null
   sector: string | null
+  industry: string | null
   avg_volume: number | null
   daily_volumes: string
   country: string | null
@@ -60,6 +64,7 @@ function rowToMarket(r: MarketRowDb): MarketRow {
     shares_outstanding: r.shares_outstanding,
     market_cap: r.market_cap,
     sector: r.sector,
+    industry: r.industry,
     avg_volume: r.avg_volume,
     daily_volumes: parseDailyVolumes(r.daily_volumes),
     country: r.country,
@@ -74,8 +79,8 @@ export function getMarketRow(symbol: string): MarketRow | null {
   const db = openDatabase()
   const row = db
     .prepare(`
-      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-             daily_volumes, country, country_name, region,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, industry,
+             avg_volume, daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data WHERE symbol = ?
     `)
@@ -87,8 +92,8 @@ export function getAllMarketRows(): MarketRow[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-             daily_volumes, country, country_name, region,
+      SELECT symbol, float, shares_outstanding, market_cap, sector, industry,
+             avg_volume, daily_volumes, country, country_name, region,
              fetched_at, error
       FROM market_data
     `)
@@ -100,16 +105,29 @@ export function upsertMarketRow(input: MarketRow): void {
   const db = openDatabase()
   db.prepare(`
     INSERT INTO market_data
-      (symbol, float, shares_outstanding, market_cap, sector, avg_volume,
-       daily_volumes, country, country_name, region, fetched_at, error)
-    VALUES (@symbol, @float, @shares_outstanding, @market_cap, @sector,
+      (symbol, float, shares_outstanding, market_cap, sector, industry,
+       avg_volume, daily_volumes, country, country_name, region, fetched_at, error)
+    VALUES (@symbol, @float, @shares_outstanding, @market_cap, @sector, @industry,
             @avg_volume, @daily_volumes, @country, @country_name, @region,
             @fetched_at, @error)
     ON CONFLICT(symbol) DO UPDATE SET
       float              = excluded.float,
       shares_outstanding = excluded.shares_outstanding,
+      -- market_cap stays unconditional: both Polygon and FMP supply a real,
+      -- comparable cap figure, so a fresh value should always win.
       market_cap         = excluded.market_cap,
-      sector             = excluded.sector,
+      -- sector is COALESCE-guarded because the two providers speak different
+      -- taxonomies: Polygon supplies SIC text (sic_description, e.g.
+      -- "PHARMACEUTICAL PREPARATIONS") while FMP/import supplies a GICS-style
+      -- sector (e.g. "Healthcare"). A null from the refresh path must never
+      -- wipe a good FMP sector. (v0.2.3 Commit A; the caller stops passing SIC
+      -- into this column in Commit B.)
+      sector             = COALESCE(excluded.sector, market_data.sector),
+      -- industry is FMP-only (Polygon has no industry field), so the
+      -- market-refresh path passes null for it. COALESCE keeps a
+      -- previously-imported industry instead of letting a refresh wipe it.
+      -- v0.2.3 Stage 2; mirrors the country-field protection below.
+      industry           = COALESCE(excluded.industry, market_data.industry),
       avg_volume         = excluded.avg_volume,
       daily_volumes      = excluded.daily_volumes,
       -- Country fields use COALESCE so an error-path upsert (where country
@@ -127,6 +145,7 @@ export function upsertMarketRow(input: MarketRow): void {
     shares_outstanding: input.shares_outstanding,
     market_cap: input.market_cap,
     sector: input.sector,
+    industry: input.industry,
     avg_volume: input.avg_volume,
     daily_volumes: JSON.stringify(input.daily_volumes ?? {}),
     country: input.country,
@@ -168,6 +187,20 @@ export function symbolsNeedingFetch(staleAfterMs: number, force: boolean): strin
     if (!(Number.isFinite(fetched) && now - fetched < staleAfterMs)) out.push(symbol)
   }
   return out
+}
+
+// v0.2.3 Stage A — worklist for the sector/industry backfill. `industry` is
+// written ONLY by Stage A, so a NULL industry is the clean "not done yet"
+// signal: it correctly includes the rows that carry stale Polygon SIC `sector`
+// text (their industry is still NULL). `force` re-fetches every row regardless.
+// Mirrors symbolsNeedingFloatFetch's role for the float backfill.
+export function symbolsNeedingProfileBackfill(force: boolean): string[] {
+  const db = openDatabase()
+  const sql = force
+    ? 'SELECT symbol FROM market_data ORDER BY symbol ASC'
+    : 'SELECT symbol FROM market_data WHERE industry IS NULL ORDER BY symbol ASC'
+  const rows = db.prepare(sql).all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
 }
 
 // ── Intraday 1-minute bars ────────────────────────────────────────────────
@@ -251,10 +284,19 @@ export function tradeSymbolDatePairs(): { symbol: string; date: string }[] {
 
 // (symbol, date) pairs missing intraday data — or previously errored.
 // `force` bypasses the cache entirely.
-export function intradayPairsNeedingFetch(force: boolean): { symbol: string; date: string }[] {
+export interface IntradayFetchWorklist {
+  pairs: { symbol: string; date: string }[]
+  /** Errored pairs still inside PLAN_GATE_COOLDOWN_MS — deliberately not
+   *  retried this run (working-as-designed). Excludes clean-cached pairs;
+   *  0 under force. Surfaced as IntradayRefreshResult.skipped so the UI can
+   *  show "{n} skipped" instead of a misleading all-zeros result. */
+  cooldownSkipped: number
+}
+
+export function intradayPairsNeedingFetch(force: boolean): IntradayFetchWorklist {
   const db = openDatabase()
   const all = tradeSymbolDatePairs()
-  if (force) return all
+  if (force) return { pairs: all, cooldownSkipped: 0 }
 
   const existing = db
     .prepare('SELECT symbol, date, error, fetched_at FROM intraday_bars')
@@ -263,13 +305,21 @@ export function intradayPairsNeedingFetch(force: boolean): { symbol: string; dat
   for (const r of existing) cached.set(`${r.symbol}|${r.date}`, { error: r.error, fetched_at: r.fetched_at })
 
   const now = Date.now()
-  return all.filter((p) => {
+  const pairs: { symbol: string; date: string }[] = []
+  let cooldownSkipped = 0
+  for (const p of all) {
     const row = cached.get(`${p.symbol}|${p.date}`)
-    if (row === undefined) return true       // never fetched
-    if (row.error === null) return false      // cached cleanly
-    // Errored: retry transient failures; skip a plan-gated pair within cooldown.
-    return shouldRetryErrored(row.error, row.fetched_at, now)
-  })
+    if (row === undefined) {
+      pairs.push(p) // never fetched
+      continue
+    }
+    if (row.error === null) continue // cached cleanly — skip, NOT counted
+    // Errored: retry transient failures; skip (and count) a plan-gated pair
+    // still inside its cooldown window.
+    if (shouldRetryErrored(row.error, row.fetched_at, now)) pairs.push(p)
+    else cooldownSkipped++
+  }
+  return { pairs, cooldownSkipped }
 }
 
 export function setTradeEma9Distance(tradeId: number, pct: number | null): void {

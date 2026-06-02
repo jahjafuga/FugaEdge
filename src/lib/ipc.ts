@@ -33,7 +33,17 @@ export const ipc = {
   importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
-  tradesList: (opts?: { date?: string }) => window.api.tradesList(opts),
+  tradesList: (opts?: { date?: string; deleted?: boolean }) =>
+    window.api.tradesList(opts),
+  tradeSoftDelete: (trade_id: number) => window.api.tradeSoftDelete(trade_id),
+  tradesSoftDeleteBulk: (trade_ids: number[]) =>
+    window.api.tradesSoftDeleteBulk(trade_ids),
+  tradeRestore: (trade_id: number) => window.api.tradeRestore(trade_id),
+  tradesRestoreBulk: (trade_ids: number[]) =>
+    window.api.tradesRestoreBulk(trade_ids),
+  tradeHardDelete: (trade_id: number) => window.api.tradeHardDelete(trade_id),
+  tradesHardDeleteBulk: (trade_ids: number[]) =>
+    window.api.tradesHardDeleteBulk(trade_ids),
   tradeNoteSave: (input: UpdateNoteInput) => window.api.tradeNoteSave(input),
   tradeTimeframeSave: (input: UpdateTimeframeInput) =>
     window.api.tradeTimeframeSave(input),
@@ -61,6 +71,10 @@ export const ipc = {
   floatOnBackfillProgress: (
     cb: (p: import('@shared/market-types').FloatBackfillProgress) => void,
   ) => window.api.floatOnBackfillProgress(cb),
+  profileBackfill: (force?: boolean) => window.api.profileBackfill(force),
+  profileOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').ProfileBackfillProgress) => void,
+  ) => window.api.profileOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),

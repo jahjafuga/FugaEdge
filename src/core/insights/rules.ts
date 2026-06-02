@@ -13,6 +13,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { InsightInput, InsightResult } from './types'
 import { utcToEasternParts } from '@/lib/format'
+import { isWin, isLoss } from '@/core/classify/outcome'
 import {
   aggregate,
   entryHour,
@@ -544,8 +545,8 @@ export function runExpectancy(input: InsightInput): InsightResult | null {
 // (work on cutting losses); ≥1.5× is a healthy profile worth highlighting.
 
 export function runRewardRiskRatio(input: InsightInput): InsightResult | null {
-  const winners = input.trades.filter((t) => t.net_pnl > 0)
-  const losers = input.trades.filter((t) => t.net_pnl < 0)
+  const winners = input.trades.filter((t) => isWin(t.net_pnl))
+  const losers = input.trades.filter((t) => isLoss(t.net_pnl))
   if (winners.length < 5 || losers.length < 5) return null
   const avgWin = winners.reduce((s, t) => s + t.net_pnl, 0) / winners.length
   const avgLossAbs =
@@ -607,8 +608,8 @@ export function runHoldTimeFlipped(input: InsightInput): InsightResult | null {
   for (const t of input.trades) {
     const s = holdSeconds(t)
     if (s == null) continue
-    if (t.net_pnl > 0) winners.push(s)
-    else if (t.net_pnl < 0) losers.push(s)
+    if (isWin(t.net_pnl)) winners.push(s)
+    else if (isLoss(t.net_pnl)) losers.push(s)
   }
   if (winners.length < 5 || losers.length < 5) return null
   const avgWin = winners.reduce((a, b) => a + b, 0) / winners.length
@@ -648,12 +649,12 @@ export function runRevengeTrading(input: InsightInput): InsightResult | null {
     for (let i = 1; i < arr.length; i++) {
       const prev = arr[i - 1]
       const curr = arr[i]
-      if (prev.net_pnl < 0) {
+      if (isLoss(prev.net_pnl)) {
         pairsAfterLoss++
-        if (curr.net_pnl < 0) lossesAfterLoss++
-      } else if (prev.net_pnl > 0) {
+        if (isLoss(curr.net_pnl)) lossesAfterLoss++
+      } else if (isWin(prev.net_pnl)) {
         pairsAfterWin++
-        if (curr.net_pnl < 0) lossesAfterWin++
+        if (isLoss(curr.net_pnl)) lossesAfterWin++
       }
     }
   }
@@ -682,7 +683,7 @@ export function runRevengeTrading(input: InsightInput): InsightResult | null {
 // the mistake that infects the most losses, which the user can drop wholesale.
 
 export function runMistakeInLosers(input: InsightInput): InsightResult[] {
-  const losers = input.trades.filter((t) => t.net_pnl < 0)
+  const losers = input.trades.filter((t) => isLoss(t.net_pnl))
   if (losers.length < 10) return []
   const total = losers.length
   const counts = new Map<string, number>()

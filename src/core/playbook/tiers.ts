@@ -8,12 +8,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import { PLAYBOOK_TIERS, type PlaybookTier } from '@shared/playbook-types'
-
-// A small bound between "scratch" and a counted win/loss. Matches the
-// SCRATCH_THRESHOLD constant used elsewhere in the codebase (playbook repo
-// + performance/comparison). Keeps the tier card's numbers consistent
-// with the Setup Library and the Reports breakdowns.
-const SCRATCH_THRESHOLD = 2
+import { classifyOutcome } from '@/core/classify/outcome'
 
 export interface TierPerformanceRow {
   tier: PlaybookTier
@@ -105,10 +100,11 @@ export function aggregateTierPerformance(
     b.net_pnl += t.net_pnl
     b.gross_pnl += t.gross_pnl
     b.total_fees += t.total_fees
-    if (t.net_pnl > SCRATCH_THRESHOLD) {
+    const outcome = classifyOutcome(t.net_pnl)
+    if (outcome === 'win') {
       b.winners += 1
       b.winners_sum += t.net_pnl
-    } else if (t.net_pnl < -SCRATCH_THRESHOLD) {
+    } else if (outcome === 'loss') {
       b.losers += 1
       b.losers_sum += t.net_pnl
     } else {

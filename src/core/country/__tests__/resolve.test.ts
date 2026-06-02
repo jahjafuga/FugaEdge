@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveCountryFromPolygon } from '../resolve'
+import { resolveCountryFromPolygon, resolveCountryFromFmp } from '../resolve'
 
 describe('resolveCountryFromPolygon', () => {
   it('plain US ticker', () => {
@@ -101,5 +101,46 @@ describe('resolveCountryFromPolygon', () => {
       },
     })
     expect(r.country).toBe('IL')
+  })
+})
+
+describe('resolveCountryFromFmp (v0.2.3 Stage 1 — PRIMARY)', () => {
+  it('valid alpha-2 → confident source "fmp" with name + region filled', () => {
+    expect(resolveCountryFromFmp('IL')).toEqual({
+      country: 'IL', country_name: 'Israel', region: 'Israel', source: 'fmp',
+    })
+  })
+
+  it('the SPRC bug case: FMP returns IL where Polygon would say US (inferred)', () => {
+    // SPRC is NASDAQ-listed, so Polygon's locale path yields US/inferred…
+    expect(resolveCountryFromPolygon({ results: { locale: 'us' } })).toMatchObject({
+      country: 'US', source: 'inferred',
+    })
+    // …but FMP's domicile resolves IL/fmp — the whole point of Stage 1.
+    expect(resolveCountryFromFmp('IL')).toMatchObject({ country: 'IL', source: 'fmp' })
+  })
+
+  it('normalizes lowercase to uppercase', () => {
+    expect(resolveCountryFromFmp('ca')).toMatchObject({ country: 'CA', source: 'fmp' })
+  })
+
+  it('maps an unmapped-but-valid ISO into the Other region (still confident)', () => {
+    // AE isn't in REGION_MAP; getRegionForCountry returns 'Other', getCountryName
+    // still has a display name. Source stays 'fmp' — it's a real domicile.
+    expect(resolveCountryFromFmp('AE')).toEqual({
+      country: 'AE', country_name: 'United Arab Emirates', region: 'Other', source: 'fmp',
+    })
+  })
+
+  it('null → unknown sentinel (orchestrator reads this as "fall back to Polygon")', () => {
+    expect(resolveCountryFromFmp(null)).toEqual({
+      country: null, country_name: 'Unknown', region: 'Unknown', source: 'unknown',
+    })
+  })
+
+  it('empty / malformed string → unknown sentinel', () => {
+    expect(resolveCountryFromFmp('')).toMatchObject({ country: null, source: 'unknown' })
+    expect(resolveCountryFromFmp('USA')).toMatchObject({ country: null, source: 'unknown' })
+    expect(resolveCountryFromFmp('1')).toMatchObject({ country: null, source: 'unknown' })
   })
 })

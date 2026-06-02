@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
@@ -116,8 +117,8 @@ function computeOne(
   })()
 
   const inWeek = trades.filter((t) => t.date >= weekStart && t.date <= weekEnd)
-  const winners = inWeek.filter((t) => t.net_pnl > 0)
-  const losers = inWeek.filter((t) => t.net_pnl < 0)
+  const winners = inWeek.filter((t) => isWin(t.net_pnl))
+  const losers = inWeek.filter((t) => isLoss(t.net_pnl))
 
   let net = 0
   let gross = 0
@@ -225,7 +226,7 @@ export function getWeeklySummaries(year: number, month: number): WeeklySummary[]
     .prepare(`
       SELECT date, symbol, net_pnl, gross_pnl, total_fees, mistakes_json
       FROM trades
-      WHERE date >= ? AND date <= ?
+      WHERE date >= ? AND date <= ? AND deleted_at IS NULL
     `)
     .all(rangeStart, rangeEnd) as TradeForWeek[]
 
@@ -251,7 +252,7 @@ export function getWeeklySummaries(year: number, month: number): WeeklySummary[]
   // dates outside the visible range (so a streak that started weeks ago is
   // counted correctly). Cheap aggregation in one shot.
   const dailyRows = db
-    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades GROUP BY date')
+    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL GROUP BY date')
     .all() as { date: string; pnl: number }[]
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)
@@ -272,7 +273,7 @@ export function listTradesForWeek(weekStart: string): CalendarDay['date'][] {
   const rows = db
     .prepare(`
       SELECT DISTINCT date FROM trades
-      WHERE date >= ? AND date <= ?
+      WHERE date >= ? AND date <= ? AND deleted_at IS NULL
       ORDER BY date ASC
     `)
     .all(weekStart, end) as { date: string }[]

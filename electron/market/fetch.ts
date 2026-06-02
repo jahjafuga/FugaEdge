@@ -7,6 +7,7 @@ import {
 } from './massive'
 import { resolveCountryFromPolygon } from '@/core/country/resolve'
 import {
+  getMarketRow,
   symbolsNeedingFetch,
   tradeDateRangePerSymbol,
   upsertMarketRow,
@@ -165,6 +166,13 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
       for (const a of aggs) dailyVolumes[a.date] = a.volume
       const avg = aggs.length > 0 ? avgVolume(aggs.map((a) => a.volume)) : null
 
+      // v0.2.3 Commit B — read the existing row so the refresh path can honor
+      // existing-wins for sector/industry. Polygon supplies SIC text, a
+      // different taxonomy from the FMP sector Stage A/import wrote; we must
+      // never let a refresh overwrite a clean FMP value. (Commit A's COALESCE
+      // only stopped null wipes; the success path passed a *non-null* SIC.)
+      const existing = getMarketRow(symbol)
+
       const row: MarketRow = {
         symbol,
         // Commit A: refresh keeps writing Polygon's shares_outstanding into
@@ -175,7 +183,13 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         float: details.shares_outstanding,
         shares_outstanding: null,
         market_cap: details.market_cap,
-        sector: details.sector,
+        // Existing wins: a refresh re-affirms a present FMP sector or fills one
+        // only when the column is empty — Polygon's SIC text never replaces it.
+        sector: existing?.sector ?? details.sector ?? null,
+        // industry is FMP-only (Polygon has none), so existing always wins:
+        // a refresh either re-affirms the imported industry or writes null
+        // when there's none yet. Explicit here + COALESCE-guarded in upsert.
+        industry: existing?.industry ?? null,
         avg_volume: avg,
         daily_volumes: dailyVolumes,
         country: country.country,
@@ -201,6 +215,7 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
         shares_outstanding: null,
         market_cap: null,
         sector: null,
+        industry: null,  // COALESCEd in upsert — preserves any prior value
         avg_volume: null,
         daily_volumes: {},
         country: null,

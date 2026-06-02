@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import type { DaySummaryFeeRow, RoundTrip } from '@shared/import-types'
 import { recomputeFeesForDateSymbol } from './apply-fees'
+import { recomputeSummaryForDates } from '../trades/recompute-summary'
 
 export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   const db = openDatabase()
@@ -10,8 +11,15 @@ export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   // carries different per-fill IDs (scenarios b1/b2/b3 from the 2026-05-26
   // dedup investigation). Both columns are indexed (UNIQUE on exec_hash,
   // partial UNIQUE on content_hash), so the OR clause is sargable on either.
+  //
+  // v0.2.3: only LIVE rows count as duplicates. A soft-deleted trade no longer
+  // blocks its own re-import — preview shows it as 'new', the INSERT OR IGNORE
+  // in commit() then no-ops on the still-present unique slot, and the else
+  // branch resurrects it (clears deleted_at). The OR must be parenthesized:
+  // AND binds tighter than OR, so without parens the filter would only apply
+  // to the content_hash arm.
   const stmt = db.prepare(
-    'SELECT 1 FROM trades WHERE exec_hash = ? OR content_hash = ? LIMIT 1',
+    'SELECT 1 FROM trades WHERE (exec_hash = ? OR content_hash = ?) AND deleted_at IS NULL LIMIT 1',
   )
   return trips.map((t) => {
     const hit = stmt.get(t.exec_hash, t.content_hash)
@@ -38,34 +46,16 @@ export function annotateFeeStatus(fees: DaySummaryFeeRow[]): DaySummaryFeeRow[] 
   })
 }
 
-const upsertSummary = `
-  INSERT INTO daily_summary
-    (date, total_pnl, total_fees, trade_count, winners, losers, gross_pnl, largest_win, largest_loss)
-  SELECT
-    date,
-    COALESCE(SUM(net_pnl), 0),
-    COALESCE(SUM(total_fees), 0),
-    COUNT(*),
-    SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END),
-    SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END),
-    COALESCE(SUM(gross_pnl), 0),
-    COALESCE(MAX(net_pnl), 0),
-    COALESCE(MIN(net_pnl), 0)
-  FROM trades WHERE date = ? GROUP BY date
-  ON CONFLICT(date) DO UPDATE SET
-    total_pnl    = excluded.total_pnl,
-    total_fees   = excluded.total_fees,
-    trade_count  = excluded.trade_count,
-    winners      = excluded.winners,
-    losers       = excluded.losers,
-    gross_pnl    = excluded.gross_pnl,
-    largest_win  = excluded.largest_win,
-    largest_loss = excluded.largest_loss
-`
+// v0.2.3: the daily_summary upsert moved to trades/recompute-summary.ts so the
+// trade-lifecycle ops (soft-delete/restore/hard-delete) share it. The extracted
+// helper also filters deleted_at IS NULL and removes a summary row when a date
+// drops to zero live trades — both no-ops for this import path (it only ever
+// adds live trades), so commit() behavior is unchanged.
 
 export interface CommitOutcome {
   insertedTrips: number
   skippedTrips: number
+  resurrectedTrips: number
   insertedFees: number
   replacedFees: number
   affectedDates: string[]
@@ -188,6 +178,12 @@ export function commit(
 ): CommitOutcome {
   const db = openDatabase()
 
+  // v0.2.3 known divergence: this hard-deletes ANY open trip for the affected
+  // (symbol, date) — including a SOFT-DELETED open trip — and the matching
+  // incoming trip is then re-inserted fresh below. Open trips are transient
+  // working state (an unclosed position), so a trashed open row is not
+  // preserved/resurrected the way a trashed CLOSED trip is; it is purged and
+  // replaced. Intentional — do not add a deleted_at guard here.
   const purgeOpen = db.prepare(
     'DELETE FROM trades WHERE symbol = ? AND date = ? AND is_open = 1',
   )
@@ -256,10 +252,21 @@ export function commit(
       source     = excluded.source
   `)
 
-  const summaryStmt = db.prepare(upsertSummary)
+  // v0.2.3 resurrect: when INSERT OR IGNORE no-ops because the incoming trip's
+  // hash already occupies a slot held by a SOFT-DELETED row, clear its
+  // deleted_at to bring it back. The OR is parenthesized (AND binds tighter)
+  // and the `deleted_at IS NOT NULL` guard is load-bearing: SQLite reports
+  // changes > 0 for an UPDATE whose WHERE matches even when it sets NULL→NULL,
+  // so without the guard a LIVE duplicate would falsely count as a resurrect.
+  // The guard makes info.changes the exact signal: > 0 ⇒ a trashed row was
+  // revived, 0 ⇒ an ordinary live duplicate.
+  const resurrectTrip = db.prepare(
+    'UPDATE trades SET deleted_at = NULL WHERE (exec_hash = @exec_hash OR content_hash = @content_hash) AND deleted_at IS NOT NULL',
+  )
 
   let insertedTrips = 0
   let skippedTrips = 0
+  let resurrectedTrips = 0
   let insertedFees = 0
   let replacedFees = 0
   const dates = new Set<string>()
@@ -331,7 +338,22 @@ export function commit(
         dates.add(t.date)
         pairs.add(`${t.date}|${t.symbol}`)
       } else {
-        skippedTrips++
+        // INSERT OR IGNORE no-op: a row with this exec_hash/content_hash
+        // already exists. If that row is soft-deleted, resurrect it (clears
+        // deleted_at) and fold its date/pair into the affected sets so the
+        // existing recompute loops below pick it up — NO new recompute call.
+        // Executions are untouched by soft-delete, so none are re-inserted.
+        const revived = resurrectTrip.run({
+          exec_hash: t.exec_hash,
+          content_hash: t.content_hash,
+        })
+        if (revived.changes > 0) {
+          resurrectedTrips++
+          dates.add(t.date)
+          pairs.add(`${t.date}|${t.symbol}`)
+        } else {
+          skippedTrips++
+        }
       }
     }
 
@@ -362,7 +384,7 @@ export function commit(
       recomputeFeesForDateSymbol(date, symbol)
     }
 
-    for (const d of dates) summaryStmt.run(d)
+    recomputeSummaryForDates(dates)
 
     // Auto-enrich newly-inserted trades' float_shares from cached
     // market_data. For symbols not yet in market_data, the second pass runs
@@ -380,6 +402,7 @@ export function commit(
   return {
     insertedTrips,
     skippedTrips,
+    resurrectedTrips,
     insertedFees,
     replacedFees,
     affectedDates: Array.from(dates).sort(),

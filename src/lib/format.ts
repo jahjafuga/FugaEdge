@@ -143,6 +143,28 @@ export function duration(seconds: number | null | undefined): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+// "Deleted X days ago" for the Settings → Trash card (v0.2.3 P5). The input is
+// a `trades.deleted_at` value, which is SQLite `datetime('now')` →
+// 'YYYY-MM-DD HH:MM:SS' in UTC, with a SPACE separator and NO 'Z' suffix.
+//
+// V8's Date.parse reads a space-separated, zoneless string as LOCAL time, which
+// would skew the elapsed-day count by the machine's UTC offset (up to ±14h, so
+// off by a day near a boundary). We normalize to an explicit UTC ISO string
+// ('…T…Z') before parsing so the result is timezone-independent — it measures
+// absolute elapsed time, floored to whole days, never a local-calendar guess.
+export function deletedAgo(
+  deletedAt: string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!deletedAt) return 'Deleted recently'
+  const ms = Date.parse(`${deletedAt.replace(' ', 'T')}Z`)
+  if (Number.isNaN(ms)) return 'Deleted recently'
+  const days = Math.floor((now.getTime() - ms) / 86_400_000)
+  if (days <= 0) return 'Deleted today'
+  if (days === 1) return 'Deleted 1 day ago'
+  return `Deleted ${days} days ago`
+}
+
 // ── Timezone helpers (Day 8.5) ────────────────────────────────────────────
 //
 // FugaEdge's import parsers receive broker timestamps in US/Eastern wall-clock

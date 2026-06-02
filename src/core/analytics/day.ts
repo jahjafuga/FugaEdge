@@ -2,6 +2,7 @@ import type { TradeListRow } from '@shared/trades-types'
 import type { ExitDelta } from '@shared/analytics-types'
 import type { DayMetrics } from '@shared/day-types'
 import { formatEastern } from '@/lib/format'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 interface ComputeDayMetricsInput {
   date: string
@@ -61,13 +62,13 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     grossPnl += t.gross_pnl
     totalFees += t.total_fees
     netPnl += t.net_pnl
-    if (t.net_pnl > 0) {
+    if (isWin(t.net_pnl)) {
       winCount += 1
       winnerSum += t.net_pnl
       if (biggestWin === null || t.net_pnl > biggestWin.pnl) {
         biggestWin = { symbol: t.symbol, pnl: t.net_pnl }
       }
-    } else if (t.net_pnl < 0) {
+    } else if (isLoss(t.net_pnl)) {
       lossCount += 1
       loserSum += t.net_pnl
       if (worstLoss === null || t.net_pnl < worstLoss.pnl) {
@@ -109,10 +110,10 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
         const seconds = (close - open) / 1000
         holdSecondsTotal += seconds
         holdSecondsTotalCount += 1
-        if (t.net_pnl > 0) {
+        if (isWin(t.net_pnl)) {
           holdSecondsWinnersTotal += seconds
           holdSecondsWinnersCount += 1
-        } else if (t.net_pnl < 0) {
+        } else if (isLoss(t.net_pnl)) {
           holdSecondsLosersTotal += seconds
           holdSecondsLosersCount += 1
         } else {
@@ -134,8 +135,8 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     if (t.playbook_name !== null) {
       const agg = playbookAgg.get(t.playbook_name) ?? { tradeCount: 0, winners: 0, losers: 0 }
       agg.tradeCount += 1
-      if (t.net_pnl > 0) agg.winners += 1
-      else if (t.net_pnl < 0) agg.losers += 1
+      if (isWin(t.net_pnl)) agg.winners += 1
+      else if (isLoss(t.net_pnl)) agg.losers += 1
       playbookAgg.set(t.playbook_name, agg)
     }
   }
@@ -191,11 +192,11 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   let maxConsecutiveWins = 0
   let maxConsecutiveLosses = 0
   for (const t of chrono) {
-    if (t.net_pnl > 0) {
+    if (isWin(t.net_pnl)) {
       curWinStreak += 1
       curLossStreak = 0
       if (curWinStreak > maxConsecutiveWins) maxConsecutiveWins = curWinStreak
-    } else if (t.net_pnl < 0) {
+    } else if (isLoss(t.net_pnl)) {
       curLossStreak += 1
       curWinStreak = 0
       if (curLossStreak > maxConsecutiveLosses) maxConsecutiveLosses = curLossStreak

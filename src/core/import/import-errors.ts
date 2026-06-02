@@ -301,6 +301,7 @@ export function failedCommitResult(issues: ImportIssue[]): CommitResult {
   return {
     insertedTrips: 0,
     skippedTrips: 0,
+    resurrectedTrips: 0,
     insertedFees: 0,
     replacedFees: 0,
     affectedDates: [],

@@ -13,7 +13,18 @@
 //   - Invalid keys return 401/403 (mirror Massive's auth-fail semantics)
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
-import { verifyFmp, fetchSharesFloat } from '../fmp'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+import { verifyFmp, fetchSharesFloat, fetchCompanyProfile } from '../fmp'
+
+// Captured SPRC /stable/profile response (2026-05-31 basket verification) —
+// loaded via fs rather than a JSON import so tsc --noEmit doesn't need
+// resolveJsonModule turned on.
+const FIXTURES_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const SPRC_PROFILE = JSON.parse(
+  readFileSync(join(FIXTURES_DIR, 'fmp-profile-sprc.json'), 'utf8'),
+) as Record<string, unknown>[]
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -281,6 +292,141 @@ describe('verifyFmp — 15s AbortController timeout', () => {
     // verifyFmp keeps its existing "never throws" contract — a timeout
     // surfaces as network-error, consistent with the other catch branches.
     expect(await promise).toEqual({ kind: 'network-error' })
+
+    vi.useRealTimers()
+  })
+})
+
+// ── fetchCompanyProfile (v0.2.3 — country + Stage 2 cap/sector/industry) ─────
+// Returns a CompanyProfile { country, marketCap, sector, industry } (each
+// field independently nullable) or null on a TOTAL miss (non-200 / empty
+// array / malformed / network). NEVER throws except on a real 15s timeout.
+// Grounded in the 2026-05-31 basket verification (SPRC→IL/567401/Healthcare/
+// Biotechnology, ZZZZZ→[]).
+
+describe('fetchCompanyProfile — country + Stage 2 fields', () => {
+  it('parses the full SPRC fixture (country + marketCap + sector + industry)', async () => {
+    mockFetchOnce({ status: 200, body: SPRC_PROFILE })
+    expect(await fetchCompanyProfile('test-key', 'SPRC')).toEqual({
+      country: 'IL',
+      marketCap: 567401,
+      sector: 'Healthcare',
+      industry: 'Biotechnology',
+    })
+  })
+
+  it('returns null on an empty array (unknown symbol — ZZZZZ case)', async () => {
+    mockFetchOnce({ status: 200, body: [] })
+    expect(await fetchCompanyProfile('test-key', 'ZZZZZ')).toBeNull()
+  })
+
+  it('country missing → object with country null (NOT a total-miss null)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', marketCap: 100, sector: 'Tech', industry: 'Software' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toEqual({
+      country: null, marketCap: 100, sector: 'Tech', industry: 'Software',
+    })
+  })
+
+  it('country empty string → country null (not a bogus code), other fields intact', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: '', marketCap: 5 }] })
+    const r = await fetchCompanyProfile('test-key', 'X')
+    expect(r).toMatchObject({ country: null, marketCap: 5 })
+  })
+
+  it('country malformed ("USA") → country null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'USA' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.country).toBeNull()
+  })
+
+  it('normalizes a lowercase country to uppercase alpha-2', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'il' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.country).toBe('IL')
+  })
+
+  // ── Stage 2: marketCap / sector / industry coercion ──
+  it('marketCap: empty string → null (not 0)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', marketCap: '' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBeNull()
+  })
+
+  it('marketCap: string-typed number → coerced to number (FMP has been inconsistent)', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', marketCap: '1207504' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBe(1207504)
+  })
+
+  it('marketCap: missing → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US' }] })
+    expect((await fetchCompanyProfile('test-key', 'X'))?.marketCap).toBeNull()
+  })
+
+  it('sector / industry: present → trimmed strings', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', sector: '  Technology ', industry: ' Semiconductors ' }] })
+    const r = await fetchCompanyProfile('test-key', 'X')
+    expect(r).toMatchObject({ sector: 'Technology', industry: 'Semiconductors' })
+  })
+
+  it('sector / industry: empty string → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US', sector: '', industry: '   ' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toMatchObject({ sector: null, industry: null })
+  })
+
+  it('sector / industry: missing → null', async () => {
+    mockFetchOnce({ status: 200, body: [{ symbol: 'X', country: 'US' }] })
+    expect(await fetchCompanyProfile('test-key', 'X')).toMatchObject({ sector: null, industry: null })
+  })
+
+  // ── Total-miss → null (unchanged contract) ──
+  it('returns null on 401/403 (invalid or plan-gated key)', async () => {
+    mockFetchOnce({ status: 403 })
+    expect(await fetchCompanyProfile('bad-key', 'SPRC')).toBeNull()
+  })
+
+  it('returns null on a network error — NEVER throws', async () => {
+    mockFetchOnce(new TypeError('fetch failed'))
+    expect(await fetchCompanyProfile('test-key', 'SPRC')).toBeNull()
+  })
+
+  it('returns null on malformed JSON (200 with a bad body)', async () => {
+    const fn = vi.fn(async () => new Response('not json {{{', { status: 200 }))
+    vi.stubGlobal('fetch', fn)
+    expect(await fetchCompanyProfile('test-key', 'SPRC')).toBeNull()
+  })
+
+  it('passes an AbortSignal to fetch (timeout plumbing wired)', async () => {
+    let signalCapture: AbortSignal | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: { signal?: AbortSignal }) => {
+        signalCapture = init?.signal
+        return new Response(JSON.stringify(SPRC_PROFILE), { status: 200 })
+      }),
+    )
+    await fetchCompanyProfile('test-key', 'SPRC')
+    expect(signalCapture).toBeInstanceOf(AbortSignal)
+  })
+
+  it('aborts and THROWS after 15s when the fetch stalls (mirrors fetchSharesFloat)', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: { signal?: AbortSignal }) => {
+        return new Promise((_, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err: Error & { name: string } = new Error('aborted')
+            err.name = 'AbortError'
+            reject(err)
+          })
+        })
+      }),
+    )
+
+    const promise = fetchCompanyProfile('test-key', 'STALL')
+    const caught = promise.catch((e) => e)
+    await vi.advanceTimersByTimeAsync(20_000)
+
+    const e = await caught
+    expect(e).toBeInstanceOf(Error)
+    expect((e as Error).message).toBe('Request timed out after 15000ms')
 
     vi.useRealTimers()
   })

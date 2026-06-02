@@ -1,6 +1,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { WeekMetrics } from '@shared/week-types'
 import type { ExitDelta } from '@shared/analytics-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 interface ComputeWeekMetricsInput {
   /** Trades already scoped to the week (the repo filters by trades.date). */
@@ -68,13 +69,13 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     totalFees += t.total_fees
     netPnl += t.net_pnl
 
-    if (t.net_pnl > 0) {
+    if (isWin(t.net_pnl)) {
       winCount += 1
       winnerSum += t.net_pnl
       if (biggestWin === null || t.net_pnl > biggestWin.pnl) {
         biggestWin = { symbol: t.symbol, pnl: t.net_pnl }
       }
-    } else if (t.net_pnl < 0) {
+    } else if (isLoss(t.net_pnl)) {
       lossCount += 1
       loserSum += t.net_pnl
       if (worstLoss === null || t.net_pnl < worstLoss.pnl) {
@@ -108,10 +109,10 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
         const seconds = (close - open) / 1000
         holdSecondsTotal += seconds
         holdSecondsTotalCount += 1
-        if (t.net_pnl > 0) {
+        if (isWin(t.net_pnl)) {
           holdSecondsWinnersTotal += seconds
           holdSecondsWinnersCount += 1
-        } else if (t.net_pnl < 0) {
+        } else if (isLoss(t.net_pnl)) {
           holdSecondsLosersTotal += seconds
           holdSecondsLosersCount += 1
         } else {
@@ -134,8 +135,8 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
       const pb = playbookAgg.get(t.playbook_name) ?? { tradeCount: 0, netPnl: 0, winners: 0, losers: 0 }
       pb.tradeCount += 1
       pb.netPnl += t.net_pnl
-      if (t.net_pnl > 0) pb.winners += 1
-      else if (t.net_pnl < 0) pb.losers += 1
+      if (isWin(t.net_pnl)) pb.winners += 1
+      else if (isLoss(t.net_pnl)) pb.losers += 1
       playbookAgg.set(t.playbook_name, pb)
     }
 

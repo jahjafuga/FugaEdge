@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { SCRATCH_EPSILON } from '@shared/trade-classification'
+import { sqlIsWin, sqlIsLoss, sqlIsScratch } from '@/core/classify/outcome'
 import type {
   DailyPnlPoint,
   DashboardData,
@@ -36,7 +38,7 @@ function readOverview(
   db: ReturnType<typeof openDatabase>,
   start: string | null,
 ): OverviewStats {
-  const where = start ? 'WHERE date >= ?' : ''
+  const where = start ? 'WHERE deleted_at IS NULL AND date >= ?' : 'WHERE deleted_at IS NULL'
   const params = start ? [start] : []
 
   const totals = db
@@ -46,33 +48,38 @@ function readOverview(
         COALESCE(SUM(gross_pnl), 0)  AS gross_pnl,
         COALESCE(SUM(total_fees), 0) AS total_fees,
         COUNT(*)                      AS trade_count,
-        COALESCE(SUM(CASE WHEN net_pnl = 0 THEN 1 ELSE 0 END), 0) AS scratches
+        COALESCE(SUM(CASE WHEN ${sqlIsScratch()} THEN 1 ELSE 0 END), 0) AS scratches
       FROM trades ${where}
     `)
-    .get(...params) as {
+    // The scratch CASE's `?` appears before the optional `date >= ?` in `where`,
+    // so SCRATCH_EPSILON binds first.
+    .get(SCRATCH_EPSILON, ...params) as {
       net_pnl: number; gross_pnl: number; total_fees: number; trade_count: number; scratches: number
     }
 
+  // The threshold `?` (sqlIsWin/sqlIsLoss) appears before the optional
+  // `date >= ?`, so the epsilon binds first in each .get() below. Losers bind
+  // the NEGATED epsilon (sqlIsLoss is `net_pnl < ?`).
   const winnersWhere = start
-    ? 'WHERE net_pnl > 0 AND date >= ?'
-    : 'WHERE net_pnl > 0'
+    ? `WHERE deleted_at IS NULL AND ${sqlIsWin()} AND date >= ?`
+    : `WHERE deleted_at IS NULL AND ${sqlIsWin()}`
   const losersWhere = start
-    ? 'WHERE net_pnl < 0 AND date >= ?'
-    : 'WHERE net_pnl < 0'
+    ? `WHERE deleted_at IS NULL AND ${sqlIsLoss()} AND date >= ?`
+    : `WHERE deleted_at IS NULL AND ${sqlIsLoss()}`
 
   const winners = db
     .prepare(`
       SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MAX(net_pnl) AS max
       FROM trades ${winnersWhere}
     `)
-    .get(...params) as { n: number; sum: number; max: number | null }
+    .get(SCRATCH_EPSILON, ...params) as { n: number; sum: number; max: number | null }
 
   const losers = db
     .prepare(`
       SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MIN(net_pnl) AS min
       FROM trades ${losersWhere}
     `)
-    .get(...params) as { n: number; sum: number; min: number | null }
+    .get(-SCRATCH_EPSILON, ...params) as { n: number; sum: number; min: number | null }
 
   const decided = winners.n + losers.n
   const win_rate = decided > 0 ? winners.n / decided : null
@@ -144,7 +151,7 @@ function readDailySeries(
 
 function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
   const row = db
-    .prepare('SELECT MAX(date) AS date FROM trades')
+    .prepare('SELECT MAX(date) AS date FROM trades WHERE deleted_at IS NULL')
     .get() as { date: string | null }
   const date = row?.date ?? ''
   if (!date) {
@@ -182,7 +189,7 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
              p.name AS playbook_name, p.tier AS playbook_tier, t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
-      WHERE t.date = ? ORDER BY t.net_pnl DESC
+      WHERE t.date = ? AND t.deleted_at IS NULL ORDER BY t.net_pnl DESC
     `)
     .all(date) as SessionTradeDb[]
   const trades: SessionTrade[] = rawTrades.map((r) => ({
@@ -237,7 +244,7 @@ function readDisciplineStreak(
   now: Date,
 ): number {
   const tradedDays = new Set(
-    (db.prepare('SELECT DISTINCT date FROM trades').all() as { date: string }[])
+    (db.prepare('SELECT DISTINCT date FROM trades WHERE deleted_at IS NULL').all() as { date: string }[])
       .map((r) => r.date),
   )
   const journalDays = new Set(
@@ -314,7 +321,7 @@ export function getDashboardData(
   // current range happens to be empty. Otherwise switching to 7d on a fresh
   // install would show the "Go import" CTA instead of the no-data state for
   // the chosen range.
-  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades').get() as {
+  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL').get() as {
     n: number
   }
   const empty = totalRows.n === 0

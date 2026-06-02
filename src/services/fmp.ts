@@ -1,4 +1,4 @@
-import type { FmpKeyStatus, SharesFloatResult } from '@shared/fmp-types'
+import type { FmpKeyStatus, SharesFloatResult, CompanyProfile } from '@shared/fmp-types'
 
 // FMP (Financial Modeling Prep) market-data service.
 //
@@ -14,12 +14,24 @@ import type { FmpKeyStatus, SharesFloatResult } from '@shared/fmp-types'
 //     Empty floatShares / freeFloat surface as '' (empty string) in some
 //     small-cap responses (Step 1 verification 2026-05-29: LABT case).
 //     Free tier: 250 calls/day at the time of verification.
+//   /stable/profile?symbol=...&apikey=...
+//     Returns [{ symbol, companyName, country, exchange, marketCap, sector,
+//     industry, ... }]. country is ISO 3166-1 alpha-2 uppercase (e.g. "IL"
+//     for SPRC) — the DOMICILE, which Polygon's free tier omits for US-listed
+//     foreign issuers (the country-default bug). Empty array = unknown symbol
+//     (verified 2026-05-31: ZZZZZ → []). v0.2.3 Stage 2 reads country +
+//     marketCap + sector + industry from this ONE call (zero extra requests).
+//     TAXONOMY: FMP sector/industry use FMP's own taxonomy ("Healthcare" /
+//     "Biotechnology"), NOT Polygon SIC text ("PHARMACEUTICAL PREPARATIONS").
 //
 // Secrets-handling rule (mirror massive.ts): NEVER log the full URL — the
 // key is in the query string. Log status code + symbol only.
 
 const SHARES_FLOAT_ENDPOINT =
   'https://financialmodelingprep.com/stable/shares-float'
+
+const COMPANY_PROFILE_ENDPOINT =
+  'https://financialmodelingprep.com/stable/profile'
 
 // Per-request hard timeout — mirrors electron/market/massive.ts's
 // REQUEST_TIMEOUT_MS so a stalled FMP request can't silently hang the
@@ -151,4 +163,99 @@ function toNullableNumber(v: unknown): number | null {
     return Number.isFinite(n) ? n : null
   }
   return null
+}
+
+/** Coerce an FMP string field to a trimmed value or null. Empty strings and
+ *  non-strings normalize to null (same "don't persist garbage" discipline as
+ *  toNullableNumber). Used for sector / industry. */
+function toNullableString(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const trimmed = v.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+/** Normalize FMP's `country` to an ISO 3166-1 alpha-2 (uppercase) or null.
+ *  Rejects empty strings, non-strings, and malformed values so the resolver
+ *  falls back to Polygon rather than persisting garbage. */
+function toNullableIso(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const iso = v.trim().toUpperCase()
+  return /^[A-Z]{2}$/.test(iso) ? iso : null
+}
+
+/**
+ * Fetch the company profile for a symbol from /stable/profile.
+ *
+ * v0.2.3 — the reason this endpoint exists in our codebase: FMP's profile
+ * carries the real domicile as `country` (ISO 3166-1 alpha-2, e.g. "IL" for
+ * SPRC), which Polygon's free tier omits for US-listed foreign issuers — the
+ * source of the wrong "US (inferred)" bug. Verified across a 12-ticker basket
+ * on 2026-05-31 (SPRC→IL, HTCO→SG, BABA/NIO→CN, ASML→NL, NVO→DK, TSM→TW,
+ * SHOP→CA; US names→US; ZZZZZ→[]).
+ *
+ * Stage 2 widens the return to carry marketCap + sector + industry from the
+ * SAME response (zero extra requests). TAXONOMY: FMP sector/industry use
+ * FMP's own taxonomy ("Healthcare" / "Biotechnology"), NOT Polygon SIC text.
+ *
+ * Contract — a byte-for-byte mirror of fetchSharesFloat:
+ * - Pure: apiKey as a parameter, no process.env / electron / fs / sqlite.
+ * - NEVER throws on non-200 / empty / malformed → returns null (total miss).
+ *   The country resolver treats null as "FMP had nothing" and falls back to
+ *   Polygon. On a hit, each FIELD is independently nullable.
+ * - 15s AbortController; a genuine timeout THROWS (same as fetchSharesFloat)
+ *   so the orchestrator can record it in errors[] rather than silently
+ *   masking a stall as "no data".
+ * - Secrets rule: never log the URL/key — status + symbol only.
+ */
+export async function fetchCompanyProfile(
+  apiKey: string,
+  symbol: string,
+): Promise<CompanyProfile | null> {
+  const url = `${COMPANY_PROFILE_ENDPOINT}?symbol=${encodeURIComponent(symbol)}&apikey=${encodeURIComponent(apiKey)}`
+  // Per-request timeout: the AbortController fires after REQUEST_TIMEOUT_MS
+  // and the same timer also bounds a stalled response stream. Cleared in
+  // `finally`. Mirrors fetchSharesFloat verbatim.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    let res: Response
+    try {
+      res = await fetch(url, { method: 'GET', signal: controller.signal })
+    } catch (e) {
+      // Distinguish timeout-abort from genuine network failure — same split
+      // as fetchSharesFloat. Timeout throws so the orchestrator records a
+      // clear diagnostic; a plain network failure returns null (silent
+      // "no data → fall back to Polygon"; the import path can't block on a
+      // single unreachable symbol).
+      const timedOut =
+        !!e && typeof e === 'object' && (e as { name?: unknown }).name === 'AbortError'
+      if (timedOut) {
+        throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`)
+      }
+      return null
+    }
+    if (res.status !== 200) return null
+
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      return null
+    }
+
+    // FMP returns an array. Empty = unknown symbol (verified: ZZZZZ → []).
+    if (!Array.isArray(body) || body.length === 0) return null
+    const row = body[0] as Record<string, unknown>
+
+    // Each field independently nullable. country normalized to alpha-2;
+    // marketCap via the shared numeric coercion; sector/industry trimmed.
+    return {
+      country: toNullableIso(row.country),
+      marketCap: toNullableNumber(row.marketCap),
+      sector: toNullableString(row.sector),
+      industry: toNullableString(row.industry),
+    }
+  } finally {
+    clearTimeout(timer)
+  }
 }

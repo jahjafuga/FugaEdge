@@ -20,6 +20,7 @@ import { int } from '@/lib/format'
 import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
 import { normalizeIso } from '@/core/country/source'
 import { getCountryName, getRegionForCountry } from '@/core/country/regions'
+import { isWin, isLoss } from '@/core/classify/outcome'
 import type {
   TradeListRow,
   UpdateCatalystInput,
@@ -192,6 +193,33 @@ export default function Trades() {
     )
   }, [])
 
+  // v0.2.3 soft-delete: move a live trade to Trash, then drop it from the
+  // loaded list so it disappears from the table + stats immediately. The IPC
+  // returns void (the lifecycle op doesn't echo a row), so we filter rather
+  // than map-replace.
+  const handleSoftDelete = useCallback(async (id: number) => {
+    await ipc.tradeSoftDelete(id)
+    setTrades((prev) => (prev ? prev.filter((t) => t.id !== id) : prev))
+  }, [])
+
+  // Restore is dormant in P3 — nothing on the live Trades page can open a
+  // deleted trade (the Trash view is P5). Wired for completeness so the modal
+  // contract is whole; filters the id out of the live list the same way.
+  const handleRestore = useCallback(async (id: number) => {
+    await ipc.tradeRestore(id)
+    setTrades((prev) => (prev ? prev.filter((t) => t.id !== id) : prev))
+  }, [])
+
+  // v0.2.3 P4 — bulk soft-delete. Mirrors handleSoftDelete: the bulk IPC is
+  // atomic and returns void, so on success we filter every id out of the
+  // loaded list at once. A reject leaves the list untouched (the batch rolled
+  // back) and TradesTable retains the selection for retry.
+  const handleBulkSoftDelete = useCallback(async (ids: number[]) => {
+    await ipc.tradesSoftDeleteBulk(ids)
+    const idSet = new Set(ids)
+    setTrades((prev) => (prev ? prev.filter((t) => !idSet.has(t.id)) : prev))
+  }, [])
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -235,8 +263,8 @@ export default function Trades() {
 
   const total = trades.length
   const shown = filtered.length
-  const winners = filtered.filter((t) => t.net_pnl > 0).length
-  const losers = filtered.filter((t) => t.net_pnl < 0).length
+  const winners = filtered.filter((t) => isWin(t.net_pnl)).length
+  const losers = filtered.filter((t) => isLoss(t.net_pnl)).length
   const openCount = filtered.filter((t) => t.is_open).length
   const subtitle = (
     <span>
@@ -326,6 +354,9 @@ export default function Trades() {
             onSaveCatalyst={handleSaveCatalyst}
             onSaveCountry={handleSaveCountry}
             onSaveCountrySymbol={handleSaveCountrySymbol}
+            onSoftDelete={handleSoftDelete}
+            onRestore={handleRestore}
+            onBulkSoftDelete={handleBulkSoftDelete}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}

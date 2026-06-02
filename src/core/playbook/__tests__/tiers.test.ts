@@ -18,6 +18,7 @@ function trade(over: Partial<TradeListRow>): TradeListRow {
     float_shares: null, shares_outstanding: null, catalyst_type: null, days_since_catalyst: null,
     country: 'US', country_name: 'United States', region: 'USA', country_source: 'polygon',
     attachment_count: 0,
+    deleted_at: null,
     mae: null, mfe: null,
     ...over,
   }
@@ -30,7 +31,7 @@ function loser(over: Partial<TradeListRow> = {}): TradeListRow {
   return trade({ net_pnl: -50, gross_pnl: -50, total_fees: 0, ...over })
 }
 function scratch(over: Partial<TradeListRow> = {}): TradeListRow {
-  return trade({ net_pnl: 1, gross_pnl: 1, total_fees: 0, ...over })
+  return trade({ net_pnl: 0, gross_pnl: 0, total_fees: 0, ...over })
 }
 
 describe('aggregateTierPerformance', () => {

@@ -10,6 +10,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { SessionMeta } from '@shared/session-types'
 import type { JournalEntry } from '@shared/journal-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 export type SessionStatus = 'active' | 'no-trade' | 'not-started'
 
@@ -73,13 +74,12 @@ export function computeTodayStats(trades: TradeListRow[]): TodaySessionStats {
   let losers = 0
   let best: TradeExtreme | null = null
   let worst: TradeExtreme | null = null
-  const SCRATCH = 2
   for (const t of trades) {
     net += t.net_pnl
     gross += t.gross_pnl
     fees += t.total_fees
-    if (t.net_pnl > SCRATCH) winners += 1
-    else if (t.net_pnl < -SCRATCH) losers += 1
+    if (isWin(t.net_pnl)) winners += 1
+    else if (isLoss(t.net_pnl)) losers += 1
     if (best == null || t.net_pnl > best.pnl) best = { symbol: t.symbol, pnl: t.net_pnl }
     if (worst == null || t.net_pnl < worst.pnl) worst = { symbol: t.symbol, pnl: t.net_pnl }
   }

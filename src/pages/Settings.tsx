@@ -7,6 +7,7 @@ import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
+import TrashSection from '@/components/settings/TrashSection'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
@@ -524,6 +525,8 @@ export default function Settings() {
                   <span className="text-muted">pairs fetched · </span>
                   <span className="font-mono text-red">{intradayResult.failed}</span>{' '}
                   <span className="text-muted">failed · </span>
+                  <span className="font-mono text-text">{intradayResult.skipped}</span>{' '}
+                  <span className="text-muted">skipped · </span>
                   <span className="font-mono text-gold">
                     {intradayResult.emaBackfilled}
                   </span>{' '}
@@ -654,6 +657,10 @@ export default function Settings() {
           </div>
           <ResetJournalModal open={resetOpen} onClose={() => setResetOpen(false)} />
         </Card>
+
+        {/* v0.2.3 P5 — soft-deleted trades live here: restore or permanently
+            remove. Sits next to the Data card as a data-lifecycle surface. */}
+        <TrashSection />
 
         <Card
           title="Walkthrough"

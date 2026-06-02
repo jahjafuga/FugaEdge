@@ -76,6 +76,40 @@ export function applyCountryToSymbol(
   return info.changes
 }
 
+/** v0.2.3 Stage 1.5 — apply a resolved country to BOTH the trades rows and the
+ *  market_data cache row for a symbol, in one transaction. Trades keeps the
+ *  manual guard (a 'manual' row is never overwritten). market_data is mirrored
+ *  ONLY when trades actually changed (so a fully-manual symbol touches neither
+ *  table); market_data has no country_source, so its copy is always overwritten
+ *  when trades was updated — trades is the authoritative store. A direct UPDATE
+ *  (not upsertMarketRow) never fabricates a market_data row for a symbol that
+ *  has none. Returns the number of TRADES rows changed (same contract as
+ *  applyCountryToSymbol). */
+export function applyCountryToBoth(
+  symbol: string,
+  args: { country: string | null; country_name: string; region: string; source: CountrySource },
+): number {
+  const db = openDatabase()
+  const tx = db.transaction(() => {
+    const info = db
+      .prepare(
+        `UPDATE trades
+           SET country = ?, country_name = ?, region = ?, country_source = ?
+         WHERE symbol = ? AND (country_source IS NULL OR country_source != 'manual')`,
+      )
+      .run(args.country, args.country_name, args.region, args.source, symbol)
+    if (info.changes > 0) {
+      db.prepare(
+        `UPDATE market_data
+           SET country = ?, country_name = ?, region = ?
+         WHERE symbol = ?`,
+      ).run(args.country, args.country_name, args.region, symbol)
+    }
+    return info.changes
+  })
+  return tx()
+}
+
 /** Manual per-SYMBOL override — sets EVERY trade of the symbol to the chosen
  *  country with source 'manual'. Unlike applyCountryToSymbol (auto-resolve,
  *  which skips manual rows), this is an explicit user action for the whole
@@ -100,7 +134,7 @@ export function applySymbolCountryManual(symbol: string, country: string | null)
 export function countTradesByRegion(): Record<string, number> {
   const db = openDatabase()
   const rows = db
-    .prepare(`SELECT COALESCE(region, 'Unknown') AS k, COUNT(*) AS n FROM trades GROUP BY region`)
+    .prepare(`SELECT COALESCE(region, 'Unknown') AS k, COUNT(*) AS n FROM trades WHERE deleted_at IS NULL GROUP BY region`)
     .all() as { k: string; n: number }[]
   const out: Record<string, number> = {}
   for (const r of rows) out[r.k] = r.n
@@ -111,7 +145,7 @@ export function countTradesByCountry(): Record<string, number> {
   const db = openDatabase()
   const rows = db
     .prepare(
-      `SELECT COALESCE(country, '') AS k, COUNT(*) AS n FROM trades GROUP BY country`,
+      `SELECT COALESCE(country, '') AS k, COUNT(*) AS n FROM trades WHERE deleted_at IS NULL GROUP BY country`,
     )
     .all() as { k: string; n: number }[]
   const out: Record<string, number> = {}
