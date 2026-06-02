@@ -84,7 +84,7 @@ export interface PeriodMetrics {
   trades: number
   winners: number
   losers: number
-  /** Trades with |net_pnl| <= $2 (the SCRATCH_THRESHOLD). */
+  /** Trades classified as scratch (|net_pnl| <= SCRATCH_EPSILON; see shared/trade-classification.ts). */
   scratches: number
   tradingDays: number
   // Hold time (seconds; null when no qualifying trades or open_time/close_time missing)

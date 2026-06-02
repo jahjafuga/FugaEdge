@@ -1,5 +1,6 @@
 import { Search, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 export type SideFilter = 'all' | 'long' | 'short'
 export type DurationFilter = 'all' | 'under1m' | '1to5m' | '5to30m' | 'over30m'
@@ -188,8 +189,8 @@ export function applyTradesFilters(
     }
     if (f.dateFrom && t.date < f.dateFrom) return false
     if (f.dateTo && t.date > f.dateTo) return false
-    if (f.outcome === 'winners' && t.net_pnl <= 0) return false
-    if (f.outcome === 'losers' && t.net_pnl >= 0) return false
+    if (f.outcome === 'winners' && !isWin(t.net_pnl)) return false
+    if (f.outcome === 'losers' && !isLoss(t.net_pnl)) return false
     // v0.1.5: A+ Setups filter now reads the playbook's tier classification
     // rather than the per-trade confidence (which was a v0.1.3 stop-gap).
     // A trade without a playbook is excluded — there's no claim of A+

@@ -14,8 +14,7 @@ import type {
   DayPnL,
   PeriodMetrics,
 } from './types'
-
-const SCRATCH_THRESHOLD = 2
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 /** Filter `trades` to those whose date sits inside the inclusive [from, to]
  *  window. Returns the input as-is when range is null. */
@@ -111,8 +110,8 @@ export function computeDailyWinRate(
       agg.set(t.date, row)
     }
     row.count += 1
-    if (t.net_pnl > SCRATCH_THRESHOLD) row.wins += 1
-    else if (t.net_pnl < -SCRATCH_THRESHOLD) row.losses += 1
+    if (isWin(t.net_pnl)) row.wins += 1
+    else if (isLoss(t.net_pnl)) row.losses += 1
   }
   return axisDates(scoped, range).map((date) => {
     const row = agg.get(date)
@@ -167,11 +166,11 @@ export function computePeriodMetrics(
     net += t.net_pnl
     gross += t.gross_pnl
     fees += t.total_fees
-    if (t.net_pnl > SCRATCH_THRESHOLD) {
+    if (isWin(t.net_pnl)) {
       winners += 1
       winnerSum += t.net_pnl
       if (largestWinner == null || t.net_pnl > largestWinner) largestWinner = t.net_pnl
-    } else if (t.net_pnl < -SCRATCH_THRESHOLD) {
+    } else if (isLoss(t.net_pnl)) {
       losers += 1
       loserSum += t.net_pnl
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl
@@ -181,8 +180,8 @@ export function computePeriodMetrics(
     const hs = holdSeconds(t)
     if (hs != null) {
       holdAll.push(hs)
-      if (t.net_pnl > SCRATCH_THRESHOLD) holdWinners.push(hs)
-      else if (t.net_pnl < -SCRATCH_THRESHOLD) holdLosers.push(hs)
+      if (isWin(t.net_pnl)) holdWinners.push(hs)
+      else if (isLoss(t.net_pnl)) holdLosers.push(hs)
     }
   }
 
@@ -222,11 +221,11 @@ export function computePeriodMetrics(
   let curWin = 0
   let curLoss = 0
   for (const t of chrono) {
-    if (t.net_pnl > SCRATCH_THRESHOLD) {
+    if (isWin(t.net_pnl)) {
       curWin += 1
       curLoss = 0
       if (curWin > maxWinStreak) maxWinStreak = curWin
-    } else if (t.net_pnl < -SCRATCH_THRESHOLD) {
+    } else if (isLoss(t.net_pnl)) {
       curLoss += 1
       curWin = 0
       if (curLoss > maxLossStreak) maxLossStreak = curLoss

@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
+import { isWin, isLoss } from '@/core/classify/outcome'
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
@@ -116,8 +117,8 @@ function computeOne(
   })()
 
   const inWeek = trades.filter((t) => t.date >= weekStart && t.date <= weekEnd)
-  const winners = inWeek.filter((t) => t.net_pnl > 0)
-  const losers = inWeek.filter((t) => t.net_pnl < 0)
+  const winners = inWeek.filter((t) => isWin(t.net_pnl))
+  const losers = inWeek.filter((t) => isLoss(t.net_pnl))
 
   let net = 0
   let gross = 0

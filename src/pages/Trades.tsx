@@ -20,6 +20,7 @@ import { int } from '@/lib/format'
 import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
 import { normalizeIso } from '@/core/country/source'
 import { getCountryName, getRegionForCountry } from '@/core/country/regions'
+import { isWin, isLoss } from '@/core/classify/outcome'
 import type {
   TradeListRow,
   UpdateCatalystInput,
@@ -262,8 +263,8 @@ export default function Trades() {
 
   const total = trades.length
   const shown = filtered.length
-  const winners = filtered.filter((t) => t.net_pnl > 0).length
-  const losers = filtered.filter((t) => t.net_pnl < 0).length
+  const winners = filtered.filter((t) => isWin(t.net_pnl)).length
+  const losers = filtered.filter((t) => isLoss(t.net_pnl)).length
   const openCount = filtered.filter((t) => t.is_open).length
   const subtitle = (
     <span>

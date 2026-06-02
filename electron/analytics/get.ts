@@ -2,6 +2,7 @@ import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { utcToEasternParts } from '@/lib/format'
+import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
 import type {
   AnalyticsData,
   CatalystAnalytics,
@@ -151,8 +152,7 @@ function computeStreaks(rows: TradeRow[]): {
   let cur: StreakBuild | null = null
 
   for (const t of sorted) {
-    const kind: 'win' | 'loss' | 'scratch' =
-      t.net_pnl > 0 ? 'win' : t.net_pnl < 0 ? 'loss' : 'scratch'
+    const kind = classifyOutcome(t.net_pnl)
 
     if (kind === 'scratch') {
       // A scratch ends any in-progress streak.
@@ -257,8 +257,8 @@ function computeSymbols(rows: TradeRow[]): { best: SymbolStat[]; worst: SymbolSt
     s.trade_count += 1
     s.net_pnl += r.net_pnl
     s.total_fees += r.total_fees
-    if (r.net_pnl > 0) s.winners += 1
-    else if (r.net_pnl < 0) s.losers += 1
+    if (isWin(r.net_pnl)) s.winners += 1
+    else if (isLoss(r.net_pnl)) s.losers += 1
   }
   const all = Array.from(map.values())
   const best = [...all]
@@ -332,10 +332,10 @@ function bucketStatsFor(trades: TradeRow[], key: string): MomentumBucket {
   let losers = 0
   for (const t of trades) {
     net += t.net_pnl
-    if (t.net_pnl > 0) {
+    if (isWin(t.net_pnl)) {
       winnersSum += t.net_pnl
       winners++
-    } else if (t.net_pnl < 0) {
+    } else if (isLoss(t.net_pnl)) {
       losersSum += t.net_pnl
       losers++
     }
@@ -422,8 +422,8 @@ function computeExtendedCompare(rows: TradeRow[]): ExtendedEntryCompare {
   const sumCleanPnl = clean.reduce((s, t) => s + t.net_pnl, 0)
   const sumExtPnl = extended.reduce((s, t) => s + t.net_pnl, 0)
   const wlRate = (list: TradeRow[]): number | null => {
-    const w = list.filter((t) => t.net_pnl > 0).length
-    const l = list.filter((t) => t.net_pnl < 0).length
+    const w = list.filter((t) => isWin(t.net_pnl)).length
+    const l = list.filter((t) => isLoss(t.net_pnl)).length
     const decided = w + l
     return decided > 0 ? w / decided : null
   }
@@ -481,8 +481,8 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
     if (hasAny) {
       withAny++
       flawedNet += t.net_pnl
-      if (t.net_pnl > 0) flawedWinners++
-      else if (t.net_pnl < 0) flawedLosers++
+      if (isWin(t.net_pnl)) flawedWinners++
+      else if (isLoss(t.net_pnl)) flawedLosers++
       for (const m of mistakes) {
         let entry = perLabel.get(m)
         if (!entry) {
@@ -491,14 +491,14 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
         }
         entry.count += 1
         entry.net += t.net_pnl
-        if (t.net_pnl > 0) entry.winners += 1
-        else if (t.net_pnl < 0) entry.losers += 1
+        if (isWin(t.net_pnl)) entry.winners += 1
+        else if (isLoss(t.net_pnl)) entry.losers += 1
       }
     } else {
       withoutAny++
       cleanNet += t.net_pnl
-      if (t.net_pnl > 0) cleanWinners++
-      else if (t.net_pnl < 0) cleanLosers++
+      if (isWin(t.net_pnl)) cleanWinners++
+      else if (isLoss(t.net_pnl)) cleanLosers++
     }
   }
 
@@ -710,8 +710,8 @@ function computeFloatAnalytics(rows: TradeRow[]): FloatAnalytics {
     const a = acc[key]
     a.trade_count += 1
     a.net_pnl += r.net_pnl
-    if (r.net_pnl > 0) a.winners += 1
-    else if (r.net_pnl < 0) a.losers += 1
+    if (isWin(r.net_pnl)) a.winners += 1
+    else if (isLoss(r.net_pnl)) a.losers += 1
   }
 
   const buckets: FloatBucket[] = order.map((key) => {
@@ -775,10 +775,10 @@ function computeSentimentAnalytics(rows: TradeRow[]): SentimentAnalytics {
     if (!b) continue
     b.trade_count += 1
     b.net_pnl += r.net_pnl
-    if (r.net_pnl > 0) {
+    if (isWin(r.net_pnl)) {
       b.winners += 1
       b.winner_pnl_sum += r.net_pnl
-    } else if (r.net_pnl < 0) {
+    } else if (isLoss(r.net_pnl)) {
       b.losers += 1
       b.loser_pnl_sum += r.net_pnl
     }
@@ -840,10 +840,10 @@ function computeCatalystAnalytics(rows: TradeRow[]): CatalystAnalytics {
     }
     b.trade_count += 1
     b.net_pnl += r.net_pnl
-    if (r.net_pnl > 0) {
+    if (isWin(r.net_pnl)) {
       b.winners += 1
       b.winner_pnl_sum += r.net_pnl
-    } else if (r.net_pnl < 0) {
+    } else if (isLoss(r.net_pnl)) {
       b.losers += 1
       b.loser_pnl_sum += r.net_pnl
     }

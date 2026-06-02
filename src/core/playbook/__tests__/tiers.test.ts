@@ -31,7 +31,7 @@ function loser(over: Partial<TradeListRow> = {}): TradeListRow {
   return trade({ net_pnl: -50, gross_pnl: -50, total_fees: 0, ...over })
 }
 function scratch(over: Partial<TradeListRow> = {}): TradeListRow {
-  return trade({ net_pnl: 1, gross_pnl: 1, total_fees: 0, ...over })
+  return trade({ net_pnl: 0, gross_pnl: 0, total_fees: 0, ...over })
 }
 
 describe('aggregateTierPerformance', () => {
