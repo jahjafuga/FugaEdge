@@ -16,6 +16,7 @@ import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
+import { runPendingMaeMfeBackfill } from '../market/intraday'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
 import { registerAttachmentsIpc } from '../attachments/ipc'
@@ -143,6 +144,11 @@ app.whenReady().then(() => {
   registerSessionIpc()
   registerUpdaterIpc()
   const win = createWindow()
+  // v0.2.3 — after the schema-25 migration nulls trades.mae/mfe, recompute from
+  // cached intraday_bars once the window is up. Deferred to ready-to-show +
+  // setImmediate so it never blocks first paint; no-op (flag unset) on launches
+  // where the migration didn't run. See runPendingMaeMfeBackfill.
+  win.once('ready-to-show', () => setImmediate(runPendingMaeMfeBackfill))
   // Auto-updater is gated on app.isPackaged inside startAutoUpdater, so
   // dev launches are a no-op. The IPC handlers stay registered either
   // way so the renderer can query status without branching.

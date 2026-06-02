@@ -9,6 +9,7 @@ import { migrateContentHash } from './migrate-content-hash'
 import { migrateFloatRename } from './migrate-float-rename'
 import { migrateAddDeletedAt } from './migrate-add-deleted-at'
 import { migrateScratchReclassify } from './migrate-scratch-reclassify'
+import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -25,6 +26,9 @@ const CONTENT_HASH_BACKUP_LATCH_KEY = 'content_hash_migration_backup_done'
 // Latch for the v0.2.2 float-rename migration's pre-migration backup (schema 20→21).
 const FLOAT_RENAME_BACKUP_LATCH_KEY = 'float_rename_migration_backup_done'
 const SCRATCH_RECLASSIFY_BACKUP_LATCH_KEY = 'scratch_reclassify_migration_backup_done'
+
+// Latch for the v0.2.3 mae/mfe-reset migration's pre-migration backup (schema 24→25).
+const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
 
 let db: Database.Database | null = null
 
@@ -433,6 +437,64 @@ function backupBeforeScratchReclassifyMigration(
   }
 }
 
+// Pre-migration backup for the v0.2.3 mae/mfe-reset wipe. Same shape as
+// backupBeforeScratchReclassifyMigration: checkpoint WAL → copy DB aside →
+// throw on failure so migrateResetMaeMfe aborts without wiping. Unlike the
+// other v0.2.x migrations this one nulls real computed values that are only
+// recoverable if intraday_bars coverage still holds — so this backup is the
+// genuine safety net, not just defense-in-depth. Latch lives in settings so a
+// successful backup on a prior launch is never repeated.
+function backupBeforeMaeMfeResetMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(RESET_MAE_MFE_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-v0.2.3-mae-mfe-reset-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before mae/mfe-reset backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so the
+  // migration aborts instead of wiping with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] mae/mfe-reset pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(RESET_MAE_MFE_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] mae/mfe-reset backup latch write failed: ${e}`)
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -743,6 +805,17 @@ function migrateAfterSchema(
   // with the other data migrations.
   migrateScratchReclassify(conn, priorVersion, {
     backup: () => backupBeforeScratchReclassifyMigration(conn, dbPath),
+  })
+
+  // v0.2.3 (schema 24 → 25) — null every trades.mae/mfe so the columns drop the
+  // values computed under the old (pre-α) excursion rule, then arm the
+  // background recompute (runPendingMaeMfeBackfill, scheduled by main at
+  // ready-to-show). Gated by priorVersion + settings latch; the latch is set
+  // only AFTER the wipe succeeds, so a failure retries next launch. The backup
+  // closure throws-to-abort because this wipe — unlike the additive/derived
+  // migrations above — destroys values only recoverable from cached bars.
+  migrateResetMaeMfe(conn, priorVersion, {
+    backup: () => backupBeforeMaeMfeResetMigration(conn, dbPath),
   })
 }
 
