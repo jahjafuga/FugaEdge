@@ -8,8 +8,12 @@ interface TypeToConfirmModalProps {
   subtitle?: ReactNode
   /** Explanatory copy shown above the confirm input. */
   body: ReactNode
-  /** The word the user must type verbatim (compared after trim) to arm confirm. */
-  confirmWord: string
+  /** The word the user must type verbatim (compared after trim) to arm confirm.
+   *  Accepts a function so callers can derive it at open time — e.g. the v0.2.3
+   *  Trash "Delete Forever" passes `() => String(count)` so the user types the
+   *  selection count. Resolved once per render; existing string callers
+   *  (ResetJournal "DELETE") are unaffected. */
+  confirmWord: string | (() => string)
   /** Destructive confirm button label when idle. */
   confirmLabel: string
   /** Confirm button label while onConfirm is in flight. */
@@ -42,7 +46,13 @@ export default function TypeToConfirmModal({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canConfirm = !busy && value.trim() === confirmWord
+  // Resolve the confirm word once per render. The function form lets callers
+  // derive it (e.g. the selection count) without changing the gating, label,
+  // or placeholder below — all three read the resolved string. The selection
+  // is frozen while the modal is open, so the value is stable across renders.
+  const word = typeof confirmWord === 'function' ? confirmWord() : confirmWord
+
+  const canConfirm = !busy && value.trim() === word
 
   const handleConfirm = async () => {
     if (!canConfirm) return
@@ -66,13 +76,13 @@ export default function TypeToConfirmModal({
 
         <label className="block">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-            Type {confirmWord} to confirm
+            Type {word} to confirm
           </span>
           <input
             type="text"
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder={confirmWord}
+            placeholder={word}
             disabled={busy}
             autoComplete="off"
             className="mt-1 w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold disabled:opacity-50"
