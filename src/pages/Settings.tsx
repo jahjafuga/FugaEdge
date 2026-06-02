@@ -525,6 +525,8 @@ export default function Settings() {
                   <span className="text-muted">pairs fetched · </span>
                   <span className="font-mono text-red">{intradayResult.failed}</span>{' '}
                   <span className="text-muted">failed · </span>
+                  <span className="font-mono text-text">{intradayResult.skipped}</span>{' '}
+                  <span className="text-muted">skipped · </span>
                   <span className="font-mono text-gold">
                     {intradayResult.emaBackfilled}
                   </span>{' '}

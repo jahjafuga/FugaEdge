@@ -284,10 +284,19 @@ export function tradeSymbolDatePairs(): { symbol: string; date: string }[] {
 
 // (symbol, date) pairs missing intraday data — or previously errored.
 // `force` bypasses the cache entirely.
-export function intradayPairsNeedingFetch(force: boolean): { symbol: string; date: string }[] {
+export interface IntradayFetchWorklist {
+  pairs: { symbol: string; date: string }[]
+  /** Errored pairs still inside PLAN_GATE_COOLDOWN_MS — deliberately not
+   *  retried this run (working-as-designed). Excludes clean-cached pairs;
+   *  0 under force. Surfaced as IntradayRefreshResult.skipped so the UI can
+   *  show "{n} skipped" instead of a misleading all-zeros result. */
+  cooldownSkipped: number
+}
+
+export function intradayPairsNeedingFetch(force: boolean): IntradayFetchWorklist {
   const db = openDatabase()
   const all = tradeSymbolDatePairs()
-  if (force) return all
+  if (force) return { pairs: all, cooldownSkipped: 0 }
 
   const existing = db
     .prepare('SELECT symbol, date, error, fetched_at FROM intraday_bars')
@@ -296,13 +305,21 @@ export function intradayPairsNeedingFetch(force: boolean): { symbol: string; dat
   for (const r of existing) cached.set(`${r.symbol}|${r.date}`, { error: r.error, fetched_at: r.fetched_at })
 
   const now = Date.now()
-  return all.filter((p) => {
+  const pairs: { symbol: string; date: string }[] = []
+  let cooldownSkipped = 0
+  for (const p of all) {
     const row = cached.get(`${p.symbol}|${p.date}`)
-    if (row === undefined) return true       // never fetched
-    if (row.error === null) return false      // cached cleanly
-    // Errored: retry transient failures; skip a plan-gated pair within cooldown.
-    return shouldRetryErrored(row.error, row.fetched_at, now)
-  })
+    if (row === undefined) {
+      pairs.push(p) // never fetched
+      continue
+    }
+    if (row.error === null) continue // cached cleanly — skip, NOT counted
+    // Errored: retry transient failures; skip (and count) a plan-gated pair
+    // still inside its cooldown window.
+    if (shouldRetryErrored(row.error, row.fetched_at, now)) pairs.push(p)
+    else cooldownSkipped++
+  }
+  return { pairs, cooldownSkipped }
 }
 
 export function setTradeEma9Distance(tradeId: number, pct: number | null): void {

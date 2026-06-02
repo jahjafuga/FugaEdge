@@ -23,6 +23,10 @@ export interface IntradayRefreshResult {
   attempted: number
   fetched: number
   failed: number
+  // Mirrors @shared/market-types IntradayRefreshResult — kept in lockstep with
+  // the shared copy (duplicate-interface drift logged as v0.3.0 parking-lot
+  // tech debt; do not consolidate here).
+  skipped: number
   apiKeyMissing: boolean
   errors: { symbol: string; date: string; message: string }[]
   emaBackfilled: number
@@ -75,6 +79,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       attempted: 0,
       fetched: 0,
       failed: 0,
+      skipped: 0,
       apiKeyMissing: true,
       errors: [],
       emaBackfilled: 0,
@@ -84,7 +89,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     }
   }
 
-  const pairs = intradayPairsNeedingFetch(!!opts.force)
+  const { pairs, cooldownSkipped } = intradayPairsNeedingFetch(!!opts.force)
   const attempted = pairs.length
 
   if (attempted === 0) {
@@ -97,6 +102,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       attempted: 0,
       fetched: 0,
       failed: 0,
+      skipped: cooldownSkipped,
       apiKeyMissing: false,
       errors: [],
       emaBackfilled: backfilled,
@@ -196,6 +202,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     attempted,
     fetched,
     failed,
+    skipped: cooldownSkipped,
     apiKeyMissing: false,
     errors,
     emaBackfilled,

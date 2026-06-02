@@ -25,6 +25,11 @@ export interface IntradayRefreshResult {
   attempted: number
   fetched: number
   failed: number
+  /** Plan-gated (symbol, date) pairs still inside PLAN_GATE_COOLDOWN_MS that
+   *  were deliberately not retried this run. Excludes clean-cached pairs;
+   *  0 under force. Surfaced so the UI can show "{n} skipped" instead of a
+   *  misleading all-zeros result. */
+  skipped: number
   apiKeyMissing: boolean
   errors: { symbol: string; date: string; message: string }[]
   emaBackfilled: number
