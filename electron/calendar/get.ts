@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { SCRATCH_EPSILON } from '@shared/trade-classification'
+import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 import type {
   CalendarDay,
   CalendarMonth,
@@ -71,8 +73,8 @@ function readMonthDays(
           SUM(gross_pnl)  AS gross_pnl,
           SUM(total_fees) AS total_fees,
           COUNT(*)        AS trade_count,
-          SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END) AS winners,
-          SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END) AS losers
+          SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END) AS winners,
+          SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers
         FROM trades
         WHERE date LIKE ? AND deleted_at IS NULL
         GROUP BY date
@@ -138,7 +140,9 @@ function readMonthDays(
       LEFT JOIN sm ON sm.date = d.date
       ORDER BY d.date ASC
     `)
-    .all(like, like, like) as DayRowDb[]
+    // tr CTE's win/loss CASE `?` precede all three `date LIKE ?`, so the
+    // epsilon binds lead (losers binds the negated epsilon: sqlIsLoss is `< ?`).
+    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, like, like, like) as DayRowDb[]
 
   return rows.map((r) => ({
     date: r.date,

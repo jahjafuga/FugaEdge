@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { SCRATCH_EPSILON } from '@shared/trade-classification'
+import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 import type {
   JournalDay,
   JournalDaySummary,
@@ -78,11 +80,13 @@ function readDaySummary(
         COALESCE(SUM(net_pnl), 0)                     AS net_pnl,
         COALESCE(SUM(gross_pnl), 0)                   AS gross_pnl,
         COALESCE(SUM(total_fees), 0)                  AS total_fees,
-        SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END)  AS winners,
-        SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END)  AS losers
+        SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END)  AS winners,
+        SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END)  AS losers
       FROM trades WHERE date = ? AND deleted_at IS NULL
     `)
-    .get(date) as DaySummaryRow | undefined
+    // Win/loss CASE `?` precede `date = ?`, so the epsilons bind first
+    // (losers: negated epsilon, sqlIsLoss is `< ?`).
+    .get(SCRATCH_EPSILON, -SCRATCH_EPSILON, date) as DaySummaryRow | undefined
   if (!row || row.trade_count === 0) return null
   return {
     trade_count: row.trade_count,

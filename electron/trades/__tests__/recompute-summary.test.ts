@@ -10,6 +10,7 @@
 // The per-date live count is sourced from a configurable map on the shim.
 
 import { describe, expect, it, beforeEach, vi } from 'vitest'
+import { SCRATCH_EPSILON } from '@shared/trade-classification'
 
 let runLog: { sql: string; args: unknown[] }[] = []
 let liveCountByDate: Record<string, number> = {}
@@ -53,8 +54,25 @@ describe('recomputeSummaryForDates', () => {
     recomputeSummaryForDates(new Set(['2026-01-05']))
     const ups = upsertsIn()
     expect(ups).toHaveLength(1)
-    expect(ups[0].args).toEqual(['2026-01-05'])
+    // The upsert's win/loss CASE binds +/-SCRATCH_EPSILON ahead of the date.
+    expect(ups[0].args).toEqual([SCRATCH_EPSILON, -SCRATCH_EPSILON, '2026-01-05'])
     expect(deletesIn()).toHaveLength(0)
+  })
+
+  it('classifies winners/losers via SCRATCH_EPSILON predicates, not bare-sign', () => {
+    // v0.2.3 scratch consolidation: the stored daily_summary write path must
+    // use |net_pnl| <= SCRATCH_EPSILON, not net_pnl > 0 / < 0. The native
+    // sqlite binary doesn't load in this harness, so we pin the SQL TEXT +
+    // BIND ORDER (real execution is covered by outcome.test.ts + sandbox 4.2).
+    liveCountByDate = { '2026-01-05': 1 }
+    recomputeSummaryForDates(new Set(['2026-01-05']))
+    const { sql, args } = upsertsIn()[0]
+    // Predicate shape: parameterized, no bare-sign zero comparison.
+    expect(sql).toMatch(/CASE WHEN net_pnl > \? THEN 1 ELSE 0 END/)
+    expect(sql).toMatch(/CASE WHEN net_pnl < \? THEN 1 ELSE 0 END/)
+    expect(sql).not.toMatch(/net_pnl [<>] 0/)
+    // Bind order: winners +epsilon, losers NEGATED epsilon (R3 decision Y), date.
+    expect(args).toEqual([SCRATCH_EPSILON, -SCRATCH_EPSILON, '2026-01-05'])
   })
 
   it('the upsert aggregate filters soft-deleted rows (deleted_at IS NULL)', () => {
@@ -76,7 +94,8 @@ describe('recomputeSummaryForDates', () => {
   it('routes each date independently in a mixed batch (upsert one, delete the other)', () => {
     liveCountByDate = { '2026-01-05': 2, '2026-01-06': 0 }
     recomputeSummaryForDates(new Set(['2026-01-05', '2026-01-06']))
-    expect(upsertsIn().map((r) => r.args[0])).toEqual(['2026-01-05'])
+    // Date is args[2] now (epsilon binds precede it); DELETE still binds [date].
+    expect(upsertsIn().map((r) => r.args[2])).toEqual(['2026-01-05'])
     expect(deletesIn().map((r) => r.args[0])).toEqual(['2026-01-06'])
   })
 })

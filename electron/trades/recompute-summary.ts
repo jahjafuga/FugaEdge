@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { SCRATCH_EPSILON } from '@shared/trade-classification'
+import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 
 // v0.2.3 Phase 2a — extracted from import/repo.ts so BOTH the import commit
 // path AND the trade-lifecycle ops (lifecycle.ts) share one daily_summary
@@ -32,8 +34,8 @@ const upsertSummary = `
     COALESCE(SUM(net_pnl), 0),
     COALESCE(SUM(total_fees), 0),
     COUNT(*),
-    SUM(CASE WHEN net_pnl > 0 THEN 1 ELSE 0 END),
-    SUM(CASE WHEN net_pnl < 0 THEN 1 ELSE 0 END),
+    SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END),
+    SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END),
     COALESCE(SUM(gross_pnl), 0),
     COALESCE(MAX(net_pnl), 0),
     COALESCE(MIN(net_pnl), 0)
@@ -59,6 +61,8 @@ export function recomputeSummaryForDates(dates: Set<string>): void {
   for (const d of dates) {
     const { n } = liveCount.get(d) as { n: number }
     if (n === 0) removeEmpty.run(d)
-    else upsert.run(d)
+    // Win/loss CASE `?` precede `WHERE date = ?`, so the epsilons bind first
+    // (losers: negated epsilon, sqlIsLoss is `< ?`).
+    else upsert.run(SCRATCH_EPSILON, -SCRATCH_EPSILON, d)
   }
 }
