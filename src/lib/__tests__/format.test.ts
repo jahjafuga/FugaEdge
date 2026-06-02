@@ -18,6 +18,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   compactShares,
+  deletedAgo,
   easternToUtc,
   formatEastern,
   formatPnlRatio,
@@ -316,5 +317,40 @@ describe('formatPnlRatio — avg win ÷ |avg loss| (distinct from profit factor)
 
   it('renders null as the em-dash placeholder (no decided trades)', () => {
     expect(formatPnlRatio(null)).toBe('—')
+  })
+})
+
+describe('deletedAgo — "Deleted X days ago" for the Trash card', () => {
+  it('returns "Deleted today" when the deletion is the same day', () => {
+    const now = new Date('2026-06-02T12:00:00Z')
+    expect(deletedAgo('2026-06-02 09:00:00', now)).toBe('Deleted today')
+  })
+
+  it('returns "Deleted 1 day ago" for just over a day elapsed', () => {
+    const now = new Date('2026-06-02T08:00:00Z') // 1d 9h after the deletion
+    expect(deletedAgo('2026-05-31 23:00:00', now)).toBe('Deleted 1 day ago')
+  })
+
+  it('returns "Deleted N days ago" for multi-day', () => {
+    const now = new Date('2026-06-10T00:00:00Z')
+    expect(deletedAgo('2026-06-05 00:00:00', now)).toBe('Deleted 5 days ago')
+  })
+
+  it('parses the SQLite string as UTC, not machine-local time', () => {
+    // deleted_at is SQLite datetime('now') → 'YYYY-MM-DD HH:MM:SS' in UTC, with
+    // NO 'Z'. Here `now` is derived from the SAME UTC instant + 30h, so a
+    // correct UTC parse yields exactly 30h elapsed → "1 day ago" on ANY machine
+    // timezone. A naive Date.parse (which V8 reads as LOCAL) would shift the
+    // deletion instant by the machine's offset and skew the day count on every
+    // non-UTC machine — this assertion pins the explicit-UTC behavior.
+    const deletedInstantUtc = Date.UTC(2026, 4, 31, 23, 0, 0) // 2026-05-31 23:00 UTC
+    const now = new Date(deletedInstantUtc + 30 * 3_600_000)
+    expect(deletedAgo('2026-05-31 23:00:00', now)).toBe('Deleted 1 day ago')
+  })
+
+  it('falls back gracefully for null / unparseable input', () => {
+    expect(deletedAgo(null)).toBe('Deleted recently')
+    expect(deletedAgo(undefined)).toBe('Deleted recently')
+    expect(deletedAgo('not-a-date')).toBe('Deleted recently')
   })
 })
