@@ -5,6 +5,15 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 24 for v0.2.3 scratch-fix — daily_summary cache backfill. The
+// scratch definition changed from a ±$2 band / bare-sign to
+// |net_pnl| <= SCRATCH_EPSILON (shared/trade-classification.ts). The stored
+// daily_summary.winners/losers (written by recompute-summary.ts, read by the
+// dashboard's per-day card) hold pre-fix counts, so migrate-scratch-reclassify.ts
+// recomputes every live date once. Non-destructive (derived cache rebuilt from
+// trades); version-gated + settings-latched, with a pre-migration backup. No
+// schema-shape change — the bump drives the one-shot backfill + release tracking.
+//
 // Bumped to 23 for v0.2.3 delete-trade — additive trades.deleted_at column
 // (nullable ISO-8601 UTC timestamp; NULL = live, set = soft-deleted/in Trash)
 // plus a partial index. Purely additive, no data move: added via the
@@ -33,7 +42,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '23'
+export const SCHEMA_VERSION = '24'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
