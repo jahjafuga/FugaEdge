@@ -12,7 +12,8 @@ import {
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
-import { int, money, price, signed, formatEastern } from '@/lib/format'
+import { int, price, signed, formatEastern } from '@/lib/format'
+import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -459,6 +460,16 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
   // was the cause of the "blank chart until you click Refresh" bug.
   const [chartReady, setChartReady] = useState(false)
 
+  // Fill markers + share-weighted avg entry/exit, from the pure, unit-tested
+  // module (src/core/charts/buildTradeMarkers). Computed once and consumed by
+  // both the marker effect and the avg-price-line effect below.
+  // TODO: feed ema9/vwap for hover (#3b) — the per-fill VWAP%/9EMA-distance
+  // stats need the UNGATED indicator series (the ema9/vwap props here are
+  // toggle-gated, so they'd null the hover when a line is hidden and churn the
+  // marker visuals on every toggle). Passing no opts for now; the hover card
+  // and its data source land together in #3b.
+  const tradeMarkers = useMemo(() => buildTradeMarkers(trade, bars), [trade, bars])
+
   // Mount chart once. The library is dynamically imported so the ~110KB
   // bundle only loads when this tab is opened.
   useEffect(() => {
@@ -686,9 +697,10 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     })()
   }, [ema9, ema20, vwap, chartReady])
 
-  // Fill markers — buy = green up arrow under the candle, sell = red down
-  // arrow above. Snapped to the nearest 1-minute bar time, labeled with side,
-  // shares, and price.
+  // Fill markers — price-anchored circles, qty-scaled, entry/exit colored.
+  // Descriptors come from buildTradeMarkers (pure module); we map them onto the
+  // lightweight-charts marker shape here. No per-fill text label (dropped in
+  // the v0.2.4 restyle).
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady || bars.length === 0) return
@@ -697,9 +709,23 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     // this is belt-and-suspenders, but the clear is free and prevents any
     // ordering hazard if the parent ever forgets the key.
     r.markersPlugin.setMarkers([])
-    const markers = buildFillMarkers(trade, bars)
+    // The module emits time in epoch ms — convert to the chart's epoch seconds
+    // via secondsTime(). position 'atPriceMiddle' + price anchors each dot to
+    // the fill's exact price instead of riding above/below the candle.
+    const markers: import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] =
+      tradeMarkers.markers.map((m) => ({
+        time: secondsTime(m.time),
+        position: 'atPriceMiddle' as const,
+        price: m.price,
+        shape: 'circle' as const,
+        color: m.kind === 'entry' ? '#2ec27e' : '#ff5d5d',
+        size: m.size,
+      }))
+    // Plugin requires markers sorted by time ascending. The module already
+    // sorts by ms; re-sort after the ms→s conversion to stay safe.
+    markers.sort((a, b) => (a.time as number) - (b.time as number))
     r.markersPlugin.setMarkers(markers)
-  }, [trade, bars, chartReady])
+  }, [tradeMarkers, bars, chartReady])
 
   // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
   // sells. Short trades: entry = sells, exit = buys (the user opens by
@@ -723,25 +749,15 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     }
     priceLinesRef.current = []
 
-    const avg = (fills: typeof trade.executions): number | null => {
-      if (fills.length === 0) return null
-      let dollars = 0
-      let qty = 0
-      for (const f of fills) {
-        dollars += f.price * f.qty
-        qty += f.qty
-      }
-      return qty > 0 ? dollars / qty : null
-    }
-    const buys = trade.executions.filter((e) => e.side === 'B')
-    const sells = trade.executions.filter((e) => e.side === 'S')
-    const avgBuy = avg(buys)
-    const avgSell = avg(sells)
+    // Share-weighted avg entry/exit now come from buildTradeMarkers (the inline
+    // avg() lived here before). The module already applies the long/short role
+    // mapping (entry = buys for long, sells for short); the color mapping and
+    // titles below are unchanged.
+    const entryAvg = tradeMarkers.avgEntry
+    const exitAvg = tradeMarkers.avgExit
 
     const isShort = trade.side === 'short'
-    const entryAvg = isShort ? avgSell : avgBuy
-    const exitAvg = isShort ? avgBuy : avgSell
-    // Color follows the underlying fill side — matches the marker arrows.
+    // Color follows the underlying fill side — matches the marker dots.
     const entryColor = isShort ? COLOR_LOSS : COLOR_WIN
     const exitColor = isShort ? COLOR_WIN : COLOR_LOSS
 
@@ -772,7 +788,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
 
     // No cleanup needed — chart.remove() in the mount effect's teardown
     // drops every priceLine along with the candle series.
-  }, [trade, chartReady])
+  }, [trade, tradeMarkers, chartReady])
 
   if (libError) {
     return (
@@ -1136,56 +1152,6 @@ function vwap(bars: IntradayBar[]): { time: number; value: number }[] {
     out.push({ time: b.t, value: cumV > 0 ? cumPV / cumV : tp })
   }
   return out
-}
-
-// Convert trade executions into series markers. Each fill becomes one marker
-// snapped to the nearest 1-min bar (since marker time must match a series
-// time exactly in lightweight-charts).
-function buildFillMarkers(
-  trade: TradeListRow,
-  bars: IntradayBar[],
-): import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] {
-  if (bars.length === 0) return []
-  const barTimesSec = bars.map((b) => Math.floor(b.t / 1000))
-  const out: import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] = []
-  for (const e of trade.executions) {
-    // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
-    // The pre-Commit-B `${e.time}Z` append now doubles the Z → NaN → the
-    // marker silently vanishes; that bug surfaced via a real user's chart.
-    const epoch = Date.parse(e.time)
-    if (!Number.isFinite(epoch)) continue
-    const sec = Math.floor(epoch / 1000)
-    // Snap to nearest bar time so the marker rides the candle exactly.
-    const snapped = nearest(barTimesSec, sec)
-    const isBuy = e.side === 'B'
-    out.push({
-      time: snapped as import('lightweight-charts').UTCTimestamp,
-      position: isBuy ? 'belowBar' : 'aboveBar',
-      color: isBuy ? COLOR_WIN : COLOR_LOSS,
-      shape: isBuy ? 'arrowUp' : 'arrowDown',
-      text: `${e.side} ${int(e.qty)} @ ${money(e.price).replace('$', '')}`,
-      size: 1.4,
-    })
-  }
-  // Lightweight charts requires markers sorted by time ascending.
-  out.sort((a, b) => (a.time as number) - (b.time as number))
-  return out
-}
-
-function nearest(sorted: number[], target: number): number {
-  if (sorted.length === 0) return target
-  let lo = 0
-  let hi = sorted.length - 1
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (sorted[mid] < target) lo = mid + 1
-    else hi = mid
-  }
-  // Compare neighbours.
-  if (lo > 0 && Math.abs(sorted[lo - 1] - target) < Math.abs(sorted[lo] - target)) {
-    return sorted[lo - 1]
-  }
-  return sorted[lo]
 }
 
 // `signed` import kept for potential P&L overlay future use.
