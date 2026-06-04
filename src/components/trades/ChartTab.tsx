@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
+  Camera,
   ChevronDown,
   ChevronRight,
+  Crosshair,
   ExternalLink,
   Loader2,
   Lock,
@@ -366,6 +368,11 @@ function ChartCanvas({
     tf === '10s' ? 10_000 :
     0
 
+  // Fit-to-fills lives in the toolbar (here) but needs the chart API (in the
+  // host). The host writes its fit handler into this ref; the toolbar icon
+  // calls it. null until the chart is ready → icon is a no-op then, as before.
+  const fitRef = useRef<(() => void) | null>(null)
+
   // Recompute the Entry vs EMA9 % from the current bars at entry time.
   // Replaces the static `trade.entry_ema9_distance_pct` value (which was
   // baked-in at 1m at import time and never changed). When the user flips
@@ -387,39 +394,49 @@ function ChartCanvas({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TimeframeToggle value={tf} onChange={onChangeTf} />
         <div className="flex items-center gap-2">
-          <IndicatorToggle
-            label={`9EMA (${tfLabel})`}
-            color={COLOR_GOLD}
-            active={showEma9}
-            onClick={onToggleEma9}
+          <IndicatorsDropdown
+            tfLabel={tfLabel}
+            showEma9={showEma9}
+            showEma20={showEma20}
+            showVwap={showVwap}
+            onToggleEma9={onToggleEma9}
+            onToggleEma20={onToggleEma20}
+            onToggleVwap={onToggleVwap}
           />
-          <IndicatorToggle
-            label={`EMA20 (${tfLabel})`}
-            color={COLOR_GOLD_SOFT}
-            active={showEma20}
-            onClick={onToggleEma20}
-            dashed
-          />
-          <IndicatorToggle
-            label="VWAP"
-            color={COLOR_TEXT}
-            active={showVwap}
-            onClick={onToggleVwap}
-            dotted
-          />
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={refreshing}
-            title="Re-fetch from Massive"
-            className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {refreshing ? (
-              <Loader2 size={13} strokeWidth={2} className="animate-spin" />
-            ) : (
-              <RefreshCw size={13} strokeWidth={2} />
-            )}
-          </button>
+          <DrawButton />
+          <div className="mx-0.5 h-5 w-px bg-border-subtle" aria-hidden="true" />
+          <div className="flex items-center gap-1">
+            <ChartIconButton
+              title="Fullscreen"
+              onClick={() => {
+                /* TODO(commit 3: fullscreen) — expand the trade-detail modal */
+              }}
+            >
+              <Maximize2 size={13} strokeWidth={2} />
+            </ChartIconButton>
+            <ChartIconButton
+              title="Screenshot"
+              onClick={() => {
+                /* TODO(commit 2: screenshot) — chart.takeScreenshot() → save PNG */
+              }}
+            >
+              <Camera size={13} strokeWidth={2} />
+            </ChartIconButton>
+            <ChartIconButton
+              title="Re-fetch from Massive"
+              onClick={onRefresh}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+              ) : (
+                <RefreshCw size={13} strokeWidth={2} />
+              )}
+            </ChartIconButton>
+            <ChartIconButton title="Fit to fills" onClick={() => fitRef.current?.()}>
+              <Crosshair size={13} strokeWidth={2} />
+            </ChartIconButton>
+          </div>
         </div>
       </div>
 
@@ -427,6 +444,7 @@ function ChartCanvas({
         trade={trade}
         bars={bars}
         barIntervalMs={barIntervalMs}
+        fitRef={fitRef}
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
@@ -444,6 +462,9 @@ interface ChartHostProps {
    *  computeZoomLogicalRange for API compatibility; the zoom window is time-based
    *  and interval-independent. Daily/unknown → 0. */
   barIntervalMs: number
+  /** Toolbar lives in the parent; the host writes its fit-to-fills handler here
+   *  so the toolbar icon (which has no chart API) can invoke it. */
+  fitRef: React.MutableRefObject<(() => void) | null>
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
@@ -462,7 +483,7 @@ interface ChartRefs {
   markersPlugin: import('lightweight-charts').ISeriesMarkersPluginApi<import('lightweight-charts').Time>
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20, vwap }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const refs = useRef<ChartRefs | null>(null)
   // Active price-line handles (entry + exit). Held in a ref so we can
@@ -900,6 +921,23 @@ function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }:
     // drops every priceLine along with the candle series.
   }, [trade, tradeMarkers, chartReady])
 
+  // Fit-to-fills handler, exposed to the toolbar via fitRef. Same logic as the
+  // former FitToFillsButton (relocated for the unified toolbar): default the
+  // visible range to the trade's own window. No-op until the chart is ready.
+  const fitToFills = useCallback(() => {
+    const r = refs.current
+    if (!r) return
+    const lr = computeZoomLogicalRange(trade.executions, bars, { barIntervalMs })
+    if (!lr) return
+    r.api.timeScale().setVisibleLogicalRange({ from: lr.from, to: lr.to })
+  }, [trade, bars, barIntervalMs])
+  useEffect(() => {
+    fitRef.current = fitToFills
+    return () => {
+      fitRef.current = null
+    }
+  }, [fitToFills, fitRef])
+
   if (libError) {
     return (
       <div className="rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
@@ -913,9 +951,6 @@ function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }:
 
   return (
     <div className="relative">
-      <div className="flex items-center justify-end pb-1">
-        <FitToFillsButton chartRefs={refs} trade={trade} bars={bars} barIntervalMs={barIntervalMs} />
-      </div>
       {/* Card-style frame around the lightweight-charts canvas. Same
           surface + border + shadow as the stat cards above so the chart
           reads as part of the modal's content hierarchy, not as a raw
@@ -926,40 +961,6 @@ function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }:
         style={{ height: 400 }}
       />
     </div>
-  )
-}
-
-function FitToFillsButton({
-  chartRefs,
-  trade,
-  bars,
-  barIntervalMs,
-}: {
-  chartRefs: React.MutableRefObject<ChartRefs | null>
-  trade: TradeListRow
-  bars: IntradayBar[]
-  barIntervalMs: number
-}) {
-  const fit = useCallback(() => {
-    const r = chartRefs.current
-    if (!r) return
-    // Same logical-range zoom as the default-on-load apply. No-op when there's
-    // no usable range (no fills / no bars), as before.
-    const lr = computeZoomLogicalRange(trade.executions, bars, { barIntervalMs })
-    if (!lr) return
-    r.api.timeScale().setVisibleLogicalRange({ from: lr.from, to: lr.to })
-  }, [chartRefs, trade, bars, barIntervalMs])
-
-  return (
-    <button
-      type="button"
-      onClick={fit}
-      title="Zoom to the trade's fill window"
-      className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-    >
-      <Maximize2 size={11} strokeWidth={2} />
-      Fit to fills
-    </button>
   )
 }
 
@@ -1043,6 +1044,138 @@ function IndicatorToggle({ label, color, active, onClick, dashed, dotted }: Indi
         />
       </svg>
       {label}
+    </button>
+  )
+}
+
+interface IndicatorsDropdownProps {
+  tfLabel: string
+  showEma9: boolean
+  showEma20: boolean
+  showVwap: boolean
+  onToggleEma9: () => void
+  onToggleEma20: () => void
+  onToggleVwap: () => void
+}
+
+// Collapses the three indicator toggles into a dropdown so the toolbar stays
+// compact (room for MACD/RSI later). The panel reuses IndicatorToggle unchanged
+// — same state + handlers. Click-outside (mousedown) and Escape close it;
+// toggling inside leaves it open so several can be flipped in one go.
+function IndicatorsDropdown({
+  tfLabel,
+  showEma9,
+  showEma20,
+  showVwap,
+  onToggleEma9,
+  onToggleEma20,
+  onToggleVwap,
+}: IndicatorsDropdownProps) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const activeCount = [showEma9, showEma20, showVwap].filter(Boolean).length
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Indicators"
+        className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary"
+      >
+        Indicators
+        <span className="text-fg-muted">{activeCount}/3</span>
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 flex flex-col gap-1 rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
+          <IndicatorToggle
+            label={`9EMA (${tfLabel})`}
+            color={COLOR_GOLD}
+            active={showEma9}
+            onClick={onToggleEma9}
+          />
+          <IndicatorToggle
+            label={`EMA20 (${tfLabel})`}
+            color={COLOR_GOLD_SOFT}
+            active={showEma20}
+            onClick={onToggleEma20}
+            dashed
+          />
+          <IndicatorToggle
+            label="VWAP"
+            color={COLOR_TEXT}
+            active={showVwap}
+            onClick={onToggleVwap}
+            dotted
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Reserved slot for the deferred drawing-tools project — present but disabled so
+// the toolbar layout is final. Does nothing on click.
+function DrawButton() {
+  return (
+    <button
+      type="button"
+      disabled
+      title="Drawing tools coming soon"
+      className="inline-flex h-7 cursor-not-allowed items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-muted opacity-60"
+    >
+      Draw
+      <span className="rounded bg-bg-3 px-1 py-px text-[8px] font-semibold uppercase tracking-wide text-fg-muted">
+        soon
+      </span>
+      <ChevronDown size={12} strokeWidth={2} />
+    </button>
+  )
+}
+
+// Square icon button — matches the former refresh button's chrome exactly.
+function ChartIconButton({
+  title,
+  onClick,
+  disabled,
+  children,
+}: {
+  title: string
+  onClick: () => void
+  disabled?: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {children}
     </button>
   )
 }
