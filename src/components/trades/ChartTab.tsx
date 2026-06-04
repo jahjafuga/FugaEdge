@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   Camera,
@@ -9,6 +9,7 @@ import {
   Loader2,
   Lock,
   Maximize2,
+  Minimize2,
   RefreshCw,
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
@@ -44,9 +45,13 @@ type Timeframe = '10s' | '1m' | '5m' | 'daily'
 
 interface ChartTabProps {
   trade: TradeListRow
+  /** Fullscreen flag + toggle, owned by TradeDetailModal. Drilled to the
+   *  toolbar's Fullscreen button and down to the host for the chart height. */
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
 }
 
-export default function ChartTab({ trade }: ChartTabProps) {
+export default function ChartTab({ trade, isFullscreen, onToggleFullscreen }: ChartTabProps) {
   const [payload, setPayload] = useState<IntradayBarsPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -177,6 +182,8 @@ export default function ChartTab({ trade }: ChartTabProps) {
       onToggleVwap={() => setShowVwap((v) => !v)}
       onRefresh={() => load(true)}
       refreshing={refreshing}
+      isFullscreen={isFullscreen}
+      onToggleFullscreen={onToggleFullscreen}
     />
   )
 }
@@ -329,6 +336,10 @@ interface ChartCanvasProps {
   onToggleVwap: () => void
   onRefresh: () => void
   refreshing: boolean
+  /** Fullscreen flag + toggle — modal-owned, drilled down so the Fullscreen
+   *  button can flip the modal and the host can resize the chart. */
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
 }
 
 function ChartCanvas({
@@ -344,6 +355,8 @@ function ChartCanvas({
   onToggleVwap,
   onRefresh,
   refreshing,
+  isFullscreen,
+  onToggleFullscreen,
 }: ChartCanvasProps) {
   // Pick the active bars for the selected timeframe. 1m is the source of
   // truth; 5m is client-aggregated from 1m.
@@ -438,12 +451,14 @@ function ChartCanvas({
           <div className="mx-0.5 h-5 w-px bg-border-subtle" aria-hidden="true" />
           <div className="flex items-center gap-1">
             <ChartIconButton
-              title="Fullscreen"
-              onClick={() => {
-                /* TODO(commit 3: fullscreen) — expand the trade-detail modal */
-              }}
+              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              onClick={onToggleFullscreen}
             >
-              <Maximize2 size={13} strokeWidth={2} />
+              {isFullscreen ? (
+                <Minimize2 size={13} strokeWidth={2} />
+              ) : (
+                <Maximize2 size={13} strokeWidth={2} />
+              )}
             </ChartIconButton>
             <ChartIconButton
               title="Screenshot"
@@ -480,6 +495,7 @@ function ChartCanvas({
         barIntervalMs={barIntervalMs}
         fitRef={fitRef}
         screenshotRef={screenshotRef}
+        isFullscreen={isFullscreen}
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
@@ -504,6 +520,9 @@ interface ChartHostProps {
    *  so the toolbar's screenshot button (no chart API / tradeMarkers in scope)
    *  can invoke it. Async — the button awaits it to drive its saving state. */
   screenshotRef: React.MutableRefObject<(() => Promise<void>) | null>
+  /** Fullscreen flag (modal-owned, prop-drilled). Drives the chart's pixel
+   *  height via chartHeightFor — applied to the chart API in the height effect. */
+  isFullscreen: boolean
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
@@ -522,8 +541,27 @@ interface ChartRefs {
   markersPlugin: import('lightweight-charts').ISeriesMarkersPluginApi<import('lightweight-charts').Time>
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, ema9, ema20, vwap }: ChartHostProps) {
+// Chart pixel height — flag-driven true-fullscreen. 400 in the normal modal;
+// near-viewport in fullscreen (CSS-only restyle: the modal fills the screen, so
+// the chart fills the viewport minus the chrome ABOVE it). ONE source feeds the
+// container style, the height effect, and the screenshot capture+restore so they
+// never disagree. window.innerHeight is read at toggle time (NOT reactive to a
+// live window resize — re-toggle to recompute; the ResizeObserver stays
+// width-only by design). 180 ≈ the slim bar + ContextBar + toolbar + gaps above
+// the chart — tune in smoke if the chart over/under-fills the viewport.
+function chartHeightFor(isFullscreen: boolean): number {
+  return isFullscreen ? Math.max(400, window.innerHeight - 180) : 400
+}
+
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // Flag-driven chart height (see chartHeightFor). Recomputed each render; the
+  // height effect applies it to the chart API whenever it changes. createChart
+  // below keeps a literal 400 — a fresh mount is always normal-size (fullscreen
+  // resets on close and can only be toggled from the chart toolbar, which only
+  // exists while mounted), so the mount effect references nothing reactive and
+  // its []-deps stays genuinely clean (no eslint-disable needed).
+  const chartHeight = chartHeightFor(isFullscreen)
   const refs = useRef<ChartRefs | null>(null)
   // Active price-line handles (entry + exit). Held in a ref so we can
   // remove them before re-creating on trade change — belt-and-suspenders
@@ -1011,7 +1049,11 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const captureChart = async (): Promise<HTMLCanvasElement> => {
       if (originalWidth <= 0) return api.takeScreenshot(true, false)
       const TARGET_W = 1600
-      const TARGET_H = Math.round(400 * (TARGET_W / originalWidth))
+      // Base the capture aspect on the LIVE height (chartHeight), not a literal
+      // 400 — otherwise a fullscreen screenshot would be captured at the normal
+      // 400-tall aspect (vertically squished). Normal mode: chartHeight===400, so
+      // this is identical to before.
+      const TARGET_H = Math.round(chartHeight * (TARGET_W / originalWidth))
       try {
         api.applyOptions({ width: TARGET_W, height: TARGET_H })
         if (savedRange) ts.setVisibleLogicalRange(savedRange)
@@ -1021,7 +1063,9 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         return api.takeScreenshot(true, false)
       } finally {
         // ALWAYS restore the on-screen size + framing, even if capture threw.
-        api.applyOptions({ width: originalWidth, height: 400 })
+        // height: chartHeight (not a literal 400) so screenshotting WHILE
+        // fullscreen restores to the fullscreen height, not the normal one.
+        api.applyOptions({ width: originalWidth, height: chartHeight })
         if (savedRange) ts.setVisibleLogicalRange(savedRange)
       }
     }
@@ -1049,13 +1093,36 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       bytes,
       suggestedName: `fugaedge-${trade.symbol}-${trade.date}.png`,
     })
-  }, [trade, tradeMarkers])
+  }, [trade, tradeMarkers, chartHeight])
   useEffect(() => {
     screenshotRef.current = captureAndSave
     return () => {
       screenshotRef.current = null
     }
   }, [captureAndSave, screenshotRef])
+
+  // Apply the flag-driven height to the chart API when fullscreen toggles.
+  // useLayoutEffect (NOT useEffect): it runs synchronously after the DOM mutates
+  // but BEFORE the browser paints, so the canvas resizes in the SAME frame the
+  // container grows. useEffect runs AFTER paint, which left one blank frame where
+  // the container had already jumped to the new height but the canvas had not —
+  // that was the fullscreen "blink". We also apply WIDTH here (from the now-full-
+  // viewport container's clientWidth) so the toggle is atomic and doesn't wait for
+  // the width-only ResizeObserver to catch up on a later tick. The ResizeObserver
+  // stays as-is for ordinary window resizes; height still changes ONLY via this
+  // effect (never the observer), so it never fights the screenshot capture. A
+  // height change rescales the PRICE axis, not the time axis, so the visible
+  // logical range is unaffected — but we snapshot + re-apply it anyway as cheap,
+  // symmetric insurance. On mount this is a no-op (chartHeight already 400).
+  useLayoutEffect(() => {
+    const r = refs.current
+    if (!r || !chartReady) return
+    const w = containerRef.current?.clientWidth ?? 0
+    const ts = r.api.timeScale()
+    const savedRange = ts.getVisibleLogicalRange()
+    r.api.applyOptions(w > 0 ? { width: w, height: chartHeight } : { height: chartHeight })
+    if (savedRange) ts.setVisibleLogicalRange(savedRange)
+  }, [chartHeight, chartReady])
 
   if (libError) {
     return (
@@ -1077,7 +1144,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       <div
         ref={containerRef}
         className="w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm"
-        style={{ height: 400 }}
+        style={{ height: chartHeight }}
       />
     </div>
   )

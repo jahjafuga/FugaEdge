@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2 } from 'lucide-react'
+import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2 } from 'lucide-react'
 import type {
   EntryTimeframe,
   TradeListRow,
@@ -91,23 +91,33 @@ export default function TradeDetailModal({
   stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     if (!trade) return
     setTab('overview')
   }, [trade?.id])
 
+  // Fullscreen is a per-open view mode — reset it whenever the modal has no
+  // trade (closed). Every close path (X, backdrop, Escape) clears `trade`, so
+  // this covers them all; the modal always reopens at normal size.
+  useEffect(() => {
+    if (!trade) setIsFullscreen(false)
+  }, [trade])
+
   useEffect(() => {
     if (!trade) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        // In fullscreen, Escape exits fullscreen first instead of closing.
+        if (isFullscreen) setIsFullscreen(false)
+        else onClose()
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [trade, onClose])
+  }, [trade, onClose, isFullscreen])
 
   if (!trade) return null
 
@@ -116,15 +126,21 @@ export default function TradeDetailModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="trade-detail-title"
-      className={`fixed inset-0 ${stacked ? 'z-[210]' : 'z-[60]'} flex items-center justify-center p-6`}
+      className={`fixed inset-0 ${stacked ? 'z-[210]' : 'z-[60]'} flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-6'}`}
     >
       <div
-        className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
+        className={`absolute inset-0 bg-bg-0/72 backdrop-blur-[4px] ${isFullscreen ? 'hidden' : ''}`}
         onClick={onClose}
       />
-      <div className="relative flex max-h-[92vh] w-full max-w-[880px] flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in">
-        <ModalHeader trade={trade} onClose={onClose} />
-        <div className="flex items-center gap-0 border-b border-border-subtle px-3">
+      <div
+        className={`relative flex w-full flex-col bg-bg-3 animate-modal-in ${
+          isFullscreen
+            ? 'h-full'
+            : 'max-h-[92vh] max-w-[880px] rounded-lg border border-border shadow-lg'
+        }`}
+      >
+        {!isFullscreen && <ModalHeader trade={trade} onClose={onClose} />}
+        <div className={`flex items-center gap-0 border-b border-border-subtle px-3 ${isFullscreen ? 'hidden' : ''}`}>
           {TABS.map((t) => {
             const active = t.key === tab
             return (
@@ -150,7 +166,39 @@ export default function TradeDetailModal({
             )
           })}
         </div>
-        <div className="flex-1 overflow-auto p-4">
+        {/* Slim fullscreen bar — rendered ONLY in fullscreen, as a sibling
+            ABOVE the body (the `&&` leaves a null placeholder otherwise, so the
+            body keeps its child index and ChartTab never remounts). Carries the
+            context the hidden header would show + the visible exit. */}
+        {isFullscreen && (
+          <div className="flex items-center justify-between gap-3 border-b border-border-subtle bg-bg-3 px-4 py-2">
+            <div className="flex items-baseline gap-3">
+              <span className="font-mono text-base font-semibold tracking-tight text-fg-primary">
+                {trade.symbol}
+              </span>
+              <span
+                className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                  trade.side === 'short' ? 'bg-loss-soft text-loss' : 'bg-win-soft text-win'
+                }`}
+              >
+                {trade.side}
+              </span>
+              <span className={`font-mono text-sm font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
+                {signed(trade.net_pnl)}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsFullscreen(false)}
+              aria-label="Exit fullscreen"
+              title="Exit fullscreen"
+              className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary"
+            >
+              <Minimize2 size={15} strokeWidth={2} />
+            </button>
+          </div>
+        )}
+        <div className={`flex-1 ${isFullscreen ? '' : 'overflow-auto p-4'}`}>
           {tab === 'overview' && (
             <OverviewTab
               trade={trade}
@@ -181,11 +229,16 @@ export default function TradeDetailModal({
               {/* key={trade.id} guarantees a full remount when the user
                   switches to a different trade — no stale chart instance,
                   no stale markers, no leftover refs. */}
-              <ChartTab key={trade.id} trade={trade} />
+              <ChartTab
+                key={trade.id}
+                trade={trade}
+                isFullscreen={isFullscreen}
+                onToggleFullscreen={() => setIsFullscreen((v) => !v)}
+              />
             </Suspense>
           )}
         </div>
-        {(onSoftDelete || onRestore) && (
+        {(onSoftDelete || onRestore) && !isFullscreen && (
           <TradeLifecycleFooter
             trade={trade}
             onSoftDelete={onSoftDelete}
