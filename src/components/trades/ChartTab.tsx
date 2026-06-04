@@ -14,10 +14,11 @@ import {
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
-import { int, price, signed, formatEastern } from '@/lib/format'
+import { int, price, signed, longDate, formatEastern } from '@/lib/format'
 import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 import { computeZoomLogicalRange } from '@/core/charts/computeZoomWindow'
 import { computePriceRange } from '@/core/charts/computePriceRange'
+import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -380,6 +381,29 @@ function ChartCanvas({
   // calls it. null until the chart is ready → icon is a no-op then, as before.
   const fitRef = useRef<(() => void) | null>(null)
 
+  // Screenshot lives in the toolbar (here) but everything it needs — the chart
+  // API, tradeMarkers (avg entry/exit), the trade row — is in the host. So the
+  // host writes a single capture→compose→save thunk into this ref (mirrors
+  // fitRef); the button just invokes it and owns the saving/disabled UI state.
+  // null until the chart is ready → button is a no-op then.
+  const screenshotRef = useRef<(() => Promise<void>) | null>(null)
+  const [savingShot, setSavingShot] = useState(false)
+  const handleScreenshot = useCallback(async () => {
+    if (savingShot || !screenshotRef.current) return
+    setSavingShot(true)
+    try {
+      await screenshotRef.current()
+    } catch (e) {
+      // Save rejection (disk/dialog error) bubbles from chartSaveScreenshot's
+      // invoke. No toast system in the app yet — log and stay alive so the user
+      // can retry. A cancelled dialog is NOT an error (resolves canceled).
+      // eslint-disable-next-line no-console
+      console.error('[ChartTab] screenshot save failed', e)
+    } finally {
+      setSavingShot(false)
+    }
+  }, [savingShot])
+
   // Recompute the Entry vs EMA9 % from the current bars at entry time.
   // Replaces the static `trade.entry_ema9_distance_pct` value (which was
   // baked-in at 1m at import time and never changed). When the user flips
@@ -423,11 +447,14 @@ function ChartCanvas({
             </ChartIconButton>
             <ChartIconButton
               title="Screenshot"
-              onClick={() => {
-                /* TODO(commit 2: screenshot) — chart.takeScreenshot() → save PNG */
-              }}
+              onClick={handleScreenshot}
+              disabled={savingShot}
             >
-              <Camera size={13} strokeWidth={2} />
+              {savingShot ? (
+                <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+              ) : (
+                <Camera size={13} strokeWidth={2} />
+              )}
             </ChartIconButton>
             <ChartIconButton
               title="Re-fetch from Massive"
@@ -452,6 +479,7 @@ function ChartCanvas({
         bars={bars}
         barIntervalMs={barIntervalMs}
         fitRef={fitRef}
+        screenshotRef={screenshotRef}
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
@@ -472,6 +500,10 @@ interface ChartHostProps {
   /** Toolbar lives in the parent; the host writes its fit-to-fills handler here
    *  so the toolbar icon (which has no chart API) can invoke it. */
   fitRef: React.MutableRefObject<(() => void) | null>
+  /** Same handoff as fitRef: the host writes its capture→compose→save thunk here
+   *  so the toolbar's screenshot button (no chart API / tradeMarkers in scope)
+   *  can invoke it. Async — the button awaits it to drive its saving state. */
+  screenshotRef: React.MutableRefObject<(() => Promise<void>) | null>
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
@@ -490,7 +522,7 @@ interface ChartRefs {
   markersPlugin: import('lightweight-charts').ISeriesMarkersPluginApi<import('lightweight-charts').Time>
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20, vwap }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, ema9, ema20, vwap }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const refs = useRef<ChartRefs | null>(null)
   // Active price-line handles (entry + exit). Held in a ref so we can
@@ -943,6 +975,88 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20,
     }
   }, [fitToFills, fitRef])
 
+  // Screenshot capture→compose→save, exposed to the toolbar via screenshotRef.
+  // Lives here because the host owns everything it needs: the chart API
+  // (takeScreenshot), tradeMarkers (avg entry/exit), and the trade row.
+  // Formatting is done here via @/lib/format → strings; the branded layout is
+  // the pure src/lib/chartScreenshot module. takeScreenshot(true, false): true
+  // includes the fill markers (top-layer primitives), false drops the crosshair.
+  const captureAndSave = useCallback(async () => {
+    const api = refs.current?.api
+    if (!api) return // chart not ready — no-op (the button also guards)
+
+    // Fixed-width capture for a crisp, DPR-independent export. Render the chart
+    // at a fixed 1600px width — preserving the on-screen ASPECT RATIO so candles
+    // aren't distorted (height scales by the same factor as width) — capture,
+    // then restore the live size. Two gotchas, both handled:
+    //   • applyOptions({width,height}) schedules an ASYNC redraw; capturing
+    //     before it paints yields the OLD size. So we wait TWO animation frames
+    //     after the resize (one for the chart's own scheduled render to run, one
+    //     to be safely past the paint) before takeScreenshot.
+    //   • Resizing disturbs the visible range — lightweight-charts preserves
+    //     barSpacing on a width change, so a wider chart reveals MORE bars (the
+    //     same relayout-stomp the framing fix fights). We snapshot the visible
+    //     logical range first and re-apply it at the big size (so the capture
+    //     frames the SAME bars, just crisper) AND after restore (so the on-screen
+    //     view is pixel-identical). Logical (bar-index) range is width-independent.
+    // Restore runs in finally so the on-screen chart is ALWAYS put back even if
+    // takeScreenshot throws; compose/save then run with the chart already
+    // restored, keeping the visible resize flicker brief. Falls back to a plain
+    // capture when the live width is unreadable.
+    const ts = api.timeScale()
+    const savedRange = ts.getVisibleLogicalRange()
+    const originalWidth = containerRef.current?.clientWidth ?? 0
+    const nextFrame = () =>
+      new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const captureChart = async (): Promise<HTMLCanvasElement> => {
+      if (originalWidth <= 0) return api.takeScreenshot(true, false)
+      const TARGET_W = 1600
+      const TARGET_H = Math.round(400 * (TARGET_W / originalWidth))
+      try {
+        api.applyOptions({ width: TARGET_W, height: TARGET_H })
+        if (savedRange) ts.setVisibleLogicalRange(savedRange)
+        await nextFrame()
+        await nextFrame()
+        if (savedRange) ts.setVisibleLogicalRange(savedRange) // re-assert pre-capture
+        return api.takeScreenshot(true, false)
+      } finally {
+        // ALWAYS restore the on-screen size + framing, even if capture threw.
+        api.applyOptions({ width: originalWidth, height: 400 })
+        if (savedRange) ts.setVisibleLogicalRange(savedRange)
+      }
+    }
+    const chartCanvas = await captureChart()
+
+    const data: BrandedScreenshotData = {
+      symbol: trade.symbol,
+      side: trade.side,
+      setupName: trade.playbook_name,
+      dateLabel: longDate(trade.date),
+      netPnl: trade.net_pnl,
+      netPnlText: signed(trade.net_pnl),
+      avgEntryText: tradeMarkers.avgEntry != null ? `$${price(tradeMarkers.avgEntry)}` : '—',
+      avgExitText: tradeMarkers.avgExit != null ? `$${price(tradeMarkers.avgExit)}` : '—',
+      sharesText: int(Math.max(trade.shares_bought, trade.shares_sold)),
+      holdText: formatHoldTime(trade.open_time, trade.close_time),
+    }
+    const out = await composeBrandedScreenshot(chartCanvas, data)
+    const blob = await new Promise<Blob | null>((resolve) =>
+      out.toBlob(resolve, 'image/png'),
+    )
+    if (!blob) throw new Error('Failed to encode screenshot PNG')
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    await ipc.chartSaveScreenshot({
+      bytes,
+      suggestedName: `fugaedge-${trade.symbol}-${trade.date}.png`,
+    })
+  }, [trade, tradeMarkers])
+  useEffect(() => {
+    screenshotRef.current = captureAndSave
+    return () => {
+      screenshotRef.current = null
+    }
+  }, [captureAndSave, screenshotRef])
+
   if (libError) {
     return (
       <div className="rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
@@ -1269,6 +1383,23 @@ function easternAxisLabel(timeSec: number, withSeconds: boolean): string {
   return withSeconds ? label : label.slice(0, 5)
 }
 
+// Hold time between entry and exit, compact (e.g. "1h 23m", "12m 4s", "45s").
+// open_time/close_time are ISO strings; their DIFFERENCE is timezone-agnostic
+// (both parsed the same way) so this is correct regardless of a Z suffix. Open
+// trades (close_time null) read "Open"; a malformed/negative span reads "—".
+function formatHoldTime(openTime: string, closeTime: string | null): string {
+  if (!closeTime) return 'Open'
+  const ms = Date.parse(closeTime) - Date.parse(openTime)
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  const totalSec = Math.round(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${s}s`
+  return `${s}s`
+}
+
 function computeDayStats(bars: IntradayBar[]): DayStats {
   if (bars.length === 0) {
     return { open: null, high: null, low: null, close: null, volume: 0 }
@@ -1396,6 +1527,3 @@ function vwap(bars: IntradayBar[]): { time: number; value: number }[] {
   }
   return out
 }
-
-// `signed` import kept for potential P&L overlay future use.
-void signed
