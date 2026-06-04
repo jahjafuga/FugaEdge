@@ -26,11 +26,18 @@ const COLOR_INSET       = '#0a0c11'  // bg-inset (chart canvas)
 const COLOR_GRID        = '#1e2330'  // border-subtle — reused as the flat axis border (gridlines now off)
 const COLOR_BORDER      = '#2a3142'  // border
 const COLOR_TEXT_DIM    = '#8a94a8'  // fg-tertiary
-const COLOR_TEXT        = '#f3f5fa'  // fg-primary
 const COLOR_GOLD        = '#d4af37'  // brand gold
-const COLOR_GOLD_SOFT   = '#e4c252'  // gold-hover (lighter — used for EMA20)
 const COLOR_WIN         = '#3fb389'  // win (muted)
 const COLOR_LOSS        = '#e06b6b'  // loss (muted)
+
+// Indicator-series palette — the three overlay lines and their matching
+// dropdown swatches read from these. Standard TradingView EMA palette:
+// 9EMA white, EMA20 cyan; VWAP carries the brand gold. Distinct named
+// consts (even where a value repeats a master token) so each series option
+// and its IndicatorToggle swatch stay on one source of truth.
+const COLOR_EMA9        = '#f3f5fa'  // 9EMA  — white (fg-primary white)
+const COLOR_EMA20       = '#5cc8e8'  // EMA20 — cyan / light blue
+const COLOR_VWAP        = '#d4af37'  // VWAP  — brand gold (= COLOR_GOLD)
 
 type Timeframe = '10s' | '1m' | '5m' | 'daily'
 
@@ -752,10 +759,10 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20,
     if (!r || !chartReady) return
     void (async () => {
       const lc = await import('lightweight-charts')
-      // EMA9 (gold solid)
+      // EMA9 (white solid)
       if (ema9 && !r.ema9) {
         r.ema9 = r.api.addSeries(lc.LineSeries, {
-          color: COLOR_GOLD,
+          color: COLOR_EMA9,
           lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: false,
@@ -768,12 +775,11 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20,
         r.ema9.setData(ema9.map((p) => ({ time: secondsTime(p.time), value: p.value })))
       }
 
-      // EMA20 (gold soft, dashed)
+      // EMA20 (cyan solid)
       if (ema20 && !r.ema20) {
         r.ema20 = r.api.addSeries(lc.LineSeries, {
-          color: COLOR_GOLD_SOFT,
-          lineWidth: 1,
-          lineStyle: lc.LineStyle.Dashed,
+          color: COLOR_EMA20,
+          lineWidth: 2,
           priceLineVisible: false,
           lastValueVisible: false,
         })
@@ -785,12 +791,11 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, ema9, ema20,
         r.ema20.setData(ema20.map((p) => ({ time: secondsTime(p.time), value: p.value })))
       }
 
-      // VWAP (white dotted)
+      // VWAP (gold solid)
       if (vwap && !r.vwap) {
         r.vwap = r.api.addSeries(lc.LineSeries, {
-          color: COLOR_TEXT,
+          color: COLOR_VWAP,
           lineWidth: 1,
-          lineStyle: lc.LineStyle.Dotted,
           priceLineVisible: false,
           lastValueVisible: false,
         })
@@ -1112,23 +1117,21 @@ function IndicatorsDropdown({
         <div className="absolute right-0 z-20 mt-1 flex flex-col gap-1 rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
           <IndicatorToggle
             label={`9EMA (${tfLabel})`}
-            color={COLOR_GOLD}
+            color={COLOR_EMA9}
             active={showEma9}
             onClick={onToggleEma9}
           />
           <IndicatorToggle
             label={`EMA20 (${tfLabel})`}
-            color={COLOR_GOLD_SOFT}
+            color={COLOR_EMA20}
             active={showEma20}
             onClick={onToggleEma20}
-            dashed
           />
           <IndicatorToggle
             label="VWAP"
-            color={COLOR_TEXT}
+            color={COLOR_VWAP}
             active={showVwap}
             onClick={onToggleVwap}
-            dotted
           />
         </div>
       )}
