@@ -54,6 +54,7 @@ import type {
   ProfileBackfillProgress,
   ProfileBackfillResult,
 } from '@shared/market-types'
+import type { SaveScreenshotInput, SaveScreenshotResult } from '@shared/chart-types'
 import type {
   AddAttachmentsInput,
   AddAttachmentsResult,
@@ -207,6 +208,10 @@ const api = {
     force?: boolean,
   ): Promise<IntradayBarsPayload> =>
     ipcRenderer.invoke(IPC.INTRADAY_BARS_GET, { symbol, date, force: !!force }),
+  // v0.2.4 — save a branded chart screenshot. Renderer (commit 2b) produces the
+  // PNG bytes; main shows the save dialog + writes the file. Mirrors export* above.
+  chartSaveScreenshot: (input: SaveScreenshotInput): Promise<SaveScreenshotResult> =>
+    ipcRenderer.invoke(IPC.CHART_SAVE_SCREENSHOT, input),
   playbooksList: (): Promise<PlaybookWithStats[]> =>
     ipcRenderer.invoke(IPC.PLAYBOOKS_LIST),
   playbookCreate: (input: CreatePlaybookInput): Promise<PlaybookWithStats> =>

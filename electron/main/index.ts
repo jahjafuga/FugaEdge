@@ -17,6 +17,7 @@ import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
 import { runPendingMaeMfeBackfill } from '../market/intraday'
+import { registerChartsIpc } from '../charts/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
 import { registerAttachmentsIpc } from '../attachments/ipc'
@@ -137,6 +138,7 @@ app.whenReady().then(() => {
   registerSettingsIpc()
   registerDataHealthIpc()
   registerMarketIpc()
+  registerChartsIpc()
   registerCountryIpc()
   registerPlaybookIpc()
   registerAttachmentsIpc()

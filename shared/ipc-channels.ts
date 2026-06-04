@@ -93,6 +93,11 @@ export const IPC = {
   // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
   // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
   WEEK_GET_DETAIL: 'week:getDetail',
+  // ── Chart ──────────────────────────────────────────────────────────────
+  // v0.2.4 — branded chart screenshot save. Renderer (commit 2b) captures +
+  // composites the PNG bytes; MAIN does the file I/O only (showSaveDialog →
+  // writeFile), per ARCHITECTURE.md. Mirrors the export:* save-dialog channels.
+  CHART_SAVE_SCREENSHOT: 'chart:saveScreenshot',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
