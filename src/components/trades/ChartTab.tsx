@@ -19,6 +19,7 @@ import { int, price, signed, longDate, formatEastern } from '@/lib/format'
 import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 import { computeZoomLogicalRange } from '@/core/charts/computeZoomWindow'
 import { computePriceRange } from '@/core/charts/computePriceRange'
+import { FillLadderPrimitive } from './fillLadderPrimitive'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
@@ -538,7 +539,7 @@ interface ChartRefs {
   ema9: import('lightweight-charts').ISeriesApi<'Line'> | null
   ema20: import('lightweight-charts').ISeriesApi<'Line'> | null
   vwap: import('lightweight-charts').ISeriesApi<'Line'> | null
-  markersPlugin: import('lightweight-charts').ISeriesMarkersPluginApi<import('lightweight-charts').Time>
+  fillLadder: FillLadderPrimitive
 }
 
 // Chart pixel height — flag-driven true-fullscreen. 400 in the normal modal;
@@ -669,7 +670,8 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           scaleMargins: { top: 0.82, bottom: 0 },
         })
 
-        const markersPlugin = lc.createSeriesMarkers(candle, [])
+        const fillLadder = new FillLadderPrimitive()
+        candle.attachPrimitive(fillLadder)
 
         refs.current = {
           api: chart,
@@ -678,7 +680,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           ema9: null,
           ema20: null,
           vwap: null,
-          markersPlugin,
+          fillLadder,
         }
         // Fresh chart instance → allow a fresh framing. Under StrictMode the
         // setup→cleanup→setup sequence builds a new chart on the second setup;
@@ -879,59 +881,16 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     })()
   }, [ema9, ema20, vwap, chartReady])
 
-  // Fill markers — price-anchored circles, qty-scaled, entry/exit colored.
-  // Descriptors come from buildTradeMarkers (pure module); we map them onto the
-  // lightweight-charts marker shape here. No per-fill text label (dropped in
-  // the v0.2.4 restyle).
+  // Fill markers — the ladder primitive (a dot on the bar at the exact fill
+  // price + a thin leader + a "QTY @ PRICE" pill, de-collided by the pure
+  // layoutFillLadder). We just push the buildTradeMarkers descriptors; the
+  // primitive recomputes pixel coords every frame against the live time scale,
+  // so the old 12-frame marker-reassert RAF hack is gone entirely.
   useEffect(() => {
     const r = refs.current
-    if (!r || !chartReady || bars.length === 0) return
-    // RAF handle for the deferred marker reassert (cancelled on re-run / unmount).
-    let markerRaf = 0
-    // Defensive: drop any leftover markers from a prior trade in case the
-    // host instance was reused. With key={trade.id} on the parent ChartTab
-    // this is belt-and-suspenders, but the clear is free and prevents any
-    // ordering hazard if the parent ever forgets the key.
-    r.markersPlugin.setMarkers([])
-    // The module emits time in epoch ms — convert to the chart's epoch seconds
-    // via secondsTime(). position 'atPriceMiddle' + price anchors each dot to
-    // the fill's exact price instead of riding above/below the candle.
-    const markers: import('lightweight-charts').SeriesMarker<import('lightweight-charts').Time>[] =
-      tradeMarkers.markers.map((m) => ({
-        time: secondsTime(m.time),
-        position: 'atPriceMiddle' as const,
-        price: m.price,
-        shape: 'circle' as const,
-        color: m.kind === 'entry' ? '#2ec27e' : '#ff5d5d',
-        size: m.size,
-      }))
-    // Plugin requires markers sorted by time ascending. The module already
-    // sorts by ms; re-sort after the ms→s conversion to stay safe.
-    markers.sort((a, b) => (a.time as number) - (b.time as number))
-    r.markersPlugin.setMarkers(markers)
-
-    // Re-apply the markers across the SAME RAF window the zoom uses. createSeries-
-    // Markers (v5) computes each marker's pixel position against the time-scale AT
-    // APPLY TIME and does NOT recompute when setVisibleLogicalRange later moves the
-    // range — so a marker applied before the zoom's applyAndVerify(12) loop settles
-    // is positioned against a stale range (the 5M "markers render ~2h right / not in
-    // view" bug). Re-writing the same markers each frame for the same 12-frame
-    // (~190ms) window makes the FINAL apply land after the zoom settles, so they sit
-    // on their candles. Self-contained here — the markers' own reassert, NOT coupled
-    // into the zoom loop. Same frame count (12) as applyAndVerify so the windows match.
-    const reassertMarkers = (framesLeft: number) => {
-      const rr = refs.current            // re-read: host may have unmounted
-      if (!rr) return
-      rr.markersPlugin.setMarkers(markers)
-      if (framesLeft <= 0) return
-      markerRaf = requestAnimationFrame(() => reassertMarkers(framesLeft - 1))
-    }
-    markerRaf = requestAnimationFrame(() => reassertMarkers(12))
-
-    return () => {
-      if (markerRaf) cancelAnimationFrame(markerRaf)
-    }
-  }, [tradeMarkers, bars, chartReady])
+    if (!r || !chartReady) return
+    r.fillLadder.setMarkers(tradeMarkers.markers)
+  }, [tradeMarkers, chartReady])
 
   // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
   // sells. Short trades: entry = sells, exit = buys (the user opens by
