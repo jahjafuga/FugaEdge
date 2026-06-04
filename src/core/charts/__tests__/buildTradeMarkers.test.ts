@@ -218,3 +218,65 @@ describe('buildTradeMarkers — edge cases', () => {
     expect(avgExit).toBeNull()
   })
 })
+
+// (g) characterization — trade 61's real 5M marker DATA contract ───────────────
+// Locks the marker DATA produced for trade 61 (the live [MARK-DIAG] fills) on a
+// 5-min grid: count, the in-grid property (every marker time is a real grid
+// point), role-by-direction, and the share-weighted averages. This is the data
+// the render-layer offset bug was wrongly blamed on — pin it so we never
+// re-chase it. Expected to PASS as-is (characterization, not red-first driving).
+describe('buildTradeMarkers — trade 61 characterization (5M in-grid data contract)', () => {
+  // Real fills from the live [MARK-DIAG] log; executions[].time is true UTC+Z.
+  function exec61(time: string, side: 'B' | 'S', qty: number, price: number): RoundTripExecution {
+    return { trade_id: 't61', order_id: `${side}-${time}`, side, qty, price, time }
+  }
+  const trade61 = tradeOf('long', [
+    exec61('2026-06-02T12:22:21Z', 'B', 25, 2.14),
+    exec61('2026-06-02T12:23:53Z', 'S', 12, 2.11),
+    exec61('2026-06-02T12:24:04Z', 'S', 6, 2.07),
+    exec61('2026-06-02T12:24:39Z', 'B', 25, 2.14),
+    exec61('2026-06-02T12:24:49Z', 'S', 16, 2.19),
+    exec61('2026-06-02T12:25:17Z', 'S', 16, 2.12),
+  ])
+
+  // 5-min grid (300_000 ms), 08:00→08:40 ET (12:00→12:40 Z), so 08:20:00 ET
+  // (12:20:00Z = 1780402800000) and 08:25:00 ET (12:25:00Z = 1780403100000) are
+  // real grid points — the fills snap onto them. Only .t matters; OHLCV constant.
+  const FIVE_MIN = 300_000
+  const gridStart = Date.parse('2026-06-02T12:00:00Z')
+  const gridEnd = Date.parse('2026-06-02T12:40:00Z')
+  const bars5: IntradayBar[] = []
+  for (let t = gridStart; t <= gridEnd; t += FIVE_MIN) bars5.push(bar(t, 2, 2, 2, 2, 100))
+
+  it('sanity: the two snap-target bars are real grid points', () => {
+    expect(bars5.some((b) => b.t === 1780402800000)).toBe(true) // 12:20:00Z / 08:20 ET
+    expect(bars5.some((b) => b.t === 1780403100000)).toBe(true) // 12:25:00Z / 08:25 ET
+  })
+
+  it('emits exactly 6 markers (one per fill)', () => {
+    expect(buildTradeMarkers(trade61, bars5).markers).toHaveLength(6)
+  })
+
+  it('every marker time is a member of the 5M bar grid (the in-grid data contract)', () => {
+    const { markers } = buildTradeMarkers(trade61, bars5)
+    const barTimes = bars5.map((b) => b.t)
+    for (const m of markers) {
+      expect(barTimes.some((t) => t === m.time)).toBe(true)
+    }
+  })
+
+  it('role-by-direction (long): entry markers are the B fills, exit markers the S fills', () => {
+    const { markers } = buildTradeMarkers(trade61, bars5)
+    for (const m of markers) {
+      expect(m.kind).toBe(m.side === 'B' ? 'entry' : 'exit')
+    }
+    expect(markers.filter((m) => m.kind === 'entry')).toHaveLength(2) // 2 buys
+    expect(markers.filter((m) => m.kind === 'exit')).toHaveLength(4)  // 4 sells
+  })
+
+  it('share-weighted averages: avgEntry ≈ 2.14, avgExit ≈ 2.134', () => {
+    const { avgEntry, avgExit } = buildTradeMarkers(trade61, bars5)
+    expect(avgEntry).toBeCloseTo(2.14, 6)   // (25*2.14 + 25*2.14) / 50
+    expect(avgExit).toBeCloseTo(2.134, 4)   // (12*2.11 + 6*2.07 + 16*2.19 + 16*2.12) / 50
+  })
+})

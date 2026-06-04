@@ -14,6 +14,8 @@ import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
 import { int, price, signed, formatEastern } from '@/lib/format'
 import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
+import { computeZoomLogicalRange } from '@/core/charts/computeZoomWindow'
+import { computePriceRange } from '@/core/charts/computePriceRange'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -354,6 +356,16 @@ function ChartCanvas({
   // user always knows what interval the EMA was computed against.
   const tfLabel = tf === 'daily' ? 'D' : tf
 
+  // Active bar interval in ms — passed through to computeZoomWindow /
+  // computeZoomLogicalRange for API compatibility, but the zoom window is framed
+  // purely by TIME and is independent of the interval (the candle count simply
+  // falls out of the interval). Daily / unknown → 0.
+  const barIntervalMs =
+    tf === '5m' ? 300_000 :
+    tf === '1m' ? 60_000 :
+    tf === '10s' ? 10_000 :
+    0
+
   // Recompute the Entry vs EMA9 % from the current bars at entry time.
   // Replaces the static `trade.entry_ema9_distance_pct` value (which was
   // baked-in at 1m at import time and never changed). When the user flips
@@ -414,6 +426,7 @@ function ChartCanvas({
       <LightweightChartHost
         trade={trade}
         bars={bars}
+        barIntervalMs={barIntervalMs}
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
@@ -427,6 +440,10 @@ function ChartCanvas({
 interface ChartHostProps {
   trade: TradeListRow
   bars: IntradayBar[]
+  /** Active timeframe's bar interval in ms — passed to computeZoomWindow /
+   *  computeZoomLogicalRange for API compatibility; the zoom window is time-based
+   *  and interval-independent. Daily/unknown → 0. */
+  barIntervalMs: number
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
@@ -445,13 +462,18 @@ interface ChartRefs {
   markersPlugin: import('lightweight-charts').ISeriesMarkersPluginApi<import('lightweight-charts').Time>
 }
 
-function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const refs = useRef<ChartRefs | null>(null)
   // Active price-line handles (entry + exit). Held in a ref so we can
   // remove them before re-creating on trade change — belt-and-suspenders
   // alongside the parent's key={trade.id} remount.
   const priceLinesRef = useRef<import('lightweight-charts').IPriceLine[]>([])
+  // Framing guard: the `${trade.id}:${barIntervalMs}` the zoom/fit was last
+  // applied for. Cleared whenever the chart instance is (re)created (mount
+  // effect) so each fresh chart frames exactly once, while setData / markers /
+  // avg-lines keep redrawing on every bars-identity change.
+  const lastZoomedRef = useRef<string | null>(null)
   const [libError, setLibError] = useState<string | null>(null)
   // True once the async import + chart construction has finished and
   // refs.current is populated. Data / indicator / marker effects depend on
@@ -559,6 +581,10 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
           vwap: null,
           markersPlugin,
         }
+        // Fresh chart instance → allow a fresh framing. Under StrictMode the
+        // setup→cleanup→setup sequence builds a new chart on the second setup;
+        // clearing the guard here ensures that chart re-zooms once.
+        lastZoomedRef.current = null
 
         // Container may measure 0px if the Chart tab just became visible
         // (display:none ancestors collapse children width to 0). One
@@ -596,6 +622,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
       // pane along with it. No manual per-series cleanup needed.
       refs.current?.api.remove()
       refs.current = null
+      lastZoomedRef.current = null
       setChartReady(false)
     }
   }, [])
@@ -606,6 +633,24 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady || bars.length === 0) return
+
+    // Price-axis (vertical) framing — install the autoscale provider BEFORE the
+    // setData() below, so setData's autoscale pass frames to the FILLS on the
+    // first paint (no flicker, no corrective recompute). It's then consulted on
+    // every later autoscale (scroll/resize) too, so it stays correct. Option A:
+    // fills are the subject; a runner extending above the view is intended.
+    // tradeMarkers is the same source the markers use, and its memo deps
+    // [trade, bars] ⊆ this effect's deps, so the captured closure is fresh.
+    r.candle.applyOptions({
+      autoscaleInfoProvider: (base: () => import('lightweight-charts').AutoscaleInfo | null) => {
+        const pr = computePriceRange(tradeMarkers.markers.map((m) => m.price))
+        if (!pr) return base()
+        return { priceRange: { minValue: pr.minValue, maxValue: pr.maxValue } }
+      },
+    })
+
+    // RAF handle for the deferred zoom apply (cancelled on re-run / unmount).
+    let zoomRaf = 0
 
     // Sanity log so it's obvious when candles don't line up with trade.date.
     // Bars are UTC epoch ms; trade.date is the YYYY-MM-DD from open_time
@@ -634,9 +679,49 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     r.candle.setData(candleData)
     r.volume.setData(volumeData)
 
-    // Fit time scale to the day's range once data lands.
-    r.api.timeScale().fitContent()
-  }, [bars, chartReady, trade])
+    // Frame the chart ONCE per (chart instance, trade, timeframe). setData (and
+    // markers / avg-lines) redraw on every bars-identity change, but the zoom
+    // must not: repeated payload churn (StrictMode-doubled) would re-fire the
+    // deferred RAF and race the chart's own settling, landing at the data
+    // default. lastZoomedRef is cleared on chart (re)creation, so a fresh chart
+    // still frames once.
+    const zoomKey = `${trade.id}:${barIntervalMs}`
+    if (lastZoomedRef.current !== zoomKey) {
+      // Commit to the framing now (before scheduling) so repeated re-fires with
+      // the same key don't stack RAFs.
+      lastZoomedRef.current = zoomKey
+      // Default the visible range to the trade's own window via a LOGICAL
+      // (bar-index) range, not timestamps: the timestamp visible-range API
+      // corrupts scrollPosition when the window is a small slice far from the
+      // full-day bars' right edge (measured scrollPosition −654 on 5M); the
+      // logical range frames the bars directly. Falls back to fitContent() when
+      // there's no usable range (no fills / no bars).
+      const lr = computeZoomLogicalRange(trade.executions, bars, { barIntervalMs })
+      if (lr) {
+        // Defer one frame (post-mount width-apply has run), then RE-APPLY the
+        // logical range UNCONDITIONALLY every frame for a fixed window. The
+        // sparse-5M relayout stomps our range AFTER a transient-correct frame
+        // (measured: correct at frame2, stomped to the data-start sliver by
+        // frame5), so a "stop once it holds" check bails right before the stomp.
+        // Re-writing every frame for ~12 frames (~190ms) outlasts the stomp so
+        // we're the last writer. On dense 1M it's a visual no-op (already right).
+        const applyAndVerify = (framesLeft: number) => {
+          const rr = refs.current            // re-read: host may have unmounted
+          if (!rr) return
+          rr.api.timeScale().setVisibleLogicalRange({ from: lr.from, to: lr.to })
+          if (framesLeft <= 0) return
+          zoomRaf = requestAnimationFrame(() => applyAndVerify(framesLeft - 1))
+        }
+        zoomRaf = requestAnimationFrame(() => applyAndVerify(12))
+      } else {
+        r.api.timeScale().fitContent()
+      }
+    }
+
+    return () => {
+      if (zoomRaf) cancelAnimationFrame(zoomRaf)
+    }
+  }, [bars, chartReady, trade, barIntervalMs])
 
   // Indicator series — created lazily on first toggle-on, removed when toggled
   // off. Reuses series when re-toggling.
@@ -704,6 +789,8 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady || bars.length === 0) return
+    // RAF handle for the deferred marker reassert (cancelled on re-run / unmount).
+    let markerRaf = 0
     // Defensive: drop any leftover markers from a prior trade in case the
     // host instance was reused. With key={trade.id} on the parent ChartTab
     // this is belt-and-suspenders, but the clear is free and prevents any
@@ -725,6 +812,28 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
     // sorts by ms; re-sort after the ms→s conversion to stay safe.
     markers.sort((a, b) => (a.time as number) - (b.time as number))
     r.markersPlugin.setMarkers(markers)
+
+    // Re-apply the markers across the SAME RAF window the zoom uses. createSeries-
+    // Markers (v5) computes each marker's pixel position against the time-scale AT
+    // APPLY TIME and does NOT recompute when setVisibleLogicalRange later moves the
+    // range — so a marker applied before the zoom's applyAndVerify(12) loop settles
+    // is positioned against a stale range (the 5M "markers render ~2h right / not in
+    // view" bug). Re-writing the same markers each frame for the same 12-frame
+    // (~190ms) window makes the FINAL apply land after the zoom settles, so they sit
+    // on their candles. Self-contained here — the markers' own reassert, NOT coupled
+    // into the zoom loop. Same frame count (12) as applyAndVerify so the windows match.
+    const reassertMarkers = (framesLeft: number) => {
+      const rr = refs.current            // re-read: host may have unmounted
+      if (!rr) return
+      rr.markersPlugin.setMarkers(markers)
+      if (framesLeft <= 0) return
+      markerRaf = requestAnimationFrame(() => reassertMarkers(framesLeft - 1))
+    }
+    markerRaf = requestAnimationFrame(() => reassertMarkers(12))
+
+    return () => {
+      if (markerRaf) cancelAnimationFrame(markerRaf)
+    }
   }, [tradeMarkers, bars, chartReady])
 
   // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
@@ -804,7 +913,7 @@ function LightweightChartHost({ trade, bars, ema9, ema20, vwap }: ChartHostProps
   return (
     <div className="relative">
       <div className="flex items-center justify-end pb-1">
-        <FitToFillsButton chartRefs={refs} trade={trade} bars={bars} />
+        <FitToFillsButton chartRefs={refs} trade={trade} bars={bars} barIntervalMs={barIntervalMs} />
       </div>
       {/* Card-style frame around the lightweight-charts canvas. Same
           surface + border + shadow as the stat cards above so the chart
@@ -823,31 +932,28 @@ function FitToFillsButton({
   chartRefs,
   trade,
   bars,
+  barIntervalMs,
 }: {
   chartRefs: React.MutableRefObject<ChartRefs | null>
   trade: TradeListRow
   bars: IntradayBar[]
+  barIntervalMs: number
 }) {
   const fit = useCallback(() => {
     const r = chartRefs.current
-    if (!r || bars.length === 0 || trade.executions.length === 0) return
-    const fillTimes = trade.executions
-      // e.time is true UTC with a Z suffix (Day 8.5 Commit B) — parse directly.
-      .map((e) => Date.parse(e.time))
-      .filter((t) => Number.isFinite(t))
-    if (fillTimes.length === 0) return
-    const minFill = Math.min(...fillTimes)
-    const maxFill = Math.max(...fillTimes)
-    const from = secondsTime(minFill - 30 * 60 * 1000)
-    const to = secondsTime(maxFill + 30 * 60 * 1000)
-    r.api.timeScale().setVisibleRange({ from, to })
-  }, [chartRefs, trade, bars])
+    if (!r) return
+    // Same logical-range zoom as the default-on-load apply. No-op when there's
+    // no usable range (no fills / no bars), as before.
+    const lr = computeZoomLogicalRange(trade.executions, bars, { barIntervalMs })
+    if (!lr) return
+    r.api.timeScale().setVisibleLogicalRange({ from: lr.from, to: lr.to })
+  }, [chartRefs, trade, bars, barIntervalMs])
 
   return (
     <button
       type="button"
       onClick={fit}
-      title="Zoom to 30 min before first fill / 30 min after last fill"
+      title="Zoom to the trade's fill window"
       className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
     >
       <Maximize2 size={11} strokeWidth={2} />
