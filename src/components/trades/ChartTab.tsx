@@ -21,14 +21,14 @@ import { computePriceRange } from '@/core/charts/computePriceRange'
 // wants raw hex, not Tailwind classes) stays on the same palette as the
 // rest of the modal.
 const COLOR_INSET       = '#0a0c11'  // bg-inset (chart canvas)
-const COLOR_GRID        = '#1e2330'  // border-subtle
+const COLOR_GRID        = '#1e2330'  // border-subtle — reused as the flat axis border (gridlines now off)
 const COLOR_BORDER      = '#2a3142'  // border
 const COLOR_TEXT_DIM    = '#8a94a8'  // fg-tertiary
 const COLOR_TEXT        = '#f3f5fa'  // fg-primary
 const COLOR_GOLD        = '#d4af37'  // brand gold
 const COLOR_GOLD_SOFT   = '#e4c252'  // gold-hover (lighter — used for EMA20)
-const COLOR_WIN         = '#34d399'  // win
-const COLOR_LOSS        = '#f87171'  // loss
+const COLOR_WIN         = '#3fb389'  // win (muted)
+const COLOR_LOSS        = '#e06b6b'  // loss (muted)
 
 type Timeframe = '10s' | '1m' | '5m' | 'daily'
 
@@ -514,11 +514,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }:
             fontSize: 11,
           },
           grid: {
-            vertLines: { color: COLOR_GRID },
-            horzLines: { color: COLOR_GRID },
+            vertLines: { visible: false },
+            horzLines: { visible: false },
           },
           rightPriceScale: {
             borderColor: COLOR_BORDER,
+            borderVisible: false,
             scaleMargins: { top: 0.05, bottom: 0.25 },
           },
           // Day 8.5 Commit B — candles/markers sit on UTC epochs; render the
@@ -529,7 +530,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, ema9, ema20, vwap }:
               easternAxisLabel(t as number, true),
           },
           timeScale: {
-            borderColor: COLOR_BORDER,
+            borderColor: COLOR_GRID, // flattened axis border (#1e2330, was COLOR_BORDER #2a3142)
             timeVisible: true,
             secondsVisible: false,
             tickMarkFormatter: (t: import('lightweight-charts').Time) =>
