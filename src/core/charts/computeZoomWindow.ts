@@ -25,10 +25,6 @@ export interface ComputeZoomWindowOptions {
    *  by the window math any more — the window is framed by TIME, so candle count
    *  falls out of the interval rather than driving the pad. */
   barIntervalMs?: number
-  /** No longer used by the window math (the `minBars * barIntervalMs` floor was
-   *  removed for interval-independence). Retained so existing callers that still
-   *  pass it keep type-checking; accepted and ignored. */
-  minBars?: number
 }
 
 const DEFAULT_PAD_FRACTION = 0.55
@@ -72,7 +68,7 @@ export function computeZoomWindow(
   // Per-side pad: proportional to the trade duration, floored at minPadMs (6 min)
   // so short/instant trades still get a sane window. Bar-interval-INDEPENDENT by
   // design — the candle count falls out of the interval; it does not drive the
-  // window. See the barIntervalMs / minBars notes on ComputeZoomWindowOptions.
+  // window. See the barIntervalMs note on ComputeZoomWindowOptions.
   const pad = Math.max(duration * padFraction, minPadMs)
 
   const firstBarT = bars[0].t

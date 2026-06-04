@@ -116,16 +116,15 @@ describe('computeZoomWindow — empty bars', () => {
   })
 })
 
-// ── NEW (#3b): bar-interval-aware minimum window ──────────────────────────────
-// The minimum window must guarantee a minimum NUMBER of candles, so a short
-// trade on a coarse timeframe (5M) isn't framed into a sub-2-candle sliver
-// (the confirmed GXAI bug). New floor term:
-//   pad = max(duration * padFraction, minPadMs, minBars * barIntervalMs)
-// These target the post-#3b signature; against the current module (which
-// ignores barIntervalMs/minBars) the windows come back too narrow, so the
-// new-behavior cases (a/b/d/f) fail. (c) and (e) are invariant guards that
-// must hold both before and after GREEN.
-describe('computeZoomWindow — bar-interval-aware minimum (minBars * barIntervalMs)', () => {
+// ── time-based pad floor (interval-independent) ───────────────────────────────
+// The per-side pad is purely time-based — pad = max(duration * padFraction,
+// minPadMs) — so the framed window depends on the trade's fills, NOT the bar
+// interval: a short trade frames the identical real-time slice on 1M and 5M
+// (the GXAI / trade-61 fix). (a)/(b) assert the flat floor + interval-
+// independence; (c) the backward-compat minPadMs floor; (d) the minPadMs
+// default; (e) that the proportional term still wins for a long trade; (f) the
+// end-of-data clamp.
+describe('computeZoomWindow — time-based pad floor (interval-independent)', () => {
   // 5-min-aggregated-style bars: t on the 300000 grid (BASE is grid-aligned).
   function bars5(fromMin: number, toMin: number): IntradayBar[] {
     const out: IntradayBar[] = []
@@ -227,10 +226,10 @@ describe('computeZoomWindow — bar-interval-aware minimum (minBars * barInterva
     const dur = maxF - minF
 
     const win = computeZoomWindow(fills, bars, {
-      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000, minBars: 6,
+      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000,
     })!
 
-    // dur*0.55 (66 min) > minBars*barIntervalMs (30 min) and > minPadMs → proportional wins.
+    // dur*0.55 (66 min) > minPadMs and > 6*300_000 (30 min) → proportional wins.
     // toBeCloseTo: dur*0.55 is a non-integer float; the pad lands within sub-ms.
     expect(minF - win.fromMs).toBeGreaterThan(6 * 300_000)
     expect(minF - win.fromMs).toBeCloseTo(dur * 0.55, 0)
@@ -262,9 +261,8 @@ describe('computeZoomWindow — bar-interval-aware minimum (minBars * barInterva
 // ── NEW (trade-61 regression): zoom window is bar-interval-INDEPENDENT ─────────
 // Confirmed live on trade 61: toggling the timeframe (1M↔5M) re-frames the chart
 // to a DIFFERENT slice of time. It must not — candle granularity is orthogonal
-// to which time window the trade occupies. This encodes the property the current
-// `minBars * barIntervalMs` pad floor violates (the pad scales with the
-// interval), so it FAILS today on 5M: the RED that drives the fix.
+// to which time window the trade occupies. This locks interval-independence:
+// with the time-based pad, the 1M and 5M windows frame the identical slice.
 //
 // Real trade-61 fills from the live [ZOOM-DIAG] log (UTC+Z): entry 08:22:21 ET,
 // exit 08:25:17 ET (≈2.93 min). 1-min bars span 11:30:00Z→13:30:00Z (121 bars,
@@ -381,7 +379,7 @@ describe('computeZoomLogicalRange — ms window → fractional bar indices', () 
     const fills = [fill(minF), fill(maxF)]
 
     const r = zoomMod.computeZoomLogicalRange(fills, bars, {
-      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000, minBars: 6, padBars: 0.5,
+      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000, padBars: 0.5,
     })
 
     expect(r).not.toBeNull()
@@ -425,7 +423,7 @@ describe('computeZoomLogicalRange — ms window → fractional bar indices', () 
     const fills = [fill(minF), fill(maxF)]
 
     const r = zoomMod.computeZoomLogicalRange(fills, bars, {
-      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000, minBars: 6, padBars: 0.5,
+      padFraction: 0.55, minPadMs: 150_000, barIntervalMs: 300_000, padBars: 0.5,
     })
 
     expect(r).not.toBeNull()
