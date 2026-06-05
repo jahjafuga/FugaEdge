@@ -91,21 +91,23 @@ function fillEpochMs(time: string): number {
   return Date.parse(time.includes('Z') ? time : `${time}Z`)
 }
 
-// Nearest bar time (epoch ms) to a target epoch. Direct mirror of nearest() in
-// ChartTab.tsx, operating in ms instead of seconds: lower-bound binary search,
-// then pick the strictly-closer left neighbour — so an exact tie keeps the
-// later bar. Assumes barTimes is sorted ascending.
-function nearestBarTime(barTimes: number[], target: number): number {
+// Containing-bar time (epoch ms): the LATEST bar with t <= target — i.e. the bar
+// the fill executed WITHIN. A fill mid-bar (e.g. 12:43:30) belongs on its own bar
+// (12:43), not the nearer-by-midpoint next bar (12:44): the old "snap to nearest"
+// tie-broke forward to a bar whose price range often didn't even contain the fill,
+// floating the dot off the candle (the 6 @ 4.28 mis-anchor). Before the first bar
+// there's no containing bar, so clamp to the first; empty ⇒ target unchanged.
+// Assumes barTimes is sorted ascending.
+function floorBarTime(barTimes: number[], target: number): number {
   if (barTimes.length === 0) return target
+  if (target <= barTimes[0]) return barTimes[0]
+  // Largest index with barTimes[idx] <= target (upper-bound − 1).
   let lo = 0
   let hi = barTimes.length - 1
   while (lo < hi) {
-    const mid = (lo + hi) >> 1
-    if (barTimes[mid] < target) lo = mid + 1
-    else hi = mid
-  }
-  if (lo > 0 && Math.abs(barTimes[lo - 1] - target) < Math.abs(barTimes[lo] - target)) {
-    return barTimes[lo - 1]
+    const mid = (lo + hi + 1) >> 1
+    if (barTimes[mid] <= target) lo = mid
+    else hi = mid - 1
   }
   return barTimes[lo]
 }
@@ -168,7 +170,7 @@ export function buildTradeMarkers(
     if (!Number.isFinite(epoch)) continue
 
     markers.push({
-      time: nearestBarTime(barTimes, epoch),
+      time: floorBarTime(barTimes, epoch),
       price: e.price,
       kind: e.side === entrySide ? 'entry' : 'exit',
       side: e.side,

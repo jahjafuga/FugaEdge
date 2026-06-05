@@ -180,8 +180,10 @@ describe('buildTradeMarkers — per-fill hover payload (9EMA distance + VWAP%)',
 
 // (f) edge cases: snap-to-nearest, empty fills, single fill ────────────────────
 describe('buildTradeMarkers — edge cases', () => {
-  it('snaps a fill with no exact bar match to the nearest bar time', () => {
-    // bars at 0s / 60s / 120s; fill at 100s -> nearest is 120s (|100-120|=20 < |100-60|=40)
+  it('snaps a fill with no exact bar match to the bar it executed within (floor, not nearest)', () => {
+    // bars at 0s / 60s / 120s; fill at 100s is 40s INTO minute(1) — it traded during
+    // minute(1), so it anchors there. (The old nearest-snap picked minute(2) because
+    // |100-120|=20 < |100-60|=40 — that forward snap was the mis-anchor bug.)
     const bars = [
       bar(minute(0), 10, 10.2, 9.9, 10, 1000),
       bar(minute(1), 10, 10.3, 9.9, 10.1, 900),
@@ -192,7 +194,7 @@ describe('buildTradeMarkers — edge cases', () => {
 
     const { markers } = buildTradeMarkers(trade, bars)
 
-    expect(markers[0].time).toBe(minute(2))
+    expect(markers[0].time).toBe(minute(1))
   })
 
   it('returns no markers and null averages for an empty executions array', () => {
@@ -216,6 +218,35 @@ describe('buildTradeMarkers — edge cases', () => {
     expect(markers[0].kind).toBe('entry')
     expect(avgEntry).toBeCloseTo(10.0, 6)
     expect(avgExit).toBeNull()
+  })
+})
+
+// (f2) containing-bar (floor) snap — the 6@4.28 mis-anchor fix ─────────────────
+describe('buildTradeMarkers — containing-bar (floor) snap', () => {
+  it('anchors a mid-bar fill to the bar it executed WITHIN, not the nearer next bar', () => {
+    // CMND 6@4.28: the fill at :30s of minute(0) is equidistant to minute(0) and
+    // minute(1); the old nearest-snap tie-broke FORWARD to minute(1), whose
+    // [low,high] excluded 4.28 → the dot floated off that candle. It traded DURING
+    // minute(0) (whose range contains 4.28), so it must anchor there.
+    const bars = [
+      bar(minute(0), 4.0, 4.74, 3.96, 4.6, 1000), // contains 4.28
+      bar(minute(1), 4.58, 4.91, 4.5, 4.63, 900), // does NOT (low 4.50)
+    ]
+    const fillMs = minute(0) + 30_000 // :30s — exact midpoint of the two bars
+    const trade = tradeOf('long', [exec('S', 6, 4.28, fillMs)])
+
+    const { markers } = buildTradeMarkers(trade, bars)
+
+    expect(markers[0].time).toBe(minute(0))
+  })
+
+  it('clamps a fill before the first bar to the first bar (no earlier bar to floor to)', () => {
+    // Pre-data fill (e.g. an execution timestamp earlier than the first cached bar):
+    // there's no containing bar, so anchor to the first bar rather than NaN/undefined.
+    const bars = [bar(minute(5), 10, 10.2, 9.9, 10, 1000), bar(minute(6), 10, 10.3, 9.9, 10.1, 900)]
+    const trade = tradeOf('long', [exec('B', 100, 10.0, minute(2))]) // before the first bar
+    const { markers } = buildTradeMarkers(trade, bars)
+    expect(markers[0].time).toBe(minute(5))
   })
 })
 
