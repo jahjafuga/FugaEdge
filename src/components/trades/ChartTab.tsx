@@ -594,6 +594,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // Mount chart once. The library is dynamically imported so the ~110KB
   // bundle only loads when this tab is opened.
   useEffect(() => {
+    console.count('[LADDER-TRIG] chartTab.mount') // temp
     if (!containerRef.current) return
     let cancelled = false
     let resizeObserver: ResizeObserver | null = null
@@ -732,6 +733,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // replaces all markers atomically — both are O(n) but fine for 1-day worth
   // of 1m bars (~390 points).
   useEffect(() => {
+    console.count('[LADDER-TRIG] chartTab.dataFraming') // temp
     const r = refs.current
     if (!r || !chartReady || bars.length === 0) return
 
@@ -744,8 +746,24 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     // [trade, bars] ⊆ this effect's deps, so the captured closure is fresh.
     r.candle.applyOptions({
       autoscaleInfoProvider: (base: () => import('lightweight-charts').AutoscaleInfo | null) => {
+        console.count('[LADDER-RECALC] autoscale recompute') // [LADDER-DIAG] temp — price-range recompute counter
+        window.api.ladderDiag('[LADDER-RECALC] autoscale recompute') // [LADDER-DIAG] temp — forward to main stdout
+        // If the user has manually scaled the price axis (autoScale off), do NOT
+        // impose the marker-fit range — return null so the library keeps the user's
+        // dragged range. Imposing our fixed range here fights the drag and triggers a
+        // recompute cascade → freeze (root cause confirmed in the lightweight-charts
+        // source: a price-axis drag uses setPriceRange, not setCustomPriceRange, so
+        // the autoscale-recompute gate doesn't protect it).
+        const autoScaleOn = r.candle.priceScale().options().autoScale
+        if (!autoScaleOn) {
+          console.count('[LADDER-PROV] null-return (manual)') // [LADDER-DIAG] temp
+          window.api.ladderDiag('[LADDER-PROV] null-return (manual)') // [LADDER-DIAG] temp
+          return null
+        }
         const pr = computePriceRange(tradeMarkers.markers.map((m) => m.price))
         if (!pr) return base()
+        console.count('[LADDER-PROV] imposed marker range') // [LADDER-DIAG] temp
+        window.api.ladderDiag('[LADDER-PROV] imposed marker range') // [LADDER-DIAG] temp
         return { priceRange: { minValue: pr.minValue, maxValue: pr.maxValue } }
       },
     })
@@ -827,6 +845,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // Indicator series — created lazily on first toggle-on, removed when toggled
   // off. Reuses series when re-toggling.
   useEffect(() => {
+    console.count('[LADDER-TRIG] chartTab.indicators') // temp
     const r = refs.current
     if (!r || !chartReady) return
     void (async () => {
@@ -887,6 +906,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // primitive recomputes pixel coords every frame against the live time scale,
   // so the old 12-frame marker-reassert RAF hack is gone entirely.
   useEffect(() => {
+    console.count('[LADDER-TRIG] chartTab.markers') // temp
     const r = refs.current
     if (!r || !chartReady) return
     r.fillLadder.setMarkers(tradeMarkers.markers)
@@ -901,6 +921,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // weighted average across all entry/exit fills, not a single price —
   // a multi-fill scale-in/out trade has multiple fills behind one line.
   useEffect(() => {
+    console.count('[LADDER-TRIG] chartTab.avgPriceLine') // temp
     const r = refs.current
     if (!r || !chartReady) return
 

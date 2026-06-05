@@ -2,6 +2,9 @@ export const IPC = {
   PING: 'app:ping',
   APP_GET_VERSION: 'app:getVersion',
   APP_OPEN_EXTERNAL: 'app:openExternal',
+  // [LADDER-DIAG] temp diagnostic channel — renderer forwards [LADDER-*] strings to
+  // main stdout so they survive a renderer freeze. Strip with the rest.
+  LADDER_DIAG: 'ladder:diag',
   DB_HEALTHCHECK: 'db:healthcheck',
   DB_RESET: 'db:reset',
   IMPORT_PREVIEW: 'import:preview',

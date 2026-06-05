@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { existsSync } from 'node:fs'
+import { app, BrowserWindow, globalShortcut, ipcMain, shell } from 'electron'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '@shared/ipc-channels'
 import { openDatabase, closeDatabase } from '../db/database'
@@ -98,6 +98,59 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+// [LADDER-DIAG] temp — main-process CPU profiler. The in-renderer DevTools profiler
+// can't capture the chart freeze (it wedges with the renderer), so sample the
+// renderer over the debugger protocol from MAIN and log the top self-time functions
+// to stdout (+ write a .cpuprofile). Trigger: F8. Strip with the rest of the diags.
+function registerLadderProfiler(win: BrowserWindow): void {
+  const DURATION_MS = 12000
+  globalShortcut.register('F8', async () => {
+    const wc = win.webContents
+    if (wc.isDevToolsOpened()) wc.closeDevTools() // DevTools holds the debugger; free it
+    try {
+      wc.debugger.attach('1.3')
+    } catch (e) {
+      console.log('[LADDER-PROFILER] attach failed — close DevTools (F12) and press F8 again:', String(e))
+      return
+    }
+    try {
+      await wc.debugger.sendCommand('Profiler.enable')
+      await wc.debugger.sendCommand('Profiler.start')
+      console.log(`[LADDER-PROFILER] RECORDING ${DURATION_MS / 1000}s — do the stretch-to-freeze gesture NOW`)
+    } catch (e) {
+      console.log('[LADDER-PROFILER] start failed:', String(e))
+      try { wc.debugger.detach() } catch { /* ignore */ }
+      return
+    }
+    setTimeout(async () => {
+      try {
+        const res = await wc.debugger.sendCommand('Profiler.stop')
+        const profile = res.profile
+        const file = join(process.cwd(), `ladder-cpu-${Date.now()}.cpuprofile`)
+        writeFileSync(file, JSON.stringify(profile))
+        const nodes = (profile.nodes ?? []) as Array<{
+          hitCount?: number
+          callFrame: { functionName: string; url: string; lineNumber: number }
+        }>
+        const top = nodes
+          .filter((n) => (n.hitCount ?? 0) > 0)
+          .sort((a, b) => (b.hitCount ?? 0) - (a.hitCount ?? 0))
+          .slice(0, 20)
+        console.log(`[LADDER-PROFILER] saved ${file}`)
+        console.log(`[LADDER-PROFILER] ${nodes.length} nodes — TOP self-time (hits / fn / url:line):`)
+        for (const n of top) {
+          const url = (n.callFrame.url || '').slice(-70)
+          console.log(`[LADDER-PROFILER]   ${n.hitCount}  ${n.callFrame.functionName || '(anon)'}  ${url}:${n.callFrame.lineNumber}`)
+        }
+      } catch (e) {
+        console.log('[LADDER-PROFILER] stop/save failed (renderer still wedged? it writes once it catches up):', String(e))
+      } finally {
+        try { wc.debugger.detach() } catch { /* ignore */ }
+      }
+    }, DURATION_MS)
+  })
+}
+
 // App metadata accessor — exposes the package.json version (via Electron's
 // own app.getVersion(), which reads the manifest at runtime) so the
 // renderer doesn't have to hardcode it anywhere. One-liner; no business
@@ -146,6 +199,7 @@ app.whenReady().then(() => {
   registerSessionIpc()
   registerUpdaterIpc()
   const win = createWindow()
+  if (isDev) registerLadderProfiler(win) // [LADDER-DIAG] temp — F8 captures a renderer CPU profile to stdout
   // v0.2.3 — after the schema-25 migration nulls trades.mae/mfe, recompute from
   // cached intraday_bars once the window is up. Deferred to ready-to-show +
   // setImmediate so it never blocks first paint; no-op (flag unset) on launches

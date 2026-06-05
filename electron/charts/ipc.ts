@@ -10,4 +10,9 @@ export function registerChartsIpc(): void {
   ipcMain.handle(IPC.CHART_SAVE_SCREENSHOT, (e, input: SaveScreenshotInput) =>
     saveChartScreenshot(e.sender, input),
   )
+  // [LADDER-DIAG] temp — forward renderer diagnostics to main stdout (survives a
+  // renderer-thread freeze, unlike the DevTools console buffer). Strip later.
+  ipcMain.on(IPC.LADDER_DIAG, (_e, msg: string) => {
+    console.log('[LADDER-IPC]', msg)
+  })
 }

@@ -212,6 +212,8 @@ const api = {
   // PNG bytes; main shows the save dialog + writes the file. Mirrors export* above.
   chartSaveScreenshot: (input: SaveScreenshotInput): Promise<SaveScreenshotResult> =>
     ipcRenderer.invoke(IPC.CHART_SAVE_SCREENSHOT, input),
+  // [LADDER-DIAG] temp — one-way diagnostic forward to main stdout. Strip later.
+  ladderDiag: (msg: string): void => ipcRenderer.send(IPC.LADDER_DIAG, msg),
   playbooksList: (): Promise<PlaybookWithStats[]> =>
     ipcRenderer.invoke(IPC.PLAYBOOKS_LIST),
   playbookCreate: (input: CreatePlaybookInput): Promise<PlaybookWithStats> =>
