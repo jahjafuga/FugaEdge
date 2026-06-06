@@ -36,7 +36,6 @@ describe('assembleLadderFrame — flip-aware leader endpoint', () => {
   it('connects the leader to the pill RIGHT edge when the pill is LEFT of the dot', () => {
     // Force a left pill: exit dot pinned at the right edge with a candle blocking
     // the right side, so the layout flips it left (verified geometry from ee95c43).
-    const candle = { t: 0, h: 0, l: 0 } // placeholder; real blocking comes via bars+toY below
     // Simplest deterministic left-pill: an ENTRY marker (entries route LEFT by default).
     const f = assembleLadderFrame([mk({ kind: 'entry', side: 'B' })], noBars, null, null, toX, toY, OPTS)
     const dot = f.dots[0]
