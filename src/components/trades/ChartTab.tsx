@@ -20,6 +20,7 @@ import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 import { computeZoomLogicalRange } from '@/core/charts/computeZoomWindow'
 import { computePriceRange } from '@/core/charts/computePriceRange'
 import { FillLadderPrimitive } from './fillLadderPrimitive'
+import { FillLadderOverlay } from './FillLadderOverlay'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
@@ -1105,6 +1106,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         className="w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm"
         style={{ height: chartHeight }}
       />
+      <FillLadderOverlay dots={[]} leaders={[]} pills={[]} className="absolute inset-0 pointer-events-none" />
     </div>
   )
 }

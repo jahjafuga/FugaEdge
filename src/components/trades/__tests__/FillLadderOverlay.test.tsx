@@ -19,7 +19,7 @@ const pills: LadderPill[] = [
 describe('FillLadderOverlay', () => {
   it('renders one SVG element per geometry item (2 dots, 2 leaders, 2 pills)', () => {
     const { container } = render(
-      <FillLadderOverlay dots={dots} leaders={leaders} pills={pills} width={600} height={400} />,
+      <FillLadderOverlay dots={dots} leaders={leaders} pills={pills} />,
     )
     expect(container.querySelectorAll('line')).toHaveLength(2) // leaders
     expect(container.querySelectorAll('rect')).toHaveLength(2) // pills

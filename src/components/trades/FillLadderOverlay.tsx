@@ -10,8 +10,6 @@ export interface FillLadderOverlayProps {
   dots: LadderDot[]
   leaders: LadderLeader[]
   pills: LadderPill[]
-  width: number
-  height: number
   className?: string
 }
 
@@ -19,9 +17,14 @@ export interface FillLadderOverlayProps {
 // precomputed by assembleLadderFrame (pure); this component only draws. Order:
 // leaders, then pills, then dots (dots crisp on top), matching the old canvas
 // primitive's layering.
-export function FillLadderOverlay({ dots, leaders, pills, width, height, className }: FillLadderOverlayProps) {
+export function FillLadderOverlay({ dots, leaders, pills, className }: FillLadderOverlayProps) {
   return (
-    <svg width={width} height={height} className={className} style={{ pointerEvents: 'none' }}>
+    <svg
+      className={className}
+      width="100%"
+      height="100%"
+      style={{ pointerEvents: 'none', position: 'absolute', inset: 0 }}
+    >
       {leaders.map((l, i) => (
         <line key={`l${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={COLOR_LEADER} strokeWidth={1} />
       ))}
