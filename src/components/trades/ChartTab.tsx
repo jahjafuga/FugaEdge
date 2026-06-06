@@ -17,8 +17,8 @@ import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
 import { ipc } from '@/lib/ipc'
 import { int, price, signed, longDate, formatEastern } from '@/lib/format'
 import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
-import { computeZoomLogicalRange } from '@/core/charts/computeZoomWindow'
-import { computePriceRange } from '@/core/charts/computePriceRange'
+import { computeZoomLogicalRange, computeZoomWindow } from '@/core/charts/computeZoomWindow'
+import { computeFramedBand, type PriceRange } from '@/core/charts/computePriceRange'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
@@ -499,6 +499,7 @@ function ChartCanvas({
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
+        indicators={indicators}
       />
     </div>
   )
@@ -526,6 +527,11 @@ interface ChartHostProps {
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
+  /** UNGATED EMA9/EMA20/VWAP (full series, ignoring the toggles). Feeds the
+   *  fixed price band ONLY — the band must include every indicator's extent so
+   *  the scale stays constant whether or not a line is shown. The gated ema9/
+   *  ema20/vwap above still drive the VISIBLE series. */
+  indicators: IndicatorSeries
 }
 
 // Series state held in refs so re-renders never re-create the chart instance.
@@ -553,7 +559,22 @@ function chartHeightFor(isFullscreen: boolean): number {
   return isFullscreen ? Math.max(400, window.innerHeight - 180) : 400
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap }: ChartHostProps) {
+// Build the shared autoscaleInfoProvider every right-scale series uses. Returns
+// the one fixed band when we have it, else defers to the chart's own autoscale
+// (base()). Because candle + EMA9 + EMA20 + VWAP all return the SAME band, the
+// scale's autoscale union is constant → no per-frame drift (freeze-proof), and a
+// double-click reset re-consults it → snaps back (reset-proof). Deliberately NOT
+// setAutoScale(false): autoScale stays ON, the provider IS the pin.
+function makeBandProvider(band: PriceRange | null) {
+  return (
+    base: () => import('lightweight-charts').AutoscaleInfo | null,
+  ): import('lightweight-charts').AutoscaleInfo | null => {
+    if (!band) return base()
+    return { priceRange: { minValue: band.minValue, maxValue: band.maxValue } }
+  }
+}
+
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap, indicators }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Flag-driven chart height (see chartHeightFor). Recomputed each render; the
   // height effect applies it to the chart API whenever it changes. createChart
@@ -589,6 +610,23 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // marker visuals on every toggle). Passing no opts for now; the hover card
   // and its data source land together in #3b.
   const tradeMarkers = useMemo(() => buildTradeMarkers(trade, bars), [trade, bars])
+
+  // The ONE fixed price band the whole right scale pins to (v0.2.4 Step 0.5):
+  // the union of {in-window bar H/L, fills, ungated EMA9/EMA20/VWAP} across the
+  // trade's default zoom window — the SAME window the time axis frames to. NOT
+  // the full day (a runner's later spike would squash the trade). Recomputed
+  // only on data change (trade / tf / bars), never per frame. null when there is
+  // no window (no bars / fills) → the providers defer to base() autoscale.
+  const framedBand = useMemo<PriceRange | null>(() => {
+    const win = computeZoomWindow(trade.executions, bars, { barIntervalMs })
+    if (!win) return null
+    return computeFramedBand({
+      bars,
+      fillPrices: tradeMarkers.markers.map((m) => m.price),
+      indicatorSeries: [indicators.ema9, indicators.ema20, indicators.vwap],
+      window: win,
+    })
+  }, [trade.executions, bars, barIntervalMs, tradeMarkers, indicators])
 
   // Mount chart once. The library is dynamically imported so the ~110KB
   // bundle only loads when this tab is opened.
@@ -733,20 +771,14 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const r = refs.current
     if (!r || !chartReady || bars.length === 0) return
 
-    // Price-axis (vertical) framing — install the autoscale provider BEFORE the
-    // setData() below, so setData's autoscale pass frames to the FILLS on the
-    // first paint (no flicker, no corrective recompute). It's then consulted on
-    // every later autoscale (scroll/resize) too, so it stays correct. Option A:
-    // fills are the subject; a runner extending above the view is intended.
-    // tradeMarkers is the same source the markers use, and its memo deps
-    // [trade, bars] ⊆ this effect's deps, so the captured closure is fresh.
-    r.candle.applyOptions({
-      autoscaleInfoProvider: (base: () => import('lightweight-charts').AutoscaleInfo | null) => {
-        const pr = computePriceRange(tradeMarkers.markers.map((m) => m.price))
-        if (!pr) return base()
-        return { priceRange: { minValue: pr.minValue, maxValue: pr.maxValue } }
-      },
-    })
+    // Price-axis (vertical) framing — pin the candle to the ONE shared fixed band
+    // (framedBand) BEFORE setData, so the first autoscale pass lands on the band
+    // with no flicker. The SAME provider goes on the EMA/VWAP series at their
+    // creation (indicator effect below), so the right scale's autoscale union is
+    // this one constant band — it does not drift on pan/zoom (freeze-proof), and
+    // a double-click reset re-consults it and snaps back (reset-proof). autoScale
+    // stays ON — we never call setAutoScale(false).
+    r.candle.applyOptions({ autoscaleInfoProvider: makeBandProvider(framedBand) })
 
     // RAF handle for the deferred zoom apply (cancelled on re-run / unmount).
     let zoomRaf = 0
@@ -820,7 +852,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     return () => {
       if (zoomRaf) cancelAnimationFrame(zoomRaf)
     }
-  }, [bars, chartReady, trade, barIntervalMs])
+  }, [bars, chartReady, trade, barIntervalMs, framedBand])
 
   // Indicator series — created lazily on first toggle-on, removed when toggled
   // off. Reuses series when re-toggling.
@@ -842,6 +874,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         r.ema9 = null
       }
       if (r.ema9 && ema9) {
+        r.ema9.applyOptions({ autoscaleInfoProvider: makeBandProvider(framedBand) })
         r.ema9.setData(ema9.map((p) => ({ time: secondsTime(p.time), value: p.value })))
       }
 
@@ -858,6 +891,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         r.ema20 = null
       }
       if (r.ema20 && ema20) {
+        r.ema20.applyOptions({ autoscaleInfoProvider: makeBandProvider(framedBand) })
         r.ema20.setData(ema20.map((p) => ({ time: secondsTime(p.time), value: p.value })))
       }
 
@@ -874,10 +908,11 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         r.vwap = null
       }
       if (r.vwap && vwap) {
+        r.vwap.applyOptions({ autoscaleInfoProvider: makeBandProvider(framedBand) })
         r.vwap.setData(vwap.map((p) => ({ time: secondsTime(p.time), value: p.value })))
       }
     })()
-  }, [ema9, ema20, vwap, chartReady])
+  }, [ema9, ema20, vwap, chartReady, framedBand])
 
   // Fill markers — price-anchored circles, qty-scaled, entry/exit colored.
   // Descriptors come from buildTradeMarkers (pure module); we map them onto the
