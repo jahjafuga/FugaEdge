@@ -1,13 +1,14 @@
-// Pure de-collision + free-space layout for the ladder fill markers. NO chart /
-// React / lightweight-charts imports — just geometry, so it stays portable and
-// unit-tested. The chart-coupled primitive (fillLadderPrimitive) assembles the
-// occupancy (candle rects, avg bands, pane bounds) from the live chart and feeds
-// it here as plain data; this returns where to draw each pill.
+// Pure de-collision + central-stack layout for the ladder fill markers. NO chart
+// / React / lightweight-charts imports — just geometry, so it stays portable and
+// unit-tested. The chart-coupled primitive (fillLadderPrimitive) feeds it the
+// fills + pane bounds as plain data; this returns where to draw each pill.
 //
-// PIECE 2: entries route their pill LEFT of the dot, exits route RIGHT; each
-// pill's leader reaches to the nearest free spot on its side (avoiding only
-// already-placed pills — pills sit OVER the candles), and same-side/same-bar
-// pills de-collide vertically (avoiding avg bands), clamped in-band.
+// PART 2 — CENTRAL VERTICAL STACK: a bar's fills — entries AND exits together —
+// merge into ONE column centered on the cluster's mean bar-x (nearby bars within
+// MERGE_PX merge into the same column), fanned vertically at step = pillHeight +
+// minGap so no two pills overlap. The dot stays on its exact (x, y); only the
+// pill moves to the column. No left/right role-split, no horizontal free-space
+// search — the pills sit over the candles by design.
 
 export interface OccupancyRect {
   x: number
@@ -31,7 +32,7 @@ export interface PlacedPill {
   /** Dot position — unchanged (the dot always marks the true fill price). */
   x: number
   y: number
-  /** Pill center. LEFT of x for entries, RIGHT for exits; pillY swept clear. */
+  /** Pill center — the cluster's anchor x (mean bar-x, pane-clamped); pillY swept clear. */
   pillX: number
   pillY: number
   qty: number
@@ -55,18 +56,6 @@ export interface FillLadderOptions {
   candleRects: OccupancyRect[]
   /** Full-width horizontal occupied bands (avg lines), centered at y, thickness h. */
   avgBands: { y: number; h: number }[]
-}
-
-const SEARCH_STEP = 4 // px increment for the horizontal free-space search
-const LEADER_FLOOR = 4 // px: shortest inward leader, keeps the pill's near edge off the dot
-
-function rectsIntersect(a: OccupancyRect, b: OccupancyRect): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
-}
-
-function overlapsAny(box: OccupancyRect, rects: OccupancyRect[]): boolean {
-  for (const r of rects) if (rectsIntersect(box, r)) return true
-  return false
 }
 
 // Vertical de-collision for one side's same-x column. `ideal` = the dots' y
@@ -133,134 +122,42 @@ function placeColumn(
   return out
 }
 
-// Horizontal pill placement: search the natural side OUTWARD (leaderMin→leaderMax)
-// then INWARD (→LEADER_FLOOR); if that side is fully blocked, FLIP to the opposite
-// side; if both are blocked, flush to the natural-side edge. (searchSide does one
-// side; findColumnX orchestrates.)
-function searchSide(
-  dir: -1 | 1,
-  dotX: number,
-  yTop: number,
-  yBot: number,
-  pillWidth: number,
-  paneWidth: number,
-  _candleRects: OccupancyRect[],
-  placedBoxes: OccupancyRect[],
-  leaderMin: number,
-  leaderMax: number,
-): number | null {
-  const halfW = pillWidth / 2
-  const tryAt = (L: number): number | null => {
-    const cx = dir > 0 ? dotX + L + halfW : dotX - L - halfW
-    const probe: OccupancyRect = { x: cx - halfW, y: yTop, w: pillWidth, h: yBot - yTop }
-    // De-collide against other PILLS only — NOT candles. A pill is the annotation
-    // ON TOP of the price action, so it hugs its dot at the shortest leader rather
-    // than fleeing to candle-free whitespace. (The candle rects are still threaded
-    // in — param kept as `_candleRects` — for a possible Part 2; not consulted here.)
-    if (
-      cx - halfW >= 0 &&
-      cx + halfW <= paneWidth &&
-      !overlapsAny(probe, placedBoxes)
-    )
-      return cx
-    return null
-  }
-  // Outward.
-  for (let L = leaderMin; L <= leaderMax; L += SEARCH_STEP) {
-    const hit = tryAt(L)
-    if (hit !== null) return hit
-  }
-  // Inward (longer inward leaders first, down to the floor).
-  for (let L = leaderMin - SEARCH_STEP; L >= LEADER_FLOOR; L -= SEARCH_STEP) {
-    const hit = tryAt(L)
-    if (hit !== null) return hit
-  }
-  return null
-}
-
-// Place the pill in three tiers: (1) PREFERRED — natural side (outward then
-// inward) then FLIP, within [leaderMin, leaderMax] (the hug range); (2) OVERFLOW
-// — if both are full, search OUT TO THE PANE EDGE for the nearest free x (natural
-// then flip), so a crowded column lands clear of other pills instead of on top of
-// one (far is acceptable here, hidden is not); (3) LAST RESORT — no free x
-// anywhere at this column's y, flush to the natural-side edge.
-function findColumnX(
-  dir: -1 | 1,
-  dotX: number,
-  yTop: number,
-  yBot: number,
-  pillWidth: number,
-  paneWidth: number,
-  candleRects: OccupancyRect[],
-  placedBoxes: OccupancyRect[],
-  leaderMin: number,
-  leaderMax: number,
-): number {
-  const halfW = pillWidth / 2
-  const flip = (-dir) as -1 | 1
-  // Tier 1 — preferred (the hug range).
-  const natural = searchSide(dir, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
-  if (natural !== null) return natural
-  const flipped = searchSide(flip, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
-  if (flipped !== null) return flipped
-  // Tier 2 — overflow to the pane edge (nearest free x; never overlaps a pill).
-  const naturalFar = searchSide(dir, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, paneWidth)
-  if (naturalFar !== null) return naturalFar
-  const flippedFar = searchSide(flip, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, paneWidth)
-  if (flippedFar !== null) return flippedFar
-  // Tier 3 — last resort.
-  return dir > 0 ? paneWidth - halfW : halfW
-}
-
 /**
- * Place "QTY @ PRICE" pills with role split + free-space routing. Dots stay on
- * their exact (x, y). Entry pills go LEFT, exit pills RIGHT, each reaching the
- * nearest spot clear of placed pills (sitting over the candles), then de-colliding
- * vertically (clear of avg bands) within each side's bar-cluster, clamped in-band.
+ * Place "QTY @ PRICE" pills as ONE central vertical stack per cluster. A bar's
+ * fills — entries AND exits together — merge into a single column, fanned at
+ * step = pillHeight + minGap by placeColumn, centered on the cluster's mean bar-x
+ * (nearby bars within MERGE_PX merge). Dots stay on their exact (x, y); only the
+ * pill moves to the column. No left/right role-split, no horizontal search.
  */
 export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): PlacedPill[] {
-  const { paneWidth, paneHeight, pillWidth, pillHeight, minGap, leaderMin, leaderMax, candleRects, avgBands } = opts
-  const half = pillHeight / 2
+  const { paneWidth, paneHeight, pillWidth, pillHeight, minGap } = opts
   const halfW = pillWidth / 2
   const placed = new Array<PlacedPill>(fills.length)
-
-  // ONE shared occupancy list across BOTH roles (not per-role): entries are
-  // placed first, then exits, so the later role always sees and avoids the
-  // earlier role's pills. This guarantees a flipped/overflowed pill can't land on
-  // the other role's pill (the cross-role hidden-pill defect).
-  const placedBoxes: OccupancyRect[] = []
-  for (const kind of ['entry', 'exit'] as const) {
-    const dir: -1 | 1 = kind === 'entry' ? -1 : 1
-    const indices = fills.map((_, i) => i).filter((i) => fills[i].kind === kind)
-
-    // Group by bar (same-bar fills share an identical x → round groups exactly).
-    const clusters = new Map<number, number[]>()
-    for (const i of indices) {
-      const k = Math.round(fills[i].x)
-      const arr = clusters.get(k)
-      if (arr) arr.push(i)
-      else clusters.set(k, [i])
-    }
-
-    for (const ck of [...clusters.keys()].sort((a, b) => a - b)) {
-      const idx = clusters.get(ck)!
-      const dotX = fills[idx[0]].x
-
-      // Vertical de-collision first → the column's final pillY span.
-      const pillYs = placeColumn(idx.map((i) => fills[i].y), paneHeight, pillHeight, minGap, avgBands)
-      const yTop = Math.min(...pillYs) - half
-      const yBot = Math.max(...pillYs) + half
-
-      // Horizontal leader: nearest free spot clearing candles + earlier pills.
-      const cx = findColumnX(dir, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
-
-      idx.forEach((i, j) => {
-        const f = fills[i]
-        placed[i] = { x: f.x, y: f.y, pillX: cx, pillY: pillYs[j], qty: f.qty, price: f.price, kind: f.kind, side: f.side }
-        placedBoxes.push({ x: cx - halfW, y: pillYs[j] - half, w: pillWidth, h: pillHeight })
-      })
-    }
+  if (fills.length === 0) return placed
+  const mergePx = pillWidth
+  const byBar = new Map<number, number[]>()
+  for (let i = 0; i < fills.length; i++) {
+    const k = Math.round(fills[i].x)
+    const arr = byBar.get(k)
+    if (arr) arr.push(i)
+    else byBar.set(k, [i])
   }
-
+  const clusters: number[][] = []
+  for (const bx of [...byBar.keys()].sort((a, b) => a - b)) {
+    const last = clusters[clusters.length - 1]
+    if (last && bx - last[last.length - 1] <= mergePx) last.push(bx)
+    else clusters.push([bx])
+  }
+  for (const cluster of clusters) {
+    const idx: number[] = []
+    for (const bx of cluster) idx.push(...byBar.get(bx)!)
+    const meanX = cluster.reduce((s, x) => s + x, 0) / cluster.length
+    const anchorX = Math.max(halfW, Math.min(paneWidth - halfW, meanX))
+    const pillYs = placeColumn(idx.map((i) => fills[i].y), paneHeight, pillHeight, minGap, [])
+    idx.forEach((i, k) => {
+      const f = fills[i]
+      placed[i] = { x: f.x, y: f.y, pillX: anchorX, pillY: pillYs[k], qty: f.qty, price: f.price, kind: f.kind, side: f.side }
+    })
+  }
   return placed
 }

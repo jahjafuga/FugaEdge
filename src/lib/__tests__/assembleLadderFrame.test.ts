@@ -33,7 +33,8 @@ describe('assembleLadderFrame — output structure', () => {
 })
 
 describe('assembleLadderFrame — flip-aware leader endpoint', () => {
-  it('connects the leader to the pill RIGHT edge when the pill is LEFT of the dot', () => {
+  // SKIPPED for Step A — asserts the removed left/right routing; Step B rewrites this for the central-stack leader endpoint.
+  it.skip('connects the leader to the pill RIGHT edge when the pill is LEFT of the dot', () => {
     // Force a left pill: exit dot pinned at the right edge with a candle blocking
     // the right side, so the layout flips it left (verified geometry from ee95c43).
     // Simplest deterministic left-pill: an ENTRY marker (entries route LEFT by default).
@@ -49,7 +50,8 @@ describe('assembleLadderFrame — flip-aware leader endpoint', () => {
     expect(leader.y1).toBeCloseTo(dot.y, 6)
   })
 
-  it('connects the leader to the pill LEFT edge when the pill is RIGHT of the dot', () => {
+  // SKIPPED for Step A — asserts the removed left/right routing; Step B rewrites this for the central-stack leader endpoint.
+  it.skip('connects the leader to the pill LEFT edge when the pill is RIGHT of the dot', () => {
     // exit marker → routes RIGHT by default → pill center > dot x → leader endpoint is the pill's LEFT edge
     const f = assembleLadderFrame([mk({ kind: 'exit', side: 'S' })], noBars, null, null, toX, toY, OPTS)
     const dot = f.dots[0]

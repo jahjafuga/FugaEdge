@@ -3,7 +3,6 @@ import {
   layoutFillLadder,
   type FillPoint,
   type FillLadderOptions,
-  type OccupancyRect,
 } from '../fillLadderLayout'
 
 // pillHeight + minGap = the minimum center-to-center distance for two pills that
@@ -27,85 +26,34 @@ function fp(x: number, y: number, over: Partial<FillPoint> = {}): FillPoint {
 function exit(x: number, y: number, over: Partial<FillPoint> = {}): FillPoint {
   return fp(x, y, { kind: 'exit', side: 'S', ...over })
 }
-function box(p: { pillX: number; pillY: number }, o: FillLadderOptions = OPTS): OccupancyRect {
-  return { x: p.pillX - o.pillWidth / 2, y: p.pillY - o.pillHeight / 2, w: o.pillWidth, h: o.pillHeight }
-}
-function intersects(a: OccupancyRect, b: OccupancyRect): boolean {
-  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
-}
 function clusterGapsOk(pills: { pillY: number }[]): void {
   const ys = pills.map((p) => p.pillY).sort((a, b) => a - b)
   for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(STEP - 1e-9)
 }
 
-describe('layoutFillLadder — role split + free-space (piece 2)', () => {
-  it('routes entry pills LEFT of the dot and exit pills RIGHT', () => {
-    const placed = layoutFillLadder([fp(300, 200), exit(300, 250)], OPTS)
-    expect(placed[0].pillX).toBeLessThan(placed[0].x) // entry → left
-    expect(placed[1].pillX).toBeGreaterThan(placed[1].x) // exit → right
+describe('layoutFillLadder — central vertical stack (v0.2.4 Part 2)', () => {
+  it('merges entries AND exits on one bar into ONE column at the bar x', () => {
+    const placed = layoutFillLadder([fp(300, 200), exit(300, 205), fp(300, 210)], OPTS)
+    expect(placed[0].pillX).toBe(placed[1].pillX)
+    expect(placed[1].pillX).toBe(placed[2].pillX)
+    expect(placed[0].pillX).toBeCloseTo(300, 6)
+    clusterGapsOk(placed)
+    expect(placed[0].x).toBe(300); expect(placed[0].y).toBe(200)
   })
-
-  it('places at leaderMin when the spot right there is free (nearest, no over-reach)', () => {
-    const placed = layoutFillLadder([exit(300, 200)], OPTS)
-    expect(placed[0].pillX).toBe(300 + OPTS.leaderMin + OPTS.pillWidth / 2)
+  it('merges two nearby bars (gap <= MERGE_PX) into one column at the mean x', () => {
+    const placed = layoutFillLadder([exit(300, 200), exit(350, 220)], OPTS)
+    expect(placed[0].pillX).toBe(placed[1].pillX)
+    expect(placed[0].pillX).toBeCloseTo(325, 6)
   })
-
-  it('sits at leaderMin OVER a candle — candles are not obstacles (v0.2.4 Part 1)', () => {
-    // A candle right where the pill wants to go no longer pushes it away; the pill
-    // is the annotation ON TOP of the price action, so it hugs its dot at leaderMin.
-    const candle: OccupancyRect = { x: 320, y: 180, w: 30, h: 80 }
-    const placed = layoutFillLadder([exit(300, 220)], { ...OPTS, candleRects: [candle] })
-    expect(placed[0].x).toBe(300) // dot unchanged
-    expect(placed[0].pillX).toBe(300 + OPTS.leaderMin + OPTS.pillWidth / 2) // leaderMin, candle ignored
+  it('keeps distant bars (gap > MERGE_PX) as separate columns', () => {
+    const placed = layoutFillLadder([exit(300, 200), exit(400, 200)], OPTS)
+    expect(placed[0].pillX).not.toBe(placed[1].pillX)
+    expect(placed[0].pillX).toBeCloseTo(300, 6)
+    expect(placed[1].pillX).toBeCloseTo(400, 6)
   })
-
-  it('routes a pill clear of an avg band at its dot y', () => {
-    const bandH = 16
-    const band = { y: 220, h: bandH }
-    const placed = layoutFillLadder([exit(300, 220)], { ...OPTS, avgBands: [band] })
-    const pillTop = placed[0].pillY - OPTS.pillHeight / 2
-    const pillBot = placed[0].pillY + OPTS.pillHeight / 2
-    const bandTop = band.y - bandH / 2
-    const bandBot = band.y + bandH / 2
-    expect(pillBot <= bandTop + 1e-9 || pillTop >= bandBot - 1e-9).toBe(true)
-    expect(placed[0].y).toBe(220) // dot stays at the true price
-  })
-
-  it('treats already-placed same-side pills as occupancy (no two claim the same gap)', () => {
-    const placed = layoutFillLadder([exit(300, 200), exit(300, 205)], OPTS)
-    expect(intersects(box(placed[0]), box(placed[1]))).toBe(false)
-    expect(Math.abs(placed[0].pillY - placed[1].pillY)).toBeGreaterThanOrEqual(STEP - 1e-9)
-  })
-
-  it('keeps the two sides independent — a left and a right pill at the same y do not collide', () => {
-    const placed = layoutFillLadder([fp(300, 200), exit(300, 200)], OPTS)
-    expect(placed[0].pillX).toBeLessThan(300)
-    expect(placed[1].pillX).toBeGreaterThan(300)
-    expect(intersects(box(placed[0]), box(placed[1]))).toBe(false)
-    expect(placed[0].pillY).toBeCloseTo(200, 6) // no needless vertical push
-    expect(placed[1].pillY).toBeCloseTo(200, 6)
-  })
-
-  it('a flipped entry never overlaps an exit pill (shared cross-role occupancy)', () => {
-    // The STI hidden-buy. Force the entry RIGHT without candles: its dot sits at
-    // the LEFT pane edge, so the left search runs off-pane and it flips right onto
-    // the exit side. The later-placed exits must avoid the (already-placed) entry.
-    const placed = layoutFillLadder([fp(20, 200), exit(20, 192), exit(20, 212)], OPTS)
-    expect(placed[0].pillX).toBeGreaterThan(placed[0].x) // entry flipped RIGHT (left edge)
-    for (const exitPill of [placed[1], placed[2]]) {
-      expect(intersects(box(placed[0]), box(exitPill))).toBe(false)
-    }
-  })
-
-  it('overflows past leaderMax (Tier 2) without overlapping when the preferred range is pill-packed', () => {
-    // Two same-y exits near the LEFT edge with a tiny preferred range: the first
-    // hugs right; the second can't fit in [leaderMin, leaderMax] (blocked right by
-    // the first, flip-left off-pane), so it OVERFLOWS past leaderMax — and must
-    // still not overlap the first (the non-overlap guarantee holds in Tier 2).
-    const tight = { ...OPTS, leaderMax: OPTS.leaderMin } // preferred range = a single L
-    const placed = layoutFillLadder([exit(20, 200), exit(22, 200)], tight)
-    expect(intersects(box(placed[0]), box(placed[1]))).toBe(false)
-    expect(placed[1].pillX).toBeGreaterThan(22 + tight.leaderMax + OPTS.pillWidth / 2) // overflow fired
+  it('clamps the column anchor within the pane near an edge', () => {
+    const placed = layoutFillLadder([exit(5, 200)], OPTS)
+    expect(placed[0].pillX).toBe(OPTS.pillWidth / 2)
   })
 })
 
