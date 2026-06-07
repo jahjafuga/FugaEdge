@@ -33,18 +33,18 @@ describe('assembleLadderFrame — output structure', () => {
 })
 
 describe('assembleLadderFrame — flip-aware leader endpoint', () => {
-  it('centers the leader endpoint under the dot when the dot is inside the pill span (vertical stub)', () => {
-    // One fill → the pill centers on the dot, so the dot sits inside the pill's
-    // half-width span. The nearest-edge clamp pins the leader endpoint to the dot x
-    // (a vertical stub from the dot to the pill center) — no left/right routing.
+  it('places the leader endpoint at the near pill edge (entry pill offset left)', () => {
+    // One ENTRY fill → its pill is offset LEFT of the dot (meanX - offset), so the dot
+    // sits to the RIGHT of the pill span. The nearest-edge clamp pins the leader
+    // endpoint to the pill's RIGHT (near) edge (pill.cx + halfW).
     const f = assembleLadderFrame([mk({ kind: 'entry', side: 'B' })], noBars, null, null, toX, toY, OPTS)
     const dot = f.dots[0]
     const pill = f.pills[0]
     const leader = f.leaders[0]
-    expect(pill.cx).toBeCloseTo(dot.x, 6)     // pill centered on the dot
-    expect(leader.x2).toBeCloseTo(dot.x, 6)   // endpoint clamped to the dot x (vertical stub)
-    expect(leader.y2).toBeCloseTo(pill.cy, 6) // endpoint y at the pill center
-    expect(leader.x1).toBeCloseTo(dot.x, 6)   // leader starts on the dot
+    expect(pill.cx).toBeCloseTo(dot.x - 57, 6)                     // entry pill offset left of the dot
+    expect(leader.x2).toBeCloseTo(pill.cx + OPTS.pillWidth / 2, 6) // endpoint at the pill's right (near) edge
+    expect(leader.y2).toBeCloseTo(pill.cy, 6)                      // endpoint y at the pill center
+    expect(leader.x1).toBeCloseTo(dot.x, 6)                        // leader starts on the dot
     expect(leader.y1).toBeCloseTo(dot.y, 6)
   })
 

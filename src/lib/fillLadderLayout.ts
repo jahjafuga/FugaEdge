@@ -1,14 +1,13 @@
-// Pure de-collision + central-stack layout for the ladder fill markers. NO chart
+// Pure de-collision + per-role placement layout for the ladder fill markers. NO chart
 // / React / lightweight-charts imports — just geometry, so it stays portable and
 // unit-tested. The chart-coupled primitive (fillLadderPrimitive) feeds it the
 // fills + pane bounds as plain data; this returns where to draw each pill.
 //
-// PART 2 — CENTRAL VERTICAL STACK: a bar's fills — entries AND exits together —
-// merge into ONE column centered on the cluster's mean bar-x (nearby bars within
-// MERGE_PX merge into the same column), fanned vertically at step = pillHeight +
-// minGap so no two pills overlap. The dot stays on its exact (x, y); only the
-// pill moves to the column. No left/right role-split, no horizontal free-space
-// search — the pills sit over the candles by design.
+// PART 2 — PER-ROLE PLACEMENT: within each bar cluster, fills split by role — entry
+// pills offset LEFT of the cluster's mean bar-x, exit pills offset RIGHT — by a fixed
+// horizontal gap (LEADER_GAP), producing a ~60px center offset to match the PRFX SVG
+// target. Each side fans vertically via placeColumn (step = pillHeight + minGap) so no
+// two pills overlap. The dot stays on its exact (x, y); only the pill moves.
 
 export interface OccupancyRect {
   x: number
@@ -32,7 +31,7 @@ export interface PlacedPill {
   /** Dot position — unchanged (the dot always marks the true fill price). */
   x: number
   y: number
-  /** Pill center — the cluster's anchor x (mean bar-x, pane-clamped); pillY swept clear. */
+  /** Pill center — the role-based column anchor — entries: meanX - offset (pane-clamped); exits: meanX + offset (pane-clamped); offset = pillWidth/2 + LEADER_GAP. */
   pillX: number
   pillY: number
   qty: number
@@ -122,12 +121,14 @@ function placeColumn(
   return out
 }
 
+const LEADER_GAP = 28  // px between dot and pill near-edge; produces ~60px center offset to match the PRFX SVG target
+
 /**
- * Place "QTY @ PRICE" pills as ONE central vertical stack per cluster. A bar's
- * fills — entries AND exits together — merge into a single column, fanned at
- * step = pillHeight + minGap by placeColumn, centered on the cluster's mean bar-x
- * (nearby bars within MERGE_PX merge). Dots stay on their exact (x, y); only the
- * pill moves to the column. No left/right role-split, no horizontal search.
+ * Place "QTY @ PRICE" pills per role. Within each bar cluster, fills split by kind
+ * into two columns: entryAnchorX = clamp(meanX - (pillWidth/2 + LEADER_GAP)),
+ * exitAnchorX = clamp(meanX + (pillWidth/2 + LEADER_GAP)). placeColumn is called
+ * independently per side (the vertical fan). Single-role clusters get one column.
+ * Dots stay on their exact (x, y); only the pill moves to its column.
  */
 export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): PlacedPill[] {
   const { paneWidth, paneHeight, pillWidth, pillHeight, minGap } = opts
@@ -152,12 +153,25 @@ export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): P
     const idx: number[] = []
     for (const bx of cluster) idx.push(...byBar.get(bx)!)
     const meanX = cluster.reduce((s, x) => s + x, 0) / cluster.length
-    const anchorX = Math.max(halfW, Math.min(paneWidth - halfW, meanX))
-    const pillYs = placeColumn(idx.map((i) => fills[i].y), paneHeight, pillHeight, minGap, [])
-    idx.forEach((i, k) => {
-      const f = fills[i]
-      placed[i] = { x: f.x, y: f.y, pillX: anchorX, pillY: pillYs[k], qty: f.qty, price: f.price, kind: f.kind, side: f.side }
-    })
+    const offset = halfW + LEADER_GAP
+    const entryIdx = idx.filter((i) => fills[i].kind === 'entry')
+    const exitIdx = idx.filter((i) => fills[i].kind === 'exit')
+    if (entryIdx.length > 0) {
+      const entryAnchorX = Math.max(halfW, Math.min(paneWidth - halfW, meanX - offset))
+      const entryYs = placeColumn(entryIdx.map((i) => fills[i].y), paneHeight, pillHeight, minGap, [])
+      entryIdx.forEach((i, k) => {
+        const f = fills[i]
+        placed[i] = { x: f.x, y: f.y, pillX: entryAnchorX, pillY: entryYs[k], qty: f.qty, price: f.price, kind: f.kind, side: f.side }
+      })
+    }
+    if (exitIdx.length > 0) {
+      const exitAnchorX = Math.max(halfW, Math.min(paneWidth - halfW, meanX + offset))
+      const exitYs = placeColumn(exitIdx.map((i) => fills[i].y), paneHeight, pillHeight, minGap, [])
+      exitIdx.forEach((i, k) => {
+        const f = fills[i]
+        placed[i] = { x: f.x, y: f.y, pillX: exitAnchorX, pillY: exitYs[k], qty: f.qty, price: f.price, kind: f.kind, side: f.side }
+      })
+    }
   }
   return placed
 }
