@@ -41,7 +41,7 @@ describe('assembleLadderFrame — flip-aware leader endpoint', () => {
     const dot = f.dots[0]
     const pill = f.pills[0]
     const leader = f.leaders[0]
-    expect(pill.cx).toBeCloseTo(dot.x - 57, 6)                     // entry pill offset left of the dot
+    expect(pill.cx).toBeCloseTo(dot.x - 74, 6)                     // entry pill offset left of the dot
     expect(leader.x2).toBeCloseTo(pill.cx + OPTS.pillWidth / 2, 6) // endpoint at the pill's right (near) edge
     expect(leader.y2).toBeCloseTo(pill.cy, 6)                      // endpoint y at the pill center
     expect(leader.x1).toBeCloseTo(dot.x, 6)                        // leader starts on the dot

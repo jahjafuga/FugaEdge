@@ -34,28 +34,28 @@ function clusterGapsOk(pills: { pillY: number }[]): void {
 describe('layoutFillLadder — entries-left / exits-right placement (v0.2.4 Part 2)', () => {
   it('splits entries and exits on one bar into two columns (entries left, exits right)', () => {
     const placed = layoutFillLadder([fp(300, 200), exit(300, 205), fp(300, 210)], OPTS)
-    expect(placed[0].pillX).toBeCloseTo(300 - 57, 6) // entry → left of meanX (offset 29+28)
-    expect(placed[2].pillX).toBeCloseTo(300 - 57, 6) // entry → left of meanX
-    expect(placed[1].pillX).toBeCloseTo(300 + 57, 6) // exit → right of meanX
+    expect(placed[0].pillX).toBeCloseTo(300 - 74, 6) // entry → left of meanX (offset 29+45)
+    expect(placed[2].pillX).toBeCloseTo(300 - 74, 6) // entry → left of meanX
+    expect(placed[1].pillX).toBeCloseTo(300 + 74, 6) // exit → right of meanX
     clusterGapsOk([placed[0], placed[2]])            // the two entries fan apart in their own column
     expect(placed[0].x).toBe(300); expect(placed[0].y).toBe(200)
   })
   it('merges two nearby bars (gap <= MERGE_PX) into one cluster, role-split into two columns at meanX ± offset', () => {
     const placed = layoutFillLadder([exit(300, 200), exit(350, 220)], OPTS)
     expect(placed[0].pillX).toBe(placed[1].pillX)    // both exits → same column
-    expect(placed[0].pillX).toBeCloseTo(325 + 57, 6) // exits → right of meanX (325 + offset)
+    expect(placed[0].pillX).toBeCloseTo(325 + 74, 6) // exits → right of meanX (325 + offset)
   })
   it('keeps distant bars (gap > MERGE_PX) as separate columns', () => {
     const placed = layoutFillLadder([exit(300, 200), exit(400, 200)], OPTS)
     expect(placed[0].pillX).not.toBe(placed[1].pillX)
-    expect(placed[0].pillX).toBeCloseTo(357, 6)      // exit at bar 300 → 300 + 57
-    expect(placed[1].pillX).toBeCloseTo(457, 6)      // exit at bar 400 → 400 + 57
+    expect(placed[0].pillX).toBeCloseTo(374, 6)      // exit at bar 300 → 300 + 74
+    expect(placed[1].pillX).toBeCloseTo(474, 6)      // exit at bar 400 → 400 + 74
   })
   it('clamps the column anchor within the pane near an edge', () => {
     const exitPlaced = layoutFillLadder([exit(5, 200)], OPTS)
-    expect(exitPlaced[0].pillX).toBe(62)                  // exit → right: 5 + 57, inside pane (no clamp)
+    expect(exitPlaced[0].pillX).toBe(79)                  // exit → right: 5 + 74, inside pane (no clamp)
     const entryPlaced = layoutFillLadder([fp(5, 200)], OPTS)
-    expect(entryPlaced[0].pillX).toBe(OPTS.pillWidth / 2) // entry → left: 5 - 57 = -52, left-clamped to 29
+    expect(entryPlaced[0].pillX).toBe(OPTS.pillWidth / 2) // entry → left: 5 - 74 = -69, left-clamped to 29
   })
 })
 

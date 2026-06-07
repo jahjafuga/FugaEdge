@@ -40,13 +40,14 @@ const COLOR_DOT_RING = '#0c0f16' // near-bg ring so the dot reads on any candle
 const DOT_STROKE_PX = 1.5        // dot ring width, CSS px
 
 // Leader + pill. All CSS px (scaled to bitmap px in draw()).
-const COLOR_LEADER = 'rgba(255,255,255,0.38)' // thin leader, dot → pill
+const LEADER_COLOR_BUY = 'rgba(63, 179, 137, 0.7)'   // buy-green leader at 0.7 alpha (matches the buy pill #3fb389)
+const LEADER_COLOR_SELL = 'rgba(224, 107, 107, 0.7)' // sell-red leader at 0.7 alpha (matches the sell pill #e06b6b)
 const COLOR_PILL_TEXT_BUY = '#08231b'  // dark text on the green buy pill
 const COLOR_PILL_TEXT_SELL = '#f3f5fa' // white text on the red sell pill
-const PILL_W = 64        // FIXED pill width (the brain's de-collision reserves this box)
-const PILL_H = 18        // pill height
+const PILL_W = 80        // FIXED pill width (the brain's de-collision reserves this box; sized for 12px font + 11-char labels)
+const PILL_H = 22        // pill height (room for the 12px label)
 const PILL_RADIUS = 4    // pill corner radius
-const PILL_FONT_PX = 10  // pill label font size
+const PILL_FONT_PX = 12  // pill label font size
 
 // De-collision opts (v0.2.4 Step 1c) fed to assembleLadderFrame — the brain-test
 // values; tunable in the live check.
@@ -134,7 +135,7 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
 
         // Leader: dot → pill's near edge (flip-aware, from the brain).
         ctx.beginPath()
-        ctx.strokeStyle = COLOR_LEADER
+        ctx.strokeStyle = buy ? LEADER_COLOR_BUY : LEADER_COLOR_SELL
         ctx.lineWidth = leaderW
         ctx.moveTo(leader.x1 * hr, leader.y1 * vr)
         ctx.lineTo(leader.x2 * hr, leader.y2 * vr)

@@ -121,7 +121,7 @@ function placeColumn(
   return out
 }
 
-const LEADER_GAP = 28  // px between dot and pill near-edge; produces ~60px center offset to match the PRFX SVG target
+const LEADER_GAP = 45  // px between dot and pill near-edge; ~77px center offset to give the leader visible room across clear background
 
 /**
  * Place "QTY @ PRICE" pills per role. Within each bar cluster, fills split by kind
