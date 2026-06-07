@@ -42,6 +42,13 @@ const DOT_STROKE_PX = 1.5        // dot ring width, CSS px
 // Leader + pill. All CSS px (scaled to bitmap px in draw()).
 const LEADER_COLOR_BUY = 'rgba(63, 179, 137, 0.7)'   // buy-green leader at 0.7 alpha (matches the buy pill #3fb389)
 const LEADER_COLOR_SELL = 'rgba(224, 107, 107, 0.7)' // sell-red leader at 0.7 alpha (matches the sell pill #e06b6b)
+const LEADER_HALO = 'rgba(12, 15, 22, 0.7)' // dark halo behind the colored leader, separates it from candles
+const LEADER_HALO_PX = 3                  // halo stroke width, CSS px (wider than the 1px colored leader)
+const PILL_OUTLINE = '#0c0f16'            // dark outline around pills, matches the dot stroke
+const PILL_OUTLINE_PX = 1                 // pill outline stroke width, CSS px
+const PILL_SHADOW = 'rgba(0, 0, 0, 0.7)'  // pill drop shadow — stronger lift for candle overlap
+const PILL_SHADOW_BLUR = 6                // shadow blur radius, CSS px
+const PILL_SHADOW_OFFSET_Y = 3            // shadow offset down, CSS px
 const COLOR_PILL_TEXT_BUY = '#08231b'  // dark text on the green buy pill
 const COLOR_PILL_TEXT_SELL = '#f3f5fa' // white text on the red sell pill
 const PILL_W = 80        // FIXED pill width (the brain's de-collision reserves this box; sized for 12px font + 11-char labels)
@@ -102,6 +109,10 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
       const pillH = PILL_H * vr
       const pillR = PILL_RADIUS * minR
       const leaderW = Math.max(1, minR)
+      const haloW = LEADER_HALO_PX * minR
+      const outlineW = Math.max(1, PILL_OUTLINE_PX * minR)
+      const shadowBlur = PILL_SHADOW_BLUR * minR
+      const shadowOffY = PILL_SHADOW_OFFSET_Y * vr
       // Pill label font + centering — set once, used by every fillText below.
       ctx.font = `600 ${PILL_FONT_PX * vr}px JetBrains Mono, ui-monospace, monospace`
       ctx.textAlign = 'center'
@@ -123,30 +134,63 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
         bandThickness: BAND_THICKNESS,
       })
 
-      // Paint the brain's frame. The leader/pill/dot drawing is unchanged from 1b
-      // — only the positions (now de-collided + flip-aware) and the color source
-      // (frame[i].side) come from the frame instead of the fixed inline offset.
-      for (let i = 0; i < frame.pills.length; i++) {
-        const dot = frame.dots[i]
-        const leader = frame.leaders[i]
-        const pill = frame.pills[i]
-        const buy = pill.side === 'B'
-        const color = buy ? COLOR_BUY : COLOR_SELL
+      // Paint the brain's frame in z-order: leader halos, colored leaders, then
+      // pills (shadowed fill + outline + text), then dots on top. Leaders draw in
+      // TWO passes so every dark halo sits behind every colored line. The leader
+      // object carries no side, so the colored pass reads it from frame.pills[i]
+      // (index-aligned with frame.leaders[i]).
 
-        // Leader: dot → pill's near edge (flip-aware, from the brain).
+      // Pass 1 — dark halo behind ALL leaders (separates the colored line from candles).
+      ctx.strokeStyle = LEADER_HALO
+      ctx.lineWidth = haloW
+      for (let i = 0; i < frame.leaders.length; i++) {
+        const leader = frame.leaders[i]
         ctx.beginPath()
-        ctx.strokeStyle = buy ? LEADER_COLOR_BUY : LEADER_COLOR_SELL
-        ctx.lineWidth = leaderW
         ctx.moveTo(leader.x1 * hr, leader.y1 * vr)
         ctx.lineTo(leader.x2 * hr, leader.y2 * vr)
         ctx.stroke()
+      }
 
-        // Pill: side-colored rounded rect + centered "QTY @ PRICE".
+      // Pass 2 — side-colored leader on top of its halo.
+      ctx.lineWidth = leaderW
+      for (let i = 0; i < frame.leaders.length; i++) {
+        const leader = frame.leaders[i]
+        ctx.strokeStyle = frame.pills[i].side === 'B' ? LEADER_COLOR_BUY : LEADER_COLOR_SELL
+        ctx.beginPath()
+        ctx.moveTo(leader.x1 * hr, leader.y1 * vr)
+        ctx.lineTo(leader.x2 * hr, leader.y2 * vr)
+        ctx.stroke()
+      }
+
+      // Pills (shadowed fill + dark outline + text), then dots on top.
+      for (let i = 0; i < frame.pills.length; i++) {
+        const dot = frame.dots[i]
+        const pill = frame.pills[i]
+        const buy = pill.side === 'B'
+        const color = buy ? COLOR_BUY : COLOR_SELL
         const pillCx = pill.cx * hr
         const pillCy = pill.cy * vr
+
+        // Pill body — drop shadow on the FILL only, for lift over candles.
+        ctx.shadowColor = PILL_SHADOW
+        ctx.shadowBlur = shadowBlur
+        ctx.shadowOffsetX = 0
+        ctx.shadowOffsetY = shadowOffY
         roundRect(ctx, pillCx - pillW / 2, pillCy - pillH / 2, pillW, pillH, pillR)
         ctx.fillStyle = color
         ctx.fill()
+
+        // Reset the shadow BEFORE the outline/text/dot — only the fill is shadowed.
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
+        ctx.shadowOffsetY = 0
+
+        // Outline the same rounded-rect path — crisps the edge on any background.
+        ctx.strokeStyle = PILL_OUTLINE
+        ctx.lineWidth = outlineW
+        ctx.stroke()
+
+        // Centered "QTY @ PRICE".
         ctx.fillStyle = buy ? COLOR_PILL_TEXT_BUY : COLOR_PILL_TEXT_SELL
         ctx.fillText(pill.label, pillCx, pillCy)
 
