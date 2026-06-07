@@ -20,6 +20,7 @@ import {
   compactShares,
   deletedAgo,
   easternToUtc,
+  fillLabel,
   formatEastern,
   formatPnlRatio,
   formatProfitFactor,
@@ -29,6 +30,18 @@ import {
   utcToEasternParts,
 } from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
+
+describe('fillLabel — "QTY @ PRICE" pill label (v0.2.4)', () => {
+  it('formats qty and price with the " @ " separator', () => {
+    expect(fillLabel(12, 4.33)).toBe('12 @ 4.33')
+  })
+  it('thousands-separates the qty', () => {
+    expect(fillLabel(1200, 5.11)).toBe('1,200 @ 5.11')
+  })
+  it('keeps extra price precision (2–4 dp)', () => {
+    expect(fillLabel(5, 5.001)).toBe('5 @ 5.001')
+  })
+})
 
 describe('compactShares — bucket boundaries and decimals', () => {
   it('formats the 1M–99.99M bucket with 2 decimals', () => {

@@ -34,6 +34,15 @@ export function price(n: number): string {
   return px2.format(n)
 }
 
+// "QTY @ PRICE" label for the fill-ladder pills (v0.2.4) — the single source of
+// truth for the pill string, shared by the chart-coupled fillLadderPrimitive
+// (render) and the pure assembleLadderFrame (de-collision layout). qty is
+// thousands-separated; price carries 2–4 dp. e.g. fillLabel(1200, 5.11) →
+// "1,200 @ 5.11".
+export function fillLabel(qty: number, fillPrice: number): string {
+  return `${int(qty)} @ ${price(fillPrice)}`
+}
+
 // Fraction (0..1) → percent string. 0.625 → "62.5%". 1-decimal default per
 // the Day 8 number-formatting spec; pass `decimals` to override. Returns "—"
 // for null / undefined / non-finite, consistent with compactShares. The input
