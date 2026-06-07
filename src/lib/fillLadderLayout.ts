@@ -5,9 +5,9 @@
 // it here as plain data; this returns where to draw each pill.
 //
 // PIECE 2: entries route their pill LEFT of the dot, exits route RIGHT; each
-// pill's leader reaches to the nearest free spot on its side (avoiding candles +
-// already-placed pills), and same-side/same-bar pills de-collide vertically
-// (avoiding avg bands), clamped in-band.
+// pill's leader reaches to the nearest free spot on its side (avoiding only
+// already-placed pills — pills sit OVER the candles), and same-side/same-bar
+// pills de-collide vertically (avoiding avg bands), clamped in-band.
 
 export interface OccupancyRect {
   x: number
@@ -144,7 +144,7 @@ function searchSide(
   yBot: number,
   pillWidth: number,
   paneWidth: number,
-  candleRects: OccupancyRect[],
+  _candleRects: OccupancyRect[],
   placedBoxes: OccupancyRect[],
   leaderMin: number,
   leaderMax: number,
@@ -153,10 +153,13 @@ function searchSide(
   const tryAt = (L: number): number | null => {
     const cx = dir > 0 ? dotX + L + halfW : dotX - L - halfW
     const probe: OccupancyRect = { x: cx - halfW, y: yTop, w: pillWidth, h: yBot - yTop }
+    // De-collide against other PILLS only — NOT candles. A pill is the annotation
+    // ON TOP of the price action, so it hugs its dot at the shortest leader rather
+    // than fleeing to candle-free whitespace. (The candle rects are still threaded
+    // in — param kept as `_candleRects` — for a possible Part 2; not consulted here.)
     if (
       cx - halfW >= 0 &&
       cx + halfW <= paneWidth &&
-      !overlapsAny(probe, candleRects) &&
       !overlapsAny(probe, placedBoxes)
     )
       return cx
@@ -212,8 +215,8 @@ function findColumnX(
 /**
  * Place "QTY @ PRICE" pills with role split + free-space routing. Dots stay on
  * their exact (x, y). Entry pills go LEFT, exit pills RIGHT, each reaching the
- * nearest spot clear of candles + placed pills, then de-colliding vertically
- * (clear of avg bands) within each side's bar-cluster, clamped in-band.
+ * nearest spot clear of placed pills (sitting over the candles), then de-colliding
+ * vertically (clear of avg bands) within each side's bar-cluster, clamped in-band.
  */
 export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): PlacedPill[] {
   const { paneWidth, paneHeight, pillWidth, pillHeight, minGap, leaderMin, leaderMax, candleRects, avgBands } = opts

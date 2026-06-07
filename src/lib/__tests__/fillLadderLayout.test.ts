@@ -50,13 +50,13 @@ describe('layoutFillLadder — role split + free-space (piece 2)', () => {
     expect(placed[0].pillX).toBe(300 + OPTS.leaderMin + OPTS.pillWidth / 2)
   })
 
-  it('pushes a pill outward past a candle until its box is clear', () => {
+  it('sits at leaderMin OVER a candle — candles are not obstacles (v0.2.4 Part 1)', () => {
+    // A candle right where the pill wants to go no longer pushes it away; the pill
+    // is the annotation ON TOP of the price action, so it hugs its dot at leaderMin.
     const candle: OccupancyRect = { x: 320, y: 180, w: 30, h: 80 }
     const placed = layoutFillLadder([exit(300, 220)], { ...OPTS, candleRects: [candle] })
-    expect(intersects(box(placed[0]), candle)).toBe(false)
-    // dot unchanged; pill ended up further right than leaderMin
-    expect(placed[0].x).toBe(300)
-    expect(placed[0].pillX).toBeGreaterThan(300 + OPTS.leaderMin + OPTS.pillWidth / 2)
+    expect(placed[0].x).toBe(300) // dot unchanged
+    expect(placed[0].pillX).toBe(300 + OPTS.leaderMin + OPTS.pillWidth / 2) // leaderMin, candle ignored
   })
 
   it('routes a pill clear of an avg band at its dot y', () => {
@@ -69,12 +69,6 @@ describe('layoutFillLadder — role split + free-space (piece 2)', () => {
     const bandBot = band.y + bandH / 2
     expect(pillBot <= bandTop + 1e-9 || pillTop >= bandBot - 1e-9).toBe(true)
     expect(placed[0].y).toBe(220) // dot stays at the true price
-  })
-
-  it('flushes to the pane edge when both sides are fully blocked (no crash, no infinite loop)', () => {
-    const wall: OccupancyRect = { x: 0, y: 0, w: 600, h: 400 }
-    const placed = layoutFillLadder([exit(300, 200)], { ...OPTS, candleRects: [wall] })
-    expect(placed[0].pillX).toBe(OPTS.paneWidth - OPTS.pillWidth / 2)
   })
 
   it('treats already-placed same-side pills as occupancy (no two claim the same gap)', () => {
@@ -92,56 +86,26 @@ describe('layoutFillLadder — role split + free-space (piece 2)', () => {
     expect(placed[1].pillY).toBeCloseTo(200, 6)
   })
 
-  it('a walled-off entry that routes onto the exits never overlaps an exit pill (shared cross-role occupancy)', () => {
-    // The STI hidden-buy: the entry's natural LEFT side is fully walled, so it
-    // routes RIGHT where the exits live. With ONE shared occupancy list, the
-    // later-placed exits must avoid the (already-placed) entry — no pill hidden.
-    const leftWall: OccupancyRect = { x: 0, y: 0, w: 300, h: 400 }
-    const placed = layoutFillLadder(
-      [fp(300, 200), exit(300, 192), exit(300, 212)],
-      { ...OPTS, candleRects: [leftWall] },
-    )
-    expect(placed[0].pillX).toBeGreaterThan(placed[0].x) // entry flipped RIGHT (left walled)
+  it('a flipped entry never overlaps an exit pill (shared cross-role occupancy)', () => {
+    // The STI hidden-buy. Force the entry RIGHT without candles: its dot sits at
+    // the LEFT pane edge, so the left search runs off-pane and it flips right onto
+    // the exit side. The later-placed exits must avoid the (already-placed) entry.
+    const placed = layoutFillLadder([fp(20, 200), exit(20, 192), exit(20, 212)], OPTS)
+    expect(placed[0].pillX).toBeGreaterThan(placed[0].x) // entry flipped RIGHT (left edge)
     for (const exitPill of [placed[1], placed[2]]) {
       expect(intersects(box(placed[0]), box(exitPill))).toBe(false)
     }
   })
 
-  it('does not clamp a pill back onto a candle it routed around near the right pane edge', () => {
-    // Exit dot near the right edge; a candle occupies the near-right region so
-    // findColumnX must step outward — potentially past paneWidth - halfW.
-    // The clamp must NOT pull the pill back on top of that candle.
-    const candle: OccupancyRect = { x: 575, y: 180, w: 40, h: 80 }
-    const placed = layoutFillLadder([exit(560, 220)], { ...OPTS, candleRects: [candle] })
-    // The pill box must remain clear of the candle.
-    expect(intersects(box(placed[0]), candle)).toBe(false)
-    // natural side (right) is blocked → pill flips LEFT of the dot
-    expect(placed[0].pillX).toBeLessThan(placed[0].x)
-  })
-
-  it('does not clamp a pill back onto a candle it routed around near the left pane edge', () => {
-    // Entry dot near the left edge; a candle occupies the near-left region so
-    // findColumnX must step outward (leftward, toward x=0 and past it). The
-    // Math.max(halfW, ...) clamp must NOT pull the pill back onto that candle.
-    const candle: OccupancyRect = { x: 5, y: 180, w: 40, h: 80 }
-    const placed = layoutFillLadder([fp(40, 220)], { ...OPTS, candleRects: [candle] })
-    expect(intersects(box(placed[0]), candle)).toBe(false)
-    // natural side (left) is blocked → pill flips RIGHT of the dot
-    expect(placed[0].pillX).toBeGreaterThan(placed[0].x)
-  })
-
-  it('places inward (shorter leader) when outward is blocked but space exists between dot and obstacle', () => {
-    // Exit dot at 300; a wide candle blocks the leaderMin outward spot and
-    // everything past it on-screen, but the gap [dot..369] admits an INWARD pill
-    // (leader < leaderMin) on the natural side — not a flip, not a flush.
-    // NOTE: candle x is tuned to the current OPTS (leaderMin 12, pillWidth 58) and
-    // LEADER_FLOOR 4 — inward clears at L=8 (cx 337, box right edge 366 < 369).
-    // If those constants change, retune this x; the test will go RED to flag it.
-    const candle: OccupancyRect = { x: 369, y: 180, w: 240, h: 80 }
-    const placed = layoutFillLadder([exit(300, 220)], { ...OPTS, candleRects: [candle] })
-    expect(intersects(box(placed[0]), candle)).toBe(false)        // clear of the candle
-    expect(placed[0].pillX).toBeGreaterThan(placed[0].x)          // stayed on the natural (right) side
-    expect(placed[0].pillX).toBeLessThan(placed[0].x + OPTS.leaderMin + OPTS.pillWidth / 2) // INWARD: closer than leaderMin
+  it('overflows past leaderMax (Tier 2) without overlapping when the preferred range is pill-packed', () => {
+    // Two same-y exits near the LEFT edge with a tiny preferred range: the first
+    // hugs right; the second can't fit in [leaderMin, leaderMax] (blocked right by
+    // the first, flip-left off-pane), so it OVERFLOWS past leaderMax — and must
+    // still not overlap the first (the non-overlap guarantee holds in Tier 2).
+    const tight = { ...OPTS, leaderMax: OPTS.leaderMin } // preferred range = a single L
+    const placed = layoutFillLadder([exit(20, 200), exit(22, 200)], tight)
+    expect(intersects(box(placed[0]), box(placed[1]))).toBe(false)
+    expect(placed[1].pillX).toBeGreaterThan(22 + tight.leaderMax + OPTS.pillWidth / 2) // overflow fired
   })
 })
 
