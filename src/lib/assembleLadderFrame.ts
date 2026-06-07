@@ -83,7 +83,7 @@ export function assembleLadderFrame(
   for (let i = 0; i < placed.length; i++) {
     const p = placed[i]
     const m = visible[i].m
-    const leaderEndX = p.pillX > p.x ? p.pillX - halfW : p.pillX + halfW
+    const leaderEndX = Math.max(p.pillX - halfW, Math.min(p.pillX + halfW, p.x))
     dots.push({ x: p.x, y: p.y, r: DOT_BASE_R + m.size, side: p.side })
     leaders.push({ x1: p.x, y1: p.y, x2: leaderEndX, y2: p.pillY })
     pills.push({

@@ -33,33 +33,23 @@ describe('assembleLadderFrame — output structure', () => {
 })
 
 describe('assembleLadderFrame — flip-aware leader endpoint', () => {
-  // SKIPPED for Step A — asserts the removed left/right routing; Step B rewrites this for the central-stack leader endpoint.
-  it.skip('connects the leader to the pill RIGHT edge when the pill is LEFT of the dot', () => {
-    // Force a left pill: exit dot pinned at the right edge with a candle blocking
-    // the right side, so the layout flips it left (verified geometry from ee95c43).
-    // Simplest deterministic left-pill: an ENTRY marker (entries route LEFT by default).
+  it('centers the leader endpoint under the dot when the dot is inside the pill span (vertical stub)', () => {
+    // One fill → the pill centers on the dot, so the dot sits inside the pill's
+    // half-width span. The nearest-edge clamp pins the leader endpoint to the dot x
+    // (a vertical stub from the dot to the pill center) — no left/right routing.
     const f = assembleLadderFrame([mk({ kind: 'entry', side: 'B' })], noBars, null, null, toX, toY, OPTS)
     const dot = f.dots[0]
     const pill = f.pills[0]
     const leader = f.leaders[0]
-    // entry routes left → pill center < dot x → leader endpoint is the pill's RIGHT edge
-    expect(pill.cx).toBeLessThan(dot.x)
-    expect(leader.x2).toBeCloseTo(pill.cx + OPTS.pillWidth / 2, 6) // right edge
-    expect(leader.y2).toBeCloseTo(pill.cy, 6)
-    expect(leader.x1).toBeCloseTo(dot.x, 6)
+    expect(pill.cx).toBeCloseTo(dot.x, 6)     // pill centered on the dot
+    expect(leader.x2).toBeCloseTo(dot.x, 6)   // endpoint clamped to the dot x (vertical stub)
+    expect(leader.y2).toBeCloseTo(pill.cy, 6) // endpoint y at the pill center
+    expect(leader.x1).toBeCloseTo(dot.x, 6)   // leader starts on the dot
     expect(leader.y1).toBeCloseTo(dot.y, 6)
   })
 
-  // SKIPPED for Step A — asserts the removed left/right routing; Step B rewrites this for the central-stack leader endpoint.
-  it.skip('connects the leader to the pill LEFT edge when the pill is RIGHT of the dot', () => {
-    // exit marker → routes RIGHT by default → pill center > dot x → leader endpoint is the pill's LEFT edge
-    const f = assembleLadderFrame([mk({ kind: 'exit', side: 'S' })], noBars, null, null, toX, toY, OPTS)
-    const dot = f.dots[0]
-    const pill = f.pills[0]
-    const leader = f.leaders[0]
-    expect(pill.cx).toBeGreaterThan(dot.x)
-    expect(leader.x2).toBeCloseTo(pill.cx - OPTS.pillWidth / 2, 6) // left edge
-    expect(leader.y2).toBeCloseTo(pill.cy, 6)
+  it.skip('connects the leader to the nearer pill edge when the dot is outside the pill span (Case B)', () => {
+    // SKIPPED — Case B (merged multi-bar cluster, outer dot beyond pillX ± halfW). Needs a measured 2-bar fixture; built in Step B Beat 2 after probing real bar-x under OPTS. Do not assert blind.
   })
 })
 
