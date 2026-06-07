@@ -175,9 +175,12 @@ function searchSide(
   return null
 }
 
-// Place the pill: try the natural side (outward then inward); if fully blocked
-// there, FLIP to the opposite side; if both sides are blocked, flush to the
-// natural-side edge (on-screen, accepting a pinned-edge overlap).
+// Place the pill in three tiers: (1) PREFERRED — natural side (outward then
+// inward) then FLIP, within [leaderMin, leaderMax] (the hug range); (2) OVERFLOW
+// — if both are full, search OUT TO THE PANE EDGE for the nearest free x (natural
+// then flip), so a crowded column lands clear of other pills instead of on top of
+// one (far is acceptable here, hidden is not); (3) LAST RESORT — no free x
+// anywhere at this column's y, flush to the natural-side edge.
 function findColumnX(
   dir: -1 | 1,
   dotX: number,
@@ -191,10 +194,18 @@ function findColumnX(
   leaderMax: number,
 ): number {
   const halfW = pillWidth / 2
+  const flip = (-dir) as -1 | 1
+  // Tier 1 — preferred (the hug range).
   const natural = searchSide(dir, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
   if (natural !== null) return natural
-  const flipped = searchSide((-dir) as -1 | 1, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
+  const flipped = searchSide(flip, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, leaderMax)
   if (flipped !== null) return flipped
+  // Tier 2 — overflow to the pane edge (nearest free x; never overlaps a pill).
+  const naturalFar = searchSide(dir, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, paneWidth)
+  if (naturalFar !== null) return naturalFar
+  const flippedFar = searchSide(flip, dotX, yTop, yBot, pillWidth, paneWidth, candleRects, placedBoxes, leaderMin, paneWidth)
+  if (flippedFar !== null) return flippedFar
+  // Tier 3 — last resort.
   return dir > 0 ? paneWidth - halfW : halfW
 }
 
@@ -210,8 +221,11 @@ export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): P
   const halfW = pillWidth / 2
   const placed = new Array<PlacedPill>(fills.length)
 
-  // Each role is an independent column system on its own side — opposite sides
-  // never collide, so their occupancy is tracked separately.
+  // ONE shared occupancy list across BOTH roles (not per-role): entries are
+  // placed first, then exits, so the later role always sees and avoids the
+  // earlier role's pills. This guarantees a flipped/overflowed pill can't land on
+  // the other role's pill (the cross-role hidden-pill defect).
+  const placedBoxes: OccupancyRect[] = []
   for (const kind of ['entry', 'exit'] as const) {
     const dir: -1 | 1 = kind === 'entry' ? -1 : 1
     const indices = fills.map((_, i) => i).filter((i) => fills[i].kind === kind)
@@ -225,7 +239,6 @@ export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): P
       else clusters.set(k, [i])
     }
 
-    const placedBoxes: OccupancyRect[] = [] // this side's placed pills (occupancy)
     for (const ck of [...clusters.keys()].sort((a, b) => a - b)) {
       const idx = clusters.get(ck)!
       const dotX = fills[idx[0]].x

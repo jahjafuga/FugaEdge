@@ -92,6 +92,21 @@ describe('layoutFillLadder — role split + free-space (piece 2)', () => {
     expect(placed[1].pillY).toBeCloseTo(200, 6)
   })
 
+  it('a walled-off entry that routes onto the exits never overlaps an exit pill (shared cross-role occupancy)', () => {
+    // The STI hidden-buy: the entry's natural LEFT side is fully walled, so it
+    // routes RIGHT where the exits live. With ONE shared occupancy list, the
+    // later-placed exits must avoid the (already-placed) entry — no pill hidden.
+    const leftWall: OccupancyRect = { x: 0, y: 0, w: 300, h: 400 }
+    const placed = layoutFillLadder(
+      [fp(300, 200), exit(300, 192), exit(300, 212)],
+      { ...OPTS, candleRects: [leftWall] },
+    )
+    expect(placed[0].pillX).toBeGreaterThan(placed[0].x) // entry flipped RIGHT (left walled)
+    for (const exitPill of [placed[1], placed[2]]) {
+      expect(intersects(box(placed[0]), box(exitPill))).toBe(false)
+    }
+  })
+
   it('does not clamp a pill back onto a candle it routed around near the right pane edge', () => {
     // Exit dot near the right edge; a candle occupies the near-right region so
     // findColumnX must step outward — potentially past paneWidth - halfW.

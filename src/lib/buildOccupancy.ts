@@ -14,6 +14,8 @@ export interface BuildOccupancyOpts {
 
 const BODY_FRACTION = 0.7      // candle body spans this fraction of the bar pitch
 const DEFAULT_CANDLE_W = 8     // px: fallback body width when pitch is unknowable (single/lone on-screen bar)
+const CANDLE_W_CAP = 12        // px: cap the body obstacle so a zoomed-in (wide-pitch) candle doesn't
+                               // balloon into a huge block that shoves pills far from their dots
 
 // Pure: turns visible candles + the trade's avg-entry/avg-exit prices into
 // occupancy rects/bands for layoutFillLadder. Chart-coupled coordinate
@@ -42,7 +44,7 @@ export function buildOccupancy(
       break
     }
   }
-  const bodyW = pitch !== null ? pitch * BODY_FRACTION : DEFAULT_CANDLE_W
+  const bodyW = pitch !== null ? Math.min(pitch * BODY_FRACTION, CANDLE_W_CAP) : DEFAULT_CANDLE_W
 
   // One rect per ON-SCREEN bar: centered on toX(t), body width, spanning
   // toY(high) (top, smaller y) to toY(low) (bottom). Skip any bar whose x or

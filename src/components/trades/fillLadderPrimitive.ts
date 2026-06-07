@@ -52,7 +52,8 @@ const PILL_FONT_PX = 10  // pill label font size
 // values; tunable in the live check.
 const MIN_GAP = 4         // min vertical gap between two stacked pills (the fan)
 const LEADER_MIN = 14     // shortest leader — pill sits this far from the dot when free
-const LEADER_MAX = 140    // longest leader the free-space search tries before flushing
+const LEADER_MAX = 44     // preferred max travel (was 140); the brain's overflow tier handles
+                         // the rare genuinely-crowded column, so this can't hide pills
 const BAND_THICKNESS = 6  // avg-entry/exit band thickness the pills dodge
 
 function toSeconds(ms: number): UTCTimestamp {

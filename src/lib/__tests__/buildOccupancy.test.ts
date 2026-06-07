@@ -17,12 +17,20 @@ describe('buildOccupancy — candle rects', () => {
     expect(candleRects[0].h).toBeGreaterThan(0)
   })
 
-  it('gives each candle body width from the bar pitch (0.7 of pitch), centered on toX(t)', () => {
-    const bars = [bar(0, 5.1, 5.0), bar(60000, 5.2, 5.05), bar(120000, 5.15, 5.1)]
+  it('gives each candle body width from the bar pitch (0.7 of pitch) below the cap, centered on toX(t)', () => {
+    const bars = [bar(0, 5.1, 5.0), bar(16000, 5.2, 5.05), bar(32000, 5.15, 5.1)]
     const { candleRects } = buildOccupancy(bars, null, null, toX, toY, OPTS)
-    // pitch = 60px, body = 0.7*60 = 42; rect centered on toX(t) so x = center - 21
-    expect(candleRects[1].w).toBeCloseTo(42, 6)
-    expect(candleRects[1].x).toBeCloseTo((60000 / 1000) - 21, 6) // center 60, left 39
+    // pitch = 16px, body = 0.7*16 = 11.2 (< cap 12, so uncapped); centered on toX(t)
+    expect(candleRects[1].w).toBeCloseTo(11.2, 6)
+    expect(candleRects[1].x).toBeCloseTo((16000 / 1000) - 11.2 / 2, 6) // center 16, left 10.4
+  })
+
+  it('caps the body width for a wide-pitch (zoomed-in) bar so it cannot balloon', () => {
+    const bars = [bar(0, 5.1, 5.0), bar(60000, 5.2, 5.05)]
+    const { candleRects } = buildOccupancy(bars, null, null, toX, toY, OPTS)
+    // pitch = 60px → 0.7*60 = 42, but capped at CANDLE_W_CAP (12)
+    expect(candleRects[0].w).toBe(12)
+    expect(candleRects[1].w).toBe(12)
   })
 
   it('skips bars whose toX or toY is off-screen (null)', () => {
