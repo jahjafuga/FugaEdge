@@ -178,10 +178,10 @@ describe('buildTradeMarkers — per-fill hover payload (9EMA distance + VWAP%)',
   })
 })
 
-// (f) edge cases: snap-to-nearest, empty fills, single fill ────────────────────
+// (f) edge cases: snap-to-containing-bar, empty fills, single fill ─────────────
 describe('buildTradeMarkers — edge cases', () => {
-  it('snaps a fill with no exact bar match to the nearest bar time', () => {
-    // bars at 0s / 60s / 120s; fill at 100s -> nearest is 120s (|100-120|=20 < |100-60|=40)
+  it('snaps a fill to the bar whose interval contains the fill time', () => {
+    // bars at 0s / 60s / 120s; fill at 100s -> contained by the 60s bar (60s interval spans [60s, 120s))
     const bars = [
       bar(minute(0), 10, 10.2, 9.9, 10, 1000),
       bar(minute(1), 10, 10.3, 9.9, 10.1, 900),
@@ -192,7 +192,7 @@ describe('buildTradeMarkers — edge cases', () => {
 
     const { markers } = buildTradeMarkers(trade, bars)
 
-    expect(markers[0].time).toBe(minute(2))
+    expect(markers[0].time).toBe(minute(1))
   })
 
   it('returns no markers and null averages for an empty executions array', () => {
