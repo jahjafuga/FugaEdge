@@ -32,6 +32,8 @@ const COLOR_TEXT_DIM    = '#8a94a8'  // fg-tertiary
 const COLOR_GOLD        = '#d4af37'  // brand gold
 const COLOR_WIN         = '#3fb389'  // win (muted)
 const COLOR_LOSS        = '#e06b6b'  // loss (muted)
+const COLOR_AVG_LINE_BUY  = 'rgba(99, 153, 34, 0.85)'  // muted #639922 — avg entry/exit dashed line, buy side
+const COLOR_AVG_LINE_SELL = 'rgba(163, 45, 45, 0.85)'  // muted #A32D2D — avg entry/exit dashed line, sell side
 
 // Indicator-series palette — the three overlay lines and their matching
 // dropdown swatches read from these. Standard TradingView EMA palette:
@@ -585,10 +587,10 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // its []-deps stays genuinely clean (no eslint-disable needed).
   const chartHeight = chartHeightFor(isFullscreen)
   const refs = useRef<ChartRefs | null>(null)
-  // Active price-line handles (entry + exit). Held in a ref so we can
+  // Active avg entry/exit LineSeries handles. Held in a ref so we can
   // remove them before re-creating on trade change — belt-and-suspenders
   // alongside the parent's key={trade.id} remount.
-  const priceLinesRef = useRef<import('lightweight-charts').IPriceLine[]>([])
+  const avgLineSeriesRef = useRef<import('lightweight-charts').ISeriesApi<'Line'>[]>([])
   // Framing guard: the `${trade.id}:${barIntervalMs}` the zoom/fit was last
   // applied for. Cleared whenever the chart instance is (re)created (mount
   // effect) so each fresh chart frames exactly once, while setData / markers /
@@ -932,68 +934,76 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     r.fillLadder.setData(tradeMarkers.markers, bars, tradeMarkers.avgEntry, tradeMarkers.avgExit)
   }, [tradeMarkers, bars, chartReady])
 
-  // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
-  // sells. Short trades: entry = sells, exit = buys (the user opens by
-  // selling short and closes by buying back). Colors track the FILL side
-  // (B=win, S=loss) so the line color matches the marker arrows; the
-  // title tracks the entry/exit ROLE so the label reflects what the
-  // trader actually did. Labels say "Avg" because the price shown is the
-  // weighted average across all entry/exit fills, not a single price —
-  // a multi-fill scale-in/out trade has multiple fills behind one line.
+  // Avg Entry / Avg Exit dashed segments — share-weighted avg over the entry/
+  // exit fills, rendered as a contained LineSeries spanning first-fill time to
+  // last-fill time on each side. No rail labels; the price axis already shows
+  // price, and the line is annotation behind the dot column. Long trades: entry
+  // = buys, exit = sells. Short trades: entry = sells, exit = buys (the user
+  // opens by selling short and closes by buying back) — the muted line color
+  // tracks the underlying FILL side, matching the marker dots.
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady) return
+    void (async () => {
+      const lc = await import('lightweight-charts')
 
-    // Clear any prior trade's lines first (defensive).
-    for (const pl of priceLinesRef.current) {
-      try {
-        r.candle.removePriceLine(pl)
-      } catch {
-        // already gone — chart was torn down between renders
+      // Clear any prior trade's avg lines first (defensive).
+      for (const s of avgLineSeriesRef.current) {
+        try {
+          r.api.removeSeries(s)
+        } catch {
+          // already gone — chart was torn down between renders
+        }
       }
-    }
-    priceLinesRef.current = []
+      avgLineSeriesRef.current = []
 
-    // Share-weighted avg entry/exit now come from buildTradeMarkers (the inline
-    // avg() lived here before). The module already applies the long/short role
-    // mapping (entry = buys for long, sells for short); the color mapping and
-    // titles below are unchanged.
-    const entryAvg = tradeMarkers.avgEntry
-    const exitAvg = tradeMarkers.avgExit
+      const isShort = trade.side === 'short'
+      // Muted line color follows the underlying fill side — matches the dots.
+      const entryColor = isShort ? COLOR_AVG_LINE_SELL : COLOR_AVG_LINE_BUY
+      const exitColor = isShort ? COLOR_AVG_LINE_BUY : COLOR_AVG_LINE_SELL
 
-    const isShort = trade.side === 'short'
-    // Color follows the underlying fill side — matches the marker dots.
-    const entryColor = isShort ? COLOR_LOSS : COLOR_WIN
-    const exitColor = isShort ? COLOR_WIN : COLOR_LOSS
+      // Endpoints come from the bar-snapped markers (NOT raw fill times) so the
+      // segment ends align exactly with the first/last dot on each side.
+      const entryMarkers = tradeMarkers.markers
+        .filter((m) => m.kind === 'entry')
+        .sort((a, b) => a.time - b.time)
+      const exitMarkers = tradeMarkers.markers
+        .filter((m) => m.kind === 'exit')
+        .sort((a, b) => a.time - b.time)
 
-    if (entryAvg != null) {
-      priceLinesRef.current.push(
-        r.candle.createPriceLine({
-          price: entryAvg,
-          color: entryColor,
-          lineWidth: 1,
-          lineStyle: 0, // solid
-          axisLabelVisible: true,
-          title: `Avg Entry ${price(entryAvg)}`,
-        }),
-      )
-    }
-    if (exitAvg != null) {
-      priceLinesRef.current.push(
-        r.candle.createPriceLine({
-          price: exitAvg,
-          color: exitColor,
-          lineWidth: 1,
-          lineStyle: 0,
-          axisLabelVisible: true,
-          title: `Avg Exit ${price(exitAvg)}`,
-        }),
-      )
-    }
+      const addAvgLine = (
+        avg: number | null,
+        sideMarkers: typeof entryMarkers,
+        color: string,
+      ): void => {
+        if (avg == null || sideMarkers.length === 0) return
+        const firstTime = secondsTime(sideMarkers[0].time)
+        const lastTime = secondsTime(sideMarkers[sideMarkers.length - 1].time)
+        // Pad both ends by half a bar so a single-bar cluster (e.g. a Ross-style
+        // sell-out landing every exit on one bar) still renders a visible
+        // one-bar-wide segment instead of a zero-width line.
+        const halfBarSec = (barIntervalMs / 2) / 1000
+        const paddedFirst = (firstTime - halfBarSec) as import('lightweight-charts').UTCTimestamp
+        const paddedLast = (lastTime + halfBarSec) as import('lightweight-charts').UTCTimestamp
+        const series = r.api.addSeries(lc.LineSeries, {
+          color,
+          lineWidth: 2,
+          lineStyle: lc.LineStyle.Dashed,
+          lastValueVisible: false,
+          priceLineVisible: false,
+          crosshairMarkerVisible: false,
+        })
+        series.setData([
+          { time: paddedFirst, value: avg },
+          { time: paddedLast, value: avg },
+        ])
+        avgLineSeriesRef.current.push(series)
+      }
 
-    // No cleanup needed — chart.remove() in the mount effect's teardown
-    // drops every priceLine along with the candle series.
-  }, [trade, tradeMarkers, chartReady])
+      addAvgLine(tradeMarkers.avgEntry, entryMarkers, entryColor)
+      addAvgLine(tradeMarkers.avgExit, exitMarkers, exitColor)
+    })()
+  }, [trade, tradeMarkers, chartReady, barIntervalMs])
 
   // Fit-to-fills handler, exposed to the toolbar via fitRef. Same logic as the
   // former FitToFillsButton (relocated for the unified toolbar): default the
