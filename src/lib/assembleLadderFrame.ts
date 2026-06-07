@@ -2,11 +2,11 @@ import type { TradeMarker } from '@/core/charts/buildTradeMarkers'
 import type { IntradayBarLike } from './buildOccupancy'
 import { layoutFillLadder, type FillPoint } from './fillLadderLayout'
 import { buildOccupancy } from './buildOccupancy'
-import { int, price } from '@/lib/format'
+import { fillLabel } from '@/lib/format'
 
-export interface LadderDot { x: number; y: number; r: number; color: string }
+export interface LadderDot { x: number; y: number; r: number; side: 'B' | 'S' }
 export interface LadderLeader { x1: number; y1: number; x2: number; y2: number }
-export interface LadderPill { cx: number; cy: number; w: number; h: number; label: string; color: string }
+export interface LadderPill { cx: number; cy: number; w: number; h: number; label: string; side: 'B' | 'S' }
 
 export interface AssembleLadderOpts {
   paneWidth: number
@@ -19,9 +19,7 @@ export interface AssembleLadderOpts {
   bandThickness: number
 }
 
-const COLOR_ENTRY = '#3fb389'
-const COLOR_EXIT = '#e06b6b'
-const DOT_BASE_R = 2.5  // + marker size; matches the old canvas primitive
+const DOT_BASE_R = 2.5  // + marker size; matches the canvas primitive's dot ring
 
 // Pure per-frame assembly: markers (+ avg-entry/avg-exit prices, + bars for
 // candle occupancy) -> renderable ladder geometry. Coordinate conversion is
@@ -85,17 +83,16 @@ export function assembleLadderFrame(
   for (let i = 0; i < placed.length; i++) {
     const p = placed[i]
     const m = visible[i].m
-    const color = p.kind === 'entry' ? COLOR_ENTRY : COLOR_EXIT
     const leaderEndX = p.pillX > p.x ? p.pillX - halfW : p.pillX + halfW
-    dots.push({ x: p.x, y: p.y, r: DOT_BASE_R + m.size, color })
+    dots.push({ x: p.x, y: p.y, r: DOT_BASE_R + m.size, side: p.side })
     leaders.push({ x1: p.x, y1: p.y, x2: leaderEndX, y2: p.pillY })
     pills.push({
       cx: p.pillX,
       cy: p.pillY,
       w: opts.pillWidth,
       h: opts.pillHeight,
-      label: `${int(p.qty)} @ ${price(p.price)}`,
-      color,
+      label: fillLabel(p.qty, p.price),
+      side: p.side,
     })
   }
 

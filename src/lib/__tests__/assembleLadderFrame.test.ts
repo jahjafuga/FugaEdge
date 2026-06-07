@@ -72,4 +72,15 @@ describe('assembleLadderFrame — pill content + width', () => {
     const f = assembleLadderFrame([mk({ time: 300000 }), mk({ time: 360000 })], noBars, null, null, offX, toY, OPTS)
     expect(f.dots).toHaveLength(1)
   })
+
+  it('builds the pill label via fillLabel (qty @ price)', () => {
+    const f = assembleLadderFrame([mk({ qty: 100, price: 5.0 })], noBars, null, null, toX, toY, OPTS)
+    expect(f.pills[0].label).toBe('100 @ 5.00')
+  })
+
+  it('carries the fill side on the dot + pill (renderer colors by side, not kind)', () => {
+    const f = assembleLadderFrame([mk({ kind: 'entry', side: 'B' })], noBars, null, null, toX, toY, OPTS)
+    expect(f.pills[0].side).toBe('B')
+    expect(f.dots[0].side).toBe('B')
+  })
 })

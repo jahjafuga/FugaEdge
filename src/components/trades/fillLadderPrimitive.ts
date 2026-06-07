@@ -26,7 +26,8 @@ import type {
   UTCTimestamp,
 } from 'lightweight-charts'
 import type { TradeMarker } from '@/core/charts/buildTradeMarkers'
-import { fillLabel } from '@/lib/format'
+import type { IntradayBarLike } from '@/lib/buildOccupancy'
+import { assembleLadderFrame } from '@/lib/assembleLadderFrame'
 
 // The canvas target type isn't re-exported by lightweight-charts; derive it from
 // the renderer interface so we don't depend on the transitive 'fancy-canvas' pkg.
@@ -36,19 +37,23 @@ type AttachParam = SeriesAttachedParameter<Time>
 const COLOR_BUY = '#3fb389'      // win green — buys (B)
 const COLOR_SELL = '#e06b6b'     // loss red — sells (S)
 const COLOR_DOT_RING = '#0c0f16' // near-bg ring so the dot reads on any candle
-const DOT_BASE_R = 2.5           // + marker size (1..4) → ≈ r4 per the spec
-const DOT_STROKE_PX = 1.5        // ring width, CSS px
+const DOT_STROKE_PX = 1.5        // dot ring width, CSS px
 
-// Leader + pill (v0.2.4 Step 1b). All CSS px (scaled to bitmap px in draw()).
+// Leader + pill. All CSS px (scaled to bitmap px in draw()).
 const COLOR_LEADER = 'rgba(255,255,255,0.38)' // thin leader, dot → pill
 const COLOR_PILL_TEXT_BUY = '#08231b'  // dark text on the green buy pill
 const COLOR_PILL_TEXT_SELL = '#f3f5fa' // white text on the red sell pill
-const PILL_W = 64        // FIXED pill width (matches the brain's fixed-width model;
-                         // 1c sizes it to the trade's widest label)
+const PILL_W = 64        // FIXED pill width (the brain's de-collision reserves this box)
 const PILL_H = 18        // pill height
 const PILL_RADIUS = 4    // pill corner radius
 const PILL_FONT_PX = 10  // pill label font size
-const LEADER_GAP = 14    // dot → pill near-edge (the leader length at 1b's naive offset)
+
+// De-collision opts (v0.2.4 Step 1c) fed to assembleLadderFrame — the brain-test
+// values; tunable in the live check.
+const MIN_GAP = 4         // min vertical gap between two stacked pills (the fan)
+const LEADER_MIN = 14     // shortest leader — pill sits this far from the dot when free
+const LEADER_MAX = 140    // longest leader the free-space search tries before flushing
+const BAND_THICKNESS = 6  // avg-entry/exit band thickness the pills dodge
 
 function toSeconds(ms: number): UTCTimestamp {
   return Math.floor(ms / 1000) as UTCTimestamp
@@ -77,9 +82,13 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
   constructor(private readonly src: FillLadderPrimitive) {}
 
   draw(target: DrawTarget): void {
-    const { chart, series, markers } = this.src
+    const { chart, series, markers, bars, avgEntry, avgExit } = this.src
     if (!chart || !series || markers.length === 0) return
     const ts = chart.timeScale()
+    // Live coordinate converters on the (pinned) scale. toX takes epoch ms (the
+    // brain feeds bar.t / marker.time in ms) → the chart's epoch-seconds time.
+    const toX = (timeMs: number): number | null => ts.timeToCoordinate(toSeconds(timeMs))
+    const toY = (p: number): number | null => series.priceToCoordinate(p)
 
     target.useBitmapCoordinateSpace((scope) => {
       const ctx = scope.context
@@ -96,47 +105,52 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
 
-      for (const m of markers) {
-        // Live coords on the (pinned) scale; skip any fill off the visible range.
-        const x = ts.timeToCoordinate(toSeconds(m.time))
-        const y = series.priceToCoordinate(m.price)
-        if (x === null || y === null) continue
-        const color = m.side === 'B' ? COLOR_BUY : COLOR_SELL
+      // De-collision runs HERE (it needs LIVE toX/toY). Safe on the pinned scale:
+      // the scale doesn't drift, so the library doesn't re-render at rest → draw()
+      // (and this) isn't called per-frame; during a pan/zoom gesture it runs each
+      // repaint but the view settles when the gesture ends → bounded, terminating.
+      // No scheduling, no subscription — the library calls draw() when IT repaints.
+      const frame = assembleLadderFrame(markers, bars, avgEntry, avgExit, toX, toY, {
+        paneWidth: scope.mediaSize.width,
+        paneHeight: scope.mediaSize.height,
+        pillWidth: PILL_W,
+        pillHeight: PILL_H,
+        minGap: MIN_GAP,
+        leaderMin: LEADER_MIN,
+        leaderMax: LEADER_MAX,
+        bandThickness: BAND_THICKNESS,
+      })
 
-        // ── 1b NAIVE FIXED LAYOUT — THE 1c SWAP POINT ───────────────────────
-        // Pill a fixed gap RIGHT of the dot, at the same y; the leader meets its
-        // left edge. De-collision (the fan) is deferred: 1c replaces JUST this
-        // block with assembleLadderFrame's computed pill/leader positions (CSS
-        // px), leaving the bitmap scaling + drawing below untouched.
-        const pillCxCss = x + LEADER_GAP + PILL_W / 2
-        const pillCyCss = y
-        const leaderEndXCss = x + LEADER_GAP // pill's near (left) edge
-        // ── end swap point ──────────────────────────────────────────────────
+      // Paint the brain's frame. The leader/pill/dot drawing is unchanged from 1b
+      // — only the positions (now de-collided + flip-aware) and the color source
+      // (frame[i].side) come from the frame instead of the fixed inline offset.
+      for (let i = 0; i < frame.pills.length; i++) {
+        const dot = frame.dots[i]
+        const leader = frame.leaders[i]
+        const pill = frame.pills[i]
+        const buy = pill.side === 'B'
+        const color = buy ? COLOR_BUY : COLOR_SELL
 
-        const dotX = x * hr
-        const dotY = y * vr
-        const pillCx = pillCxCss * hr
-        const pillCy = pillCyCss * vr
-
-        // Leader: dot → pill's near edge.
+        // Leader: dot → pill's near edge (flip-aware, from the brain).
         ctx.beginPath()
         ctx.strokeStyle = COLOR_LEADER
         ctx.lineWidth = leaderW
-        ctx.moveTo(dotX, dotY)
-        ctx.lineTo(leaderEndXCss * hr, pillCy)
+        ctx.moveTo(leader.x1 * hr, leader.y1 * vr)
+        ctx.lineTo(leader.x2 * hr, leader.y2 * vr)
         ctx.stroke()
 
         // Pill: side-colored rounded rect + centered "QTY @ PRICE".
+        const pillCx = pill.cx * hr
+        const pillCy = pill.cy * vr
         roundRect(ctx, pillCx - pillW / 2, pillCy - pillH / 2, pillW, pillH, pillR)
         ctx.fillStyle = color
         ctx.fill()
-        ctx.fillStyle = m.side === 'B' ? COLOR_PILL_TEXT_BUY : COLOR_PILL_TEXT_SELL
-        ctx.fillText(fillLabel(m.qty, m.price), pillCx, pillCy)
+        ctx.fillStyle = buy ? COLOR_PILL_TEXT_BUY : COLOR_PILL_TEXT_SELL
+        ctx.fillText(pill.label, pillCx, pillCy)
 
         // Dot last — crisp over the leader, on the bar at the true price.
-        const r = (DOT_BASE_R + m.size) * minR
         ctx.beginPath()
-        ctx.arc(dotX, dotY, r, 0, Math.PI * 2)
+        ctx.arc(dot.x * hr, dot.y * vr, dot.r * minR, 0, Math.PI * 2)
         ctx.fillStyle = color
         ctx.fill()
         ctx.lineWidth = ringW
@@ -167,6 +181,9 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
   chart: AttachParam['chart'] | null = null
   series: AttachParam['series'] | null = null
   markers: readonly TradeMarker[] = []
+  bars: IntradayBarLike[] = []
+  avgEntry: number | null = null
+  avgExit: number | null = null
 
   private requestUpdate_: (() => void) | null = null
   private readonly paneView_ = new FillLadderPaneView(this)
@@ -187,10 +204,20 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
     return [this.paneView_]
   }
 
-  /** Hand the primitive the fills + request ONE redraw. draw() recomputes each
-   *  dot's pixel coords itself, so there's no marker-reassert RAF hack. */
-  setMarkers(markers: readonly TradeMarker[]): void {
+  /** Hand the primitive the fills + the day's bars + the avg-entry/exit prices,
+   *  and request ONE redraw. draw() runs the de-collision brain against live
+   *  coords on each repaint (no reassert RAF hack); the pinned scale keeps that
+   *  bounded — it is not called per-frame at rest. */
+  setData(
+    markers: readonly TradeMarker[],
+    bars: IntradayBarLike[],
+    avgEntry: number | null,
+    avgExit: number | null,
+  ): void {
     this.markers = markers
+    this.bars = bars
+    this.avgEntry = avgEntry
+    this.avgExit = avgExit
     this.requestUpdate_?.()
   }
 }

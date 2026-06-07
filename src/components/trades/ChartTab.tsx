@@ -920,18 +920,17 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     })()
   }, [ema9, ema20, vwap, chartReady, framedBand])
 
-  // Fill dots — feed the canvas primitive the same buildTradeMarkers output the
-  // old blobs used (price-anchored, qty-scaled, side-colored). The primitive
-  // recomputes each dot's pixel coords in its own draw() on every chart
-  // re-render, so — unlike createSeriesMarkers, which positioned markers at
-  // apply-time — there is NO marker-reassert RAF hack: setMarkers just hands over
-  // the data and requests a single redraw. The avg entry/exit price LINES are a
-  // separate effect, unaffected.
+  // Fill ladder — feed the canvas primitive the fills + the day's bars + the avg
+  // entry/exit prices. The primitive runs the de-collision brain in its own draw()
+  // (which needs live coords) and recomputes on each repaint; the pinned scale
+  // keeps that bounded, so there is NO marker-reassert RAF hack — setData hands the
+  // data over and requests a single redraw. The avg entry/exit price LINES are a
+  // separate effect, unaffected — and the brain dodges those same avg prices.
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady) return
-    r.fillLadder.setMarkers(tradeMarkers.markers)
-  }, [tradeMarkers, chartReady])
+    r.fillLadder.setData(tradeMarkers.markers, bars, tradeMarkers.avgEntry, tradeMarkers.avgExit)
+  }, [tradeMarkers, bars, chartReady])
 
   // Avg Entry / Avg Exit price lines. Long trades: entry = buys, exit =
   // sells. Short trades: entry = sells, exit = buys (the user opens by
