@@ -5,6 +5,14 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 26 for v0.2.4 trade-technicals — new trade_technicals table
+// (pre-computed per-trade indicator state at entry, 1M + 5M timeframes) plus
+// the composite index idx_trade_technicals_stale on (schema_version,
+// data_complete). The TABLE is created by CREATE TABLE IF NOT EXISTS in
+// SCHEMA_SQL, so it lands on both fresh installs and upgrades with no
+// per-version migration module (unlike an ALTER ADD COLUMN). The bump arms
+// Session 3's one-time backfill sweep.
+//
 // Bumped to 24 for v0.2.3 scratch-fix — daily_summary cache backfill. The
 // scratch definition changed from a ±$2 band / bare-sign to
 // |net_pnl| <= SCRATCH_EPSILON (shared/trade-classification.ts). The stored
@@ -42,7 +50,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '25'
+export const SCHEMA_VERSION = '26'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -187,6 +195,66 @@ CREATE TABLE IF NOT EXISTS intraday_bars (
 );
 
 CREATE INDEX IF NOT EXISTS idx_intraday_bars_date ON intraday_bars(date);
+
+-- 1M and 5M indicator state at trade entry, pre-computed and stored per
+-- trade so the Technical Analysis tab and Edge Insights can filter/bucket
+-- without recomputing EMAs over thousands of warmup bars on every query.
+-- Populated by the lazy-guard hook (Commit 4) on chart open, and by
+-- Session 3's one-time chunked backfill on first v0.2.4 launch.
+-- Flat columns (not JSON blobs) so analytics WHERE / GROUP BY / range
+-- filters stay direct SQL without json_extract().
+CREATE TABLE IF NOT EXISTS trade_technicals (
+  trade_id              INTEGER PRIMARY KEY,
+
+  -- 1M timeframe snapshot at the bar containing the first entry fill
+  tf_1m_macd_line       REAL,
+  tf_1m_signal_line     REAL,
+  tf_1m_histogram       REAL,
+  tf_1m_histogram_prior REAL,
+  tf_1m_macd_positive   INTEGER,  -- 0/1 nullable bool
+  tf_1m_macd_open       INTEGER,  -- 0/1 nullable bool
+  tf_1m_macd_rising     INTEGER,  -- 0/1 nullable bool
+  tf_1m_vwap            REAL,
+  tf_1m_vwap_dist_pct   REAL,
+  tf_1m_ema9            REAL,
+  tf_1m_ema9_dist_pct   REAL,
+  tf_1m_ema20           REAL,
+  tf_1m_ema20_dist_pct  REAL,
+  tf_1m_ema9_above_ema20 INTEGER, -- 0/1 nullable bool
+
+  -- 5M timeframe snapshot at the bar containing the first entry fill
+  tf_5m_macd_line       REAL,
+  tf_5m_signal_line     REAL,
+  tf_5m_histogram       REAL,
+  tf_5m_histogram_prior REAL,
+  tf_5m_macd_positive   INTEGER,
+  tf_5m_macd_open       INTEGER,
+  tf_5m_macd_rising     INTEGER,
+  tf_5m_vwap            REAL,
+  tf_5m_vwap_dist_pct   REAL,
+  tf_5m_ema9            REAL,
+  tf_5m_ema9_dist_pct   REAL,
+  tf_5m_ema20           REAL,
+  tf_5m_ema20_dist_pct  REAL,
+  tf_5m_ema9_above_ema20 INTEGER,
+
+  -- Per-row metadata
+  data_complete         INTEGER NOT NULL DEFAULT 0,  -- 0/1 bool
+  computed_at           TEXT NOT NULL DEFAULT (datetime('now')),
+  schema_version        INTEGER NOT NULL DEFAULT 1,
+
+  FOREIGN KEY (trade_id) REFERENCES trades(id) ON DELETE CASCADE
+);
+
+-- Composite index for Session 3's stale-row sweep:
+--   SELECT trade_id FROM trade_technicals
+--   WHERE data_complete = 0 OR schema_version < ?
+-- The leading column (schema_version) supports the
+-- "stale-version" query directly; data_complete as
+-- secondary key keeps the "incomplete-but-current" subset
+-- cheap to enumerate.
+CREATE INDEX IF NOT EXISTS idx_trade_technicals_stale
+  ON trade_technicals(schema_version, data_complete);
 
 -- Per-trade image attachments (chart screenshots, scans, etc.). File bytes
 -- live on disk under userData/attachments/<trade_id>/; this table only
