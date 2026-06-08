@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
+import { orderByIds } from '@/lib/orderByIds'
 import type { EntryTimeframe, TradeListRow, TradeNote } from '@shared/trades-types'
 import type { RoundTripExecution } from '@shared/import-types'
 import { PLAYBOOK_TIERS, type PlaybookTier } from '@shared/playbook-types'
@@ -92,6 +93,47 @@ function buildNote(row: TradeRowDb): TradeNote | null {
   const text = row.note_text?.trim() ?? ''
   if (!text) return null
   return { text }
+}
+
+/**
+ * Lean projection for trade_technicals bulk backfill — exactly the
+ * fields computeTradeTechnicals needs, nothing else. Avoiding the
+ * LEFT JOIN-heavy getTrade(id) shape so N=5000 backfill stays cheap.
+ *
+ * Not exported through @shared/trades-types: the backfill runner in
+ * electron/technicals/backfill.ts is the sole consumer, so the type
+ * stays internal to the electron layer.
+ */
+export interface TradeForTechnicalsRow {
+  id: number
+  symbol: string
+  date: string
+  side: 'long' | 'short'
+  executions_json: string | null
+}
+
+/**
+ * Fetch the lean per-trade rows for the given ids, preserving input
+ * order and skipping missing ids. Trash (deleted_at IS NOT NULL) is
+ * excluded — matches lazy-guard.ts:getTradesForSymbolDate precedent.
+ * Re-ordering and missing-id skip handled by the pure orderByIds
+ * helper (src/lib/orderByIds.ts) — see that module for the contract.
+ */
+export function getTradesByIdsForTechnicals(
+  ids: readonly number[],
+): TradeForTechnicalsRow[] {
+  if (ids.length === 0) return []
+  const db = openDatabase()
+  const placeholders = ids.map(() => '?').join(',')
+  const rows = db
+    .prepare(
+      `SELECT id, symbol, date, side, executions_json
+       FROM trades
+       WHERE id IN (${placeholders})
+         AND deleted_at IS NULL`,
+    )
+    .all(...ids) as TradeForTechnicalsRow[]
+  return orderByIds(rows, ids, (r) => r.id)
 }
 
 export interface ListTradesOptions {

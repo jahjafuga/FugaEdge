@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { IntradayBar } from '@shared/market-types'
 import {
   computeTradeTechnicals,
+  makeIncompleteTechnicals,
   TECHNICALS_SCHEMA_VERSION,
   type TradeForTechnicals,
 } from '../computeTradeTechnicals'
@@ -241,5 +242,81 @@ describe('computeTradeTechnicals — per-trade entry-state indicator extractor',
     const r = computeTradeTechnicals(trade, warmup, active)
     // totalQty 0 → entryPriceVwa 0 → (0 - 50)/50*100 = -100
     expect(r.tf_1m.vwap_dist_pct).toBeCloseTo(-100, 9)
+  })
+})
+
+describe('makeIncompleteTechnicals', () => {
+  // (a)
+  it('returns data_complete = false', () => {
+    const result = makeIncompleteTechnicals()
+    expect(result.data_complete).toBe(false)
+  })
+
+  // (b)
+  it('returns schema_version = TECHNICALS_SCHEMA_VERSION', () => {
+    const result = makeIncompleteTechnicals()
+    expect(result.schema_version).toBe(TECHNICALS_SCHEMA_VERSION)
+  })
+
+  // (c)
+  it('returns an ISO 8601 UTC computed_at', () => {
+    const result = makeIncompleteTechnicals()
+    // Z-suffix ISO is required by the existing TradeTechnicals contract
+    expect(result.computed_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    // Round-trips via Date
+    const ms = Date.parse(result.computed_at)
+    expect(Number.isFinite(ms)).toBe(true)
+  })
+
+  // (d) — every indicator field on tf_1m is null
+  it('returns all tf_1m indicator fields as null', () => {
+    const result = makeIncompleteTechnicals()
+    // Enumerate every field on TechnicalSnapshot per pre-flight #2.
+    const tf1m = result.tf_1m
+    expect(tf1m.macd_line).toBeNull()
+    expect(tf1m.signal_line).toBeNull()
+    expect(tf1m.histogram).toBeNull()
+    expect(tf1m.histogram_prior).toBeNull()
+    expect(tf1m.macd_positive).toBeNull()
+    expect(tf1m.macd_open).toBeNull()
+    expect(tf1m.macd_rising).toBeNull()
+    expect(tf1m.vwap).toBeNull()
+    expect(tf1m.vwap_dist_pct).toBeNull()
+    expect(tf1m.ema9).toBeNull()
+    expect(tf1m.ema9_dist_pct).toBeNull()
+    expect(tf1m.ema20).toBeNull()
+    expect(tf1m.ema20_dist_pct).toBeNull()
+    expect(tf1m.ema9_above_ema20).toBeNull()
+  })
+
+  // (e) — every indicator field on tf_5m is null
+  it('returns all tf_5m indicator fields as null', () => {
+    const result = makeIncompleteTechnicals()
+    const tf5m = result.tf_5m
+    expect(tf5m.macd_line).toBeNull()
+    expect(tf5m.signal_line).toBeNull()
+    expect(tf5m.histogram).toBeNull()
+    expect(tf5m.histogram_prior).toBeNull()
+    expect(tf5m.macd_positive).toBeNull()
+    expect(tf5m.macd_open).toBeNull()
+    expect(tf5m.macd_rising).toBeNull()
+    expect(tf5m.vwap).toBeNull()
+    expect(tf5m.vwap_dist_pct).toBeNull()
+    expect(tf5m.ema9).toBeNull()
+    expect(tf5m.ema9_dist_pct).toBeNull()
+    expect(tf5m.ema20).toBeNull()
+    expect(tf5m.ema20_dist_pct).toBeNull()
+    expect(tf5m.ema9_above_ema20).toBeNull()
+  })
+
+  // (f) — computed_at uses current time
+  it('returns a computed_at close to now', () => {
+    const before = Date.now()
+    const result = makeIncompleteTechnicals()
+    const after = Date.now()
+    const ms = Date.parse(result.computed_at)
+    // Allow 1 second of slack for slow CI
+    expect(ms).toBeGreaterThanOrEqual(before - 1000)
+    expect(ms).toBeLessThanOrEqual(after + 1000)
   })
 })

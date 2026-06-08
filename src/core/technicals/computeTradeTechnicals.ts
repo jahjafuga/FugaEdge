@@ -355,3 +355,41 @@ export function computeTradeTechnicals(
     schema_version: TECHNICALS_SCHEMA_VERSION,
   }
 }
+
+/**
+ * Build a placeholder TradeTechnicals for a trade whose indicator
+ * values cannot be computed — typically because intraday bars are
+ * not cached for the trade's (symbol, date) yet. The row exists with
+ * data_complete = false so Session 4's UI can surface "computed N of
+ * M trades" honestly rather than the trade silently disappearing.
+ *
+ * Stamps schema_version to the current TECHNICALS_SCHEMA_VERSION so
+ * a future schema bump will mark these rows stale (alongside missing
+ * rows and previously-failed rows) via getStaleTradeIds, giving them
+ * another chance to compute on the next bulk pass.
+ */
+export function makeIncompleteTechnicals(): TradeTechnicals {
+  const nullSnapshot: TechnicalSnapshot = {
+    macd_line: null,
+    signal_line: null,
+    histogram: null,
+    histogram_prior: null,
+    macd_positive: null,
+    macd_open: null,
+    macd_rising: null,
+    vwap: null,
+    vwap_dist_pct: null,
+    ema9: null,
+    ema9_dist_pct: null,
+    ema20: null,
+    ema20_dist_pct: null,
+    ema9_above_ema20: null,
+  }
+  return {
+    tf_1m: { ...nullSnapshot },
+    tf_5m: { ...nullSnapshot },
+    data_complete: false,
+    computed_at: new Date().toISOString(),
+    schema_version: TECHNICALS_SCHEMA_VERSION,
+  }
+}
