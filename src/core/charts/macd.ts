@@ -5,11 +5,12 @@
 //
 // Pure per ARCHITECTURE rule 1: no electron / fs / sqlite / lightweight-charts /
 // React imports — just math, so it stays unit-testable and web-portable. The EMA
-// helper is intentionally self-contained (mirrors the convention in ChartTab.tsx's
-// inline ema() and electron/lib/ema.ts) rather than shared — keeps this module
-// dependency-free; de-duplicating the three EMAs is parked tech debt.
+// helper is the shared, SMA-seeded `./ema` module (also consumed by Session 2's
+// computeTradeTechnicals), so the MACD sub-pane and the EMA9/EMA20 overlays stay
+// on one convention.
 
 import type { IntradayBar } from '@shared/market-types'
+import { ema } from './ema'
 
 export interface MacdPoint {
   /** Epoch ms, copied from the source bar. */
@@ -36,26 +37,6 @@ export interface MacdResult {
   macd: MacdPoint[]
   signal: MacdPoint[]
   histogram: MacdHistogramPoint[]
-}
-
-// Standard EMA, SMA-seeded. Returns a null-PREFIXED array index-aligned with
-// `values`: null for i < period - 1, the SMA seed at i === period - 1, then
-// exponentially smoothed (prev = value*k + prev*(1-k), k = 2/(period+1)). The
-// null prefix lets callers subtract two different-period EMAs in a parallel loop
-// without index gymnastics. Matches ChartTab.tsx:1538-1554 / electron/lib/ema.ts.
-function ema(values: number[], period: number): (number | null)[] {
-  const out: (number | null)[] = new Array<number | null>(values.length).fill(null)
-  if (period <= 0 || values.length < period) return out
-  const k = 2 / (period + 1)
-  let sum = 0
-  for (let i = 0; i < period; i++) sum += values[i]
-  let prev = sum / period
-  out[period - 1] = prev
-  for (let i = period; i < values.length; i++) {
-    prev = values[i] * k + prev * (1 - k)
-    out[i] = prev
-  }
-  return out
 }
 
 // Tag a histogram point by the direction of its change relative to zero. `prior`
