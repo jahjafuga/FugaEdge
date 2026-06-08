@@ -1030,18 +1030,11 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       // attaches to the existing pane (no _addPane invalidation,
       // no race with the candle/volume RAF loop).
       if (!r.macd) {
-        const line = r.api.addSeries(lc.LineSeries, {
-          color: COLOR_MACD_LINE,
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        }, 1)
-        const signal = r.api.addSeries(lc.LineSeries, {
-          color: COLOR_MACD_SIGNAL,
-          lineWidth: 2,
-          priceLineVisible: false,
-          lastValueVisible: false,
-        }, 1)
+        // Pane-1 paint order matters: lightweight-charts v5 paints
+        // last-added on top, so series are created back-to-front to
+        // place the histogram field at the back, the faint zero rule
+        // over it for continuity, and the MACD line + signal in front.
+        // Matches the TradingView / ToS convention.
         const histogram = r.api.addSeries(lc.HistogramSeries, {
           priceLineVisible: false,
           lastValueVisible: false,
@@ -1053,6 +1046,18 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           priceLineVisible: false,
           lastValueVisible: false,
           crosshairMarkerVisible: false,
+        }, 1)
+        const line = r.api.addSeries(lc.LineSeries, {
+          color: COLOR_MACD_LINE,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        }, 1)
+        const signal = r.api.addSeries(lc.LineSeries, {
+          color: COLOR_MACD_SIGNAL,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
         }, 1)
         r.macd = { line, signal, histogram, zero }
       }
