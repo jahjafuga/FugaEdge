@@ -19,6 +19,9 @@ import { int, price, signed, longDate, formatEastern } from '@/lib/format'
 import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 import { computeZoomLogicalRange, computeZoomWindow } from '@/core/charts/computeZoomWindow'
 import { computeFramedBand, type PriceRange } from '@/core/charts/computePriceRange'
+import type { MacdResult, HistogramMomentum } from '@/core/charts/macd'
+import { aggregate } from '@/core/charts/aggregate'
+import { computeMacdWithWarmup } from '@/core/charts/macdWithWarmup'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 import { FillLadderPrimitive } from './fillLadderPrimitive'
 
@@ -43,6 +46,31 @@ const COLOR_AVG_LINE_SELL = 'rgba(163, 45, 45, 0.85)'  // muted #A32D2D — avg 
 const COLOR_EMA9        = '#f3f5fa'  // 9EMA  — white (fg-primary white)
 const COLOR_EMA20       = '#5cc8e8'  // EMA20 — cyan / light blue
 const COLOR_VWAP        = '#d4af37'  // VWAP  — brand gold (= COLOR_GOLD)
+
+// MACD sub-pane palette (v0.2.4 Part 2) — pane 1 below the price pane. The MACD
+// line is a deeper blue, kept distinct from EMA20's lighter cyan (#5cc8e8); the
+// signal line introduces orange. The histogram carries four shades keyed to the
+// computeMacd momentum tag: bright = momentum strengthening in the bar's sign
+// direction, muted = weakening toward zero. Zero is a faint white rule at 0.
+const COLOR_MACD_LINE             = '#2196f3'  // MACD line — deeper blue
+const COLOR_MACD_SIGNAL           = '#ff9800'  // signal line — orange
+const COLOR_MACD_HIST_POS_RISING  = '#26a69a'  // strengthening bull — bright green
+const COLOR_MACD_HIST_POS_FALLING = '#a3d4cb'  // weakening bull — muted green
+const COLOR_MACD_HIST_NEG_RISING  = '#f5b3b0'  // weakening bear — muted red
+const COLOR_MACD_HIST_NEG_FALLING = '#ef5350'  // strengthening bear — bright red
+const COLOR_MACD_ZERO             = 'rgba(255,255,255,0.15)'  // faint zero rule
+
+// Map a histogram momentum tag to its bar color. Pure; mirrors the 4-state
+// union from core/charts/macd. Bright shades = strengthening in the histogram's
+// sign direction, muted = weakening toward the zero line.
+function histColor(m: HistogramMomentum): string {
+  switch (m) {
+    case 'pos_rising':  return COLOR_MACD_HIST_POS_RISING
+    case 'pos_falling': return COLOR_MACD_HIST_POS_FALLING
+    case 'neg_rising':  return COLOR_MACD_HIST_NEG_RISING
+    case 'neg_falling': return COLOR_MACD_HIST_NEG_FALLING
+  }
+}
 
 type Timeframe = '10s' | '1m' | '5m' | 'daily'
 
@@ -379,6 +407,21 @@ function ChartCanvas({
   // and the EMA overlay always agree on the same interval.
   const indicators = useMemo(() => computeIndicators(bars), [bars])
 
+  // MACD (12/26/9) for the sub-pane — warmup-wired (v0.2.4 Session 1). Unlike
+  // the candle/EMA/VWAP overlays (which read the active-only `bars`), MACD
+  // computes over [...warmupBars, ...bars] so its EMAs are fully converged by
+  // the first active bar, then filters the output back to active-day
+  // timestamps. 1M chart → 1m MACD, 5M chart → 5m MACD (the helper aggregates
+  // the union internally). Pure module; the host renders it on pane 1.
+  const macd = useMemo(
+    () => computeMacdWithWarmup(
+      payload.warmupBars,
+      payload.bars,
+      tf === '5m' ? 5 : 1,
+    ),
+    [payload.warmupBars, payload.bars, tf],
+  )
+
   // Compact label for the current timeframe — used as a parenthetical on
   // the indicator legend ("EMA9 (1m)") and the Entry-vs-EMA9 stat so the
   // user always knows what interval the EMA was computed against.
@@ -505,6 +548,7 @@ function ChartCanvas({
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
         indicators={indicators}
+        macd={macd}
       />
     </div>
   )
@@ -537,6 +581,10 @@ interface ChartHostProps {
    *  the scale stays constant whether or not a line is shown. The gated ema9/
    *  ema20/vwap above still drive the VISIBLE series. */
   indicators: IndicatorSeries
+  /** MACD (12/26/9) over the raw 1m bars — rendered always-on on pane 1 (Part
+   *  2). Empty arrays for short/early trades; the host removes the pane series
+   *  in that case. The INDICATORS toggle that will gate this lands in Part 3. */
+  macd: MacdResult
 }
 
 // Series state held in refs so re-renders never re-create the chart instance.
@@ -549,6 +597,14 @@ interface ChartRefs {
   ema9: import('lightweight-charts').ISeriesApi<'Line'> | null
   ema20: import('lightweight-charts').ISeriesApi<'Line'> | null
   vwap: import('lightweight-charts').ISeriesApi<'Line'> | null
+  // MACD pane-1 handles, created/removed as a unit (Part 2). Null until the
+  // first non-empty MACD; nulled again if a trade has too few bars to compute.
+  macd: {
+    line: import('lightweight-charts').ISeriesApi<'Line'>
+    signal: import('lightweight-charts').ISeriesApi<'Line'>
+    histogram: import('lightweight-charts').ISeriesApi<'Histogram'>
+    zero: import('lightweight-charts').ISeriesApi<'Line'>
+  } | null
   fillLadder: FillLadderPrimitive
 }
 
@@ -579,7 +635,7 @@ function makeBandProvider(band: PriceRange | null) {
   }
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap, indicators }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap, indicators, macd }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Flag-driven chart height (see chartHeightFor). Recomputed each render; the
   // height effect applies it to the chart API whenever it changes. createChart
@@ -719,6 +775,24 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         const fillLadder = new FillLadderPrimitive()
         candle.attachPrimitive(fillLadder)
 
+        // Pane geometry for the MACD sub-pane (Part 2): give the price pane
+        // (pane 0) a stretchFactor of 3 so it keeps ~75% of the height. Pane 0
+        // exists as soon as the candle series was added above, so panes()[0]
+        // resolves here.
+        chart.panes()[0].setStretchFactor(3)
+
+        // Create pane 1 explicitly at mount so the MACD effect's later
+        // addSeries(..., 1) attaches to an existing pane instead of
+        // triggering getOrCreatePane → _addPane → full-chart invalidation
+        // mid-RAF-loop (the race that broke candle/volume/MACD rendering
+        // in the original Part 2 wiring).
+        chart.addPane()
+        // chart.addPane() returns the new IPaneApi; default
+        // stretchFactor is 1, which is the 25% we want against pane 0's
+        // stretchFactor 3 (the 75/25 split). Set explicitly for clarity
+        // and resilience to future API changes.
+        chart.panes()[1].setStretchFactor(1)
+
         refs.current = {
           api: chart,
           candle,
@@ -726,6 +800,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           ema9: null,
           ema20: null,
           vwap: null,
+          macd: null,
           fillLadder,
         }
         // Fresh chart instance → allow a fresh framing. Under StrictMode the
@@ -924,6 +999,98 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     })()
   }, [ema9, ema20, vwap, chartReady, framedBand])
 
+  // MACD sub-pane (Part 2) — ALWAYS-ON on pane 1: line, signal, the per-bar
+  // shaded histogram, and a faint zero rule. Created lazily as a UNIT on the
+  // first non-empty MACD (mirrors the EMA/VWAP effect above) and removed as a
+  // unit when a trade has too few bars to compute. The pane itself materializes
+  // on the first addSeries(..., 1). MACD series deliberately do NOT take the
+  // price band's autoscale provider — pane 1 autoscales to MACD's own (tiny)
+  // value range, independent of the price pane.
+  useEffect(() => {
+    const r = refs.current
+    if (!r || !chartReady) return
+    void (async () => {
+      const lc = await import('lightweight-charts')
+
+      // Degenerate / early-trade case: no MACD data (bars < slow + signal). Tear
+      // the four series down as a unit so the pane empties cleanly.
+      if (macd.macd.length === 0) {
+        if (r.macd) {
+          r.api.removeSeries(r.macd.line)
+          r.api.removeSeries(r.macd.signal)
+          r.api.removeSeries(r.macd.histogram)
+          r.api.removeSeries(r.macd.zero)
+          r.macd = null
+        }
+        return
+      }
+
+      // Lazy-create all four series on pane 1. Pane 1 was created
+      // explicitly in the mount effect, so addSeries(..., 1) here
+      // attaches to the existing pane (no _addPane invalidation,
+      // no race with the candle/volume RAF loop).
+      if (!r.macd) {
+        const line = r.api.addSeries(lc.LineSeries, {
+          color: COLOR_MACD_LINE,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        }, 1)
+        const signal = r.api.addSeries(lc.LineSeries, {
+          color: COLOR_MACD_SIGNAL,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: false,
+        }, 1)
+        const histogram = r.api.addSeries(lc.HistogramSeries, {
+          priceLineVisible: false,
+          lastValueVisible: false,
+        }, 1)
+        const zero = r.api.addSeries(lc.LineSeries, {
+          color: COLOR_MACD_ZERO,
+          lineWidth: 1,
+          lineStyle: lc.LineStyle.Solid,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        }, 1)
+        r.macd = { line, signal, histogram, zero }
+      }
+
+      // Map each MACD output directly to chart format. No resampling or
+      // active-day filtering needed here — computeMacdWithWarmup already
+      // aggregated to the active timeframe and filtered to active-day
+      // timestamps, so its output aligns with the candle grid. The histogram
+      // uses the pure module's momentum tag directly.
+      if (r.macd) {
+        const macdLineData = macd.macd.map((p) => ({
+          time: secondsTime(p.time),
+          value: p.value,
+        }))
+        const macdSignalData = macd.signal.map((p) => ({
+          time: secondsTime(p.time),
+          value: p.value,
+        }))
+        const macdHistData = macd.histogram.map((p) => ({
+          time: secondsTime(p.time),
+          value: p.value,
+          color: histColor(p.momentum),
+        }))
+
+        r.macd.line.setData(macdLineData)
+        r.macd.signal.setData(macdSignalData)
+        r.macd.histogram.setData(macdHistData)
+
+        if (macdLineData.length > 0) {
+          r.macd.zero.setData([
+            { time: macdLineData[0].time, value: 0 },
+            { time: macdLineData[macdLineData.length - 1].time, value: 0 },
+          ])
+        }
+      }
+    })()
+  }, [macd, bars, chartReady])
+
   // Fill ladder — feed the canvas primitive the fills + the day's bars + the avg
   // entry/exit prices. The primitive runs the de-collision brain in its own draw()
   // (which needs live coords) and recomputes on each repaint; the pinned scale
@@ -973,6 +1140,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         .filter((m) => m.kind === 'exit')
         .sort((a, b) => a.time - b.time)
 
+      // Candle times (ascending) for snapping the avg-line endpoints onto the
+      // grid — see the snap logic below. Same source/order as the MACD effect's
+      // candleTimes; an ARRAY (not a Set) so we can walk it for the nearest
+      // candle <= rawFirst and >= rawLast.
+      const candleTimes = bars.map((b) => secondsTime(b.t))
+
       const addAvgLine = (
         avg: number | null,
         sideMarkers: typeof entryMarkers,
@@ -985,8 +1158,25 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         // sell-out landing every exit on one bar) still renders a visible
         // one-bar-wide segment instead of a zero-width line.
         const halfBarSec = (barIntervalMs / 2) / 1000
-        const paddedFirst = (firstTime - halfBarSec) as import('lightweight-charts').UTCTimestamp
-        const paddedLast = (lastTime + halfBarSec) as import('lightweight-charts').UTCTimestamp
+        const rawFirst = firstTime - halfBarSec
+        const rawLast = lastTime + halfBarSec
+        // Snap to candle grid so the off-grid endpoints don't corrupt
+        // lightweight-charts' shared timeScale (which would force sub-bar slot
+        // resolution and gappy candle rendering). Snap paddedFirst DOWN to the
+        // nearest candle <= rawFirst; snap paddedLast UP to the nearest candle
+        // >= rawLast.
+        let paddedFirstIdx = 0
+        for (let i = 0; i < candleTimes.length; i++) {
+          if (candleTimes[i] <= rawFirst) paddedFirstIdx = i
+          else break
+        }
+        let paddedLastIdx = candleTimes.length - 1
+        for (let i = candleTimes.length - 1; i >= 0; i--) {
+          if (candleTimes[i] >= rawLast) paddedLastIdx = i
+          else break
+        }
+        const paddedFirst = candleTimes[paddedFirstIdx] as import('lightweight-charts').UTCTimestamp
+        const paddedLast = candleTimes[paddedLastIdx] as import('lightweight-charts').UTCTimestamp
         const series = r.api.addSeries(lc.LineSeries, {
           color,
           lineWidth: 2,
@@ -1005,7 +1195,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       addAvgLine(tradeMarkers.avgEntry, entryMarkers, entryColor)
       addAvgLine(tradeMarkers.avgExit, exitMarkers, exitColor)
     })()
-  }, [trade, tradeMarkers, chartReady, barIntervalMs])
+  }, [trade, tradeMarkers, chartReady, barIntervalMs, bars])
 
   // Fit-to-fills handler, exposed to the toolbar via fitRef. Same logic as the
   // former FitToFillsButton (relocated for the unified toolbar): default the
@@ -1497,30 +1687,6 @@ function computeDayStats(bars: IntradayBar[]): DayStats {
     close: bars[bars.length - 1].c,
     volume,
   }
-}
-
-// Bucket 1-min bars into N-minute candles. Volumes sum, O/C/H/L combine.
-function aggregate(bars: IntradayBar[], minutes: number): IntradayBar[] {
-  if (bars.length === 0 || minutes <= 1) return bars
-  const bucketMs = minutes * 60 * 1000
-  const out: IntradayBar[] = []
-  let bucketStart = 0
-  let cur: IntradayBar | null = null
-  for (const b of bars) {
-    const start = Math.floor(b.t / bucketMs) * bucketMs
-    if (!cur || start !== bucketStart) {
-      if (cur) out.push(cur)
-      bucketStart = start
-      cur = { t: start, o: b.o, h: b.h, l: b.l, c: b.c, v: b.v }
-    } else {
-      cur.h = Math.max(cur.h, b.h)
-      cur.l = Math.min(cur.l, b.l)
-      cur.c = b.c
-      cur.v += b.v
-    }
-  }
-  if (cur) out.push(cur)
-  return out
 }
 
 interface IndicatorSeries {
