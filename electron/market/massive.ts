@@ -276,9 +276,10 @@ export interface IntradayBar {
 export async function fetchIntradayMinutes(
   apiKey: string,
   symbol: string,
-  date: string,   // YYYY-MM-DD, fetched as a single-day range
+  from: string,   // YYYY-MM-DD inclusive
+  to: string,     // YYYY-MM-DD inclusive (== from for a single active day)
 ): Promise<IntradayBar[]> {
-  const path = `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/minute/${date}/${date}?adjusted=true&sort=asc&limit=50000`
+  const path = `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/minute/${from}/${to}?adjusted=true&sort=asc&limit=50000`
   const data = await massiveGet<MassiveAggsResp>(apiKey, path)
   const out: IntradayBar[] = []
   for (const bar of data.results ?? []) {

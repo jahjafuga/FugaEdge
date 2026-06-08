@@ -134,12 +134,18 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     try {
       await respectSpacing()
       const bars = await withRateLimitRetry(() =>
-        fetchIntradayMinutes(polygon_api_key, symbol, date),
+        fetchIntradayMinutes(polygon_api_key, symbol, date, date),
       )
+      // Prior-day warmup bars are NOT fetched here — the on-demand
+      // getIntradayBars backfills them on the next trade open. A force=true bulk
+      // refresh therefore resets warmup_bars to [] (re-derived on next access);
+      // the default force=false refresh skips cleanly-cached rows, so it never
+      // wipes a populated warmup. (Proactive warmup-on-refresh is deferred.)
       upsertIntradayRow({
         symbol,
         date,
         bars,
+        warmup_bars: [],
         fetched_at: new Date().toISOString(),
         error: null,
       })
@@ -157,6 +163,7 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
         symbol,
         date,
         bars: [],
+        warmup_bars: [],
         fetched_at: new Date().toISOString(),
         error: message,
       })

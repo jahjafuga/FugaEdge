@@ -10,6 +10,7 @@ import { migrateFloatRename } from './migrate-float-rename'
 import { migrateAddDeletedAt } from './migrate-add-deleted-at'
 import { migrateScratchReclassify } from './migrate-scratch-reclassify'
 import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
+import { migrateAddWarmupBars } from './migrate-add-warmup-bars'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -817,6 +818,11 @@ function migrateAfterSchema(
   migrateResetMaeMfe(conn, priorVersion, {
     backup: () => backupBeforeMaeMfeResetMigration(conn, dbPath),
   })
+
+  // v0.2.4 — additive intraday_bars.warmup_bars column (prior-day MACD warmup).
+  // Idempotent PRAGMA-gated ALTER; no version gate, no backup (legacy rows keep
+  // warmup_bars NULL → parseBars maps to []). Same idiom as migrateAddDeletedAt.
+  migrateAddWarmupBars(conn)
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

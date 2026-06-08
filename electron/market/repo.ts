@@ -211,6 +211,9 @@ export interface IntradayRow {
   symbol: string
   date: string
   bars: IntradayBar[]
+  /** Prior-trading-days warmup bars (extended hours), for MACD warmup. Empty
+   *  on legacy rows until the on-demand backfill populates them. */
+  warmup_bars: IntradayBar[]
   fetched_at: string
   error: string | null
 }
@@ -219,6 +222,7 @@ interface IntradayDbRow {
   symbol: string
   date: string
   bars: string
+  warmup_bars: string | null  // NULL on legacy rows (pre-warmup migration)
   fetched_at: string
   error: string | null
 }
@@ -245,13 +249,14 @@ function parseBars(raw: string | null | undefined): IntradayBar[] {
 export function getIntradayRow(symbol: string, date: string): IntradayRow | null {
   const db = openDatabase()
   const row = db
-    .prepare('SELECT symbol, date, bars, fetched_at, error FROM intraday_bars WHERE symbol = ? AND date = ?')
+    .prepare('SELECT symbol, date, bars, warmup_bars, fetched_at, error FROM intraday_bars WHERE symbol = ? AND date = ?')
     .get(symbol, date) as IntradayDbRow | undefined
   if (!row) return null
   return {
     symbol: row.symbol,
     date: row.date,
     bars: parseBars(row.bars),
+    warmup_bars: parseBars(row.warmup_bars),  // parseBars(null) → []
     fetched_at: row.fetched_at,
     error: row.error,
   }
@@ -260,16 +265,18 @@ export function getIntradayRow(symbol: string, date: string): IntradayRow | null
 export function upsertIntradayRow(input: IntradayRow): void {
   const db = openDatabase()
   db.prepare(`
-    INSERT INTO intraday_bars (symbol, date, bars, fetched_at, error)
-    VALUES (@symbol, @date, @bars, @fetched_at, @error)
+    INSERT INTO intraday_bars (symbol, date, bars, warmup_bars, fetched_at, error)
+    VALUES (@symbol, @date, @bars, @warmup_bars, @fetched_at, @error)
     ON CONFLICT(symbol, date) DO UPDATE SET
-      bars       = excluded.bars,
-      fetched_at = excluded.fetched_at,
-      error      = excluded.error
+      bars        = excluded.bars,
+      warmup_bars = excluded.warmup_bars,
+      fetched_at  = excluded.fetched_at,
+      error       = excluded.error
   `).run({
     symbol: input.symbol,
     date: input.date,
     bars: JSON.stringify(input.bars ?? []),
+    warmup_bars: JSON.stringify(input.warmup_bars ?? []),
     fetched_at: input.fetched_at,
     error: input.error,
   })

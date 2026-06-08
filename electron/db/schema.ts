@@ -180,6 +180,7 @@ CREATE TABLE IF NOT EXISTS intraday_bars (
   symbol      TEXT NOT NULL,
   date        TEXT NOT NULL,
   bars        TEXT NOT NULL DEFAULT '[]',   -- JSON [{t,o,h,l,c,v}, ...]
+  warmup_bars TEXT,                         -- JSON prior-day warmup bars; NULL until backfilled (parseBars -> [])
   fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
   error       TEXT,
   PRIMARY KEY (symbol, date)

@@ -29,7 +29,7 @@ describe('massiveGet request timeout', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    const promise = fetchIntradayMinutes('key', 'AAA', '2026-05-01')
+    const promise = fetchIntradayMinutes('key', 'AAA', '2026-05-01', '2026-05-01')
     // Attach the rejection assertion before advancing timers so the pending
     // rejection is always handled.
     const settled = expect(promise).rejects.toThrow(/timed out/i)
@@ -58,7 +58,7 @@ describe('massiveGet request timeout', () => {
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => body }) as unknown as Response)
     vi.stubGlobal('fetch', fetchMock)
 
-    const bars = await fetchIntradayMinutes('key', 'AAA', '2026-05-01')
+    const bars = await fetchIntradayMinutes('key', 'AAA', '2026-05-01', '2026-05-01')
 
     expect(bars).toHaveLength(1)
     expect(bars[0]).toMatchObject({ t: 1, c: 1.5 })

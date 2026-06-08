@@ -105,6 +105,10 @@ export interface IntradayBarsPayload {
   date: string
   /** Empty when the (symbol, date) row has no cached bars and force=false. */
   bars: IntradayBar[]
+  /** Extended-hours bars from prior trading days, fetched for MACD warmup.
+   *  Empty when the cached row hasn't been backfilled yet or when the warmup
+   *  fetch failed silently. */
+  warmupBars: IntradayBar[]
   /** ISO timestamp when the bars were fetched. Null when never fetched. */
   fetchedAt: string | null
   /** Last error if the most recent fetch attempt failed; null on success. */
