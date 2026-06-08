@@ -40,7 +40,7 @@ async function fetchWarmupBars(
 // (cached before the warmup column shipped) have warmup_bars empty and get a
 // SILENT backfill on the next access. Warmup failures NEVER surface as an
 // error — the error field is reserved for active-day fetch failures.
-export async function getIntradayBars(
+async function getIntradayBarsInner(
   symbol: string,
   date: string,
   opts: GetBarsOptions = {},
@@ -165,4 +165,47 @@ export async function getIntradayBars(
       apiKeyMissing: false,
     }
   }
+}
+
+/**
+ * Public entry point. Calls the inner fetcher, and if the
+ * resolved payload is complete (warmup + active bars both
+ * present, no error), fires the lazy-guard hook via
+ * setImmediate (fire-and-forget; never awaited).
+ *
+ * The setImmediate defer matches the precedent at
+ * electron/main/index.ts:153 (setImmediate(
+ * runPendingMaeMfeBackfill)) — keeps the chart-open
+ * critical path snappy by yielding to the event loop
+ * before the (sync) compute + upsert runs.
+ */
+export async function getIntradayBars(
+  symbol: string,
+  date: string,
+  opts: GetBarsOptions = {},
+): Promise<IntradayBarsPayload> {
+  const payload = await getIntradayBarsInner(symbol, date, opts)
+
+  // Fire-and-forget the lazy-guard for complete payloads only.
+  // The hook is idempotent and self-gated, but we pre-check
+  // here to avoid the import cost in the no-op cases.
+  if (
+    !payload.error &&
+    payload.bars.length > 0 &&
+    payload.warmupBars.length > 0
+  ) {
+    setImmediate(() => {
+      // Lazy import to avoid loading the technicals layer on
+      // every bars-get call (the hook itself is small but
+      // pulls in the pure compute module which transitively
+      // touches the charts modules).
+      void import('../technicals/lazy-guard')
+        .then((m) => m.runLazyGuardForPayload(payload))
+        .catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[FE technicals] lazy-guard load failed: ${msg}`)
+        })
+    })
+  }
+  return payload
 }
