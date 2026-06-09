@@ -6,11 +6,22 @@
 //
 // Sibling of computeHeaderStrip; shares its Timeframe type and data-gate idiom.
 //
+// Session 5b.1.1 extracted the shared classifier: classifyMacdBucket (+ the
+// BucketKey union) is the single source of truth for "which bucket is this
+// trade in" — called internally here AND by rowsForBucket, the renderer's
+// accordion row resolver, so aggregation and row display never drift.
+// MacdStateGrid reuses BucketKey for its open-bucket state. computeMacdBuckets'
+// output is byte-identical to 5a.1.
+//
 // Pure per ARCHITECTURE rule 1: no electron / fs / db / React imports. The
 // identical module runs server-side on the future Next.js + Postgres port.
 
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from './headerStrip'
+
+/** The four MACD-state cells, in §G reading order (best → worst). Shared with
+ *  MacdStateGrid (open-bucket state) and rowsForBucket (accordion rows). */
+export type BucketKey = 'posRising' | 'posFalling' | 'negRising' | 'negFalling'
 
 /**
  * Stats for a single MACD-state bucket cell.
@@ -63,6 +74,33 @@ export interface MacdBucketStats {
   negFalling: BucketStats
 }
 
+/**
+ * The bucket a single trade lands in on the given timeframe, or null when it
+ * can't be placed — either the data gate failed (technicals null /
+ * !data_complete) OR an axis is null (§A3 first-bar). Single source of truth
+ * for classification: computeMacdBuckets accumulates through it and
+ * rowsForBucket resolves accordion rows through it, so the two never drift.
+ *
+ * macd_positive / macd_rising are read DIRECTLY (never re-derived from a
+ * histogram comparison — a null operand silently compares false and would
+ * mislabel a first-bar entry as "falling" instead of unclassifiable).
+ */
+export function classifyMacdBucket(
+  row: TradeWithTechnicalsRow,
+  timeframe: Timeframe,
+): BucketKey | null {
+  const t = row.technicals
+  if (t === null || !t.data_complete) return null
+  const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
+  const pos = snap.macd_positive
+  const rising = snap.macd_rising
+  if (pos === null || rising === null) return null
+  if (pos && rising) return 'posRising'
+  if (pos) return 'posFalling'
+  if (rising) return 'negRising'
+  return 'negFalling'
+}
+
 export function computeMacdBuckets(
   rows: TradeWithTechnicalsRow[],
   timeframe: Timeframe,
@@ -95,34 +133,27 @@ export function computeMacdBuckets(
   const negFalling = blank()
 
   for (const row of rows) {
-    const t = row.technicals
-    // Tier 1 — data gate: only complete snapshots can be classified.
-    if (t === null || !t.data_complete) {
-      excluded += 1
+    const key = classifyMacdBucket(row, timeframe)
+    if (key === null) {
+      // Split the single null into the two tier counters — the classifier is
+      // intentionally bucket-or-null, so re-read the gate state here to tell
+      // excluded (gate fail) from unclassified (axis null). Cheap.
+      const t = row.technicals
+      if (t === null || !t.data_complete) excluded += 1
+      else unclassified += 1
       continue
     }
 
-    const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
-    // Read macd_positive / macd_rising DIRECTLY — never re-derive rising from a
-    // histogram comparison: a null operand silently compares false and would
-    // mislabel a first-bar entry (§A3) as "falling" instead of unclassifiable.
-    const pos = snap.macd_positive
-    const rising = snap.macd_rising
-
-    // Tier 2 — unclassifiable: a null on either axis means there's no single
-    // cell for this trade, so it leaves the grid here (still counted, honestly).
-    if (pos === null || rising === null) {
-      unclassified += 1
-      continue
-    }
-
-    // Tier 3 — classifiable: lands in exactly one bucket.
+    // Classifiable — lands in exactly one bucket.
     denominator += 1
-    let bucket: Acc
-    if (pos && rising) bucket = posRising
-    else if (pos) bucket = posFalling
-    else if (rising) bucket = negRising
-    else bucket = negFalling
+    const bucket =
+      key === 'posRising'
+        ? posRising
+        : key === 'posFalling'
+          ? posFalling
+          : key === 'negRising'
+            ? negRising
+            : negFalling
 
     // Breakeven (net_pnl === 0) counts as a loss per §A7, so a winner is
     // strictly > 0.
@@ -174,4 +205,18 @@ export function computeMacdBuckets(
     negRising: toBucket(negRising),
     negFalling: toBucket(negFalling),
   }
+}
+
+/**
+ * The classifiable trades that land in `key` on `timeframe`, in input order —
+ * the accordion's row source (5b). Re-uses classifyMacdBucket so the rows shown
+ * under a cell exactly match that cell's counts; excluded / unclassified trades
+ * land in no bucket and never appear here.
+ */
+export function rowsForBucket(
+  rows: TradeWithTechnicalsRow[],
+  timeframe: Timeframe,
+  key: BucketKey,
+): TradeWithTechnicalsRow[] {
+  return rows.filter((row) => classifyMacdBucket(row, timeframe) === key)
 }

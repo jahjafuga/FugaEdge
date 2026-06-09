@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeMacdBuckets } from '../macdBuckets'
+import { computeMacdBuckets, classifyMacdBucket, rowsForBucket } from '../macdBuckets'
 import type { MacdBucketStats } from '../macdBuckets'
 import type {
   TechnicalSnapshot,
@@ -374,5 +374,123 @@ describe('computeMacdBuckets — expectancy suppression', () => {
     expect(b.n).toBe(6)
     expect(b.expectancy).toBe(100) // 600 / 6
     expectDenominatorInvariant(result)
+  })
+})
+
+// ── classifyMacdBucket (5b.1.1) ──────────────────────────────────────────────
+
+describe('classifyMacdBucket', () => {
+  it('(C1) positive + rising → posRising', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, true, true), '1m')).toBe('posRising')
+  })
+
+  it('(C2) positive + falling → posFalling', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, true, false), '1m')).toBe('posFalling')
+  })
+
+  it('(C3) negative + rising → negRising', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, false, true), '1m')).toBe('negRising')
+  })
+
+  it('(C4) negative + falling → negFalling', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, false, false), '1m')).toBe('negFalling')
+  })
+
+  it('(C5) technicals null → null (data gate)', () => {
+    expect(classifyMacdBucket(makeRow({ technicals: null }), '1m')).toBeNull()
+  })
+
+  it('(C6) data_complete false → null (data gate)', () => {
+    const tech = makeCompleteSnapshot({ macd_positive: true, macd_rising: true })
+    tech.data_complete = false
+    expect(classifyMacdBucket(makeRow({ technicals: tech }), '1m')).toBeNull()
+  })
+
+  it('(C7) macd_positive null → null (unclassifiable)', () => {
+    const row = makeRow({
+      technicals: makeCompleteSnapshot({ macd_positive: null, macd_rising: true }),
+    })
+    expect(classifyMacdBucket(row, '1m')).toBeNull()
+  })
+
+  it('(C8) macd_rising null → null (unclassifiable, §A3 first-bar)', () => {
+    const row = makeRow({
+      technicals: makeCompleteSnapshot({ macd_positive: true, macd_rising: null }),
+    })
+    expect(classifyMacdBucket(row, '1m')).toBeNull()
+  })
+
+  it('(C9) classification follows the toggled timeframe', () => {
+    const tech = makeCompleteSnapshot(
+      { macd_positive: true, macd_rising: true }, // tf_1m → posRising
+      { macd_positive: false, macd_rising: true }, // tf_5m → negRising
+    )
+    const row = makeRow({ technicals: tech })
+    expect(classifyMacdBucket(row, '1m')).toBe('posRising')
+    expect(classifyMacdBucket(row, '5m')).toBe('negRising')
+  })
+})
+
+// ── rowsForBucket (5b.1.1) ───────────────────────────────────────────────────
+
+describe('rowsForBucket', () => {
+  it('(R1) empty input → [] for every bucket key', () => {
+    const keys = ['posRising', 'posFalling', 'negRising', 'negFalling'] as const
+    for (const key of keys) {
+      expect(rowsForBucket([], '1m', key)).toEqual([])
+    }
+  })
+
+  it('(R2) single posRising row, asked for posRising → returns it', () => {
+    const row = bucketRow(1, 100, true, true)
+    expect(rowsForBucket([row], '1m', 'posRising')).toEqual([row])
+  })
+
+  it('(R3) single posRising row, asked for posFalling → []', () => {
+    const row = bucketRow(1, 100, true, true)
+    expect(rowsForBucket([row], '1m', 'posFalling')).toEqual([])
+  })
+
+  it('(R4) mixed input → each key returns only its trade; gate-fail + unclassified never appear', () => {
+    const incomplete = makeCompleteSnapshot()
+    incomplete.data_complete = false
+    const gateFailNull = makeRow({ id: 1, technicals: null })
+    const gateFailIncomplete = makeRow({ id: 2, technicals: incomplete })
+    const unclassified = makeRow({
+      id: 3,
+      technicals: makeCompleteSnapshot({ macd_rising: null }),
+    })
+    const pr = bucketRow(4, 10, true, true)
+    const pf = bucketRow(5, 20, true, false)
+    const nr = bucketRow(6, 30, false, true)
+    const nf = bucketRow(7, 40, false, false)
+    const rows = [gateFailNull, gateFailIncomplete, unclassified, pr, pf, nr, nf]
+
+    expect(rowsForBucket(rows, '1m', 'posRising')).toEqual([pr])
+    expect(rowsForBucket(rows, '1m', 'posFalling')).toEqual([pf])
+    expect(rowsForBucket(rows, '1m', 'negRising')).toEqual([nr])
+    expect(rowsForBucket(rows, '1m', 'negFalling')).toEqual([nf])
+
+    const allBucketed = [
+      ...rowsForBucket(rows, '1m', 'posRising'),
+      ...rowsForBucket(rows, '1m', 'posFalling'),
+      ...rowsForBucket(rows, '1m', 'negRising'),
+      ...rowsForBucket(rows, '1m', 'negFalling'),
+    ]
+    expect(allBucketed).not.toContain(gateFailNull)
+    expect(allBucketed).not.toContain(gateFailIncomplete)
+    expect(allBucketed).not.toContain(unclassified)
+  })
+
+  it('(R5) timeframe-dependent: same row resolves to different buckets per timeframe', () => {
+    const tech = makeCompleteSnapshot(
+      { macd_positive: true, macd_rising: true }, // 1m → posRising
+      { macd_positive: false, macd_rising: true }, // 5m → negRising
+    )
+    const row = makeRow({ technicals: tech })
+    expect(rowsForBucket([row], '1m', 'posRising')).toEqual([row])
+    expect(rowsForBucket([row], '1m', 'negRising')).toEqual([])
+    expect(rowsForBucket([row], '5m', 'negRising')).toEqual([row])
+    expect(rowsForBucket([row], '5m', 'posRising')).toEqual([])
   })
 })
