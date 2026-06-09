@@ -1,0 +1,189 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+// Beat 2.2a — repo extension for the warmup backfill (v0.2.4 §K). TDD.
+//
+// Two surfaces under test:
+//   1. IntradayRow.warmup_attempted_at round-trips through upsertIntradayRow
+//      (bound on INSERT + carried in ON CONFLICT) and getIntradayRow (SELECTed +
+//      mapped) — the exact mirror of repo-industry.test.ts's market_data.industry
+//      round-trip (write path is easy to remember; the read path is the one that
+//      silently drops a column if it's missing from the SELECT list).
+//   2. warmupKeysNeedingFetch — the §K eligibility worklist. Per the locked
+//      "Option C" design it computes bar-emptiness as SQL booleans (has_bars /
+//      warmup_empty) and filters in JS, so the selection logic is unit-testable
+//      with canned rows (mirrors intraday-needing-fetch.test.ts's JS-filter).
+//
+// better-sqlite3's native binary won't load under vitest (built for Electron's
+// ABI), so '../../db/database' is mocked with a shim that BOTH captures the
+// prepared SQL + bound params (round-trip assertions) AND feeds canned rows to
+// .all() (worklist assertions). Same approach as repo-industry.test.ts /
+// intraday-needing-fetch.test.ts.
+//
+// repo is imported as a namespace so warmupKeysNeedingFetch — not yet exported
+// during the RED phase — surfaces as `undefined` and fails each worklist test
+// with "is not a function", instead of a missing-named-export collection crash.
+
+interface Prepared {
+  sql: string
+  runArgs: unknown[]
+  getArgs: unknown[]
+}
+
+let prepared: Prepared[] = []
+let cannedGetRow: Record<string, unknown> | undefined
+let cannedAllRows: Record<string, unknown>[] = []
+
+const mockDb = {
+  prepare(sql: string) {
+    const rec: Prepared = { sql, runArgs: [], getArgs: [] }
+    prepared.push(rec)
+    return {
+      run: (...args: unknown[]) => {
+        rec.runArgs = args
+        return { changes: 1 }
+      },
+      get: (...args: unknown[]) => {
+        rec.getArgs = args
+        return cannedGetRow
+      },
+      all: () => cannedAllRows,
+    }
+  },
+}
+
+vi.mock('../../db/database', () => ({
+  openDatabase: () => mockDb,
+  getDbPath: () => ':memory:',
+}))
+
+import * as repo from '../repo'
+import type { IntradayRow } from '../repo'
+
+const bar = (t: number) => ({ t, o: 1, h: 1, l: 1, c: 1, v: 1 })
+
+function fullIntradayRow(over: Partial<IntradayRow> = {}): IntradayRow {
+  return {
+    symbol: 'AAA',
+    date: '2026-05-01',
+    bars: [bar(1)],
+    warmup_bars: [],
+    fetched_at: '2026-05-01T00:00:00.000Z',
+    error: null,
+    ...over,
+  }
+}
+
+beforeEach(() => {
+  prepared = []
+  cannedGetRow = undefined
+  cannedAllRows = []
+})
+
+describe('IntradayRow.warmup_attempted_at round-trip via upsert/get', () => {
+  it('upsertIntradayRow binds warmup_attempted_at into the INSERT when set', () => {
+    repo.upsertIntradayRow(fullIntradayRow({ warmup_attempted_at: '2026-06-09T00:00:00.000Z' }))
+    const insert = prepared.find((p) => /INSERT INTO intraday_bars/i.test(p.sql))
+    expect(insert).toBeDefined()
+    expect(insert!.sql).toMatch(/\bwarmup_attempted_at\b/)
+    // ON CONFLICT must carry it too, else a re-upsert wouldn't refresh the marker.
+    expect(insert!.sql).toMatch(/warmup_attempted_at\s*=\s*excluded\.warmup_attempted_at/i)
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.warmup_attempted_at).toBe('2026-06-09T00:00:00.000Z')
+  })
+
+  it('upsertIntradayRow binds null when warmup_attempted_at is absent (existing callers)', () => {
+    repo.upsertIntradayRow(fullIntradayRow())
+    const insert = prepared.find((p) => /INSERT INTO intraday_bars/i.test(p.sql))
+    expect(insert).toBeDefined()
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.warmup_attempted_at).toBeNull()
+  })
+
+  it('getIntradayRow SELECTs warmup_attempted_at and maps a NULL through as null', () => {
+    cannedGetRow = {
+      symbol: 'AAA', date: '2026-05-01', bars: '[]', warmup_bars: null,
+      fetched_at: '2026-05-01T00:00:00.000Z', error: null, warmup_attempted_at: null,
+    }
+    const row = repo.getIntradayRow('AAA', '2026-05-01')
+    const select = prepared.find((p) => /SELECT .* FROM intraday_bars WHERE symbol/is.test(p.sql))
+    expect(select).toBeDefined()
+    expect(select!.sql).toMatch(/\bwarmup_attempted_at\b/)
+    expect(row!.warmup_attempted_at).toBeNull()
+  })
+
+  it('getIntradayRow returns warmup_attempted_at as the ISO string when set', () => {
+    cannedGetRow = {
+      symbol: 'AAA', date: '2026-05-01', bars: '[]', warmup_bars: null,
+      fetched_at: '2026-05-01T00:00:00.000Z', error: null,
+      warmup_attempted_at: '2026-06-09T12:00:00.000Z',
+    }
+    const row = repo.getIntradayRow('AAA', '2026-05-01')
+    expect(row!.warmup_attempted_at).toBe('2026-06-09T12:00:00.000Z')
+  })
+})
+
+describe('warmupKeysNeedingFetch', () => {
+  // A row that passes every eligibility clause; each test perturbs one field.
+  const eligible = (over: Record<string, unknown> = {}) => ({
+    symbol: 'AAA', date: '2026-05-01',
+    warmup_attempted_at: null, error: null, has_bars: 1, warmup_empty: 1,
+    ...over,
+  })
+
+  it('empty intraday_bars → returns []', () => {
+    cannedAllRows = []
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('eligible row (never attempted, no error, has bars, warmup empty) → returned', () => {
+    cannedAllRows = [eligible()]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([{ symbol: 'AAA', date: '2026-05-01' }])
+  })
+
+  it('warmup_attempted_at set (an ISO string) → NOT returned', () => {
+    cannedAllRows = [eligible({ warmup_attempted_at: '2026-06-09T00:00:00.000Z' })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('error set → NOT returned', () => {
+    cannedAllRows = [eligible({ error: '429: 429 Too Many Requests' })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('has_bars = 0 (bars = "[]") → NOT returned', () => {
+    cannedAllRows = [eligible({ has_bars: 0 })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('warmup_empty = 0 (warmup already populated) → NOT returned', () => {
+    cannedAllRows = [eligible({ warmup_empty: 0 })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('mixed rows → only the eligible one is returned', () => {
+    cannedAllRows = [
+      eligible({ symbol: 'ELIG', date: '2026-05-03' }),
+      eligible({ symbol: 'DONE', date: '2026-05-02', warmup_attempted_at: '2026-06-09T00:00:00.000Z' }),
+      eligible({ symbol: 'NOBARS', date: '2026-05-01', has_bars: 0 }),
+      eligible({ symbol: 'HASWARM', date: '2026-05-04', warmup_empty: 0 }),
+    ]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([{ symbol: 'ELIG', date: '2026-05-03' }])
+  })
+
+  it('orders by date DESC (SQL clause pinned; JS preserves row order)', () => {
+    cannedAllRows = [
+      eligible({ symbol: 'A', date: '2026-05-03' }),
+      eligible({ symbol: 'B', date: '2026-05-02' }),
+      eligible({ symbol: 'C', date: '2026-05-01' }),
+    ]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([
+      { symbol: 'A', date: '2026-05-03' },
+      { symbol: 'B', date: '2026-05-02' },
+      { symbol: 'C', date: '2026-05-01' },
+    ])
+    // The mock .all() can't sort, so pin the ORDER BY directive in the SQL itself.
+    const select = prepared.find((p) => /FROM intraday_bars/i.test(p.sql) && /ORDER BY/i.test(p.sql))
+    expect(select).toBeDefined()
+    expect(select!.sql).toMatch(/ORDER BY\s+date DESC,\s*symbol ASC/i)
+  })
+})

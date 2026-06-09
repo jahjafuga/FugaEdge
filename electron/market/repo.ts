@@ -214,6 +214,10 @@ export interface IntradayRow {
   /** Prior-trading-days warmup bars (extended hours), for MACD warmup. Empty
    *  on legacy rows until the on-demand backfill populates them. */
   warmup_bars: IntradayBar[]
+  /** ISO timestamp of the last warmup-fetch attempt (success/empty/error);
+   *  null = never attempted. Optional on input — the legacy callers omit it,
+   *  which coerces to NULL on write (§K runWarmupBackfill marker). */
+  warmup_attempted_at?: string | null
   fetched_at: string
   error: string | null
 }
@@ -223,6 +227,7 @@ interface IntradayDbRow {
   date: string
   bars: string
   warmup_bars: string | null  // NULL on legacy rows (pre-warmup migration)
+  warmup_attempted_at: string | null  // NULL until runWarmupBackfill marks it
   fetched_at: string
   error: string | null
 }
@@ -249,7 +254,7 @@ function parseBars(raw: string | null | undefined): IntradayBar[] {
 export function getIntradayRow(symbol: string, date: string): IntradayRow | null {
   const db = openDatabase()
   const row = db
-    .prepare('SELECT symbol, date, bars, warmup_bars, fetched_at, error FROM intraday_bars WHERE symbol = ? AND date = ?')
+    .prepare('SELECT symbol, date, bars, warmup_bars, warmup_attempted_at, fetched_at, error FROM intraday_bars WHERE symbol = ? AND date = ?')
     .get(symbol, date) as IntradayDbRow | undefined
   if (!row) return null
   return {
@@ -257,6 +262,7 @@ export function getIntradayRow(symbol: string, date: string): IntradayRow | null
     date: row.date,
     bars: parseBars(row.bars),
     warmup_bars: parseBars(row.warmup_bars),  // parseBars(null) → []
+    warmup_attempted_at: row.warmup_attempted_at,  // TEXT ts; null stays null
     fetched_at: row.fetched_at,
     error: row.error,
   }
@@ -265,18 +271,23 @@ export function getIntradayRow(symbol: string, date: string): IntradayRow | null
 export function upsertIntradayRow(input: IntradayRow): void {
   const db = openDatabase()
   db.prepare(`
-    INSERT INTO intraday_bars (symbol, date, bars, warmup_bars, fetched_at, error)
-    VALUES (@symbol, @date, @bars, @warmup_bars, @fetched_at, @error)
+    INSERT INTO intraday_bars (symbol, date, bars, warmup_bars, warmup_attempted_at, fetched_at, error)
+    VALUES (@symbol, @date, @bars, @warmup_bars, @warmup_attempted_at, @fetched_at, @error)
     ON CONFLICT(symbol, date) DO UPDATE SET
-      bars        = excluded.bars,
-      warmup_bars = excluded.warmup_bars,
-      fetched_at  = excluded.fetched_at,
-      error       = excluded.error
+      bars                = excluded.bars,
+      warmup_bars         = excluded.warmup_bars,
+      warmup_attempted_at = excluded.warmup_attempted_at,
+      fetched_at          = excluded.fetched_at,
+      error               = excluded.error
   `).run({
     symbol: input.symbol,
     date: input.date,
     bars: JSON.stringify(input.bars ?? []),
     warmup_bars: JSON.stringify(input.warmup_bars ?? []),
+    // ?? null is load-bearing: the legacy callers omit warmup_attempted_at, and
+    // better-sqlite3 throws on an undefined bound param. null marks "never
+    // attempted" (and re-NULLs the marker on a forced-refresh fetchOne, §K).
+    warmup_attempted_at: input.warmup_attempted_at ?? null,
     fetched_at: input.fetched_at,
     error: input.error,
   })
@@ -327,6 +338,36 @@ export function intradayPairsNeedingFetch(force: boolean): IntradayFetchWorklist
     else cooldownSkipped++
   }
   return { pairs, cooldownSkipped }
+}
+
+// v0.2.4 §K — eligibility worklist for runWarmupBackfill: (symbol, date) keys
+// with active bars but empty warmup that haven't been attempted yet. Bar-
+// emptiness is computed as SQL booleans (has_bars / warmup_empty) so the SELECT
+// payload stays tiny — never the multi-KB bars JSON — while the predicate
+// combination filters in JS (mirrors intradayPairsNeedingFetch). The
+// warmup_attempted_at IS NULL clause prevents a futile re-fetch loop for
+// holiday-window / out-of-coverage dates that legitimately return no warmup.
+export function warmupKeysNeedingFetch(): { symbol: string; date: string }[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare(`
+      SELECT symbol, date, warmup_attempted_at, error,
+             (bars != '[]')                              AS has_bars,
+             (warmup_bars IS NULL OR warmup_bars = '[]') AS warmup_empty
+      FROM intraday_bars
+      ORDER BY date DESC, symbol ASC
+    `)
+    .all() as {
+      symbol: string
+      date: string
+      warmup_attempted_at: string | null
+      error: string | null
+      has_bars: number
+      warmup_empty: number
+    }[]
+  return rows
+    .filter((r) => r.warmup_attempted_at == null && r.error == null && r.has_bars && r.warmup_empty)
+    .map((r) => ({ symbol: r.symbol, date: r.date }))
 }
 
 export function setTradeEma9Distance(tradeId: number, pct: number | null): void {
