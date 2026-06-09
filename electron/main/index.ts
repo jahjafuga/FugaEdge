@@ -19,6 +19,7 @@ import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
 import { runPendingMaeMfeBackfill } from '../market/intraday'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
+import { runWarmupBackfill } from '../market/warmup-backfill'
 import { registerChartsIpc } from '../charts/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
@@ -153,29 +154,43 @@ app.whenReady().then(() => {
   // cached intraday_bars once the window is up. Deferred to ready-to-show +
   // setImmediate so it never blocks first paint; no-op (flag unset) on launches
   // where the migration didn't run. See runPendingMaeMfeBackfill.
-  // v0.2.4 Session 3 — at the same ready-to-show beat, kick off the bulk
-  // trade_technicals backfill. Self-gated: returns immediately when
-  // getStaleTradeIds is empty, so it's a no-op on launches with no stale
-  // trades (the steady-state after the first run). Fire-and-forget with
-  // an explicit .catch so a backfill failure logs to the main-process
-  // console without crashing the app — mirrors the lazy-guard hook
-  // shape at electron/market/bars-get.ts:194-209. The win.isDestroyed()
-  // guard protects against window-close mid-backfill: the run continues
-  // but progress emissions stop, since wc.send on a destroyed window
-  // throws.
+  // v0.2.4 §K — at the same ready-to-show beat, run the launch backfill pair.
+  // ORDER IS LOAD-BEARING: runWarmupBackfill populates intraday_bars.warmup_bars,
+  // and runTradeTechnicalsBackfill then CONSUMES that warmup to flip stub trades
+  // from data_complete=0 to 1. Running them in parallel (or technicals first)
+  // would let the technicals sweep recompute rows whose warmup hasn't landed yet
+  // and re-write placeholders — so first launch would never self-heal. A single
+  // awaited async block is the only honest sequencing; separate setImmediates
+  // give no ordering guarantee. Both are self-gated no-ops once the steady state
+  // is reached (empty warmup worklist / no stale technicals). One try/catch
+  // (log only) so a backfill failure never crashes the app — mirrors the
+  // lazy-guard hook shape at electron/market/bars-get.ts:194-209. The
+  // win.isDestroyed() guard drops progress emissions after a window close, since
+  // wc.send on a destroyed window throws. (runPendingMaeMfeBackfill stays a
+  // separate parallel setImmediate — it's the independent v0.2.3 mae/mfe
+  // recompute, unrelated to the warmup→technicals chain.)
   win.once('ready-to-show', () => {
     setImmediate(runPendingMaeMfeBackfill)
-    setImmediate(() => {
-      void runTradeTechnicalsBackfill({
-        onProgress: (p) => {
-          if (!win.isDestroyed()) {
-            win.webContents.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p)
-          }
-        },
-      }).catch((err) => {
+    setImmediate(async () => {
+      try {
+        await runWarmupBackfill({
+          onProgress: (p) => {
+            if (!win.isDestroyed()) {
+              win.webContents.send(IPC.WARMUP_BACKFILL_PROGRESS, p)
+            }
+          },
+        })
+        await runTradeTechnicalsBackfill({
+          onProgress: (p) => {
+            if (!win.isDestroyed()) {
+              win.webContents.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p)
+            }
+          },
+        })
+      } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[FE technicals] bulk backfill failed: ${msg}`)
-      })
+        console.error(`[FE launch backfill] warmup→technicals failed: ${msg}`)
+      }
     })
   })
   // Auto-updater is gated on app.isPackaged inside startAutoUpdater, so
