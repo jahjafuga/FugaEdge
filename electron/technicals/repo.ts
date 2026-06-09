@@ -14,25 +14,12 @@
 // number end to end.
 
 import { openDatabase } from '../db/database'
+import type { TradeTechnicals } from '@/core/technicals/computeTradeTechnicals'
 import type {
-  TechnicalSnapshot,
-  TradeTechnicals,
-} from '@/core/technicals/computeTradeTechnicals'
-
-/**
- * Parsed trade_technicals row as exposed to callers.
- * Includes trade_id (added by the repo) and structurally
- * compatible with the pure compute's TradeTechnicals
- * output via the tf_1m / tf_5m / data_complete / etc fields.
- */
-export interface TradeTechnicalsRow {
-  trade_id: number
-  tf_1m: TechnicalSnapshot
-  tf_5m: TechnicalSnapshot
-  data_complete: boolean
-  computed_at: string
-  schema_version: number
-}
+  ListTradesWithTechnicalsOptions,
+  TradeTechnicalsRow,
+  TradeWithTechnicalsRow,
+} from '@shared/technicals-types'
 
 /**
  * Raw DB row shape — flat columns, INTEGER-encoded booleans
@@ -368,35 +355,6 @@ export interface TradeWithTechnicalsDbRow {
   data_complete: number | null
   computed_at: string | null
   schema_version: number | null
-}
-
-/**
- * Parsed bulk-reader row: lean trade context joined to the nested
- * per-timeframe technicals snapshot. `technicals` is null when no
- * trade_technicals row exists yet (LEFT JOIN didn't match), so the
- * renderer can count these toward the "N excluded (no indicator
- * data)" chip per spec §C:103.
- */
-export interface TradeWithTechnicalsRow {
-  id: number
-  symbol: string
-  date: string
-  side: 'long' | 'short'
-  net_pnl: number
-  playbook_id: number | null
-  playbook_name: string | null
-  technicals: TradeTechnicalsRow | null
-}
-
-/**
- * Options for listTradesWithTechnicals.
- */
-export interface ListTradesWithTechnicalsOptions {
-  /** Inclusive Eastern-trading-day range (YYYY-MM-DD). Both must be
-   *  set together; a partial range (only from OR only to) is
-   *  silently ignored (no date filter applied). */
-  from?: string
-  to?: string
 }
 
 /**
