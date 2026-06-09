@@ -70,6 +70,12 @@ const config: Config = {
           DEFAULT: 'rgb(var(--loss) / <alpha-value>)',
           soft:    'rgb(var(--loss) / 0.12)',
         },
+        // MACD bucket palette (spec §G) — flat tokens; the v0.2.4 4-bucket
+        // grid tints cells via bg-macd-{slug}/[0.12], the TierBadge idiom.
+        'macd-pos-rising':  'rgb(var(--macd-pos-rising) / <alpha-value>)',
+        'macd-pos-falling': 'rgb(var(--macd-pos-falling) / <alpha-value>)',
+        'macd-neg-rising':  'rgb(var(--macd-neg-rising) / <alpha-value>)',
+        'macd-neg-falling': 'rgb(var(--macd-neg-falling) / <alpha-value>)',
         // System
         neutral: 'rgb(var(--neutral) / <alpha-value>)',
         info:    'rgb(var(--info) / <alpha-value>)',

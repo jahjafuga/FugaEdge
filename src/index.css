@@ -73,6 +73,15 @@
        darkens to green-700 for readable, professional financial numerics. */
     --win-text: 52 211 153;      /* matches --win in dark mode */
 
+    /* MACD bucket palette (spec §G) — used by the v0.2.4 Technical
+       Analysis 4-bucket grid. :root only (no :root.light override),
+       mirroring --loss: a shared accent identical across themes. The
+       grid tints cells at ~0.12 opacity via bg-macd-{slug}/[0.12]. */
+    --macd-pos-rising:  38 166 154;   /* #26a69a  Positive + Rising */
+    --macd-pos-falling: 245 176 65;   /* #f5b041  Positive + Falling */
+    --macd-neg-rising:  170 183 184;  /* #aab7b8  Negative + Rising */
+    --macd-neg-falling: 239 83 80;    /* #ef5350  Negative + Falling */
+
     /* System */
     --neutral: 148 163 184;      /* #94a3b8 */
     --info: 96 165 250;          /* #60a5fa */
