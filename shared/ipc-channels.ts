@@ -106,6 +106,7 @@ export const IPC = {
   // exists so Session 4's Technical Analysis tab (or any future
   // subscriber) can listen without a main-process change.
   TECHNICALS_BACKFILL_PROGRESS: 'technicals:backfillProgress',
+  TECHNICALS_LIST: 'technicals:list',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

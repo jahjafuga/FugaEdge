@@ -68,6 +68,10 @@ import type {
 import type { DataHealth } from '@shared/data-health-types'
 import type { DayDetail } from '@shared/day-types'
 import type { WeekDetail } from '@shared/week-types'
+import type {
+  ListTradesWithTechnicalsOptions,
+  TradeWithTechnicalsRow,
+} from '@shared/technicals-types'
 
 const api = {
   ping: (): Promise<string> => ipcRenderer.invoke(IPC.PING),
@@ -84,6 +88,8 @@ const api = {
     ipcRenderer.invoke(IPC.DASHBOARD_GET, { range }),
   tradesList: (opts?: { date?: string; deleted?: boolean }): Promise<TradeListRow[]> =>
     ipcRenderer.invoke(IPC.TRADES_LIST, opts),
+  listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions): Promise<TradeWithTechnicalsRow[]> =>
+    ipcRenderer.invoke(IPC.TECHNICALS_LIST, opts),
   // ── v0.2.3 P2b — soft-delete lifecycle ───────────────────────────────────
   tradeSoftDelete: (trade_id: number): Promise<void> =>
     ipcRenderer.invoke(IPC.TRADE_SOFT_DELETE, { trade_id }),

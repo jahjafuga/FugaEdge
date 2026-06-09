@@ -20,6 +20,7 @@ import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
 import type { TimeRange } from '@shared/dashboard-types'
+import type { ListTradesWithTechnicalsOptions } from '@shared/technicals-types'
 
 // Thin renderer-side wrapper around the contextBridge'd `window.api`.
 // Provides typed access without sprinkling `window.api.x()` calls everywhere.
@@ -35,6 +36,8 @@ export const ipc = {
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
   tradesList: (opts?: { date?: string; deleted?: boolean }) =>
     window.api.tradesList(opts),
+  listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions) =>
+    window.api.listTradesWithTechnicals(opts),
   tradeSoftDelete: (trade_id: number) => window.api.tradeSoftDelete(trade_id),
   tradesSoftDeleteBulk: (trade_ids: number[]) =>
     window.api.tradesSoftDeleteBulk(trade_ids),

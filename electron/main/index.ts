@@ -12,6 +12,7 @@ import { registerDayIpc } from '../day/ipc'
 import { registerWeekIpc } from '../week/ipc'
 import { registerReportsIpc } from '../reports/ipc'
 import { registerAnalyticsIpc } from '../analytics/ipc'
+import { registerTechnicalsIpc } from '../technicals/ipc'
 import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
@@ -135,6 +136,7 @@ app.whenReady().then(() => {
   registerWeekIpc()
   registerReportsIpc()
   registerAnalyticsIpc()
+  registerTechnicalsIpc()
   registerJournalIpc()
   registerSettingsIpc()
   registerDataHealthIpc()
