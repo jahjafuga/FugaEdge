@@ -5,8 +5,10 @@
 // section's unclassified count riding its header's `right` slot. Data flows
 // from ipc.listTradesWithTechnicals (refetch only on date-range change) through
 // the pure filterRows → computeHeaderStrip / computeMacdBuckets pipeline.
-// Remaining sections (VWAP/EMA distance, combined signal reads, time-of-day)
-// and the click-to-expand accordion land in Sessions 5b+.
+// Session 5b.1.3 made Section 2 interactive — clicking a bucket expands an
+// accordion with its sortable trade table (rowsForBucket), so filteredRows and
+// timeframe now thread one level deeper into MacdStateGrid. Remaining sections
+// (VWAP/EMA distance, combined signal reads, time-of-day) land in later sessions.
 
 import { useEffect, useMemo, useState } from 'react'
 import { ipc } from '@/lib/ipc'
@@ -161,7 +163,11 @@ export default function TechnicalsTab() {
               ) : undefined
             }
           />
-          <MacdStateGrid stats={bucketStats} />
+          <MacdStateGrid
+            stats={bucketStats}
+            filteredRows={filteredRows}
+            timeframe={filters.timeframe}
+          />
         </>
       )}
     </div>
