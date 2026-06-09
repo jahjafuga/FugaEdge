@@ -5,6 +5,16 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 27 for v0.2.4 §K — additive intraday_bars.warmup_attempted_at
+// column (nullable ISO-8601 timestamp; NULL = warmup never attempted, set =
+// attempted regardless of success/empty/error). Lets runWarmupBackfill skip
+// already-tried keys so holiday-window / out-of-coverage dates that return no
+// warmup don't re-fetch every launch. Purely additive, no data move: added via
+// the migrateAddWarmupAttemptedAt helper (mirror of migrateAddWarmupBars —
+// PRAGMA-gated ALTER in its own type-only module). TEXT, not TIMESTAMP, to match
+// the schema's ISO-timestamp columns (SQLite gives TIMESTAMP NUMERIC affinity,
+// wrong for an ISO string).
+//
 // Bumped to 26 for v0.2.4 trade-technicals — new trade_technicals table
 // (pre-computed per-trade indicator state at entry, 1M + 5M timeframes) plus
 // the composite index idx_trade_technicals_stale on (schema_version,
@@ -50,7 +60,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '26'
+export const SCHEMA_VERSION = '27'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -189,6 +199,7 @@ CREATE TABLE IF NOT EXISTS intraday_bars (
   date        TEXT NOT NULL,
   bars        TEXT NOT NULL DEFAULT '[]',   -- JSON [{t,o,h,l,c,v}, ...]
   warmup_bars TEXT,                         -- JSON prior-day warmup bars; NULL until backfilled (parseBars -> [])
+  warmup_attempted_at TEXT,                 -- ISO ts of last warmup-fetch attempt (success/empty/error); NULL = never tried (§K runWarmupBackfill marker)
   fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
   error       TEXT,
   PRIMARY KEY (symbol, date)

@@ -11,6 +11,7 @@ import { migrateAddDeletedAt } from './migrate-add-deleted-at'
 import { migrateScratchReclassify } from './migrate-scratch-reclassify'
 import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
 import { migrateAddWarmupBars } from './migrate-add-warmup-bars'
+import { migrateAddWarmupAttemptedAt } from './migrate-add-warmup-attempted-at'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -823,6 +824,12 @@ function migrateAfterSchema(
   // Idempotent PRAGMA-gated ALTER; no version gate, no backup (legacy rows keep
   // warmup_bars NULL → parseBars maps to []). Same idiom as migrateAddDeletedAt.
   migrateAddWarmupBars(conn)
+
+  // v0.2.4 §K — additive intraday_bars.warmup_attempted_at marker (NULL = never
+  // tried). Same PRAGMA-gated, no-version-gate, no-backup idiom; lets
+  // runWarmupBackfill skip keys already attempted so empty-warmup dates don't
+  // re-fetch every launch.
+  migrateAddWarmupAttemptedAt(conn)
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The
