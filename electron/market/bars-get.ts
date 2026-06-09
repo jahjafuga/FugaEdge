@@ -25,7 +25,7 @@ function addDays(date: string, delta: number): string {
 // without a holiday table — non-trading days in the range simply return no bars.
 // Polygon scopes each range bound by ET session date (same as the active-day
 // `date/date` call), so no client-side ET split is needed.
-async function fetchWarmupBars(
+export async function fetchWarmupBars(
   apiKey: string,
   symbol: string,
   date: string,
