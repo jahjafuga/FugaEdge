@@ -68,9 +68,14 @@ export function applyFilters(
   })
 }
 
-/** Distinct playbook names appearing across the trade set. Used to
- *  populate the multi-select. 'Unset' is rendered separately. */
-export function distinctPlaybooks(trades: TradeListRow[]): string[] {
+/**
+ * Extract distinct, non-null playbook names from any
+ * collection of rows that carry a playbook_name field.
+ * Structurally typed (not nominally bound to TradeListRow)
+ * so it can also accept the leaner TradeWithTechnicalsRow
+ * used by the v0.2.4 Technicals filter bar.
+ */
+export function distinctPlaybooks(trades: { playbook_name: string | null }[]): string[] {
   const set = new Set<string>()
   for (const t of trades) {
     if (t.playbook_name) set.add(t.playbook_name)
