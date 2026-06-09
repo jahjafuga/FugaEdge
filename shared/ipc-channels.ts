@@ -99,6 +99,13 @@ export const IPC = {
   // writeFile), per ARCHITECTURE.md. Mirrors the export:* save-dialog channels.
   CHART_SAVE_SCREENSHOT: 'chart:saveScreenshot',
   // ── Technicals ─────────────────────────────────────────────────────────
+  // v0.2.4 §K — progress for the bulk warmup-bars backfill (runWarmupBackfill),
+  // auto-armed at launch AHEAD of the technicals backfill below (warmup
+  // populates intraday_bars so the technicals sweep can flip data_complete
+  // 0 → 1). 'market:' prefix because the orchestrator is a market-domain module
+  // operating on intraday_bars. Subscribed by Settings' "Computing N trades"
+  // row (Beat 2.6). Emitter wired by launch arming (Beat 2.4).
+  WARMUP_BACKFILL_PROGRESS: 'market:warmupBackfillProgress',
   // v0.2.4 Session 3 — progress emission for the bulk trade_technicals
   // backfill armed at ready-to-show. Auto-armed (no trigger channel —
   // unlike COUNTRY_BACKFILL / FLOAT_BACKFILL / PROFILE_BACKFILL, which are

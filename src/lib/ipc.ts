@@ -78,6 +78,9 @@ export const ipc = {
   profileOnBackfillProgress: (
     cb: (p: import('@shared/market-types').ProfileBackfillProgress) => void,
   ) => window.api.profileOnBackfillProgress(cb),
+  warmupOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').WarmupBackfillProgress) => void,
+  ) => window.api.warmupOnBackfillProgress(cb),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),

@@ -90,6 +90,16 @@ export interface ProfileBackfillResult {
   durationMs: number
 }
 
+// v0.2.4 §K — progress for the bulk warmup-bars backfill (runWarmupBackfill).
+// Key-based: one tick per 50-key chunk. The Settings "Computing N trades" row
+// (Beat 2.6) translates chunk progress to trade counts at the IPC/UI boundary.
+// Lives here (not in the electron orchestrator) so the renderer + preload can
+// import it without crossing the layer boundary — same home as Float/Profile.
+export interface WarmupBackfillProgress {
+  chunkNumber: number
+  totalChunks: number
+}
+
 // Single-trade intraday lookup — backs the per-trade Chart tab.
 export interface IntradayBar {
   t: number  // epoch ms (UTC) at bar start

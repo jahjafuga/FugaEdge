@@ -53,6 +53,7 @@ import type {
   MarketRefreshResult,
   ProfileBackfillProgress,
   ProfileBackfillResult,
+  WarmupBackfillProgress,
 } from '@shared/market-types'
 import type { SaveScreenshotInput, SaveScreenshotResult } from '@shared/chart-types'
 import type {
@@ -156,6 +157,13 @@ const api = {
     ipcRenderer.on(IPC.PROFILE_BACKFILL_PROGRESS, listener)
     return () => {
       ipcRenderer.removeListener(IPC.PROFILE_BACKFILL_PROGRESS, listener)
+    }
+  },
+  warmupOnBackfillProgress: (cb: (p: WarmupBackfillProgress) => void): (() => void) => {
+    const listener = (_e: unknown, p: WarmupBackfillProgress) => cb(p)
+    ipcRenderer.on(IPC.WARMUP_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.WARMUP_BACKFILL_PROGRESS, listener)
     }
   },
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>

@@ -12,20 +12,21 @@
 // (src/lib/chunkedBackfill.ts); the per-key work is repo/service calls.
 
 import type { IntradayBar } from './massive'
+import type { WarmupBackfillProgress } from '@shared/market-types'
 import { warmupKeysNeedingFetch, getIntradayRow, upsertIntradayRow } from './repo'
 import { fetchWarmupBars } from './bars-get'
 import { getSettings } from '../settings/repo'
 import { runChunkedBackfill } from '@/lib/chunkedBackfill'
 
+// WarmupBackfillProgress's canonical definition lives in shared/market-types.ts
+// so the renderer (src/lib/ipc.ts) + preload can import it without crossing into
+// electron/. Re-exported here so the orchestrator's public surface is unchanged.
+export type { WarmupBackfillProgress }
+
 // Keys per chunk. A setImmediate yield fires between chunks so a large first-run
 // sweep never blocks the main-process event loop. Matches the §K spec and
 // runChunkedBackfill's own default.
 const CHUNK_SIZE = 50
-
-export interface WarmupBackfillProgress {
-  chunkNumber: number
-  totalChunks: number
-}
 
 export interface WarmupBackfillResult {
   /** Keys whose fetch returned ≥1 warmup bar. */
