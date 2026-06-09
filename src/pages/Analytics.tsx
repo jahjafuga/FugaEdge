@@ -10,6 +10,7 @@ import ExecutionTab from '@/components/analytics/tabs/ExecutionTab'
 import MomentumTab from '@/components/analytics/tabs/MomentumTab'
 import PsychologyTab from '@/components/analytics/tabs/PsychologyTab'
 import SymbolsTab from '@/components/analytics/tabs/SymbolsTab'
+import TechnicalsTab from '@/components/analytics/tabs/TechnicalsTab'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
@@ -23,6 +24,7 @@ type TabKey =
   | 'momentum'
   | 'psychology'
   | 'symbols'
+  | 'technicals'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
@@ -31,6 +33,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'momentum', label: 'Momentum' },
   { key: 'psychology', label: 'Psychology' },
   { key: 'symbols', label: 'Symbols' },
+  { key: 'technicals', label: 'Technicals' },
 ]
 
 export default function Analytics() {
@@ -162,6 +165,7 @@ export default function Analytics() {
           {tab === 'momentum' && <MomentumTab data={data} />}
           {tab === 'psychology' && <PsychologyTab data={data} />}
           {tab === 'symbols' && <SymbolsTab data={data} reports={reports} />}
+          {tab === 'technicals' && <TechnicalsTab />}
         </div>
       </div>
     </PageShell>
