@@ -17,6 +17,7 @@ import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
 import { runPendingMaeMfeBackfill } from '../market/intraday'
+import { runTradeTechnicalsBackfill } from '../technicals/backfill'
 import { registerChartsIpc } from '../charts/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
@@ -150,7 +151,31 @@ app.whenReady().then(() => {
   // cached intraday_bars once the window is up. Deferred to ready-to-show +
   // setImmediate so it never blocks first paint; no-op (flag unset) on launches
   // where the migration didn't run. See runPendingMaeMfeBackfill.
-  win.once('ready-to-show', () => setImmediate(runPendingMaeMfeBackfill))
+  // v0.2.4 Session 3 — at the same ready-to-show beat, kick off the bulk
+  // trade_technicals backfill. Self-gated: returns immediately when
+  // getStaleTradeIds is empty, so it's a no-op on launches with no stale
+  // trades (the steady-state after the first run). Fire-and-forget with
+  // an explicit .catch so a backfill failure logs to the main-process
+  // console without crashing the app — mirrors the lazy-guard hook
+  // shape at electron/market/bars-get.ts:194-209. The win.isDestroyed()
+  // guard protects against window-close mid-backfill: the run continues
+  // but progress emissions stop, since wc.send on a destroyed window
+  // throws.
+  win.once('ready-to-show', () => {
+    setImmediate(runPendingMaeMfeBackfill)
+    setImmediate(() => {
+      void runTradeTechnicalsBackfill({
+        onProgress: (p) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p)
+          }
+        },
+      }).catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[FE technicals] bulk backfill failed: ${msg}`)
+      })
+    })
+  })
   // Auto-updater is gated on app.isPackaged inside startAutoUpdater, so
   // dev launches are a no-op. The IPC handlers stay registered either
   // way so the renderer can query status without branching.

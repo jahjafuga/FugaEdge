@@ -98,6 +98,14 @@ export const IPC = {
   // composites the PNG bytes; MAIN does the file I/O only (showSaveDialog →
   // writeFile), per ARCHITECTURE.md. Mirrors the export:* save-dialog channels.
   CHART_SAVE_SCREENSHOT: 'chart:saveScreenshot',
+  // ── Technicals ─────────────────────────────────────────────────────────
+  // v0.2.4 Session 3 — progress emission for the bulk trade_technicals
+  // backfill armed at ready-to-show. Auto-armed (no trigger channel —
+  // unlike COUNTRY_BACKFILL / FLOAT_BACKFILL / PROFILE_BACKFILL, which are
+  // user-initiated from Settings). No subscriber in v0.2.4; the channel
+  // exists so Session 4's Technical Analysis tab (or any future
+  // subscriber) can listen without a main-process change.
+  TECHNICALS_BACKFILL_PROGRESS: 'technicals:backfillProgress',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
