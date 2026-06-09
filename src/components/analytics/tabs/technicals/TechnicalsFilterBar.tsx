@@ -27,12 +27,14 @@ interface TechnicalsFilterBarProps {
   filters: TechnicalsFilters
   onFiltersChange: (next: TechnicalsFilters) => void
   playbookOptions: string[] // empty in Commit 5; Commit 6 populates it
+  excludedCount: number // trades dropped by the data gate (§C:103 chip)
 }
 
 export default function TechnicalsFilterBar({
   filters,
   onFiltersChange,
   playbookOptions,
+  excludedCount,
 }: TechnicalsFilterBarProps) {
   return (
     <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border-subtle bg-bg-1/95 px-4 py-3 font-sans backdrop-blur">
@@ -120,6 +122,15 @@ export default function TechnicalsFilterBar({
             />
           </label>
         </div>
+
+        {/* Excluded-data chip (§C:103) — how many trades the data gate
+            dropped (no indicator snapshot). Only shown when > 0. Neutral
+            tokens: the LivePill shell without the status dot or win tone. */}
+        {excludedCount > 0 && (
+          <span className="inline-flex items-center rounded-full border border-border-subtle bg-bg-2 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            {excludedCount} excluded (no indicator data)
+          </span>
+        )}
 
         {/* 1M/5M timeframe — right-aligned. Independent of the chart's own
             timeframe toggle (spec §H). */}
