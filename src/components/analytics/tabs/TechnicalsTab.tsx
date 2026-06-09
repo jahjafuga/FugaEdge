@@ -1,26 +1,30 @@
-// Technical Analysis tab. Commit 5 (Session 4) landed the filter bar with
-// hot, renderer-only filter state (date preset + range, ticker, playbook,
-// 1M/5M timeframe). Commit 6b wires it to live data: it fetches trades +
-// technicals via ipc.listTradesWithTechnicals (refetching only on date-range
-// change), then derives the playbook options, renderer-side filtered rows,
-// and the Header Strip stats — all pure, via distinctPlaybooks / filterRows /
-// computeHeaderStrip. The Header Strip is the first of the tab's sections;
-// the remaining aggregation sections (MACD state grid, VWAP/EMA distance,
-// combined signal reads, time-of-day) land in Sessions 5+.
+// Technical Analysis tab. Commit 5 (Session 4) landed the filter bar; Commit
+// 6b wired the Header Strip to live data. Session 5a.3 adds the band pattern
+// (spec §B): two SectionHeaders — "Indicator alignment" (Section 1, the Header
+// Strip) and "MACD state" (Section 2, the 4-bucket grid) — with the MACD
+// section's unclassified count riding its header's `right` slot. Data flows
+// from ipc.listTradesWithTechnicals (refetch only on date-range change) through
+// the pure filterRows → computeHeaderStrip / computeMacdBuckets pipeline.
+// Remaining sections (VWAP/EMA distance, combined signal reads, time-of-day)
+// and the click-to-expand accordion land in Sessions 5b+.
 
 import { useEffect, useMemo, useState } from 'react'
 import { ipc } from '@/lib/ipc'
 import { distinctPlaybooks } from '@/core/performance/filters'
 import { computeHeaderStrip } from '@/core/technicals/headerStrip'
+import { computeMacdBuckets } from '@/core/technicals/macdBuckets'
 import { filterRows } from '@/core/technicals/filterRows'
 import { rangeForDatePreset } from '@/core/technicals/datePreset'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import Skeleton from '@/components/ui/Skeleton'
+import SectionHeader from '@/components/ui/SectionHeader'
 import { AlertCircle } from 'lucide-react'
 import TechnicalsFilterBar, {
   type TechnicalsFilters,
 } from './technicals/TechnicalsFilterBar'
 import HeaderStripCards from './technicals/HeaderStripCards'
+import MacdStateGrid from './technicals/MacdStateGrid'
+import UnclassifiedChip from './technicals/UnclassifiedChip'
 
 export default function TechnicalsTab() {
   // Existing filter state — unchanged from Commit 5.
@@ -80,9 +84,15 @@ export default function TechnicalsTab() {
     [rows, filters.ticker, filters.playbookName],
   )
 
-  // Header Strip aggregation for the toggled timeframe.
+  // Header Strip aggregation (Section 1) for the toggled timeframe.
   const stats = useMemo(
     () => computeHeaderStrip(filteredRows, filters.timeframe),
+    [filteredRows, filters.timeframe],
+  )
+
+  // MACD State 4-bucket aggregation (Section 2) for the toggled timeframe.
+  const bucketStats = useMemo(
+    () => computeMacdBuckets(filteredRows, filters.timeframe),
     [filteredRows, filters.timeframe],
   )
 
@@ -94,7 +104,9 @@ export default function TechnicalsTab() {
         playbookOptions={playbookOptions}
         excludedCount={rows === null ? 0 : stats.excluded}
       />
-      {/* Body: skeleton while loading, alert on error, cards on success. */}
+      {/* Body: skeleton while loading, alert on error, the two section bands
+          on success. Both branches keep the SectionHeaders mounted so the
+          gold-underline dividers don't shift when data arrives. */}
       {err ? (
         <div
           role="alert"
@@ -109,14 +121,48 @@ export default function TechnicalsTab() {
           </div>
         </div>
       ) : rows === null ? (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Skeleton className="h-[120px]" />
-          <Skeleton className="h-[120px]" />
-          <Skeleton className="h-[120px]" />
-          <Skeleton className="h-[120px]" />
-        </div>
+        <>
+          <SectionHeader
+            title="Indicator alignment"
+            description="How often did your entries line up with your stack?"
+          />
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Skeleton className="h-[120px]" />
+            <Skeleton className="h-[120px]" />
+            <Skeleton className="h-[120px]" />
+            <Skeleton className="h-[120px]" />
+          </div>
+
+          <SectionHeader
+            title="MACD state"
+            description="Which MACD configuration was on the chart when you entered?"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-[220px]" />
+            <Skeleton className="h-[220px]" />
+            <Skeleton className="h-[220px]" />
+            <Skeleton className="h-[220px]" />
+          </div>
+        </>
       ) : (
-        <HeaderStripCards stats={stats} />
+        <>
+          <SectionHeader
+            title="Indicator alignment"
+            description="How often did your entries line up with your stack?"
+          />
+          <HeaderStripCards stats={stats} />
+
+          <SectionHeader
+            title="MACD state"
+            description="Which MACD configuration was on the chart when you entered?"
+            right={
+              bucketStats.unclassified > 0 ? (
+                <UnclassifiedChip count={bucketStats.unclassified} />
+              ) : undefined
+            }
+          />
+          <MacdStateGrid stats={bucketStats} />
+        </>
       )}
     </div>
   )
