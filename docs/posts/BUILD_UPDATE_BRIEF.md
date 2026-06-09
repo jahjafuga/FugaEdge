@@ -1,4 +1,4 @@
-# Build Update Brief — Day X
+# Build Update Brief — v0.2.4 Session 3
 
 This template generates the inputs for a FugaEdge `build_update` social post.
 Claude Code fills it out at the end of a day-shipping session, the founder
@@ -9,59 +9,82 @@ final post.
 
 ## Sprint position
 
-- Version: vX.Y.Z (e.g. v0.2.0)
-- Day: NN or NN.5 (zero-padded, e.g. 08, 07.5)
-- Status: shipped | in_progress | blocked
-- Date shipped: YYYY-MM-DD (ISO 8601)
+- Version: v0.2.4
+- Day: Session 3 (v0.2.4 is organized in Sessions not Days; Session 3 = backfill orchestration)
+- Status: shipped (local + pushed to origin; v0.2.4 itself still in development)
+- Date shipped: TBD (fill in actual session-end date when generating the post)
 
 ## What shipped
 
-Two to four bullet points. Plain language, no jargon. Include test counts and
-commit hashes if relevant.
+The plumbing that makes v0.2.4's upcoming Technical Analysis tab feel
+instant — no spinners, no "calculating" states, no waiting on charts to
+finish loading. Four commits, all chained on archive/central-stack-7215c67.
 
--
--
--
+- A worker that walks every historical trade and pre-computes its
+  technical indicators (MACD, VWAP, EMA9, EMA20 at both 1-minute and
+  5-minute timeframes) so the data is ready the moment you open the
+  Technical Analysis tab. Runs invisibly on first launch of v0.2.4,
+  cancellable via app-close, resumes automatically on next launch.
+
+- A generic chunked-work primitive (`runChunkedBackfill`) that handles
+  any large list of work without freezing the app — processes ~50
+  items at a time and takes a sip of water between batches.
+  Domain-agnostic; future bulk operations get to reuse it.
+
+- A lean trade-fetcher and a pure id-ordering helper, both small
+  surgical additions that keep the bulk-backfill path fast on
+  high-volume DBs.
+
+- Auto-arming wiring so the moment v0.2.4 first launches on a tester's
+  machine, the backfill kicks off in the background. Zero user action
+  required.
+
+Tests: 989 passed | 1 skipped (990 total). +43 new tests; zero
+existing tests changed throughout the session.
+
+Commits:
+- a10f573 feat(lib): chunked backfill orchestrator (pure, domain-agnostic)
+- f8ad8f6 feat(technicals): backfill helpers
+- 170901e feat(technicals): bulk backfill runner — pure core + electron wrapper
+- 9f13f74 feat(technicals): arm bulk backfill at ready-to-show
 
 ## Headline codename
 
-A snake_case name for the most important thing that shipped. 1-3 segments,
-all lowercase, underscore-separated. Examples: safety_net, aggregator_fix,
-universal_import, webull_parser. This becomes the hero of the post.
-
-**Codename:**
+**Codename:** technicals_ready
 
 ## Why it matters (one sentence)
 
-The human-readable "why this shipped" — usually traces back to a real user
-incident, real friction, or a known limitation being closed. Keep it
-peer-to-peer, not vendor-to-customer. Name the trader if relevant and if
-public attribution is appropriate.
-
-**Why:**
+**Why:** Most journals make you wait for indicator data to load every
+time you open a trade — Session 3 is the foundation that makes
+v0.2.4's Technical Analysis tab have every indicator already calculated
+for every trade you've ever taken, the moment you open it.
 
 ## What's next
 
-The single most important thing coming next. Either tomorrow's Day or the
-next major milestone. Snake_case codename, same format as the headline.
+**Next codename:** technical_analysis_tab
 
-**Next codename:**
+Session 4 is where this plumbing pays off: the actual Technical
+Analysis tab, with discipline score header, MACD state grid, VWAP
+distance, EMA distance, combined signal reads, and time-of-day
+cross-cut. Spec lives at docs/plans/v0.2.4-technical-analysis.md.
 
 ## Public attribution check
 
-Anyone named in the brief (e.g. a beta tester) — confirm they're OK with
-public mention OR mark them as "generic" so the post uses "a beta tester"
-instead of their name.
+Session 3 was pure infrastructure — no beta tester data, no
+broker-specific fixes, no named-trader incident driving the work.
+Nobody to attribute.
 
-- [ ] Names cleared for public attribution
+- [x] Names cleared for public attribution (n/a — nobody named)
 - [ ] Use generic references instead
 
 ## Anything off-limits
 
-Anything the founder doesn't want mentioned publicly in this post — internal
-metrics, partnership discussions, unshipped features, anything sensitive.
-
--
+- Don't mention v0.2.4 ship date — not committed yet, depends on
+  Session 4-8 timing
+- Don't tease specific indicators by name in the public post — save
+  the indicator reveal for Session 4's shipping post
+- Don't mention the SaaS port direction publicly — that's strategic
+  context for internal planning, not a beta-cohort message
 
 ---
 
