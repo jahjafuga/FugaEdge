@@ -36,6 +36,7 @@ export const ipc = {
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
   tradesList: (opts?: { date?: string; deleted?: boolean }) =>
     window.api.tradesList(opts),
+  getTrade: (input: { trade_id: number }) => window.api.getTrade(input),
   listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions) =>
     window.api.listTradesWithTechnicals(opts),
   tradeSoftDelete: (trade_id: number) => window.api.tradeSoftDelete(trade_id),

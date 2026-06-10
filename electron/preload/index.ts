@@ -89,6 +89,8 @@ const api = {
     ipcRenderer.invoke(IPC.DASHBOARD_GET, { range }),
   tradesList: (opts?: { date?: string; deleted?: boolean }): Promise<TradeListRow[]> =>
     ipcRenderer.invoke(IPC.TRADES_LIST, opts),
+  getTrade: (input: { trade_id: number }): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_GET, input),
   listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions): Promise<TradeWithTechnicalsRow[]> =>
     ipcRenderer.invoke(IPC.TECHNICALS_LIST, opts),
   // ── v0.2.3 P2b — soft-delete lifecycle ───────────────────────────────────

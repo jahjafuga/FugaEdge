@@ -9,6 +9,9 @@ export const IPC = {
   IMPORT_PROGRESS: 'import:progress',
   DASHBOARD_GET: 'dashboard:get',
   TRADES_LIST: 'trades:list',
+  // v0.2.4 §F1 — single-trade detail fetch for the read-only drill-down sheet
+  // (Phase F2). Singular TRADE_ (matches TRADE_NOTE_SAVE etc.); read-only.
+  TRADE_GET: 'trade:get',
   // v0.2.3 P2b — soft-delete lifecycle. Singular TRADE_ for single-trade ops
   // (matches TRADE_NOTE_SAVE etc.); plural TRADES_*_BULK for batch ops.
   TRADE_SOFT_DELETE: 'trade:softDelete',

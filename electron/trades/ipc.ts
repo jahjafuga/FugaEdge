@@ -16,7 +16,7 @@ import type {
 } from '@shared/trades-types'
 import { bumpDataVersion } from '../lib/cache'
 import { getAttachmentsDir } from '../attachments/dir'
-import { listTrades, type ListTradesOptions } from './list'
+import { listTrades, getTrade, type ListTradesOptions } from './list'
 import { saveNote } from './notes'
 import { saveTimeframe } from './timeframe'
 import { saveConfidence } from './confidence'
@@ -79,6 +79,12 @@ async function removeAttachmentsOnDisk(
 export function registerTradesIpc(): void {
   ipcMain.handle(IPC.TRADES_LIST, (_e, opts?: ListTradesOptions) =>
     listTrades(opts ?? {}),
+  )
+  // v0.2.4 §F1 — single-trade detail fetch (read-only; no version bump). Reuses
+  // getTrade(id), which returns the full TradeListRow incl. executions and
+  // intentionally does NOT filter deleted_at (read-paths-deleted-filter #4/#7).
+  ipcMain.handle(IPC.TRADE_GET, (_e, input: { trade_id: number }) =>
+    getTrade(input.trade_id),
   )
   ipcMain.handle(IPC.TRADE_NOTE_SAVE, (_e, input: UpdateNoteInput) =>
     withVersionBump(() => saveNote(input)),
