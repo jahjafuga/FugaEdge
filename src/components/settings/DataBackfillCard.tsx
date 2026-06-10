@@ -3,7 +3,11 @@ import Card from '@/components/ui/Card'
 import BackfillKeyModal from '@/components/settings/BackfillKeyModal'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
-import type { FloatBackfillProgress, ProfileBackfillProgress } from '@shared/market-types'
+import type {
+  FloatBackfillProgress,
+  ProfileBackfillProgress,
+  WarmupBackfillProgress,
+} from '@shared/market-types'
 
 interface DataBackfillCardProps {
   lastRun: string | null
@@ -49,6 +53,10 @@ export default function DataBackfillCard({
   } | null>(null)
   const [profileErr, setProfileErr] = useState<string | null>(null)
 
+  // ── Indicators (warmup) — passive: warmup is auto-armed at launch + chained on
+  // refresh, so there's no button here, only a live "Computing N trades…" status.
+  const [warmupProgress, setWarmupProgress] = useState<WarmupBackfillProgress | null>(null)
+
   useEffect(() => {
     const off = ipc.countryOnBackfillProgress((p) => setProgress(p))
     return off
@@ -61,6 +69,11 @@ export default function DataBackfillCard({
 
   useEffect(() => {
     const off = ipc.profileOnBackfillProgress((p) => setProfileProgress(p))
+    return off
+  }, [])
+
+  useEffect(() => {
+    const off = ipc.warmupOnBackfillProgress((p) => setWarmupProgress(p))
     return off
   }, [])
 
@@ -306,6 +319,29 @@ export default function DataBackfillCard({
             {profileErr && <div className="text-xs text-loss">{profileErr}</div>}
           </div>
         </div>
+
+        {/* ── Indicators — passive status for the §K bulk warmup pass. No button:
+            warmup is auto-armed at launch + chained on refresh. Shows only while
+            running; "N trades" = tradesTotal − tradesDone, decrementing to 0. ── */}
+        {warmupProgress &&
+          warmupProgress.tradesTotal > 0 &&
+          warmupProgress.tradesDone < warmupProgress.tradesTotal && (
+            <div className="border-t border-border-strong pt-3">
+              <div className="mb-2 text-xs font-medium text-fg-secondary">Indicators</div>
+              <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+                <div
+                  className="h-full bg-gold transition-all"
+                  style={{
+                    width: `${Math.floor((warmupProgress.tradesDone / warmupProgress.tradesTotal) * 100)}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+                Computing {warmupProgress.tradesTotal - warmupProgress.tradesDone} trade
+                {warmupProgress.tradesTotal - warmupProgress.tradesDone === 1 ? '' : 's'}…
+              </div>
+            </div>
+          )}
       </div>
       <BackfillKeyModal
         open={modalOpen}

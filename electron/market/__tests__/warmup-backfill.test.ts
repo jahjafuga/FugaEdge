@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   warmupKeysNeedingFetch: vi.fn(),
   getIntradayRow: vi.fn(),
   upsertIntradayRow: vi.fn(),
+  tradeCountsByKey: vi.fn(),
   fetchWarmupBars: vi.fn(),
   getSettings: vi.fn(),
 }))
@@ -30,6 +31,7 @@ vi.mock('../repo', () => ({
   warmupKeysNeedingFetch: mocks.warmupKeysNeedingFetch,
   getIntradayRow: mocks.getIntradayRow,
   upsertIntradayRow: mocks.upsertIntradayRow,
+  tradeCountsByKey: mocks.tradeCountsByKey,
 }))
 
 vi.mock('../bars-get', () => ({
@@ -64,6 +66,11 @@ beforeEach(() => {
   mocks.warmupKeysNeedingFetch.mockReturnValue([])
   mocks.getIntradayRow.mockImplementation((symbol: string, date: string) =>
     cachedRow({ symbol, date }),
+  )
+  // Default: one trade per worklist key, so tradesTotal === keys.length. Tests
+  // that assert exact trade progress (R9, R13) set their own counts.
+  mocks.tradeCountsByKey.mockImplementation((keys: { symbol: string; date: string }[]) =>
+    Object.fromEntries(keys.map((k) => [`${k.symbol}|${k.date}`, 1])),
   )
   mocks.fetchWarmupBars.mockResolvedValue([bar(0)])
 })
@@ -175,18 +182,39 @@ describe('runWarmupBackfill', () => {
     expect(result).toMatchObject({ fetched: 1, empty: 1, errors: 1, totalAttempted: 3 })
   })
 
-  it('(R9) onProgress fires per chunk; 120 keys → 3 chunks, progression 1→2→3', async () => {
+  it('(R9) onProgress emits cumulative trade counts per chunk; 120 keys (1 trade each) → 3 chunks', async () => {
     const keys = Array.from({ length: 120 }, (_, i) => ({ symbol: `S${i}`, date: '2026-06-01' }))
     mocks.warmupKeysNeedingFetch.mockReturnValue(keys)
+    // default tradeCountsByKey → 1 trade per key, so tradesTotal = 120
     const onProgress = vi.fn()
     const result = await warmupBackfill.runWarmupBackfill({ onProgress })
     expect(result.totalAttempted).toBe(120)
-    expect(onProgress).toHaveBeenCalledTimes(3) // 50 + 50 + 20
+    expect(onProgress).toHaveBeenCalledTimes(3) // chunks of 50 + 50 + 20
     expect(onProgress.mock.calls.map((c) => c[0])).toEqual([
-      { chunkNumber: 1, totalChunks: 3 },
-      { chunkNumber: 2, totalChunks: 3 },
-      { chunkNumber: 3, totalChunks: 3 },
+      { tradesDone: 50, tradesTotal: 120 },
+      { tradesDone: 100, tradesTotal: 120 },
+      { tradesDone: 120, tradesTotal: 120 },
     ])
+  })
+
+  it('(R13) tradesTotal sums per-key trade counts; final tradesDone === tradesTotal', async () => {
+    const keys = [
+      { symbol: 'AAA', date: '2026-06-03' },
+      { symbol: 'BBB', date: '2026-06-02' },
+      { symbol: 'CCC', date: '2026-06-01' },
+    ]
+    mocks.warmupKeysNeedingFetch.mockReturnValue(keys)
+    mocks.tradeCountsByKey.mockReturnValue({
+      'AAA|2026-06-03': 4,
+      'BBB|2026-06-02': 1,
+      'CCC|2026-06-01': 2,
+    })
+    const onProgress = vi.fn()
+    await warmupBackfill.runWarmupBackfill({ onProgress })
+    // 3 keys → 1 chunk (≤ 50): one tick carrying the full total (4 + 1 + 2 = 7)
+    expect(mocks.tradeCountsByKey).toHaveBeenCalledWith(keys)
+    expect(onProgress).toHaveBeenCalledTimes(1)
+    expect(onProgress).toHaveBeenCalledWith({ tradesDone: 7, tradesTotal: 7 })
   })
 
   it('(R10) getIntradayRow null → key skipped (no upsert), counted as error; others proceed', async () => {

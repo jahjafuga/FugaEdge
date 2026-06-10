@@ -187,3 +187,52 @@ describe('warmupKeysNeedingFetch', () => {
     expect(select!.sql).toMatch(/ORDER BY\s+date DESC,\s*symbol ASC/i)
   })
 })
+
+describe('tradeCountsByKey', () => {
+  it('empty keys → {} (no query)', () => {
+    expect(repo.tradeCountsByKey([])).toEqual({})
+    expect(prepared.find((p) => /FROM trades/i.test(p.sql))).toBeUndefined()
+  })
+
+  it('SQL filters deleted_at IS NULL and groups by symbol, date', () => {
+    cannedAllRows = []
+    repo.tradeCountsByKey([{ symbol: 'AAA', date: '2026-06-01' }])
+    const sel = prepared.find((p) => /FROM trades/i.test(p.sql))
+    expect(sel).toBeDefined()
+    expect(sel!.sql).toMatch(/deleted_at IS NULL/i)
+    expect(sel!.sql).toMatch(/GROUP BY\s+symbol,\s*date/i)
+  })
+
+  it('returns a key→count map for worklist keys present in the grouped rows', () => {
+    cannedAllRows = [
+      { symbol: 'AAA', date: '2026-06-01', n: 3 },
+      { symbol: 'BBB', date: '2026-06-02', n: 1 },
+    ]
+    expect(
+      repo.tradeCountsByKey([
+        { symbol: 'AAA', date: '2026-06-01' },
+        { symbol: 'BBB', date: '2026-06-02' },
+      ]),
+    ).toEqual({ 'AAA|2026-06-01': 3, 'BBB|2026-06-02': 1 })
+  })
+
+  it('excludes grouped rows whose (symbol, date) is not in the worklist', () => {
+    cannedAllRows = [
+      { symbol: 'AAA', date: '2026-06-01', n: 3 },
+      { symbol: 'OTHER', date: '2026-06-09', n: 5 },
+    ]
+    expect(repo.tradeCountsByKey([{ symbol: 'AAA', date: '2026-06-01' }])).toEqual({
+      'AAA|2026-06-01': 3,
+    })
+  })
+
+  it('a worklist key with no matching trade group is absent from the result', () => {
+    cannedAllRows = [{ symbol: 'AAA', date: '2026-06-01', n: 2 }]
+    const out = repo.tradeCountsByKey([
+      { symbol: 'AAA', date: '2026-06-01' },
+      { symbol: 'GHOST', date: '2026-06-03' },
+    ])
+    expect(out).toEqual({ 'AAA|2026-06-01': 2 })
+    expect(out['GHOST|2026-06-03']).toBeUndefined()
+  })
+})

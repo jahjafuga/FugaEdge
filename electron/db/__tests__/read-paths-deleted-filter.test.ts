@@ -90,6 +90,7 @@ import { getCalendarMonth } from '../../calendar/get'
 import { getDashboardData } from '../../stats/dashboard'
 import { getAnalytics } from '../../analytics/get'
 import { countTradesByRegion, countTradesByCountry } from '../../trades/country'
+import { tradeCountsByKey } from '../../market/repo'
 import { exportTradesCsv } from '../../settings/export'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -158,6 +159,12 @@ describe('read paths filter soft-deleted trades (deleted_at IS NULL)', () => {
 
   it('trades/country.ts:148 — countTradesByCountry', async () => {
     expectAllFiltered(await tradeSqlsFrom(() => countTradesByCountry()))
+  })
+
+  it('market/repo.ts — tradeCountsByKey (§K Beat 2.6)', async () => {
+    expectAllFiltered(
+      await tradeSqlsFrom(() => tradeCountsByKey([{ symbol: 'AAA', date: '2026-01-02' }])),
+    )
   })
 
   it('settings/export.ts:50 — exportTradesCsv', async () => {

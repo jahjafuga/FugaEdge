@@ -13,7 +13,7 @@
 
 import type { IntradayBar } from './massive'
 import type { WarmupBackfillProgress } from '@shared/market-types'
-import { warmupKeysNeedingFetch, getIntradayRow, upsertIntradayRow } from './repo'
+import { warmupKeysNeedingFetch, getIntradayRow, upsertIntradayRow, tradeCountsByKey } from './repo'
 import { fetchWarmupBars } from './bars-get'
 import { getSettings } from '../settings/repo'
 import { runChunkedBackfill } from '@/lib/chunkedBackfill'
@@ -73,6 +73,18 @@ export async function runWarmupBackfill(
     chunks.push(keys.slice(i, i + CHUNK_SIZE))
   }
 
+  // §K Beat 2.6 — translate the chunk progress into the "Computing N trades…"
+  // counts the Settings row shows. tradeCountsByKey is the only keys→trades join
+  // (the IPC emitters + renderer never see the keys). cumulative[i] = trades
+  // whose warmup is done once chunk i finishes; tradesTotal = the whole pass.
+  const counts = tradeCountsByKey(keys)
+  const chunkTradeTotals = chunks.map((chunk) =>
+    chunk.reduce((sum, k) => sum + (counts[`${k.symbol}|${k.date}`] ?? 0), 0),
+  )
+  const tradesTotal = chunkTradeTotals.reduce((a, b) => a + b, 0)
+  let acc = 0
+  const cumulative = chunkTradeTotals.map((n) => (acc += n))
+
   let fetched = 0
   let empty = 0
   let errors = 0
@@ -81,8 +93,8 @@ export async function runWarmupBackfill(
     items: chunks,
     chunkSize: 1,
     yieldBetweenChunks: () => new Promise((r) => setImmediate(r)),
-    onProgress: ({ current, total }) =>
-      opts.onProgress?.({ chunkNumber: current, totalChunks: total }),
+    onProgress: ({ current }) =>
+      opts.onProgress?.({ tradesDone: cumulative[current - 1], tradesTotal }),
     processItem: async (chunk) => {
       for (const { symbol, date } of chunk) {
         const cached = getIntradayRow(symbol, date)

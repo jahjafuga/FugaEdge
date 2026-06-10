@@ -91,13 +91,16 @@ export interface ProfileBackfillResult {
 }
 
 // v0.2.4 §K — progress for the bulk warmup-bars backfill (runWarmupBackfill).
-// Key-based: one tick per 50-key chunk. The Settings "Computing N trades" row
-// (Beat 2.6) translates chunk progress to trade counts at the IPC/UI boundary.
-// Lives here (not in the electron orchestrator) so the renderer + preload can
-// import it without crossing the layer boundary — same home as Float/Profile.
+// Trade-based (Beat 2.6): tradesDone counts the trades whose warmup has been
+// processed so far; tradesTotal the trades the whole pass will touch. The
+// orchestrator does the keys→trades join (it's the only layer holding the
+// worklist keys), so the IPC emitters + renderer just forward this. Drives the
+// Settings "Computing N trades" row (N = tradesTotal − tradesDone). Lives here
+// (not in the electron orchestrator) so the renderer + preload can import it
+// without crossing the layer boundary — same home as Float/Profile.
 export interface WarmupBackfillProgress {
-  chunkNumber: number
-  totalChunks: number
+  tradesDone: number
+  tradesTotal: number
 }
 
 // Single-trade intraday lookup — backs the per-trade Chart tab.

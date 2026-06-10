@@ -300,6 +300,30 @@ export function tradeSymbolDatePairs(): { symbol: string; date: string }[] {
     .all() as { symbol: string; date: string }[]
 }
 
+// v0.2.4 §K (Beat 2.6) — per-(symbol, date) count of NON-deleted trades, filtered
+// to the given worklist keys. Powers runWarmupBackfill's "Computing N trades…"
+// progress: the orchestrator sums these for tradesTotal and accumulates them per
+// chunk for tradesDone. deleted_at IS NULL matches the excluded-chip population
+// (listTradesWithTechnicals) and the read-paths-deleted-filter invariant. Grouped
+// in SQL (tiny {symbol,date,n} rows), then filtered to the keys in JS — same
+// shape as warmupKeysNeedingFetch, so it's unit-testable under the mocked shim.
+export function tradeCountsByKey(
+  keys: { symbol: string; date: string }[],
+): Record<string, number> {
+  if (keys.length === 0) return {}
+  const db = openDatabase()
+  const rows = db
+    .prepare('SELECT symbol, date, COUNT(*) AS n FROM trades WHERE deleted_at IS NULL GROUP BY symbol, date')
+    .all() as { symbol: string; date: string; n: number }[]
+  const wanted = new Set(keys.map((k) => `${k.symbol}|${k.date}`))
+  const out: Record<string, number> = {}
+  for (const r of rows) {
+    const key = `${r.symbol}|${r.date}`
+    if (wanted.has(key)) out[key] = r.n
+  }
+  return out
+}
+
 // (symbol, date) pairs missing intraday data — or previously errored.
 // `force` bypasses the cache entirely.
 export interface IntradayFetchWorklist {
