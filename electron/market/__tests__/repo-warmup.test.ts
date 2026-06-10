@@ -236,3 +236,80 @@ describe('tradeCountsByKey', () => {
     expect(out['GHOST|2026-06-03']).toBeUndefined()
   })
 })
+
+describe('IntradayRow.warmup_error round-trip via upsert/get', () => {
+  it('upsertIntradayRow binds warmup_error into the INSERT when set', () => {
+    repo.upsertIntradayRow(fullIntradayRow({ warmup_error: '429: 429 Too Many Requests' }))
+    const insert = prepared.find((p) => /INSERT INTO intraday_bars/i.test(p.sql))
+    expect(insert).toBeDefined()
+    expect(insert!.sql).toMatch(/\bwarmup_error\b/)
+    // ON CONFLICT must carry it too, else a re-upsert wouldn't refresh the error.
+    expect(insert!.sql).toMatch(/warmup_error\s*=\s*excluded\.warmup_error/i)
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.warmup_error).toBe('429: 429 Too Many Requests')
+  })
+
+  it('upsertIntradayRow binds null when warmup_error is absent (existing callers)', () => {
+    repo.upsertIntradayRow(fullIntradayRow())
+    const insert = prepared.find((p) => /INSERT INTO intraday_bars/i.test(p.sql))
+    expect(insert).toBeDefined()
+    const params = insert!.runArgs[0] as Record<string, unknown>
+    expect(params.warmup_error).toBeNull()
+  })
+
+  it('getIntradayRow SELECTs warmup_error and maps a NULL through as null', () => {
+    cannedGetRow = {
+      symbol: 'AAA', date: '2026-05-01', bars: '[]', warmup_bars: null,
+      fetched_at: '2026-05-01T00:00:00.000Z', error: null,
+      warmup_attempted_at: null, warmup_error: null,
+    }
+    const row = repo.getIntradayRow('AAA', '2026-05-01')
+    const select = prepared.find((p) => /SELECT .* FROM intraday_bars WHERE symbol/is.test(p.sql))
+    expect(select).toBeDefined()
+    expect(select!.sql).toMatch(/\bwarmup_error\b/)
+    expect(row!.warmup_error).toBeNull()
+  })
+
+  it('getIntradayRow returns warmup_error as the message string when set', () => {
+    cannedGetRow = {
+      symbol: 'AAA', date: '2026-05-01', bars: '[]', warmup_bars: null,
+      fetched_at: '2026-05-01T00:00:00.000Z', error: null,
+      warmup_attempted_at: '2026-06-10T00:00:00.000Z', warmup_error: 'network: timeout',
+    }
+    const row = repo.getIntradayRow('AAA', '2026-05-01')
+    expect(row!.warmup_error).toBe('network: timeout')
+  })
+})
+
+describe('warmupKeysNeedingFetch — error retry predicate (§K.1)', () => {
+  // Mirrors the §K `eligible` helper but carries the warmup_error column the
+  // §K.1 SELECT now fetches. Defaults to a legit-empty key (attempted, no error).
+  const row = (over: Record<string, unknown> = {}) => ({
+    symbol: 'AAA', date: '2026-05-01',
+    warmup_attempted_at: '2026-06-10T00:00:00.000Z', warmup_error: null,
+    error: null, has_bars: 1, warmup_empty: 1,
+    ...over,
+  })
+
+  it('attempted + warmup_error SET → returned (errored key re-enters the worklist)', () => {
+    cannedAllRows = [row({ warmup_error: '429: rate limited' })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([{ symbol: 'AAA', date: '2026-05-01' }])
+  })
+
+  it('attempted + warmup_error NULL → NOT returned (legit-empty stays locked)', () => {
+    cannedAllRows = [row({ warmup_error: null })]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([])
+  })
+
+  it('mixed: errored-retry + legit-empty-locked + never-attempted → only the two eligible', () => {
+    cannedAllRows = [
+      row({ symbol: 'ERRORED', date: '2026-05-03', warmup_error: 'network: timeout' }),
+      row({ symbol: 'LEGITEMPTY', date: '2026-05-02', warmup_error: null }),
+      row({ symbol: 'NEVER', date: '2026-05-01', warmup_attempted_at: null, warmup_error: null }),
+    ]
+    expect(repo.warmupKeysNeedingFetch()).toEqual([
+      { symbol: 'ERRORED', date: '2026-05-03' },
+      { symbol: 'NEVER', date: '2026-05-01' },
+    ])
+  })
+})
