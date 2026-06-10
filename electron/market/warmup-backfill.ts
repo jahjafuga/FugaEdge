@@ -107,14 +107,18 @@ export async function runWarmupBackfill(
 
         const attemptedAt = new Date().toISOString()
         let warmupBars: IntradayBar[] = []
+        let warmupError: string | null = null
         try {
           warmupBars = await fetchWarmupBars(apiKey, symbol, date)
           if (warmupBars.length === 0) empty += 1
           else fetched += 1
-        } catch {
-          // Network/auth failure. warmupBars stays [] and we still stamp the
-          // marker below so this key isn't re-tried every launch (holiday-window
-          // / out-of-coverage dates legitimately return nothing).
+        } catch (err) {
+          // Network/auth failure. warmupBars stays []; we still stamp the marker
+          // below, but now also capture the message in warmupError. The §K.1.1
+          // worklist predicate re-enters keys whose warmup_error IS NOT NULL, so
+          // this throw is retried next launch — while legit empties (warmupError
+          // null) stay locked. That throw-vs-empty split is the whole point of §K.1.
+          warmupError = err instanceof Error ? err.message : String(err)
           errors += 1
         }
 
@@ -124,6 +128,7 @@ export async function runWarmupBackfill(
           bars: cached.bars, // preserved — warmup never touches the active day
           warmup_bars: warmupBars,
           warmup_attempted_at: attemptedAt,
+          warmup_error: warmupError, // §K.1.2 — null on success/empty, message on throw
           fetched_at: cached.fetched_at, // preserved
           error: cached.error, // preserved (always null for eligible keys)
         })

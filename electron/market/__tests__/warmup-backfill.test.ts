@@ -111,6 +111,7 @@ describe('runWarmupBackfill', () => {
       bars: [bar(1), bar(2)], // preserved
       warmup_bars: [bar(0)], // freshly fetched
       warmup_attempted_at: ISO,
+      warmup_error: null, // §K.1.2 — null on success (fetch did not throw)
       fetched_at: 'FETCHED_T0', // preserved
       error: null, // preserved (cached.error)
     })
@@ -124,6 +125,7 @@ describe('runWarmupBackfill', () => {
     expect(mocks.upsertIntradayRow.mock.calls[0][0]).toMatchObject({
       warmup_bars: [],
       warmup_attempted_at: ISO,
+      warmup_error: null, // §K.1.2 — empty is legit, not an error (stays locked)
     })
     expect(result).toMatchObject({ fetched: 0, empty: 1, errors: 0, totalAttempted: 1 })
   })
@@ -136,6 +138,7 @@ describe('runWarmupBackfill', () => {
     expect(mocks.upsertIntradayRow.mock.calls[0][0]).toMatchObject({
       warmup_bars: [],
       warmup_attempted_at: ISO,
+      warmup_error: '401 Unauthorized', // §K.1.2 — the thrown message is stamped
     })
     expect(result).toMatchObject({ fetched: 0, empty: 0, errors: 1, totalAttempted: 1 })
   })
