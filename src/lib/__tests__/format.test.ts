@@ -27,6 +27,7 @@ import {
   int,
   localEasternToUtc,
   percent,
+  signedPct,
   utcToEasternParts,
 } from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
@@ -113,6 +114,33 @@ describe('percent — 0..1 fraction to percent string', () => {
     expect(percent(undefined)).toBe('—')
     expect(percent(Number.NaN)).toBe('—')
     expect(percent(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
+
+describe('signedPct — signed raw-percentage string (+2.3% / -1.1% / 0.0%)', () => {
+  // Unlike percent() (which scales a 0..1 fraction), signedPct takes an
+  // already-scaled percentage and forces a leading "+" on positives so the
+  // sign reads at a glance — F2.1's Indicators section shows VWAP / EMA
+  // distance as "+2.3%" / "-1.1%". Zero carries no sign (mirrors signed()).
+  it('prefixes positives with a "+"', () => {
+    expect(signedPct(2.3)).toBe('+2.3%')
+  })
+
+  it('keeps the natural "-" on negatives', () => {
+    expect(signedPct(-1.1)).toBe('-1.1%')
+  })
+
+  it('renders zero without a sign', () => {
+    expect(signedPct(0)).toBe('0.0%')
+  })
+
+  it('honours the optional decimals override', () => {
+    expect(signedPct(2.5, 2)).toBe('+2.50%')
+    expect(signedPct(2.3, 0)).toBe('+2%')
+  })
+
+  it('rounds a very small magnitude up into the first decimal', () => {
+    expect(signedPct(0.05)).toBe('+0.1%')
   })
 })
 

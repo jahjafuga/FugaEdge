@@ -57,6 +57,17 @@ export function percent(
   return `${(fraction * 100).toFixed(decimals)}%`
 }
 
+// Signed display for an ALREADY-SCALED percentage — e.g. a -1.0 VWAP distance,
+// NOT a 0..1 fraction (that's percent()). Forces a leading "+" on positives,
+// like signed(), so direction reads at a glance; negatives keep toFixed's own
+// "-" and zero shows no sign ("0.0%"). 1-decimal default; pass `dec` to
+// override. First consumer: F2.1's Indicators section (VWAP / EMA9 / EMA20
+// distance). Input is assumed finite — callers render null fields as "—"
+// themselves, so unlike percent() this carries no sentinel guard.
+export function signedPct(n: number, dec = 1): string {
+  return `${n > 0 ? '+' : ''}${n.toFixed(dec)}%`
+}
+
 // Renders profit factor (Σ wins / |Σ losses|). Promoted in v0.2.2 Day 2 from
 // the inline pf() helper in FullStatsTable.tsx so the new day-scoped
 // Performance tab and the existing whole-account stats table render the
