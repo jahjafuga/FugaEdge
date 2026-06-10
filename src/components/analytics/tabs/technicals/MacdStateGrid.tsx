@@ -16,17 +16,15 @@
 // carries mt-3 for the resting inter-row gap; the open panel owns its spacing
 // via the inner pt-3.
 
-import { useState, useMemo, useRef, useEffect, type ReactNode } from 'react'
+import { useMemo } from 'react'
 import type { MacdBucketStats, BucketKey } from '@/core/technicals/macdBuckets'
 import { rowsForBucket } from '@/core/technicals/macdBuckets'
 import type { Timeframe } from '@/core/technicals/headerStrip'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import MacdBucketCard from './MacdBucketCard'
 import BucketTradeTable from './BucketTradeTable'
-
-// ~200ms grid-rows transition + a 10ms buffer, so the table unmounts only after
-// the collapse has finished.
-const CLOSE_MS = 210
+import AccordionPanel from './AccordionPanel'
+import { useBucketBand } from './useBucketBand'
 
 interface MacdStateGridProps {
   stats: MacdBucketStats
@@ -44,46 +42,7 @@ export default function MacdStateGrid({
   filteredRows,
   timeframe,
 }: MacdStateGridProps) {
-  // openBucket: which panel is visually open (drives the grid-rows animation).
-  // displayBucket: which bucket's rows are mounted — lags openBucket on close
-  // so the table animates out instead of vanishing.
-  const [openBucket, setOpenBucket] = useState<BucketKey | null>(null)
-  const [displayBucket, setDisplayBucket] = useState<BucketKey | null>(null)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const clearCloseTimer = () => {
-    if (closeTimer.current !== null) {
-      clearTimeout(closeTimer.current)
-      closeTimer.current = null
-    }
-  }
-  // Clear any pending lag timer if the grid unmounts mid-close.
-  useEffect(() => {
-    return () => {
-      if (closeTimer.current !== null) clearTimeout(closeTimer.current)
-    }
-  }, [])
-
-  const onCardClick = (key: BucketKey) => {
-    clearCloseTimer()
-    if (openBucket === key) {
-      // (1) Close the open card — keep its rows mounted until the collapse ends.
-      setOpenBucket(null)
-      closeTimer.current = setTimeout(() => setDisplayBucket(null), CLOSE_MS)
-    } else if (openBucket === null) {
-      // (2) Open fresh.
-      setDisplayBucket(key)
-      setOpenBucket(key)
-    } else {
-      // (3) Switch — collapse the current panel, then open the new one once the
-      // close animation has finished (sequential, never two animating at once).
-      setOpenBucket(null)
-      closeTimer.current = setTimeout(() => {
-        setDisplayBucket(key)
-        setOpenBucket(key)
-      }, CLOSE_MS)
-    }
-  }
+  const { openBucket, displayBucket, onToggle } = useBucketBand<BucketKey>()
 
   // Rows for the displayed bucket — derived from displayBucket (not openBucket)
   // so they persist through the close animation. Empty when nothing is shown.
@@ -104,14 +63,14 @@ export default function MacdStateGrid({
           tint="pos-rising"
           stats={stats.posRising}
           isOpen={openBucket === 'posRising'}
-          onClick={() => onCardClick('posRising')}
+          onClick={() => onToggle('posRising')}
         />
         <MacdBucketCard
           title="Positive + Falling ▼"
           tint="pos-falling"
           stats={stats.posFalling}
           isOpen={openBucket === 'posFalling'}
-          onClick={() => onCardClick('posFalling')}
+          onClick={() => onToggle('posFalling')}
         />
       </div>
       <AccordionPanel open={isRow0(openBucket)}>
@@ -127,14 +86,14 @@ export default function MacdStateGrid({
           tint="neg-rising"
           stats={stats.negRising}
           isOpen={openBucket === 'negRising'}
-          onClick={() => onCardClick('negRising')}
+          onClick={() => onToggle('negRising')}
         />
         <MacdBucketCard
           title="Negative + Falling ▼"
           tint="neg-falling"
           stats={stats.negFalling}
           isOpen={openBucket === 'negFalling'}
-          onClick={() => onCardClick('negFalling')}
+          onClick={() => onToggle('negFalling')}
         />
       </div>
       <AccordionPanel open={isRow1(openBucket)}>
@@ -142,26 +101,6 @@ export default function MacdStateGrid({
           <BucketTradeTable rows={openRows} timeframe={timeframe} />
         )}
       </AccordionPanel>
-    </div>
-  )
-}
-
-// Inline-expansion panel (§97) — SettingsAccordion's grid-rows-[0fr]→[1fr]
-// technique. The inner min-h-0 overflow-hidden is load-bearing: it lets the row
-// track collapse to 0 and clips content during the transition. Reduced-motion
-// is handled globally (index.css zeroes transition-duration). pt-3 spaces the
-// table from the card row above when open; it contributes nothing when the row
-// track is 0fr (closed), so the resting grid stays tight.
-function AccordionPanel({ open, children }: { open: boolean; children: ReactNode }) {
-  return (
-    <div
-      className={`grid transition-[grid-template-rows] duration-200 ease-out-soft ${
-        open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-      }`}
-    >
-      <div className="min-h-0 overflow-hidden" aria-hidden={!open}>
-        <div className="pt-3">{children}</div>
-      </div>
     </div>
   )
 }
