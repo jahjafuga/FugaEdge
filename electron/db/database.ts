@@ -12,6 +12,7 @@ import { migrateScratchReclassify } from './migrate-scratch-reclassify'
 import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
 import { migrateAddWarmupBars } from './migrate-add-warmup-bars'
 import { migrateAddWarmupAttemptedAt } from './migrate-add-warmup-attempted-at'
+import { migrateAddWarmupError } from './migrate-add-warmup-error'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -830,6 +831,12 @@ function migrateAfterSchema(
   // runWarmupBackfill skip keys already attempted so empty-warmup dates don't
   // re-fetch every launch.
   migrateAddWarmupAttemptedAt(conn)
+
+  // v0.2.4 §K.1 — additive intraday_bars.warmup_error column (NULL = succeeded /
+  // legit-empty, set = threw). Same PRAGMA-gated, no-version-gate, no-backup
+  // idiom; lets the §K.1.1 worklist predicate retry transient throws while
+  // leaving out-of-coverage keys locked.
+  migrateAddWarmupError(conn)
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

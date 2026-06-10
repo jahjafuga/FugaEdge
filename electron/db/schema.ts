@@ -5,6 +5,15 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 28 for v0.2.4 §K.1 — additive intraday_bars.warmup_error column
+// (nullable TEXT; NULL = warmup succeeded or was legitimately empty, set = the
+// fetch threw). Lets runWarmupBackfill's worklist predicate retry transient
+// throws (rate-limit / network) while leaving out-of-coverage keys locked —
+// Beat 2.7's smoke showed 11 of 15 "empty" warmups were actually throttled
+// throws that warmup_attempted_at locked out of future launches. Purely
+// additive, PRAGMA-gated ALTER via migrateAddWarmupError (mirror of
+// migrateAddWarmupAttemptedAt).
+//
 // Bumped to 27 for v0.2.4 §K — additive intraday_bars.warmup_attempted_at
 // column (nullable ISO-8601 timestamp; NULL = warmup never attempted, set =
 // attempted regardless of success/empty/error). Lets runWarmupBackfill skip
@@ -60,7 +69,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '27'
+export const SCHEMA_VERSION = '28'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -200,6 +209,7 @@ CREATE TABLE IF NOT EXISTS intraday_bars (
   bars        TEXT NOT NULL DEFAULT '[]',   -- JSON [{t,o,h,l,c,v}, ...]
   warmup_bars TEXT,                         -- JSON prior-day warmup bars; NULL until backfilled (parseBars -> [])
   warmup_attempted_at TEXT,                 -- ISO ts of last warmup-fetch attempt (success/empty/error); NULL = never tried (§K runWarmupBackfill marker)
+  warmup_error TEXT,                        -- error msg if the warmup fetch THREW (§K.1); NULL = succeeded or legit-empty (retry-eligible vs locked)
   fetched_at  TEXT NOT NULL DEFAULT (datetime('now')),
   error       TEXT,
   PRIMARY KEY (symbol, date)
