@@ -173,20 +173,22 @@ app.whenReady().then(() => {
     setImmediate(runPendingMaeMfeBackfill)
     setImmediate(async () => {
       try {
-        await runWarmupBackfill({
+        const warmupResult = await runWarmupBackfill({
           onProgress: (p) => {
             if (!win.isDestroyed()) {
               win.webContents.send(IPC.WARMUP_BACKFILL_PROGRESS, p)
             }
           },
         })
-        await runTradeTechnicalsBackfill({
+        console.info(`[FE launch backfill] warmup: ${JSON.stringify(warmupResult)}`)
+        const technicalsResult = await runTradeTechnicalsBackfill({
           onProgress: (p) => {
             if (!win.isDestroyed()) {
               win.webContents.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p)
             }
           },
         })
+        console.info(`[FE launch backfill] technicals: ${JSON.stringify(technicalsResult)}`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
         console.error(`[FE launch backfill] warmup→technicals failed: ${msg}`)
