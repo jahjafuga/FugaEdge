@@ -129,7 +129,12 @@ export default function TimeOfDayMatrix({
                       >
                         {signed(cell.netPnl)}
                       </span>
-                      <LowSampleBadge n={cell.n} />
+                      {/* Fixed-height badge slot — reserves the LowSampleBadge's
+                          h-[18px] whether or not it renders, so a badge in one cell
+                          doesn't stretch its row-mates into ragged vertical centering. */}
+                      <div className="flex h-[18px] items-center">
+                        <LowSampleBadge n={cell.n} />
+                      </div>
                     </button>
                   </td>
                 )

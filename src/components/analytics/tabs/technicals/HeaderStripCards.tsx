@@ -7,8 +7,8 @@ interface HeaderStripCardsProps {
 }
 
 // The four Header Strip cards (spec §B item 2). Single row of four on wide
-// viewports; wraps to 2×2 below Tailwind's `lg` (1024px — the codebase does
-// not customize the breakpoint). All four share one denominator — the §C:103
+// viewports; wraps to 2×2 below `xl` (1280px), honoring spec §B's "<1280px wraps
+// to 2×2" (previously `lg` / 1024px). All four share one denominator — the §C:103
 // "trades with data" gate — so the count footnote reads identically on each.
 export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
   const cards = [
@@ -19,7 +19,7 @@ export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {cards.map(({ label, stat }) => (
         <KpiCard
           key={label}

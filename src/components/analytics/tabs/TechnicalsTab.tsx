@@ -254,7 +254,10 @@ export default function TechnicalsTab() {
             description="Where was price relative to VWAP when you entered?"
             right={
               vwapStats.unclassified > 0 ? (
-                <UnclassifiedChip count={vwapStats.unclassified} />
+                <UnclassifiedChip
+                  count={vwapStats.unclassified}
+                  reason="no vwap data"
+                />
               ) : undefined
             }
           />
@@ -269,7 +272,10 @@ export default function TechnicalsTab() {
             description="Where was price relative to 9 EMA when you entered?"
             right={
               emaStats.unclassified > 0 ? (
-                <UnclassifiedChip count={emaStats.unclassified} />
+                <UnclassifiedChip
+                  count={emaStats.unclassified}
+                  reason="no 9 ema data"
+                />
               ) : undefined
             }
           />
