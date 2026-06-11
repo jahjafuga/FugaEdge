@@ -66,6 +66,28 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+
+  // Spec §J invariant 14 (see the audit map in
+  // src/core/technicals/__tests__/section6-invariants.test.ts): filter-bar state
+  // (TechnicalsTab useState) and accordion state (useBucketBand) are independent,
+  // so expanding/collapsing a band must not reset the filter. The ticker filter is
+  // renderer-side (no refetch on change), so its value is pure filter-bar state.
+  it('(inv 14) expanding/collapsing a band preserves the filter-bar state', async () => {
+    render(<TechnicalsTab />)
+    await screen.findByText('VWAP distance')
+
+    const ticker = screen.getByPlaceholderText('Ticker') as HTMLInputElement
+    fireEvent.change(ticker, { target: { value: 'TEST' } })
+    expect(ticker.value).toBe('TEST')
+
+    // Expand a VWAP bucket → the filter must survive.
+    fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
+    expect(ticker.value).toBe('TEST')
+
+    // Collapse it → still preserved.
+    fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
+    expect(ticker.value).toBe('TEST')
+  })
 })
 
 describe('TechnicalsTab — Section 4 (EMA) integration', () => {

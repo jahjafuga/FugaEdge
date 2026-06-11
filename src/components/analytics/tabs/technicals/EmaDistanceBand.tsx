@@ -47,6 +47,14 @@ import { useBucketBand } from './useBucketBand'
 // Complete literal class strings so Tailwind's JIT detects them (the F4 idiom;
 // `bg-ema-${i}/[0.NN]` would scan as plain text and never emit). Rest 0.12 +
 // active 0.18, keyed by EmaBucketKey → the bg-ema-N palette tokens.
+//
+// Spec §J invariant 6 (visual at-vs-extended distinction) — DEFERRED: §G wants the
+// bucket's color/opacity to make "near the level" (e2) vs "extended" readable at a
+// glance. The position-weight half is realized via the DivergingBar barValue
+// (tested in BucketRow.test.tsx); the color/opacity half waits because these
+// bg-ema-N tokens are F8's gray placeholders, so the distinction isn't realized
+// yet. Revisit when the real palette lands (visual session). Audit map:
+// src/core/technicals/__tests__/section6-invariants.test.ts.
 const TINT_REST: Record<EmaBucketKey, string> = {
   e1: 'bg-ema-1/[0.12]',
   e2: 'bg-ema-2/[0.12]',

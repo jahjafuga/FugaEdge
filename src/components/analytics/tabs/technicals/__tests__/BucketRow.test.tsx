@@ -143,4 +143,16 @@ describe('BucketRow — horizontal distance-band row (direct unit tests)', () =>
     fireEvent.click(screen.getByRole('button'))
     expect(onClick).toHaveBeenCalledTimes(1)
   })
+
+  // Spec §J invariants 9 + 10 at the render layer (see the audit map in
+  // src/core/technicals/__tests__/section6-invariants.test.ts). On an n<5 bucket
+  // the win rate stays VISIBLE (flagged by the badge, not hidden) while expectancy
+  // is suppressed to "—" — the inverse of the §B Section-1 header cards, which
+  // suppress win rate at n<5. The LOW fixture (n=3) drives both halves at once.
+  it('LOW sample n=3: flags win rate + badge, suppresses expectancy (inv 9+10)', () => {
+    render(<BucketRow {...base} stats={LOW} />)
+    expect(screen.getByText('33%')).toBeTruthy() // #10 win rate shown — percent(0.33, 0)
+    expect(screen.getByText('Low sample')).toBeTruthy() // #10 the low-confidence flag
+    expect(screen.getByText('—')).toBeTruthy() // #9 expectancy suppressed (null → —)
+  })
 })

@@ -39,6 +39,14 @@ import { useBucketBand } from './useBucketBand'
 // Complete literal class strings so Tailwind's JIT detects them (the F4 idiom;
 // `bg-vwap-${i}/[0.NN]` would scan as plain text and never emit). Rest 0.12 +
 // active 0.18, keyed by VwapBucketKey → the bg-vwap-N palette tokens.
+//
+// Spec §J invariant 6 (visual at-vs-extended distinction) — DEFERRED: §G wants the
+// bucket's color/opacity to make "near the level" (v3) vs "extended" readable at a
+// glance. The position-weight half is realized via the DivergingBar barValue
+// (tested in BucketRow.test.tsx); the color/opacity half waits because these
+// bg-vwap-N tokens are F8's gray placeholders, so the distinction isn't realized
+// yet. Revisit when the real palette lands (visual session). Audit map:
+// src/core/technicals/__tests__/section6-invariants.test.ts.
 const TINT_REST: Record<VwapBucketKey, string> = {
   v1: 'bg-vwap-1/[0.12]',
   v2: 'bg-vwap-2/[0.12]',
