@@ -1,8 +1,10 @@
 // One bucket's trade table for the inline-expansion accordion (5b.1; generic as
-// of F6). Presentational: a hand-rolled 3-column sortable table — Date, Net P&L,
-// and a section-supplied distance/value column (MACD line for Section 2; VWAP /
-// EMA distance for Sections 3 / 4) — over the rows the section resolved for the
-// open cell. Row-click → read-only TradeDetailSheet lands in F6 phase 3.
+// of F6, row-click drill-through as of F6 phase 3). Presentational: a hand-rolled
+// 3-column sortable table — Date, Net P&L, and a section-supplied distance/value
+// column (MACD line for Section 2; VWAP / EMA distance for Sections 3 / 4) — over
+// the rows the section resolved for the open cell. Clicking (or Enter/Space on) a
+// row opens the read-only TradeDetailSheet for that trade; the sheet portals to
+// body, so it renders as a sibling of the table.
 //
 // The third column is parameterized via the `distanceColumn` descriptor (label +
 // value extractor + formatter); Date and Net P&L are fixed. Sort is a thin
@@ -14,6 +16,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from '@/core/technicals/headerStrip'
 import { signed, pnlClass } from '@/lib/format'
+import { TradeDetailSheet } from '@/components/trades/TradeDetailSheet'
 
 // The section-supplied third column. `getValue` reads the metric off the row's
 // active-timeframe snapshot (a number; the consumer's extractor resolves any null
@@ -65,6 +68,11 @@ export default function BucketTradeTable({
     dir: 'desc',
   })
   const [showAll, setShowAll] = useState(false)
+  // The row whose read-only detail sheet is open, or null. Any row click (or
+  // keyboard activation) sets it; the sheet's onClose clears it.
+  const [selectedRow, setSelectedRow] = useState<TradeWithTechnicalsRow | null>(
+    null,
+  )
 
   // Click the active column → flip direction; a different column → that column,
   // descending (newest / largest first, the conventional default).
@@ -88,54 +96,74 @@ export default function BucketTradeTable({
   const hasMore = sorted.length > DEFAULT_VISIBLE
 
   return (
-    <div className="rounded-md border border-border-subtle bg-bg-2 p-3">
-      <table className="w-full text-xs">
-        <thead>
-          <tr>
-            <Th label="Date" col="date" sort={sort} onSort={onSort} align="left" />
-            <Th label="Net P&L" col="net_pnl" sort={sort} onSort={onSort} align="right" />
-            <Th
-              label={distanceColumn.label}
-              col="distance"
-              sort={sort}
-              onSort={onSort}
-              align="right"
-            />
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((row) => (
-            <tr
-              key={row.id}
-              className="font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:bg-bg-3"
-            >
-              <td className="py-1 text-left">{row.date}</td>
-              <td className={`py-1 text-right ${pnlClass(row.net_pnl)}`}>
-                {signed(row.net_pnl)}
-              </td>
-              <td className="py-1 text-right">
-                {distanceColumn.format(distanceColumn.getValue(row, timeframe))}
-              </td>
+    <>
+      <div className="rounded-md border border-border-subtle bg-bg-2 p-3">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              <Th label="Date" col="date" sort={sort} onSort={onSort} align="left" />
+              <Th label="Net P&L" col="net_pnl" sort={sort} onSort={onSort} align="right" />
+              <Th
+                label={distanceColumn.label}
+                col="distance"
+                sort={sort}
+                onSort={onSort}
+                align="right"
+              />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {visible.map((row) => (
+              <tr
+                key={row.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedRow(row)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setSelectedRow(row)
+                  }
+                }}
+                className="cursor-pointer font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:bg-bg-3"
+              >
+                <td className="py-1 text-left">{row.date}</td>
+                <td className={`py-1 text-right ${pnlClass(row.net_pnl)}`}>
+                  {signed(row.net_pnl)}
+                </td>
+                <td className="py-1 text-right">
+                  {distanceColumn.format(distanceColumn.getValue(row, timeframe))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
 
-      {hasMore && (
-        <div className="mt-2 flex items-center justify-between border-t border-border-subtle/60 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowAll((v) => !v)}
-            className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
-          >
-            {showAll ? 'Show first 8' : `Show all ${sorted.length}`}
-          </button>
-          <span className="text-[10px] text-fg-muted tnum">
-            (showing {visible.length} of {sorted.length})
-          </span>
-        </div>
+        {hasMore && (
+          <div className="mt-2 flex items-center justify-between border-t border-border-subtle/60 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="cursor-pointer text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+            >
+              {showAll ? 'Show first 8' : `Show all ${sorted.length}`}
+            </button>
+            <span className="text-[10px] text-fg-muted tnum">
+              (showing {visible.length} of {sorted.length})
+            </span>
+          </div>
+        )}
+      </div>
+
+      {selectedRow && (
+        <TradeDetailSheet
+          trade_id={selectedRow.id}
+          technicalsHint={selectedRow.technicals}
+          timeframe={timeframe}
+          onClose={() => setSelectedRow(null)}
+        />
       )}
-    </div>
+    </>
   )
 }
 
