@@ -16,6 +16,7 @@ function makeRow(
     date: '2026-05-15',
     side: 'long',
     net_pnl: 0,
+    open_time: '2026-05-15T13:45:00.000Z',
     playbook_id: playbookName === null ? null : id,
     playbook_name: playbookName,
     technicals: null,

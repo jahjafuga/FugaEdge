@@ -57,6 +57,7 @@ export interface TradeWithTechnicalsRow {
   date: string
   side: 'long' | 'short'
   net_pnl: number
+  open_time: string // ISO-8601 UTC entry timestamp
   playbook_id: number | null
   playbook_name: string | null
   technicals: TradeTechnicalsRow | null

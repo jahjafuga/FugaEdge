@@ -49,6 +49,7 @@ export function makeRow(
   overrides: {
     id?: number
     net_pnl?: number
+    open_time?: string
     technicals?: TradeTechnicalsRow | null
   } = {},
 ): TradeWithTechnicalsRow {
@@ -58,6 +59,8 @@ export function makeRow(
     date: '2026-05-15',
     side: 'long',
     net_pnl: overrides.net_pnl ?? 100,
+    // Default 09:45 ET (EDT, UTC-4) → the 9:30-10:00 time-of-day bucket.
+    open_time: overrides.open_time ?? '2026-05-15T13:45:00.000Z',
     playbook_id: null,
     playbook_name: null,
     technicals:

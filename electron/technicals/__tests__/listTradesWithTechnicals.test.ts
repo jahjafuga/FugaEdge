@@ -64,6 +64,7 @@ const FULL_JOINED_ROW: TradeWithTechnicalsDbRow = {
   date: '2026-05-15',
   side: 'long',
   net_pnl: 250.5,
+  open_time: '2026-05-15T13:45:00.000Z',
   playbook_id: 7,
   playbook_name: 'Bull Flag',
 
@@ -171,6 +172,7 @@ describe('mapTradeWithTechnicalsDbRow', () => {
     expect(out.technicals!.tf_1m.macd_positive).toBe(true)
     expect(out.technicals!.tf_1m.vwap_dist_pct).toBe(2.0)
     expect(out.technicals!.tf_5m.ema9_above_ema20).toBe(false)
+    expect(out.open_time).toBe(FULL_JOINED_ROW.open_time) // passthrough, no transform
   })
 
   it('(P3) tt_trade_id set, all indicators null, data_complete 0 → technicals present, fields null', () => {
