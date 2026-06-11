@@ -82,6 +82,26 @@
     --macd-neg-rising:  170 183 184;  /* #aab7b8  Negative + Rising */
     --macd-neg-falling: 239 83 80;    /* #ef5350  Negative + Falling */
 
+    /* VWAP + EMA distance-band palettes (spec §A4 / §A5) — F8 PLACEHOLDER
+       scaffolding for the future Section 3 (VWAP, 7 buckets) and Section 4
+       (EMA, 6 buckets) distance bands. Gray ramps, intentionally non-final;
+       the at-equilibrium bucket (vwap-3 / ema-2) carries a slight warm bump to
+       preserve the §G "position weight" semantic. :root only, like --macd.
+       Index-based slugs; full palette tuning is deferred to a visual session. */
+    --vwap-1: 224 224 224;  /* #e0e0e0  Below / broken (placeholder) */
+    --vwap-2: 200 200 200;  /* #c8c8c8  Just below VWAP (placeholder) */
+    --vwap-3: 196 184 152;  /* #c4b898  At VWAP — equilibrium, warm bump (placeholder) */
+    --vwap-4: 152 152 152;  /* #989898  Slightly extended (placeholder) */
+    --vwap-5: 128 128 128;  /* #808080  Extended (placeholder) */
+    --vwap-6: 104 104 104;  /* #686868  Stretched / chasing (placeholder) */
+    --vwap-7: 80 80 80;     /* #505050  Parabolic / danger (placeholder) */
+    --ema-1: 224 224 224;   /* #e0e0e0  Below 9 EMA / broken (placeholder) */
+    --ema-2: 196 184 152;   /* #c4b898  At 9 EMA — pullback zone, warm bump (placeholder) */
+    --ema-3: 168 168 168;   /* #a8a8a8  Slightly above (placeholder) */
+    --ema-4: 136 136 136;   /* #888888  Extended (placeholder) */
+    --ema-5: 104 104 104;   /* #686868  Very extended (placeholder) */
+    --ema-6: 80 80 80;      /* #505050  Blow-off / parabolic (placeholder) */
+
     /* System */
     --neutral: 148 163 184;      /* #94a3b8 */
     --info: 96 165 250;          /* #60a5fa */

@@ -76,6 +76,22 @@ const config: Config = {
         'macd-pos-falling': 'rgb(var(--macd-pos-falling) / <alpha-value>)',
         'macd-neg-rising':  'rgb(var(--macd-neg-rising) / <alpha-value>)',
         'macd-neg-falling': 'rgb(var(--macd-neg-falling) / <alpha-value>)',
+        // VWAP + EMA distance-band palettes (spec §A4 / §A5) — F8 placeholder
+        // gray ramps; the future Section 3 / 4 wrappers tint cells via
+        // bg-vwap-N/[0.12] / bg-ema-N/[0.12], the same idiom as bg-macd-{slug}.
+        'vwap-1': 'rgb(var(--vwap-1) / <alpha-value>)',
+        'vwap-2': 'rgb(var(--vwap-2) / <alpha-value>)',
+        'vwap-3': 'rgb(var(--vwap-3) / <alpha-value>)',
+        'vwap-4': 'rgb(var(--vwap-4) / <alpha-value>)',
+        'vwap-5': 'rgb(var(--vwap-5) / <alpha-value>)',
+        'vwap-6': 'rgb(var(--vwap-6) / <alpha-value>)',
+        'vwap-7': 'rgb(var(--vwap-7) / <alpha-value>)',
+        'ema-1': 'rgb(var(--ema-1) / <alpha-value>)',
+        'ema-2': 'rgb(var(--ema-2) / <alpha-value>)',
+        'ema-3': 'rgb(var(--ema-3) / <alpha-value>)',
+        'ema-4': 'rgb(var(--ema-4) / <alpha-value>)',
+        'ema-5': 'rgb(var(--ema-5) / <alpha-value>)',
+        'ema-6': 'rgb(var(--ema-6) / <alpha-value>)',
         // System
         neutral: 'rgb(var(--neutral) / <alpha-value>)',
         info:    'rgb(var(--info) / <alpha-value>)',
