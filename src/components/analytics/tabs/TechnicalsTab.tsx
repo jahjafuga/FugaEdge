@@ -15,6 +15,7 @@ import { ipc } from '@/lib/ipc'
 import { distinctPlaybooks } from '@/core/performance/filters'
 import { computeHeaderStrip } from '@/core/technicals/headerStrip'
 import { computeMacdBuckets } from '@/core/technicals/macdBuckets'
+import { computeVwapBuckets } from '@/core/technicals/vwapBuckets'
 import { filterRows } from '@/core/technicals/filterRows'
 import { rangeForDatePreset } from '@/core/technicals/datePreset'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
@@ -26,6 +27,7 @@ import TechnicalsFilterBar, {
 } from './technicals/TechnicalsFilterBar'
 import HeaderStripCards from './technicals/HeaderStripCards'
 import MacdStateGrid from './technicals/MacdStateGrid'
+import VwapDistanceBand from './technicals/VwapDistanceBand'
 import UnclassifiedChip from './technicals/UnclassifiedChip'
 
 export default function TechnicalsTab() {
@@ -98,6 +100,12 @@ export default function TechnicalsTab() {
     [filteredRows, filters.timeframe],
   )
 
+  // VWAP distance 7-bucket aggregation (Section 3) for the toggled timeframe.
+  const vwapStats = useMemo(
+    () => computeVwapBuckets(filteredRows, filters.timeframe),
+    [filteredRows, filters.timeframe],
+  )
+
   return (
     <div className="space-y-6">
       <TechnicalsFilterBar
@@ -145,6 +153,20 @@ export default function TechnicalsTab() {
             <Skeleton className="h-[220px]" />
             <Skeleton className="h-[220px]" />
           </div>
+
+          <SectionHeader
+            title="VWAP distance"
+            description="Where was price relative to VWAP when you entered?"
+          />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+            <Skeleton className="h-[52px]" />
+          </div>
         </>
       ) : (
         <>
@@ -165,6 +187,21 @@ export default function TechnicalsTab() {
           />
           <MacdStateGrid
             stats={bucketStats}
+            filteredRows={filteredRows}
+            timeframe={filters.timeframe}
+          />
+
+          <SectionHeader
+            title="VWAP distance"
+            description="Where was price relative to VWAP when you entered?"
+            right={
+              vwapStats.unclassified > 0 ? (
+                <UnclassifiedChip count={vwapStats.unclassified} />
+              ) : undefined
+            }
+          />
+          <VwapDistanceBand
+            stats={vwapStats}
             filteredRows={filteredRows}
             timeframe={filters.timeframe}
           />
