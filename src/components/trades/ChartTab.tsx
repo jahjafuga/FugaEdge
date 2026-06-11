@@ -72,6 +72,11 @@ function histColor(m: HistogramMomentum): string {
   }
 }
 
+// An empty MACD result — passed to the host when the §H toggle is off so the
+// existing "remove the series when macd.macd.length === 0" path hides the
+// sub-pane, with no special-case host logic.
+const EMPTY_MACD: MacdResult = { macd: [], signal: [], histogram: [] }
+
 type Timeframe = '10s' | '1m' | '5m' | 'daily'
 
 interface ChartTabProps {
@@ -90,6 +95,19 @@ export default function ChartTab({ trade, isFullscreen, onToggleFullscreen }: Ch
   const [showEma9, setShowEma9] = useState(true)
   const [showEma20, setShowEma20] = useState(true)
   const [showVwap, setShowVwap] = useState(true)
+  // §H: the MACD sub-pane toggle — a persisted global preference (unlike the
+  // ephemeral EMA/VWAP toggles above). Default-on; hydrated from settings on
+  // mount and written back on every toggle, so it survives a modal close/reopen.
+  const [showMacd, setShowMacd] = useState(true)
+  useEffect(() => {
+    let cancelled = false
+    void ipc.settingsGet().then((s) => {
+      if (!cancelled) setShowMacd(s.values.show_macd_pane)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   // Monotonic id per fetch call. Each load() captures its id; after the
   // IPC await, we drop the result if a newer fetch has started or this
   // ChartTab instance has unmounted (cancelled by cleanup setting to -1).
@@ -210,9 +228,16 @@ export default function ChartTab({ trade, isFullscreen, onToggleFullscreen }: Ch
       showEma9={showEma9}
       showEma20={showEma20}
       showVwap={showVwap}
+      showMacd={showMacd}
       onToggleEma9={() => setShowEma9((v) => !v)}
       onToggleEma20={() => setShowEma20((v) => !v)}
       onToggleVwap={() => setShowVwap((v) => !v)}
+      onToggleMacd={() => {
+        // Flip + persist the global §H preference so it sticks across modals.
+        const next = !showMacd
+        setShowMacd(next)
+        void ipc.settingsSave({ show_macd_pane: next })
+      }}
       onRefresh={() => load(true)}
       refreshing={refreshing}
       isFullscreen={isFullscreen}
@@ -364,9 +389,11 @@ interface ChartCanvasProps {
   showEma9: boolean
   showEma20: boolean
   showVwap: boolean
+  showMacd: boolean
   onToggleEma9: () => void
   onToggleEma20: () => void
   onToggleVwap: () => void
+  onToggleMacd: () => void
   onRefresh: () => void
   refreshing: boolean
   /** Fullscreen flag + toggle — modal-owned, drilled down so the Fullscreen
@@ -383,9 +410,11 @@ function ChartCanvas({
   showEma9,
   showEma20,
   showVwap,
+  showMacd,
   onToggleEma9,
   onToggleEma20,
   onToggleVwap,
+  onToggleMacd,
   onRefresh,
   refreshing,
   isFullscreen,
@@ -491,9 +520,11 @@ function ChartCanvas({
             showEma9={showEma9}
             showEma20={showEma20}
             showVwap={showVwap}
+            showMacd={showMacd}
             onToggleEma9={onToggleEma9}
             onToggleEma20={onToggleEma20}
             onToggleVwap={onToggleVwap}
+            onToggleMacd={onToggleMacd}
           />
           <DrawButton />
           <div className="mx-0.5 h-5 w-px bg-border-subtle" aria-hidden="true" />
@@ -548,7 +579,7 @@ function ChartCanvas({
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
         indicators={indicators}
-        macd={macd}
+        macd={showMacd ? macd : EMPTY_MACD}
       />
     </div>
   )
@@ -1445,23 +1476,27 @@ interface IndicatorsDropdownProps {
   showEma9: boolean
   showEma20: boolean
   showVwap: boolean
+  showMacd: boolean
   onToggleEma9: () => void
   onToggleEma20: () => void
   onToggleVwap: () => void
+  onToggleMacd: () => void
 }
 
 // Collapses the three indicator toggles into a dropdown so the toolbar stays
 // compact (room for MACD/RSI later). The panel reuses IndicatorToggle unchanged
 // — same state + handlers. Click-outside (mousedown) and Escape close it;
 // toggling inside leaves it open so several can be flipped in one go.
-function IndicatorsDropdown({
+export function IndicatorsDropdown({
   tfLabel,
   showEma9,
   showEma20,
   showVwap,
+  showMacd,
   onToggleEma9,
   onToggleEma20,
   onToggleVwap,
+  onToggleMacd,
 }: IndicatorsDropdownProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -1481,7 +1516,9 @@ function IndicatorsDropdown({
     }
   }, [open])
 
-  const activeCount = [showEma9, showEma20, showVwap].filter(Boolean).length
+  const activeCount = [showEma9, showEma20, showVwap, showMacd].filter(
+    Boolean,
+  ).length
 
   return (
     <div ref={ref} className="relative">
@@ -1493,7 +1530,7 @@ function IndicatorsDropdown({
         className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-2 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary"
       >
         Indicators
-        <span className="text-fg-muted">{activeCount}/3</span>
+        <span className="text-fg-muted">{activeCount}/4</span>
         <ChevronDown
           size={12}
           strokeWidth={2}
@@ -1519,6 +1556,12 @@ function IndicatorsDropdown({
             color={COLOR_VWAP}
             active={showVwap}
             onClick={onToggleVwap}
+          />
+          <IndicatorToggle
+            label="MACD"
+            color={COLOR_MACD_LINE}
+            active={showMacd}
+            onClick={onToggleMacd}
           />
         </div>
       )}
