@@ -76,9 +76,10 @@ const config: Config = {
         'macd-pos-falling': 'rgb(var(--macd-pos-falling) / <alpha-value>)',
         'macd-neg-rising':  'rgb(var(--macd-neg-rising) / <alpha-value>)',
         'macd-neg-falling': 'rgb(var(--macd-neg-falling) / <alpha-value>)',
-        // VWAP + EMA distance-band palettes (spec §A4 / §A5) — F8 placeholder
-        // gray ramps; the future Section 3 / 4 wrappers tint cells via
-        // bg-vwap-N/[0.12] / bg-ema-N/[0.12], the same idiom as bg-macd-{slug}.
+        // VWAP + EMA distance-band palettes (spec §A4 / §A5) — the designed
+        // diverging ramps (RGB values in src/index.css); the Section 3 / 4
+        // wrappers tint cells via bg-vwap-N/[0.12] / bg-ema-N/[0.12], the same
+        // idiom as bg-macd-{slug}.
         'vwap-1': 'rgb(var(--vwap-1) / <alpha-value>)',
         'vwap-2': 'rgb(var(--vwap-2) / <alpha-value>)',
         'vwap-3': 'rgb(var(--vwap-3) / <alpha-value>)',

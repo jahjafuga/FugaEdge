@@ -82,25 +82,30 @@
     --macd-neg-rising:  170 183 184;  /* #aab7b8  Negative + Rising */
     --macd-neg-falling: 239 83 80;    /* #ef5350  Negative + Falling */
 
-    /* VWAP + EMA distance-band palettes (spec §A4 / §A5) — F8 PLACEHOLDER
-       scaffolding for the future Section 3 (VWAP, 7 buckets) and Section 4
-       (EMA, 6 buckets) distance bands. Gray ramps, intentionally non-final;
-       the at-equilibrium bucket (vwap-3 / ema-2) carries a slight warm bump to
-       preserve the §G "position weight" semantic. :root only, like --macd.
-       Index-based slugs; full palette tuning is deferred to a visual session. */
-    --vwap-1: 224 224 224;  /* #e0e0e0  Below / broken (placeholder) */
-    --vwap-2: 200 200 200;  /* #c8c8c8  Just below VWAP (placeholder) */
-    --vwap-3: 196 184 152;  /* #c4b898  At VWAP — equilibrium, warm bump (placeholder) */
-    --vwap-4: 152 152 152;  /* #989898  Slightly extended (placeholder) */
-    --vwap-5: 128 128 128;  /* #808080  Extended (placeholder) */
-    --vwap-6: 104 104 104;  /* #686868  Stretched / chasing (placeholder) */
-    --vwap-7: 80 80 80;     /* #505050  Parabolic / danger (placeholder) */
-    --ema-1: 224 224 224;   /* #e0e0e0  Below 9 EMA / broken (placeholder) */
-    --ema-2: 196 184 152;   /* #c4b898  At 9 EMA — pullback zone, warm bump (placeholder) */
-    --ema-3: 168 168 168;   /* #a8a8a8  Slightly above (placeholder) */
-    --ema-4: 136 136 136;   /* #888888  Extended (placeholder) */
-    --ema-5: 104 104 104;   /* #686868  Very extended (placeholder) */
-    --ema-6: 80 80 80;      /* #505050  Blow-off / parabolic (placeholder) */
+    /* VWAP bucket palette (spec §A4 / §G) — used by the v0.2.4 VWAP Distance
+       band. :root only (no :root.light override), mirroring --macd: a shared
+       accent identical across themes. Diverging-with-asymmetric-tails per the
+       Ross Cameron framing (§I): cool red on broken-below, MACD teal at the
+       equilibrium sweet spot, then green → amber → hot red as price extends
+       above (parabolic = above but dangerous). The band tints cells at 0.12
+       (rest) / 0.18 (active) via bg-vwap-N/[0.NN]. */
+    --vwap-1: 217 106 100;  /* #d96a64  Below / broken — cool red, trend died */
+    --vwap-2: 192 133 114;  /* #c08572  Just below VWAP — dusky transitional, reclaim staging */
+    --vwap-3: 38 166 154;   /* #26a69a  At VWAP (equilibrium) — MACD teal sweet spot */
+    --vwap-4: 70 176 122;   /* #46b07a  Slightly extended — medium green, healthy entry */
+    --vwap-5: 163 193 78;   /* #a3c14e  Extended — yellow-green, leaving healthy */
+    --vwap-6: 245 176 65;   /* #f5b041  Stretched / chasing — MACD amber, chase zone */
+    --vwap-7: 239 83 80;    /* #ef5350  Parabolic / danger — MACD red, hot alarming */
+    /* EMA bucket palette (spec §A5 / §G) — the same diverging shape as --vwap,
+       applied to the 9 EMA distance band. Six buckets, not seven (no "just
+       below" zone — §A5 jumps from broken straight to the pullback band).
+       :root only, mirroring --macd / --vwap. */
+    --ema-1: 217 106 100;   /* #d96a64  Below 9 EMA / broken — cool red, momentum fading */
+    --ema-2: 38 166 154;    /* #26a69a  At 9 EMA (pullback zone) — MACD teal sweet spot */
+    --ema-3: 70 176 122;    /* #46b07a  Slightly above — medium green, healthy continuation */
+    --ema-4: 163 193 78;    /* #a3c14e  Extended — yellow-green, starting to chase */
+    --ema-5: 245 176 65;    /* #f5b041  Very extended — MACD amber, parabolic risk */
+    --ema-6: 239 83 80;     /* #ef5350  Blow-off / parabolic — MACD red, climactic */
 
     /* System */
     --neutral: 148 163 184;      /* #94a3b8 */
