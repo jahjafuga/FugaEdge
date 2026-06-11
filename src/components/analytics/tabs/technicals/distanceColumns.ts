@@ -6,6 +6,7 @@
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from '@/core/technicals/headerStrip'
 import type { DistanceColumn } from './BucketTradeTable'
+import { signedPct } from '@/lib/format'
 
 // The `!` on row.technicals is safe: BucketTradeTable only ever renders
 // rowsForBucket output, and rowsForBucket → classifyMacdBucket returns a non-null
@@ -22,4 +23,16 @@ export const macdLineColumn: DistanceColumn = {
     (timeframe === '1m' ? row.technicals!.tf_1m : row.technicals!.tf_5m)
       .macd_line ?? 0,
   format: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(3)}`,
+}
+
+// VWAP distance (§A4) — the signed % distance from session VWAP, the Section 3
+// column. Same `!` safety as macdLineColumn (rowsForVwapBucket only yields rows
+// with non-null vwap_dist_pct). signedPct renders the +X.X% form (F2.1's
+// indicator-distance helper); the column sorts on the signed value.
+export const vwapDistanceColumn: DistanceColumn = {
+  label: 'VWAP dist',
+  getValue: (row: TradeWithTechnicalsRow, timeframe: Timeframe) =>
+    (timeframe === '1m' ? row.technicals!.tf_1m : row.technicals!.tf_5m)
+      .vwap_dist_pct ?? 0,
+  format: (v: number) => signedPct(v),
 }
