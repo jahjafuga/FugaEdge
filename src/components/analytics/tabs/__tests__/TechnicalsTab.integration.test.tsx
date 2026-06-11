@@ -5,11 +5,11 @@ import { makeTrade } from '@/test/fixtures/trade'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import TechnicalsTab from '../TechnicalsTab'
 
-// Integration test for the full Technicals tab through Section 3 (VWAP). The tab
+// Integration test for the full Technicals tab through Section 4 (EMA). The tab
 // fetches via ipc.listTradesWithTechnicals on mount and drills into ipc.getTrade
 // for the detail sheet — both mocked (F2.1 pattern). useThemeMode is mocked to a
-// fixed dark theme so VwapDistanceBand's chartColors lookup is hermetic; the rest
-// of the module is preserved.
+// fixed dark theme so the VWAP/EMA distance bands' chartColors lookup is hermetic;
+// the rest of the module is preserved.
 const { listSpy, getTradeSpy } = vi.hoisted(() => ({
   listSpy: vi.fn(),
   getTradeSpy: vi.fn(),
@@ -54,6 +54,38 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
     // Open the At-VWAP bucket → its accordion + the VWAP-dist table mount.
     fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
     expect(screen.getByText('VWAP dist')).toBeTruthy() // the table's column header
+
+    // Click the trade row → the read-only sheet opens for that trade.
+    const tableRow = container.querySelector('tbody tr')
+    expect(tableRow).not.toBeNull()
+    fireEvent.click(tableRow!)
+    expect(await screen.findByText('AAPL')).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    // Close → the sheet unmounts; the tab stays.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('TechnicalsTab — Section 4 (EMA) integration', () => {
+  it('renders the EMA distance band + 9/20 crossover strip once data loads', async () => {
+    render(<TechnicalsTab />)
+    expect(await screen.findByText('EMA distance')).toBeTruthy()
+    // The crossover strip is the EMA band's own surface (no VWAP analog).
+    expect(screen.getByText('9/20 stacking')).toBeTruthy()
+    expect(screen.getByText('Stacked')).toBeTruthy()
+    expect(screen.getByText('Broken')).toBeTruthy()
+  })
+
+  it('drills an EMA bucket → table row → TradeDetailSheet, then closes', async () => {
+    const { container } = render(<TechnicalsTab />)
+    await screen.findByText('EMA distance')
+
+    // The seeded row sits at the DEFAULT ema9_dist_pct (-1.0) → the Below-9-EMA
+    // bucket. Open it → its accordion + the EMA-dist table mount.
+    fireEvent.click(screen.getByRole('button', { name: /Below 9 EMA/ }))
+    expect(screen.getByText('EMA 9 dist')).toBeTruthy() // the table's column header
 
     // Click the trade row → the read-only sheet opens for that trade.
     const tableRow = container.querySelector('tbody tr')
