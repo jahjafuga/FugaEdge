@@ -1,7 +1,7 @@
 // Section-supplied third-column descriptors for BucketTradeTable (F6). MACD State
-// (Section 2) reads the MACD line; the future VWAP (Section 3) and EMA (Section 4)
-// sections will add their signed-distance columns here. Each is a DistanceColumn:
-// a label, a value extractor off the active-timeframe snapshot, and a formatter.
+// (Section 2) reads the MACD line; VWAP (Section 3) and EMA (Section 4) add their
+// signed-distance columns here. Each is a DistanceColumn: a label, a value
+// extractor off the active-timeframe snapshot, and a formatter.
 
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from '@/core/technicals/headerStrip'
@@ -34,5 +34,18 @@ export const vwapDistanceColumn: DistanceColumn = {
   getValue: (row: TradeWithTechnicalsRow, timeframe: Timeframe) =>
     (timeframe === '1m' ? row.technicals!.tf_1m : row.technicals!.tf_5m)
       .vwap_dist_pct ?? 0,
+  format: (v: number) => signedPct(v),
+}
+
+// EMA 9 distance (§A5) — the signed % distance from the 9 EMA, the Section 4
+// column. Same `!` safety as vwapDistanceColumn (rowsForEmaBucket only yields rows
+// with non-null ema9_dist_pct). "EMA 9" matches the TradeDetailSheet label the row
+// click drills into; signedPct renders the +X.X% form and the column sorts on the
+// signed value.
+export const emaDistanceColumn: DistanceColumn = {
+  label: 'EMA 9 dist',
+  getValue: (row: TradeWithTechnicalsRow, timeframe: Timeframe) =>
+    (timeframe === '1m' ? row.technicals!.tf_1m : row.technicals!.tf_5m)
+      .ema9_dist_pct ?? 0,
   format: (v: number) => signedPct(v),
 }
