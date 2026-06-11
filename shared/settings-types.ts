@@ -11,6 +11,10 @@ export interface SettingsValues {
    *  wired up in Commit A; enrichment consumption ships in Commit B. */
   fmp_api_key: string
   last_country_backfill: string | null   // ISO timestamp; null when never run
+  /** §H on-chart MACD sub-pane toggle — a global per-user preference, default-on.
+   *  The one persisted indicator toggle: EMA9 / EMA20 / VWAP stay ephemeral chart
+   *  state, but MACD is v0.2.4's hero indicator, so its pane survives modal reopen. */
+  show_macd_pane: boolean
 }
 
 export interface SettingsPayload {

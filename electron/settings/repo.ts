@@ -14,6 +14,7 @@ const KEYS = {
   polygonApiKey: 'polygon_api_key',
   fmpApiKey: 'fmp_api_key',
   lastCountryBackfill: 'last_country_backfill',
+  showMacdPane: 'show_macd_pane',
 } as const
 
 const DEFAULTS: SettingsValues = {
@@ -25,6 +26,7 @@ const DEFAULTS: SettingsValues = {
   polygon_api_key: '',
   fmp_api_key: '',
   last_country_backfill: null,
+  show_macd_pane: true,
 }
 
 function parseStringArray(raw: string | null | undefined): string[] {
@@ -46,6 +48,19 @@ function parseNumber(raw: string | null | undefined, fallback: number): number {
   if (raw == null) return fallback
   const n = Number.parseFloat(String(raw))
   return Number.isFinite(n) ? n : fallback
+}
+
+// KV values persist as TEXT; booleans encode as '1' / '0'. Anything else (a
+// missing key, or a legacy / corrupt value) falls back to the provided default.
+function parseBoolean(
+  raw: string | null | undefined,
+  fallback: boolean,
+): boolean {
+  if (raw == null) return fallback
+  const t = raw.trim().toLowerCase()
+  if (t === '1' || t === 'true') return true
+  if (t === '0' || t === 'false') return false
+  return fallback
 }
 
 function readMap(): Record<string, string> {
@@ -70,6 +85,7 @@ export function getSettings(): SettingsPayload {
     polygon_api_key: (map[KEYS.polygonApiKey] ?? '').trim(),
     fmp_api_key: (map[KEYS.fmpApiKey] ?? '').trim(),
     last_country_backfill: (map[KEYS.lastCountryBackfill] ?? '').trim() || null,
+    show_macd_pane: parseBoolean(map[KEYS.showMacdPane], DEFAULTS.show_macd_pane),
   }
   return {
     values,
@@ -123,6 +139,9 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
     }
     if (input.last_country_backfill !== undefined) {
       upsert.run(KEYS.lastCountryBackfill, input.last_country_backfill ?? '')
+    }
+    if (input.show_macd_pane != null) {
+      upsert.run(KEYS.showMacdPane, input.show_macd_pane ? '1' : '0')
     }
   })
   tx()
