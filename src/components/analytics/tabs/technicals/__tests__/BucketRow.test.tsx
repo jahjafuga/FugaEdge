@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import BucketRow from '../BucketRow'
 
 // RED-first unit tests for BucketRow (F5 phase 2 of 2) — the horizontal row

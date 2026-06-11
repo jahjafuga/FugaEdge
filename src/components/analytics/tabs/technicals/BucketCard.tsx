@@ -8,7 +8,7 @@
 // in one place while the section-specific tint maps (literal class strings for
 // Tailwind's JIT) stay in the wrappers.
 
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import { percent, signed } from '@/lib/format'
 import LowSampleBadge from './LowSampleBadge'
 

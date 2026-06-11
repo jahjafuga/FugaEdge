@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import BucketCard from '../BucketCard'
 
 // Direct unit tests for the extracted presentational shell (F4 phase 3/3). The

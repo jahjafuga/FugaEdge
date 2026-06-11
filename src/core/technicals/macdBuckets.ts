@@ -18,33 +18,11 @@
 
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from './headerStrip'
+import type { BucketStats } from './types'
 
 /** The four MACD-state cells, in §G reading order (best → worst). Shared with
  *  MacdStateGrid (open-bucket state) and rowsForBucket (accordion rows). */
 export type BucketKey = 'posRising' | 'posFalling' | 'negRising' | 'negFalling'
-
-/**
- * Stats for a single MACD-state bucket cell.
- *
- * - n: trades in the bucket.
- * - winRate: winners / n, as a 0..1 FRACTION (NOT a percent) — null only when
- *   n === 0. The renderer formats it via percent() from @/lib/format, which
- *   takes a fraction; consistent with HeaderStrip CardStats.winRate. Shown for
- *   every non-empty bucket (a low-sample badge is the caveat, not suppression).
- * - netPnl: sum of net_pnl across the bucket (always computed).
- * - avgWinner: mean net_pnl among winners (net_pnl > 0); null when no winners.
- * - avgLoser: mean net_pnl among losers (net_pnl <= 0; breakeven counts as a
- *   loss per §A7); null when no losers. Naturally negative or zero.
- * - expectancy: dollar expectancy = netPnl / n; null when n < 5 (§C:104).
- */
-export interface BucketStats {
-  n: number
-  winRate: number | null
-  netPnl: number
-  avgWinner: number | null
-  avgLoser: number | null
-  expectancy: number | null
-}
 
 /**
  * Aggregated stats for the MACD State 4-bucket grid.

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import MacdBucketCard from '../MacdBucketCard'
 
 // Characterization tests (F4 phase 1/3) — lock the CURRENT externally observable

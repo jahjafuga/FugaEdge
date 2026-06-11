@@ -19,7 +19,7 @@
 // BucketStats is imported as-is from macdBuckets.ts (D-F5.5); the move to a
 // neutral shared module is the upcoming F5.5 beat.
 
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import { percent, signed } from '@/lib/format'
 import LowSampleBadge from './LowSampleBadge'
 import DivergingBar from '@/components/ui/DivergingBar'

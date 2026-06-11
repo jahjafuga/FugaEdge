@@ -9,7 +9,7 @@
 // `bg-macd-${tint}/[0.NN]` template construction would scan as plain text and
 // never emit, so both the 0.12 (rest) and 0.18 (active) classes appear verbatim.
 
-import type { BucketStats } from '@/core/technicals/macdBuckets'
+import type { BucketStats } from '@/core/technicals/types'
 import BucketCard from './BucketCard'
 
 type BucketTint = 'pos-rising' | 'pos-falling' | 'neg-rising' | 'neg-falling'
