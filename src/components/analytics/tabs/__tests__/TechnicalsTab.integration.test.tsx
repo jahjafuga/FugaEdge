@@ -143,3 +143,27 @@ describe('TechnicalsTab — Section 5 (Combined Reads) integration', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+describe('TechnicalsTab — Section 6 (Time-of-Day) integration', () => {
+  it('renders the time-of-day matrix and drills a cell to the sheet', async () => {
+    const { container } = render(<TechnicalsTab />)
+    expect(await screen.findByText('Time of day')).toBeTruthy()
+
+    // The seeded row's default open_time is 09:45 ET (the 9:30-10:00 bucket) and
+    // it is MACD positive + rising, so it cross-classifies into that cell. Open it.
+    fireEvent.click(
+      screen.getByRole('button', { name: '9:30-10:00 Positive + Rising' }),
+    )
+    // The matrix is itself a table, so target the drill table's role="button" row
+    // (the matrix's own rows carry no role).
+    const drillRow = container.querySelector('tbody tr[role="button"]')
+    expect(drillRow).not.toBeNull()
+    fireEvent.click(drillRow!)
+    expect(await screen.findByText('AAPL')).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    // Close → the sheet unmounts; the tab stays.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})

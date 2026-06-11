@@ -9,8 +9,9 @@
 // accordion with its sortable trade table (rowsForBucket), so filteredRows and
 // timeframe now thread one level deeper into MacdStateGrid. The VWAP (Section 3)
 // and EMA distance + 9/20 crossover (Section 4) bands now sit below it via the
-// same compute*Buckets → band pipeline; combined signal reads and time-of-day
-// land in later sessions.
+// same compute*Buckets → band pipeline, with Combined Reads (Section 5, two
+// aligned/misaligned cards) and the Time-of-Day matrix (Section 6, a 5×4 cross-
+// tab) completing all six §B sections.
 
 import { useEffect, useMemo, useState } from 'react'
 import { ipc } from '@/lib/ipc'
@@ -20,6 +21,7 @@ import { computeMacdBuckets } from '@/core/technicals/macdBuckets'
 import { computeVwapBuckets } from '@/core/technicals/vwapBuckets'
 import { computeEmaBuckets } from '@/core/technicals/emaBuckets'
 import { computeCombinedReads } from '@/core/technicals/combinedReads'
+import { computeTimeOfDay } from '@/core/technicals/timeOfDay'
 import { filterRows } from '@/core/technicals/filterRows'
 import { rangeForDatePreset } from '@/core/technicals/datePreset'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
@@ -34,6 +36,7 @@ import MacdStateGrid from './technicals/MacdStateGrid'
 import VwapDistanceBand from './technicals/VwapDistanceBand'
 import EmaDistanceBand from './technicals/EmaDistanceBand'
 import CombinedReadsBand from './technicals/CombinedReadsBand'
+import TimeOfDayMatrix from './technicals/TimeOfDayMatrix'
 import UnclassifiedChip from './technicals/UnclassifiedChip'
 
 export default function TechnicalsTab() {
@@ -126,6 +129,13 @@ export default function TechnicalsTab() {
     [filteredRows, filters.timeframe],
   )
 
+  // Time-of-Day time-bucket × MACD-state cross-tab (Section 6) for the toggled
+  // timeframe (the MACD-state columns shift with it; the time rows do not).
+  const timeOfDayStats = useMemo(
+    () => computeTimeOfDay(filteredRows, filters.timeframe),
+    [filteredRows, filters.timeframe],
+  )
+
   return (
     <div className="space-y-6">
       <TechnicalsFilterBar
@@ -209,6 +219,12 @@ export default function TechnicalsTab() {
             <Skeleton className="h-[220px]" />
             <Skeleton className="h-[220px]" />
           </div>
+
+          <SectionHeader
+            title="Time of day"
+            description="When in the session do your MACD setups actually pay off?"
+          />
+          <Skeleton className="h-[240px]" />
         </>
       ) : (
         <>
@@ -269,6 +285,16 @@ export default function TechnicalsTab() {
           />
           <CombinedReadsBand
             stats={combinedStats}
+            filteredRows={filteredRows}
+            timeframe={filters.timeframe}
+          />
+
+          <SectionHeader
+            title="Time of day"
+            description="When in the session do your MACD setups actually pay off?"
+          />
+          <TimeOfDayMatrix
+            stats={timeOfDayStats}
             filteredRows={filteredRows}
             timeframe={filters.timeframe}
           />
