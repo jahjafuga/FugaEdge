@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import { makeRow, makeCompleteSnapshot } from '@/test/fixtures/technicals'
 import BucketTradeTable from '../BucketTradeTable'
+import { macdLineColumn } from '../distanceColumns'
 
 // Characterization tests (F6 phase 1/3) — lock the CURRENT 3-column MACD trade
 // table's externally observable behavior before the generic-column refactor
@@ -43,7 +44,9 @@ const MANY = Array.from({ length: 10 }, (_, i) =>
 )
 
 function renderTable(rows: TradeWithTechnicalsRow[]) {
-  return render(<BucketTradeTable rows={rows} timeframe="1m" />)
+  return render(
+    <BucketTradeTable rows={rows} timeframe="1m" distanceColumn={macdLineColumn} />,
+  )
 }
 
 // Column text down the rendered rows (0=Date, 1=Net P&L, 2=MACD line).

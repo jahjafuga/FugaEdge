@@ -1,11 +1,13 @@
-// One bucket's trade table for the MACD State accordion (5b.1). Presentational:
-// a hand-rolled 3-column sortable table (Date / Net P&L / MACD line) over the
-// rows rowsForBucket resolved for the open cell. Static this commit — rows are
-// inert (no click / modal); the row-click → read-only detail lands in 5b.2.
+// One bucket's trade table for the inline-expansion accordion (5b.1; generic as
+// of F6). Presentational: a hand-rolled 3-column sortable table — Date, Net P&L,
+// and a section-supplied distance/value column (MACD line for Section 2; VWAP /
+// EMA distance for Sections 3 / 4) — over the rows the section resolved for the
+// open cell. Row-click → read-only TradeDetailSheet lands in F6 phase 3.
 //
-// Sort is a thin Array.sort behind useState (stable in V8, so equal keys keep
-// rowsForBucket's input order). 8 rows shown by default with a "Show all N"
-// expander.
+// The third column is parameterized via the `distanceColumn` descriptor (label +
+// value extractor + formatter); Date and Net P&L are fixed. Sort is a thin
+// Array.sort behind useState (stable in V8, so equal keys keep the input order).
+// 8 rows shown by default with a "Show all N" expander.
 
 import { useState } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
@@ -13,49 +15,51 @@ import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from '@/core/technicals/headerStrip'
 import { signed, pnlClass } from '@/lib/format'
 
-type SortKey = 'date' | 'net_pnl' | 'macd_line'
+// The section-supplied third column. `getValue` reads the metric off the row's
+// active-timeframe snapshot (a number; the consumer's extractor resolves any null
+// operand to 0); `format` renders it. The section descriptors live in
+// distanceColumns.ts (MACD today; VWAP / EMA join later).
+export interface DistanceColumn {
+  label: string
+  getValue: (row: TradeWithTechnicalsRow, timeframe: Timeframe) => number
+  format: (v: number) => string
+}
+
+type SortKey = 'date' | 'net_pnl' | 'distance'
 type SortDir = 'asc' | 'desc'
 
 interface BucketTradeTableProps {
   rows: TradeWithTechnicalsRow[]
-  timeframe: Timeframe // which tf snapshot to read macd_line from
+  timeframe: Timeframe // which tf snapshot the distance column reads
+  distanceColumn: DistanceColumn
 }
 
 const DEFAULT_VISIBLE = 8
-
-// macd_line on the toggled timeframe. The `!` on row.technicals is safe here:
-// BucketTradeTable only ever renders rowsForBucket output, and rowsForBucket →
-// classifyMacdBucket returns a non-null bucket key only when technicals is
-// non-null (passed the data gate) AND macd_positive / macd_rising are non-null.
-// So every row reaching this table carries a snapshot. (macd_line is typed
-// number|null but is non-null whenever macd_positive is — both derive from the
-// same MACD line; the `?? 0` satisfies the type and is unreachable in practice.)
-function macdLineOf(row: TradeWithTechnicalsRow, timeframe: Timeframe): number {
-  const snap = timeframe === '1m' ? row.technicals!.tf_1m : row.technicals!.tf_5m
-  return snap.macd_line ?? 0
-}
 
 function sortRows(
   rows: TradeWithTechnicalsRow[],
   key: SortKey,
   dir: SortDir,
   timeframe: Timeframe,
+  distanceColumn: DistanceColumn,
 ): TradeWithTechnicalsRow[] {
   const mult = dir === 'asc' ? 1 : -1
   return [...rows].sort((a, b) => {
     if (key === 'date') return a.date.localeCompare(b.date) * mult
     if (key === 'net_pnl') return (a.net_pnl - b.net_pnl) * mult
-    return (macdLineOf(a, timeframe) - macdLineOf(b, timeframe)) * mult
+    return (
+      (distanceColumn.getValue(a, timeframe) -
+        distanceColumn.getValue(b, timeframe)) *
+      mult
+    )
   })
 }
 
-// Explicit + on positives — the MACD line's sign IS the positive/negative axis
-// the column sorts on, so symmetry around zero should read at a glance.
-function fmtMacd(v: number): string {
-  return `${v >= 0 ? '+' : ''}${v.toFixed(3)}`
-}
-
-export default function BucketTradeTable({ rows, timeframe }: BucketTradeTableProps) {
+export default function BucketTradeTable({
+  rows,
+  timeframe,
+  distanceColumn,
+}: BucketTradeTableProps) {
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
     key: 'date',
     dir: 'desc',
@@ -79,7 +83,7 @@ export default function BucketTradeTable({ rows, timeframe }: BucketTradeTablePr
     )
   }
 
-  const sorted = sortRows(rows, sort.key, sort.dir, timeframe)
+  const sorted = sortRows(rows, sort.key, sort.dir, timeframe, distanceColumn)
   const visible = showAll ? sorted : sorted.slice(0, DEFAULT_VISIBLE)
   const hasMore = sorted.length > DEFAULT_VISIBLE
 
@@ -90,7 +94,13 @@ export default function BucketTradeTable({ rows, timeframe }: BucketTradeTablePr
           <tr>
             <Th label="Date" col="date" sort={sort} onSort={onSort} align="left" />
             <Th label="Net P&L" col="net_pnl" sort={sort} onSort={onSort} align="right" />
-            <Th label="MACD line" col="macd_line" sort={sort} onSort={onSort} align="right" />
+            <Th
+              label={distanceColumn.label}
+              col="distance"
+              sort={sort}
+              onSort={onSort}
+              align="right"
+            />
           </tr>
         </thead>
         <tbody>
@@ -103,7 +113,9 @@ export default function BucketTradeTable({ rows, timeframe }: BucketTradeTablePr
               <td className={`py-1 text-right ${pnlClass(row.net_pnl)}`}>
                 {signed(row.net_pnl)}
               </td>
-              <td className="py-1 text-right">{fmtMacd(macdLineOf(row, timeframe))}</td>
+              <td className="py-1 text-right">
+                {distanceColumn.format(distanceColumn.getValue(row, timeframe))}
+              </td>
             </tr>
           ))}
         </tbody>

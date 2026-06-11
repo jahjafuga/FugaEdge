@@ -23,6 +23,7 @@ import type { Timeframe } from '@/core/technicals/headerStrip'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import MacdBucketCard from './MacdBucketCard'
 import BucketTradeTable from './BucketTradeTable'
+import { macdLineColumn } from './distanceColumns'
 import AccordionPanel from './AccordionPanel'
 import { useBucketBand } from './useBucketBand'
 
@@ -75,7 +76,11 @@ export default function MacdStateGrid({
       </div>
       <AccordionPanel open={isRow0(openBucket)}>
         {isRow0(displayBucket) && (
-          <BucketTradeTable rows={openRows} timeframe={timeframe} />
+          <BucketTradeTable
+            rows={openRows}
+            timeframe={timeframe}
+            distanceColumn={macdLineColumn}
+          />
         )}
       </AccordionPanel>
 
@@ -98,7 +103,11 @@ export default function MacdStateGrid({
       </div>
       <AccordionPanel open={isRow1(openBucket)}>
         {isRow1(displayBucket) && (
-          <BucketTradeTable rows={openRows} timeframe={timeframe} />
+          <BucketTradeTable
+            rows={openRows}
+            timeframe={timeframe}
+            distanceColumn={macdLineColumn}
+          />
         )}
       </AccordionPanel>
     </div>
