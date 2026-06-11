@@ -19,6 +19,7 @@ import { computeHeaderStrip } from '@/core/technicals/headerStrip'
 import { computeMacdBuckets } from '@/core/technicals/macdBuckets'
 import { computeVwapBuckets } from '@/core/technicals/vwapBuckets'
 import { computeEmaBuckets } from '@/core/technicals/emaBuckets'
+import { computeCombinedReads } from '@/core/technicals/combinedReads'
 import { filterRows } from '@/core/technicals/filterRows'
 import { rangeForDatePreset } from '@/core/technicals/datePreset'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
@@ -32,6 +33,7 @@ import HeaderStripCards from './technicals/HeaderStripCards'
 import MacdStateGrid from './technicals/MacdStateGrid'
 import VwapDistanceBand from './technicals/VwapDistanceBand'
 import EmaDistanceBand from './technicals/EmaDistanceBand'
+import CombinedReadsBand from './technicals/CombinedReadsBand'
 import UnclassifiedChip from './technicals/UnclassifiedChip'
 
 export default function TechnicalsTab() {
@@ -117,6 +119,13 @@ export default function TechnicalsTab() {
     [filteredRows, filters.timeframe],
   )
 
+  // Combined Reads full-alignment vs misalignment split (Section 5) for the
+  // toggled timeframe.
+  const combinedStats = useMemo(
+    () => computeCombinedReads(filteredRows, filters.timeframe),
+    [filteredRows, filters.timeframe],
+  )
+
   return (
     <div className="space-y-6">
       <TechnicalsFilterBar
@@ -191,6 +200,15 @@ export default function TechnicalsTab() {
             <Skeleton className="h-[52px]" />
             <Skeleton className="h-[52px]" />
           </div>
+
+          <SectionHeader
+            title="Combined signal reads"
+            description="When MACD, VWAP, and the 9 EMA all lined up at entry, did it pay off?"
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-[220px]" />
+            <Skeleton className="h-[220px]" />
+          </div>
         </>
       ) : (
         <>
@@ -241,6 +259,16 @@ export default function TechnicalsTab() {
           />
           <EmaDistanceBand
             stats={emaStats}
+            filteredRows={filteredRows}
+            timeframe={filters.timeframe}
+          />
+
+          <SectionHeader
+            title="Combined signal reads"
+            description="When MACD, VWAP, and the 9 EMA all lined up at entry, did it pay off?"
+          />
+          <CombinedReadsBand
+            stats={combinedStats}
             filteredRows={filteredRows}
             timeframe={filters.timeframe}
           />

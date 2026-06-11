@@ -121,3 +121,25 @@ describe('TechnicalsTab — Section 4 (EMA) integration', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+describe('TechnicalsTab — Section 5 (Combined Reads) integration', () => {
+  it('renders the aligned/misaligned comparison and drills a cell to the sheet', async () => {
+    const { container } = render(<TechnicalsTab />)
+    expect(await screen.findByText('Combined signal reads')).toBeTruthy()
+    expect(screen.getByText('Full alignment')).toBeTruthy()
+    expect(screen.getByText('Any misalignment')).toBeTruthy()
+
+    // The seeded row is MACD-positive and above VWAP but BELOW the 9 EMA (DEFAULT
+    // ema9_dist -1.0), so it lands in Any misalignment. Open it → drill the trade.
+    fireEvent.click(screen.getByRole('button', { name: /Any misalignment/ }))
+    const tableRow = container.querySelector('tbody tr')
+    expect(tableRow).not.toBeNull()
+    fireEvent.click(tableRow!)
+    expect(await screen.findByText('AAPL')).toBeTruthy()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+
+    // Close → the sheet unmounts; the tab stays.
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
