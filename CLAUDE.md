@@ -32,6 +32,20 @@ Several existing files in `electron/*/ipc.ts` and `src/*` still mix IPC plumbing
 
 `True` means elevated — that is the bug, not the code. Fuller writeup: the "Windows UIPI dev-shell elevation foot-gun" entry in `docs/plans/v0.3.0-or-later-ideas.md`.
 
+## Dev data isolation
+
+Dev runs (`npm run dev`) use their own userData dir — `%APPDATA%\fugaedge-dev` — so the real journal under `%APPDATA%\fugaedge` is never touched (DB, backups, attachments, and Chromium profile all derive from it). A fresh dev DB means onboarding fires — expected.
+
+To run against real-shaped data, copy the `.db` **together with its `-wal`/`-shm` sidecars** to a throwaway location, then point the dev run at the copy:
+
+```powershell
+npx cross-env "FUGAEDGE_DB_PATH=C:\path\to\throwaway\fugaedge.db" npm run dev
+```
+
+The variable is scoped to that single invocation — nothing persists in the shell (the `$env:` form bleeds into every later `npm run dev` in the same window; same incident class as the `ELECTRON_RUN_AS_NODE` foot-gun, and the repo's `inspect:schema` script already uses cross-env for exactly this reason). If you set it manually instead, clear it afterward with `Remove-Item Env:\FUGAEDGE_DB_PATH`.
+
+Never point `FUGAEDGE_DB_PATH` at the live real DB. Packaged builds ignore the variable entirely.
+
 ## End-of-session handoff
 
 At the end of any Day N or Day N.5 session that ends with a commit landing, fill out the build-update brief at `docs/posts/BUILD_UPDATE_BRIEF.md` — follow that file's own "Instruction to Claude Code" section for how to fill it and what to output, and output the filled brief in a code block so it can be pasted straight into the Canva post chat. The template file is the source of truth for the format; don't restate its sections here.

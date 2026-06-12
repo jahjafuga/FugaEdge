@@ -35,8 +35,19 @@ const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
 
 let db: Database.Database | null = null
 
+// D1 (v0.2.5 Session 0) — optional DB-path override, set once at boot from
+// resolveDataDirs (FUGAEDGE_DB_PATH, dev-only; packaged builds always pass
+// null). Module-scoped like the `db` singleton above. Every consumer of the
+// DB file location goes through getDbPath(), so the override carries to the
+// settings Data card, pre-import backups, and the migration backups alike.
+let dbPathOverride: string | null = null
+
+export function setDbPathOverride(path: string | null): void {
+  dbPathOverride = path
+}
+
 export function getDbPath(): string {
-  return join(app.getPath('userData'), 'fugaedge.db')
+  return dbPathOverride ?? join(app.getPath('userData'), 'fugaedge.db')
 }
 
 // Read the persisted schema version from _meta. Returns 0 for a fresh DB (no
@@ -62,6 +73,12 @@ function readSchemaVersion(conn: Database.Database): number {
 //
 // Skips if a new DB already exists at the destination — never clobbers.
 function migrateLegacyDbFile(): void {
+  // D1 (v0.2.5 Session 0) — packaged-only. In dev, userData is the isolated
+  // fugaedge-dev dir (or a FUGAEDGE_DB_PATH fixture): silently seeding a
+  // fresh dev profile from the FugaJournal-era DB would defeat the isolation
+  // and resurrect stale real data on every clean dev start. The rebrand copy
+  // is a real-install upgrade path; packaged builds keep it unchanged.
+  if (!app.isPackaged) return
   const userData = app.getPath('userData')
   const newPath = getDbPath()
   if (existsSync(newPath)) return
@@ -90,6 +107,9 @@ export function openDatabase(): Database.Database {
   if (db) return db
   migrateLegacyDbFile()
   const path = getDbPath()
+  // D1 — one boot line so a glance at the console answers "which DB am I
+  // actually on?" in both dev (fugaedge-dev / FUGAEDGE_DB_PATH) and packaged.
+  console.info(`[db] ${app.isPackaged ? 'packaged' : 'dev'} — ${path}`)
   db = new Database(path)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')

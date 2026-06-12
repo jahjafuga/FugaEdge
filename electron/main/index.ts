@@ -2,7 +2,8 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '@shared/ipc-channels'
-import { openDatabase, closeDatabase } from '../db/database'
+import { resolveDataDirs } from '@/core/runtime/dataDirs'
+import { openDatabase, closeDatabase, setDbPathOverride } from '../db/database'
 import { registerIpcHandlers } from '../db/ipc'
 import { registerImportIpc } from '../import/ipc'
 import { registerStatsIpc } from '../stats/ipc'
@@ -30,6 +31,23 @@ import {
 } from '../attachments/protocol'
 import { registerSessionIpc } from '../session/ipc'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
+
+// D1 (v0.2.5 Session 0) — dev-DB isolation. MUST run at module load, before
+// anything reads app.getPath('userData') (the first reader is openDatabase
+// inside whenReady; every consumer — DB, backups, attachments, Chromium
+// profile — derives from userData lazily). Dev runs land in
+// %APPDATA%\fugaedge-dev so they can never touch the real journal;
+// FUGAEDGE_DB_PATH can point a dev run at a fixture DB copy and is ignored
+// in packaged builds (resolveDataDirs returns null there).
+const dataDirs = resolveDataDirs({
+  isPackaged: app.isPackaged,
+  appDataDir: app.getPath('appData'),
+  envDbPath: process.env.FUGAEDGE_DB_PATH ?? null,
+})
+if (app.getPath('userData') !== dataDirs.userDataDir) {
+  app.setPath('userData', dataDirs.userDataDir)
+}
+setDbPathOverride(dataDirs.dbPathOverride)
 
 // Privileged custom protocol must be registered BEFORE app.ready. Doing it
 // at top-level (module load) is the standard pattern.
