@@ -32,3 +32,18 @@ export interface XpAwardIntent {
   xp: number
   idempotency_key: string
 }
+
+// ── Weekly-review channel results (Phase A Session 3, D5/L15) ─────────────
+
+export interface WeeklyReviewCompleteResult {
+  completed: boolean
+  /** true when this call inserted the event; false when the week was
+   *  already complete (idempotent repeat). Absent on rejection. */
+  awarded?: boolean
+  /** Set when completed is false — the Sunday-guard rejection message. */
+  error?: string
+}
+
+export interface WeeklyReviewStatus {
+  completed: boolean
+}

@@ -117,6 +117,13 @@ export const IPC = {
   // subscriber) can listen without a main-process change.
   TECHNICALS_BACKFILL_PROGRESS: 'technicals:backfillProgress',
   TECHNICALS_LIST: 'technicals:list',
+  // ── XP ─────────────────────────────────────────────────────────────────
+  // v0.2.5 Phase A Session 3 (D5/L15) — weekly-review completion. The
+  // xp_event IS the completion record: COMPLETE inserts through the Sunday
+  // guard + idempotency key, GET is key existence. No completion table.
+  // The "Complete review" button UI ships in Phase B Session 6.
+  XP_WEEKLY_REVIEW_COMPLETE: 'xp:weeklyReviewComplete',
+  XP_WEEKLY_REVIEW_GET: 'xp:weeklyReviewGet',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

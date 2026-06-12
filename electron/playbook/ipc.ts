@@ -6,6 +6,7 @@ import type {
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import { bumpDataVersion } from '../lib/cache'
+import { xpReconcileForTradeIds } from '../xp/reconcile'
 import {
   createPlaybook,
   deletePlaybook,
@@ -32,6 +33,11 @@ export function registerPlaybookIpc(): void {
     (_e, input: SetPlaybookOnTradeInput) => {
       setPlaybookOnTrade(input.trade_id, input.playbook_id)
       bumpDataVersion()
+      // v0.2.5 XP hook (L11/L12 — playbook feeds D8 AND D9): fire-and-forget
+      // after save + bump; the launch sweep heals any miss.
+      void Promise.resolve()
+        .then(() => xpReconcileForTradeIds([input.trade_id]))
+        .catch((e) => console.warn('[xp hook]', e))
       return getTrade(input.trade_id)
     },
   )

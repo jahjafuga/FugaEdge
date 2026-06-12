@@ -30,6 +30,8 @@ import {
   registerAttachmentProtocolScheme,
 } from '../attachments/protocol'
 import { registerSessionIpc } from '../session/ipc'
+import { registerXpIpc } from '../xp/ipc'
+import { runXpReconcile } from '../xp/reconcile'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
 
 // D1 (v0.2.5 Session 0) — dev-DB isolation. MUST run at module load, before
@@ -166,27 +168,31 @@ app.whenReady().then(() => {
   registerAttachmentsIpc()
   registerAttachmentProtocolHandler()
   registerSessionIpc()
+  registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()
   // v0.2.3 — after the schema-25 migration nulls trades.mae/mfe, recompute from
   // cached intraday_bars once the window is up. Deferred to ready-to-show +
   // setImmediate so it never blocks first paint; no-op (flag unset) on launches
   // where the migration didn't run. See runPendingMaeMfeBackfill.
-  // v0.2.4 §K — at the same ready-to-show beat, run the launch backfill pair.
+  // v0.2.4 §K — at the same ready-to-show beat, run the launch backfill chain.
   // ORDER IS LOAD-BEARING: runWarmupBackfill populates intraday_bars.warmup_bars,
   // and runTradeTechnicalsBackfill then CONSUMES that warmup to flip stub trades
   // from data_complete=0 to 1. Running them in parallel (or technicals first)
   // would let the technicals sweep recompute rows whose warmup hasn't landed yet
   // and re-write placeholders — so first launch would never self-heal. A single
   // awaited async block is the only honest sequencing; separate setImmediates
-  // give no ordering guarantee. Both are self-gated no-ops once the steady state
-  // is reached (empty warmup worklist / no stale technicals). One try/catch
-  // (log only) so a backfill failure never crashes the app — mirrors the
-  // lazy-guard hook shape at electron/market/bars-get.ts:194-209. The
+  // give no ordering guarantee. v0.2.5 Phase A Session 3 (D12/L10) appends the
+  // third link: runXpReconcile awards off the technicals snapshots, so it runs
+  // AFTER technicals flips stubs complete — xp first would skip discipline
+  // bonuses until the next launch. All three are self-gated no-ops at steady
+  // state (empty worklist / no stale technicals / zero new intents). One
+  // try/catch (log only) so a backfill failure never crashes the app — mirrors
+  // the lazy-guard hook shape at electron/market/bars-get.ts:194-209. The
   // win.isDestroyed() guard drops progress emissions after a window close, since
   // wc.send on a destroyed window throws. (runPendingMaeMfeBackfill stays a
   // separate parallel setImmediate — it's the independent v0.2.3 mae/mfe
-  // recompute, unrelated to the warmup→technicals chain.)
+  // recompute, unrelated to the warmup→technicals→xp chain.)
   win.once('ready-to-show', () => {
     setImmediate(runPendingMaeMfeBackfill)
     setImmediate(async () => {
@@ -207,9 +213,11 @@ app.whenReady().then(() => {
           },
         })
         console.info(`[FE launch backfill] technicals: ${JSON.stringify(technicalsResult)}`)
+        const xpResult = runXpReconcile()
+        console.info(`[FE launch backfill] xp: ${JSON.stringify(xpResult)}`)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[FE launch backfill] warmup→technicals failed: ${msg}`)
+        console.error(`[FE launch backfill] warmup→technicals→xp failed: ${msg}`)
       }
     })
   })

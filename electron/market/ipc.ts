@@ -5,6 +5,7 @@ import { refreshIntraday, cancelIntradayRefresh } from './intraday'
 import { getIntradayBars } from './bars-get'
 import { runWarmupBackfill } from './warmup-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
+import { runXpReconcile } from '../xp/reconcile'
 
 interface RefreshInput {
   force?: boolean
@@ -49,9 +50,13 @@ export function registerMarketIpc(): void {
         await runTradeTechnicalsBackfill({
           onProgress: wc ? (p) => wc.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p) : undefined,
         })
+        // v0.2.5 Phase A Session 3 (D12/L10) — third link, same order
+        // rationale as the launch chain: technicals flips stubs complete,
+        // THEN xp awards them.
+        runXpReconcile()
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        console.error(`[FE refresh chain] warmup→technicals failed: ${msg}`)
+        console.error(`[FE refresh chain] warmup→technicals→xp failed: ${msg}`)
       }
     }
     return result

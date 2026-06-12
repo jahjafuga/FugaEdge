@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type DbHealthcheck, type DbResetResult } from '@shared/ipc-channels'
 import type {
+  WeeklyReviewCompleteResult,
+  WeeklyReviewStatus,
+} from '@shared/xp-types'
+import type {
   CommitInput,
   CommitResult,
   PreviewInputFile,
@@ -248,6 +252,13 @@ const api = {
     ipcRenderer.invoke(IPC.SESSION_GET, date),
   sessionTodaySave: (input: SaveTodaySessionInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_TODAY_SAVE, input),
+  // ── XP (v0.2.5 Phase A Session 3, D5/L15) ───────────────────────────
+  xpWeeklyReviewComplete: (input: {
+    weekStart: string
+  }): Promise<WeeklyReviewCompleteResult> =>
+    ipcRenderer.invoke(IPC.XP_WEEKLY_REVIEW_COMPLETE, input),
+  xpWeeklyReviewGet: (input: { weekStart: string }): Promise<WeeklyReviewStatus> =>
+    ipcRenderer.invoke(IPC.XP_WEEKLY_REVIEW_GET, input),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

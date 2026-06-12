@@ -15,6 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import { bumpDataVersion } from '../lib/cache'
+import { xpReconcileForTradeIds } from '../xp/reconcile'
 import { getAttachmentsDir } from '../attachments/dir'
 import { listTrades, getTrade, type ListTradesOptions } from './list'
 import { saveNote } from './notes'
@@ -86,9 +87,15 @@ export function registerTradesIpc(): void {
   ipcMain.handle(IPC.TRADE_GET, (_e, input: { trade_id: number }) =>
     getTrade(input.trade_id),
   )
-  ipcMain.handle(IPC.TRADE_NOTE_SAVE, (_e, input: UpdateNoteInput) =>
-    withVersionBump(() => saveNote(input)),
-  )
+  ipcMain.handle(IPC.TRADE_NOTE_SAVE, (_e, input: UpdateNoteInput) => {
+    const out = withVersionBump(() => saveNote(input))
+    // v0.2.5 XP hook (L11/L12 — note feeds D8): fire-and-forget after
+    // save + bump; the launch sweep heals any miss.
+    void Promise.resolve()
+      .then(() => xpReconcileForTradeIds([input.trade_id]))
+      .catch((e) => console.warn('[xp hook]', e))
+    return out
+  })
   ipcMain.handle(IPC.TRADE_TIMEFRAME_SAVE, (_e, input: UpdateTimeframeInput) =>
     withVersionBump(() => saveTimeframe(input)),
   )
@@ -109,9 +116,14 @@ export function registerTradesIpc(): void {
   ipcMain.handle(IPC.TRADE_FLOAT_SAVE, (_e, input: UpdateFloatInput) =>
     withVersionBump(() => saveFloat(input)),
   )
-  ipcMain.handle(IPC.TRADE_CATALYST_SAVE, (_e, input: UpdateCatalystInput) =>
-    withVersionBump(() => saveCatalyst(input)),
-  )
+  ipcMain.handle(IPC.TRADE_CATALYST_SAVE, (_e, input: UpdateCatalystInput) => {
+    const out = withVersionBump(() => saveCatalyst(input))
+    // v0.2.5 XP hook (L11/L12 — catalyst feeds D8).
+    void Promise.resolve()
+      .then(() => xpReconcileForTradeIds([input.trade_id]))
+      .catch((e) => console.warn('[xp hook]', e))
+    return out
+  })
 
   // ── v0.2.3 P2b — soft-delete lifecycle ───────────────────────────────────
   ipcMain.handle(IPC.TRADE_SOFT_DELETE, (_e, input: SingleTradeIdInput) =>

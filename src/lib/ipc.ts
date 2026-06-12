@@ -126,6 +126,12 @@ export const ipc = {
   sessionTodaySave: (
     input: import('@shared/session-types').SaveTodaySessionInput,
   ) => window.api.sessionTodaySave(input),
+  // ── XP (v0.2.5 Phase A Session 3, D5/L15) — consumed by the Phase B
+  // Session 6 weekly-review Complete button.
+  xpWeeklyReviewComplete: (input: { weekStart: string }) =>
+    window.api.xpWeeklyReviewComplete(input),
+  xpWeeklyReviewGet: (input: { weekStart: string }) =>
+    window.api.xpWeeklyReviewGet(input),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

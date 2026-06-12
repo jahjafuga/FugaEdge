@@ -24,6 +24,7 @@ import { annotateFeeStatus, annotateTripStatus, commit } from './repo'
 import { formatCommitLog } from './format-commit-log'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
+import { reconcileXpForDates } from '../xp/reconcile'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
 import { backfillAllFloat } from './backfill-float'
@@ -494,6 +495,17 @@ export function registerImportIpc(): void {
       // Bump even on zero-insert (caller may have edited fees-only without
       // new trips — fees still affect every aggregate).
       bumpDataVersion()
+
+      // v0.2.5 XP hook (L11/L12 — the import act feeds session/streak
+      // awards): fire-and-forget after save + bump, BEFORE the awaited
+      // country block so XP latency never rides on a Polygon fetch. The
+      // date set comes from ALL trips (inserted + resurrected + duplicate)
+      // — over-reconciling a paid date is free by idempotency. A failure
+      // delays XP by one launch (the sweep heals), never the import.
+      const xpDates = Array.from(new Set(trips.map((t) => t.date)))
+      void Promise.resolve()
+        .then(() => reconcileXpForDates(xpDates))
+        .catch((err) => console.warn('[xp hook]', err))
 
       // Post-commit enrichment for newly-imported symbols.
       //
