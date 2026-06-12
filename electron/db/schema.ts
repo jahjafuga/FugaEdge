@@ -397,6 +397,69 @@ CREATE TABLE IF NOT EXISTS session_meta (
   updated_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- ── v0.2.5 Phase A — identity foundation (spec §B) ──────────────────────
+-- Four tables land via CREATE TABLE IF NOT EXISTS per the trade_technicals
+-- precedent: fresh installs and upgrades both get them with no migration
+-- module and NO version bump (L1 — the 28→29 bump ships in Phase C with
+-- the sentiment remap, where a bump is actually needed to arm it). All ids
+-- are ULIDs minted by the repos (src/core/ids/ulid.ts); created_at /
+-- updated_at are ISO-8601 UTC strings set at write time by the repos.
+
+-- Single-row local user profile. member_since seeds from the earliest
+-- non-deleted trade date when trades exist, else today (L2).
+CREATE TABLE IF NOT EXISTS profile (
+  id                   TEXT PRIMARY KEY,
+  display_name         TEXT,
+  handle               TEXT,
+  avatar_data          TEXT,                          -- data-URL, ≤256px (D20)
+  trading_style        TEXT,
+  markets              TEXT,
+  bio                  TEXT,
+  featured_badges_json TEXT NOT NULL DEFAULT '[]',    -- ≤3 badge ids
+  member_since         TEXT,
+  created_at           TEXT,
+  updated_at           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS goals (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL,
+  kind         TEXT NOT NULL CHECK (kind IN ('equity','process')),
+  config_json  TEXT NOT NULL,                         -- equity: start_date/start_amount/target_amount; process: metric/target/window
+  status       TEXT NOT NULL CHECK (status IN ('active','completed','abandoned')),
+  created_at   TEXT,
+  completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS badge_awards (
+  id         TEXT PRIMARY KEY,
+  badge_id   TEXT NOT NULL,
+  tier       TEXT CHECK (tier IN ('copper','silver','gold')), -- NULL = untiered (challenge badges)
+  awarded_at TEXT NOT NULL,
+  source_ref TEXT
+);
+
+-- Identity dedup for badge awards. NOT a table-level UNIQUE(badge_id, tier):
+-- SQLite treats NULLs as DISTINCT in unique constraints, so two awards of the
+-- same untiered (NULL-tier) badge — exactly what user challenge badges are —
+-- would both insert. IFNULL collapses NULL to '' so the pair is genuinely
+-- unique; awardBadge's INSERT OR IGNORE keys off this index.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_badge_awards_identity
+  ON badge_awards(badge_id, IFNULL(tier, ''));
+
+-- Append-only XP ledger (D12/D18: events are never revoked; total XP =
+-- SUM(xp), level derived — no mutable current-XP row anywhere). The UNIQUE
+-- idempotency_key is the entire dedup mechanism: the reconciliation sweep
+-- and the inline hooks both INSERT OR IGNORE through it (D13 key formats).
+CREATE TABLE IF NOT EXISTS xp_events (
+  id              TEXT PRIMARY KEY,
+  event_type      TEXT NOT NULL,
+  source_ref      TEXT,
+  xp              INTEGER NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  created_at      TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
