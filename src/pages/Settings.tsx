@@ -113,7 +113,21 @@ export default function Settings() {
     setKeyStatus(null) // clear any prior validity result before this save
     setFmpKeyStatus(null)
     try {
-      const updated = await ipc.settingsSave(editor)
+      // v0.2.5 §C (A2) — send ONLY the keys this page's UI manages. A full
+      // `editor` spread would clobber keys written elsewhere while Settings
+      // sat open with a stale load: activation_key/activation_payload (the
+      // activation flow), activation_grace_started_at (boot stamp),
+      // last_country_backfill (DataBackfillCard persists it itself), and
+      // show_macd_pane (ChartTab toggle).
+      const updated = await ipc.settingsSave({
+        max_daily_loss: editor.max_daily_loss,
+        account_size: editor.account_size,
+        journal_rules: editor.journal_rules,
+        mistake_list: editor.mistake_list,
+        day_tag_list: editor.day_tag_list,
+        polygon_api_key: editor.polygon_api_key,
+        fmp_api_key: editor.fmp_api_key,
+      })
       setPayload(updated)
       setEditor(updated.values)
       setSnapshot(updated.values)
