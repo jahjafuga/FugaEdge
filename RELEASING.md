@@ -81,6 +81,10 @@ shortcut, and can be pinned to the taskbar like any normal Windows app.
       launch. Issue with `node scripts/activation-keygen.mjs issue --name
       "<name>" --email "<email>"`.
 
+- [ ] **Manual click-through of the three lock-screen export buttons (trades
+      CSV / journal JSON / DB backup) on a locked-state build** — the one
+      path automation cannot drive (native save dialogs).
+
 The `publish` block in `package.json → build` points at:
 
 ```jsonc
