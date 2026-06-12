@@ -15,6 +15,9 @@ const KEYS = {
   fmpApiKey: 'fmp_api_key',
   lastCountryBackfill: 'last_country_backfill',
   showMacdPane: 'show_macd_pane',
+  activationKey: 'activation_key',
+  activationPayload: 'activation_payload',
+  activationGraceStartedAt: 'activation_grace_started_at',
 } as const
 
 const DEFAULTS: SettingsValues = {
@@ -27,6 +30,9 @@ const DEFAULTS: SettingsValues = {
   fmp_api_key: '',
   last_country_backfill: null,
   show_macd_pane: true,
+  activation_key: '',
+  activation_payload: '',
+  activation_grace_started_at: null,
 }
 
 function parseStringArray(raw: string | null | undefined): string[] {
@@ -86,6 +92,13 @@ export function getSettings(): SettingsPayload {
     fmp_api_key: (map[KEYS.fmpApiKey] ?? '').trim(),
     last_country_backfill: (map[KEYS.lastCountryBackfill] ?? '').trim() || null,
     show_macd_pane: parseBoolean(map[KEYS.showMacdPane], DEFAULTS.show_macd_pane),
+    // v0.2.5 §C — activation trio. Key/payload mirror the api-key precedent
+    // (trimmed strings, '' = unset); the grace stamp mirrors
+    // last_country_backfill (ISO string or null).
+    activation_key: (map[KEYS.activationKey] ?? '').trim(),
+    activation_payload: (map[KEYS.activationPayload] ?? '').trim(),
+    activation_grace_started_at:
+      (map[KEYS.activationGraceStartedAt] ?? '').trim() || null,
   }
   return {
     values,
@@ -142,6 +155,18 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
     }
     if (input.show_macd_pane != null) {
       upsert.run(KEYS.showMacdPane, input.show_macd_pane ? '1' : '0')
+    }
+    if (input.activation_key != null) {
+      upsert.run(KEYS.activationKey, String(input.activation_key).trim())
+    }
+    if (input.activation_payload != null) {
+      upsert.run(KEYS.activationPayload, String(input.activation_payload).trim())
+    }
+    if (input.activation_grace_started_at !== undefined) {
+      upsert.run(
+        KEYS.activationGraceStartedAt,
+        input.activation_grace_started_at ?? '',
+      )
     }
   })
   tx()

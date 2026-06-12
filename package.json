@@ -25,6 +25,7 @@
     "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
+    "@noble/ed25519": "^3.1.0",
     "@tanstack/react-table": "^8.20.5",
     "@tanstack/react-virtual": "^3.13.24",
     "better-sqlite3": "^11.7.0",

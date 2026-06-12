@@ -72,6 +72,15 @@ shortcut, and can be pinned to the taskbar like any normal Windows app.
 
 ## 3. Publish a GitHub Release for auto-update
 
+### Before you publish — gating checklist
+
+- [ ] **Cohort activation keys issued and DM'd via Circle BEFORE publishing
+      the release** (v0.2.5 §C / D2). The activation gate ships enforced in
+      packaged builds; publishing triggers auto-update, so a release that
+      goes out before keys are in the cohort's hands locks them out at next
+      launch. Issue with `node scripts/activation-keygen.mjs issue --name
+      "<name>" --email "<email>"`.
+
 The `publish` block in `package.json → build` points at:
 
 ```jsonc

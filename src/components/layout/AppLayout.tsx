@@ -16,6 +16,14 @@ import {
   TOUR_FORCE_KEY,
   shouldShowTour,
 } from '@/core/tour'
+import ActivationScreen from '@/components/activation/ActivationScreen'
+import GraceBanner from '@/components/activation/GraceBanner'
+import { verifyActivationKey } from '@/core/activation/verify'
+import {
+  ACTIVATION_FORCE_KEY,
+  resolveActivationStatus,
+  type ActivationStatus,
+} from '@/core/activation/status'
 
 const SIDEBAR_STORAGE_KEY = 'fugaedge-sidebar-collapsed'
 
@@ -41,11 +49,73 @@ export default function AppLayout() {
     return shouldShowTour({ flagSet, forceRestart: force })
   })
 
+  // v0.2.5 §C — activation status. Resolves BEFORE the onboarding decision
+  // (the gate mounts ahead of onboarding); null = still resolving → no
+  // overlay rendered. Uses the same two fetches the onboarding check makes.
+  const [activation, setActivation] = useState<ActivationStatus | null>(null)
+  // Grace-mode voluntary key entry (banner button) — a dismissible overlay,
+  // unlike the hard gate/locked mounts.
+  const [graceKeyOpen, setGraceKeyOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const forceGate =
+      window.localStorage.getItem(ACTIVATION_FORCE_KEY) === 'true'
+    Promise.all([ipc.tradesList(), ipc.settingsGet()])
+      .then(async ([trades, settings]) => {
+        if (cancelled) return
+        // Boot re-verify: a stored key is never trusted blindly — a tampered
+        // settings row fails verification and degrades to "no key", putting
+        // the gate/grace rules back in charge.
+        let hasVerifiedKey = false
+        if (settings.values.activation_key) {
+          const verified = await verifyActivationKey(
+            settings.values.activation_key,
+          )
+          hasVerifiedKey = verified.ok
+        }
+        const now = new Date().toISOString()
+        const status = resolveActivationStatus({
+          // A3 — renderer-side packaged signal, zero new preload surface.
+          // Edge accepted: an unpackaged production PREVIEW (npm run
+          // preview) enforces the gate — errs in the safe direction.
+          isPackaged: import.meta.env.PROD,
+          forceGate,
+          hasVerifiedKey,
+          tradeCount: trades.length,
+          graceStartedAt: settings.values.activation_grace_started_at,
+          now,
+        })
+        if (status.shouldStampGraceStart) {
+          // Stamp exactly once: requested only while the stored stamp is
+          // null/corrupt; subsequent boots read the persisted value and the
+          // resolver never asks again.
+          void ipc
+            .settingsSave({ activation_grace_started_at: now })
+            .catch((e) => console.warn('[activation] grace stamp failed:', e))
+        }
+        if (!cancelled) setActivation(status)
+      })
+      .catch((e) => {
+        // A5 — the FETCH failing fails OPEN (onboarding-catch precedent):
+        // the gate is a guest list, not a fortress; an IPC hiccup must never
+        // brick the app. Stored-key tampering is handled above, not here.
+        console.warn('[activation] status fetch failed — failing open:', e)
+        if (!cancelled) setActivation({ mode: 'activated' })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // First-launch check: trades empty + account_size unset + flag missing →
   // overlay the onboarding modal. The Settings "Restart onboarding" button
   // sets a force token that short-circuits the heuristic so the user can
-  // replay the flow without wiping data. Runs once on mount.
+  // replay the flow without wiping data. Runs once activation resolves —
+  // v0.2.5 §C mounts the gate AHEAD of onboarding, so this decision waits
+  // for mode === 'activated' (the effect re-fires when activation flips).
   useEffect(() => {
+    if (activation?.mode !== 'activated') return
     let cancelled = false
     const flagSet = window.localStorage.getItem(ONBOARDING_FLAG_KEY) === 'true'
     const forceRestart =
@@ -72,7 +142,7 @@ export default function AppLayout() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [activation?.mode])
 
   const toggleCollapsed = useCallback(() => setCollapsed((v) => !v), [])
 
@@ -109,12 +179,39 @@ export default function AppLayout() {
       <main className="relative flex min-w-0 flex-col overflow-hidden bg-bg-0">
         <TopBar />
         <UpdateBanner />
+        <GraceBanner
+          mode={activation?.mode ?? null}
+          daysLeft={activation?.graceDaysLeft ?? 0}
+          onEnterKey={() => setGraceKeyOpen(true)}
+        />
         <div className="flex-1 overflow-y-auto">
           <div className="animate-fade-in px-6 py-6">
             <Outlet />
           </div>
         </div>
       </main>
+
+      {/* v0.2.5 §C — activation wall. Hard (non-dismissible) mounts for
+          gate/locked; grace gets a dismissible overlay via the banner
+          button. Mounts AHEAD of onboarding — the onboarding effect waits
+          for mode === 'activated', so the two overlays can never stack. */}
+      {activation &&
+        (activation.mode === 'gate' || activation.mode === 'locked') && (
+          <ActivationScreen
+            mode={activation.mode}
+            onActivated={() => setActivation({ mode: 'activated' })}
+          />
+        )}
+      {activation?.mode === 'grace' && graceKeyOpen && (
+        <ActivationScreen
+          mode="gate"
+          onDismiss={() => setGraceKeyOpen(false)}
+          onActivated={() => {
+            setGraceKeyOpen(false)
+            setActivation({ mode: 'activated' })
+          }}
+        />
+      )}
 
       {showOnboarding === true && (
         <OnboardingModal
