@@ -103,6 +103,10 @@ export function getSettings(): SettingsPayload {
   return {
     values,
     db_path: getDbPath(),
+    // L24 (Session 5) — the RAW stored keys. The values above are
+    // default-filled, so callers can never distinguish "never configured"
+    // from "configured to the default"; row existence can.
+    stored_keys: Object.keys(map),
   }
 }
 

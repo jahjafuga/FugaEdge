@@ -31,6 +31,10 @@ export interface SettingsValues {
 export interface SettingsPayload {
   values: SettingsValues
   db_path: string
+  /** L24 — raw settings-row keys present in the DB. `values` is
+   *  default-filled, so only row existence can distinguish "never
+   *  configured" from "configured to the default" (fresh-install detector). */
+  stored_keys: string[]
 }
 
 export type SettingsUpdate = Partial<SettingsValues>

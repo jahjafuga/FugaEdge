@@ -130,7 +130,9 @@ export default function AppLayout() {
         setShowOnboarding(
           shouldShowOnboarding({
             tradeCount: trades.length,
-            accountSize: settings.values.account_size,
+            // L24 — raw row existence, never the defaulted value (which is
+            // 25,000 on a fresh DB and suppressed onboarding forever).
+            accountSizeStored: settings.stored_keys.includes('account_size'),
             flagSet,
             forceRestart,
           }),

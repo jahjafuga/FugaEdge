@@ -11,8 +11,11 @@ import {
 export interface ShouldShowInputs {
   /** Total trades in the DB (any state). */
   tradeCount: number
-  /** Persisted account_size — null/0 ⇒ "never configured". */
-  accountSize: number | null | undefined
+  /** L24 — true when an account_size ROW exists in settings (raw stored-key
+   *  existence via SettingsPayload.stored_keys). The DEFAULTED value is
+   *  useless here: the settings repo fills 25,000 on a fresh DB, so a value
+   *  check suppressed onboarding on every fresh install. */
+  accountSizeStored: boolean
   /** True when the localStorage onboarding-complete flag is set. */
   flagSet: boolean
   /** True when the user explicitly clicked "Restart onboarding" — forces
@@ -22,7 +25,7 @@ export interface ShouldShowInputs {
 
 /** Auto-trigger: ALL three conditions per the spec must hold —
  *   - no trades imported
- *   - account_size null or 0
+ *   - no account_size row ever stored (L24: raw key, never the defaulted value)
  *   - localStorage flag not set
  *  PLUS: a manual "force restart" token short-circuits the heuristic so
  *  the user can replay the flow from Settings without wiping their data. */
@@ -30,8 +33,7 @@ export function shouldShowOnboarding(opts: ShouldShowInputs): boolean {
   if (opts.forceRestart) return true
   if (opts.flagSet) return false
   if (opts.tradeCount > 0) return false
-  const acct = opts.accountSize ?? 0
-  if (acct > 0) return false
+  if (opts.accountSizeStored) return false
   return true
 }
 

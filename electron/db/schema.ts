@@ -466,7 +466,12 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT OR IGNORE INTO settings (key, value) VALUES ('max_daily_loss', '500');
-INSERT OR IGNORE INTO settings (key, value) VALUES ('account_size',   '25000');
+-- account_size is intentionally NOT seeded (L24, Session 5): the settings
+-- repo defaults it to 25,000 at READ time, so the row's absence is the only
+-- honest "never configured" signal — shouldShowOnboarding's fresh-install
+-- detector keys on raw row existence. Writers: onboarding completion and
+-- the Settings page. (Pre-L24 installs already carry a seeded row; they
+-- also carry trades, which suppresses onboarding regardless.)
 INSERT OR IGNORE INTO settings (key, value) VALUES ('theme',          'dark');
 INSERT OR IGNORE INTO settings (key, value) VALUES (
   'journal_rules',

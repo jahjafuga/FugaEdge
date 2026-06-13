@@ -69,4 +69,10 @@ describe('settings repo — show_macd_pane (§H)', () => {
     expect(values.show_macd_pane).toBe(false)
     expect(values.max_daily_loss).toBe(999) // the second save did not clobber it
   })
+
+  it('(R5/L24) stored_keys exposes raw row existence — fresh map empty, saved key present', () => {
+    expect(getSettings().stored_keys).toEqual([])
+    saveSettings({ account_size: 50000 })
+    expect(getSettings().stored_keys).toContain('account_size')
+  })
 })
