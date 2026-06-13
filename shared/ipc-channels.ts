@@ -139,6 +139,14 @@ export const IPC = {
   // profile owns 'profile:' long-term.
   PROFILE_GET: 'profile:get',
   PROFILE_UPDATE: 'profile:update',
+  // ── Goals (v0.2.5 Phase B Session 5, L27/L29) ──────────────────────────
+  // GOALS_LIST is deliberately an EVALUATE-AND-READ: it computes progress
+  // and performs due completions inline (idempotent — only active goals
+  // transition; XP key + badge index dedupe the rest). No sweep, no hooks:
+  // a goal completes when its owner looks at it.
+  GOALS_LIST: 'goals:list',
+  GOALS_CREATE: 'goals:create',
+  GOALS_ABANDON: 'goals:abandon',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

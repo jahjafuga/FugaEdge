@@ -5,7 +5,13 @@ import type {
   WeeklyReviewStatus,
   XpSummary,
 } from '@shared/xp-types'
-import type { Profile, UpdateProfileInput } from '@shared/identity-types'
+import type {
+  CreateGoalResult,
+  GoalKind,
+  GoalsListResult,
+  Profile,
+  UpdateProfileInput,
+} from '@shared/identity-types'
 import type {
   CommitInput,
   CommitResult,
@@ -267,6 +273,15 @@ const api = {
   profileGet: (): Promise<Profile> => ipcRenderer.invoke(IPC.PROFILE_GET),
   profileUpdate: (input: UpdateProfileInput): Promise<Profile> =>
     ipcRenderer.invoke(IPC.PROFILE_UPDATE, input),
+  // ── Goals (v0.2.5 Phase B Session 5, L27/L29) ───────────────────────
+  goalsList: (): Promise<GoalsListResult> => ipcRenderer.invoke(IPC.GOALS_LIST),
+  goalsCreate: (input: {
+    title: string
+    kind: GoalKind
+    config: unknown
+  }): Promise<CreateGoalResult> => ipcRenderer.invoke(IPC.GOALS_CREATE, input),
+  goalsAbandon: (input: { id: string }): Promise<{ updated: boolean }> =>
+    ipcRenderer.invoke(IPC.GOALS_ABANDON, input),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

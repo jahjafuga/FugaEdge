@@ -137,6 +137,14 @@ export const ipc = {
   profileGet: () => window.api.profileGet(),
   profileUpdate: (input: import('@shared/identity-types').UpdateProfileInput) =>
     window.api.profileUpdate(input),
+  // ── Goals (v0.2.5 Phase B Session 5, L27/L29) ──
+  goalsList: () => window.api.goalsList(),
+  goalsCreate: (input: {
+    title: string
+    kind: import('@shared/identity-types').GoalKind
+    config: unknown
+  }) => window.api.goalsCreate(input),
+  goalsAbandon: (id: string) => window.api.goalsAbandon({ id }),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

@@ -16,6 +16,7 @@ import type { XpSummary } from '@shared/xp-types'
 import type { TradingStyle } from '@/core/onboarding/types'
 import AvatarPicker from '@/components/profile/AvatarPicker'
 import LevelRing from '@/components/profile/LevelRing'
+import GoalsSection from '@/components/profile/goals/GoalsSection'
 import { profileStrings as S } from '@/components/profile/strings'
 
 interface IdentityDraft {
@@ -229,7 +230,7 @@ export default function Profile() {
                     format={(n) =>
                       n === null ? '—' : `${Math.round(n).toLocaleString()}`
                     }
-                    className="font-mono text-2xl font-bold"
+                    className="font-mono text-3xl font-bold text-gold"
                   />
                   <span className="ml-1 text-sm text-fg-tertiary">
                     {S.level.xpUnit}
@@ -292,6 +293,9 @@ export default function Profile() {
           </section>
         </div>
       </div>
+
+      {/* ── Goals (S5's L18 increment — full-width below the S4 grid) ── */}
+      <GoalsSection />
     </PageShell>
   )
 }

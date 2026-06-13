@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest'
-import { initialsFrom, ringFraction } from '../helpers'
+import { fmtDollars, initialsFrom, ringFraction } from '../helpers'
 
 // v0.2.5 Phase B Session 4 — pure display helpers for the profile page
 // (L23 ring math incl. the level-99 guard; L21 initials fallback).
+// Session 5 (2026-06-13): fmtDollars, the shared equity-dollar formatter.
+
+describe('fmtDollars (equity dollar display — D25/L28 surfaces)', () => {
+  it('formats whole dollars with comma grouping and no decimals', () => {
+    expect(fmtDollars(1_000_000)).toBe('$1,000,000')
+    expect(fmtDollars(25_000)).toBe('$25,000')
+    expect(fmtDollars(1_000)).toBe('$1,000')
+    expect(fmtDollars(0)).toBe('$0')
+  })
+
+  it('rounds to the nearest dollar', () => {
+    expect(fmtDollars(1234.7)).toBe('$1,235')
+    expect(fmtDollars(1234.2)).toBe('$1,234')
+  })
+})
 
 describe('ringFraction (L23)', () => {
   it('mid-level: intoLevel / (intoLevel + neededForNext)', () => {

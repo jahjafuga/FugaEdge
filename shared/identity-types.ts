@@ -60,6 +60,36 @@ export interface CreateGoalInput {
   config_json: string
 }
 
+// ── Goal progress read model (Phase B Session 5, L26/L27) ────────────────
+
+export interface GoalProgress {
+  /** Process: events counted. Equity: current dollars (start + cum P&L). */
+  current: number
+  /** Process: the target count. Equity: target_amount dollars. */
+  target: number
+  /** Clamped [0,1] for the bar; raw current/target carry the real values. */
+  fraction: number
+}
+
+export interface GoalWithProgress extends Goal {
+  /** null when the stored config fails the defensive read-side parse. */
+  progress: GoalProgress | null
+}
+
+export interface GoalsListResult {
+  active: GoalWithProgress[]
+  completed: Goal[]
+  abandoned: Goal[]
+  /** Goal ids completed by THIS evaluate-and-read call (L27) — S5 renders a
+   *  subtle highlight; S6's celebration layer consumes it properly. */
+  justCompleted: string[]
+}
+
+/** GOALS_CREATE result — validation rejections travel as data. */
+export type CreateGoalResult =
+  | { ok: true; goal: Goal }
+  | { ok: false; error: string }
+
 // ── Badge awards ──────────────────────────────────────────────────────────
 
 export type BadgeTier = 'copper' | 'silver' | 'gold'

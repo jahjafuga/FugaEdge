@@ -58,4 +58,68 @@ export const profileStrings = {
   },
 
   memberSinceLabel: 'Member since',
+
+  // ── Goals (Session 5 — L28/L32/L33). Broadcast-grade copy: direct,
+  // technical, peer-to-peer; no exclamation marks. ──────────────────────
+  goals: {
+    heading: 'Challenges',
+    newGoal: 'New challenge',
+    startedPrefix: 'Started',
+    completedHeading: 'Completed',
+    abandonAction: 'Abandon',
+    abandonTitle: 'Abandon this challenge?',
+    abandonBody:
+      'It moves out of your active list. The work you logged stays in the ledger.',
+    abandonConfirm: 'Abandon challenge',
+    // Goal identity icons live in ./goals/icons.ts now — flat lucide, gold-
+    // tinted (D26 grammar), shared by the preset chips and the goal cards. The
+    // OS-emoji glyphs were retired in the iteration-4 live-look (founder ruling).
+    corruptProgress: '—',
+    percentSuffix: '%',
+    empty: {
+      headline: 'Start your first challenge',
+      body: 'Pick a process target — days journaled, trades annotated, disciplined entries — and let the ledger keep score.',
+      action: 'New challenge',
+    },
+    create: {
+      title: 'New challenge',
+      presetsLabel: 'Start from a preset',
+      presetTitles: {
+        'journal-30': 'Journal 30 Days',
+        'annotation-century': 'Annotation Century',
+        'discipline-week': 'Discipline Week',
+        'review-ritual': 'Review Ritual',
+        'equity-grow-base': 'Grow the Base',
+        'equity-million': 'Make a Million',
+      } as Record<string, string>,
+      presetMeta: {
+        journaled_days: 'journaled days',
+        weekly_reviews: 'weekly reviews',
+        annotated_trades: 'annotated trades',
+        disciplined_entries: 'disciplined entries',
+      } as Record<string, string>,
+      // Equity-chip meta RENDERS the dollar target — the NAMED L28 exception
+      // (founder ruling 2026-06-13): journal-P&L dollar text is permitted
+      // inside equity preset chips and equity goal cards, and nowhere else on
+      // /profile. The amount comes from the shared fmtDollars formatter (config
+      // carries the numbers); absolute presets show just the target
+      // ("$1,000,000"), delta presets append this suffix ("+$1,000 from your
+      // start") — the delta is start-agnostic, so no personal figure leaks.
+      presetDeltaSuffix: 'from your start',
+      kindLabel: 'Kind',
+      kindProcess: 'Process',
+      kindEquity: 'Equity',
+      titleLabel: 'Title',
+      titlePlaceholder: 'Name the challenge',
+      metricLabel: 'Metric',
+      targetLabel: 'Target',
+      startDateLabel: 'Start date',
+      startAmountLabel: 'Starting amount',
+      targetAmountLabel: 'Target amount',
+      submit: 'Create challenge',
+      submitting: 'Creating…',
+      equityNote:
+        'Equity challenges track account growth from the start date. They earn a badge on completion — never XP.',
+    },
+  },
 } as const

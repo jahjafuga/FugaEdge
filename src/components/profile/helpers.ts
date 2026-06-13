@@ -16,6 +16,14 @@ export function ringFraction(
   return intoLevel / total
 }
 
+/** Whole-dollar display for equity figures — "$1,000,000": rounded, comma-
+ *  grouped, no decimals. The SINGLE formatter shared by the equity goal card
+ *  and the equity preset chips — the only two /profile surfaces permitted to
+ *  show journal-P&L dollar text (D25/L28 named exception, 2026-06-13). */
+export function fmtDollars(n: number): string {
+  return `$${Math.round(n).toLocaleString()}`
+}
+
 /** L21 — initials for the no-avatar disc: first letters of the first two
  *  words of display_name, uppercased. null when there is no usable name —
  *  the caller renders a neutral icon disc instead. */

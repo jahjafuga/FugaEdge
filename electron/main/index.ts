@@ -31,6 +31,7 @@ import {
 } from '../attachments/protocol'
 import { registerSessionIpc } from '../session/ipc'
 import { registerProfileIpc } from '../profile/ipc'
+import { registerGoalsIpc } from '../goals/ipc'
 import { registerXpIpc } from '../xp/ipc'
 import { runXpReconcile } from '../xp/reconcile'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
@@ -170,6 +171,7 @@ app.whenReady().then(() => {
   registerAttachmentProtocolHandler()
   registerSessionIpc()
   registerProfileIpc()
+  registerGoalsIpc()
   registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()
