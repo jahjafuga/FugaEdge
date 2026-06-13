@@ -370,6 +370,13 @@ Center stack inside card:
 - **Sizes:** 14px (inline), 16px (button), 18px (sidebar), 20px (header), 24px (empty state), 48px (hero empty state).
 - **Stroke width:** `1.75` default; `2` for high-contrast contexts; `1.5` for 24px+.
 - **Color:** `currentColor` — drive via text color tokens. Never hard-code icon fill.
+- **Gamification identity (goal + badge icons, v0.2.5 S6 — A4/D26):** lucide,
+  gold-tinted (`text-gold` for heroes / earned, `text-gold-dim` for quieter /
+  unselected), `strokeWidth 1.75` — the SAME flat single-weight register as
+  utility icons, NOT a separate emoji register (the S5 OS-emoji experiment for
+  goal identity was reverted at the iteration-4 live-look). Goal- and badge-
+  identity icons resolve from shared name→component maps (`goals/icons.ts`,
+  `badges/badgeIcons.ts`) so the pure core stays UI-free.
 
 ---
 
@@ -419,6 +426,19 @@ Preview table after step 1, mapping UI with auto-detect, summary diff before com
 ### 7.9 Settings
 Tabs: *Account · Appearance · Data · Risk · Shortcuts · About*.
 Form rows pattern: left label (240px fixed) + right control (flex-1) + helper text below, 16px row gap.
+
+### 7.10 Profile (v0.2.5 — A4/D24; grows by session per L18)
+The release's identity surface, built incrementally (S4 identity + level + streak;
+S5 goals; S6 badges; Phase D Edge Score). Layout: a two-column grid — left an
+Identity card (avatar + name/handle/style/markets/bio + member-since); right the
+Level card (gold ring + gold mono XP total + "N XP to next") above the Streak
+card. Full-width below: the **Challenges** section (process + equity goal cards;
+create modal led by preset chips) then the **Badges** wall (the whole catalog —
+earned in gold, locked dimmed with a threshold hint — plus the featured-3
+picker). Icons follow the §6 gamification register. NO P&L on this page except
+the named L28 exception (equity preset chips + equity goal cards only).
+Completion and level-up fire the gold-particle CelebrationBurst
+(reduced-motion-safe).
 
 ---
 
