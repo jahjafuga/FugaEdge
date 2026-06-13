@@ -7,7 +7,7 @@ import { newUlid } from '@/core/ids/ulid'
 import type { CreateGoalInput, Goal, GoalStatus } from '@shared/identity-types'
 
 const COLUMNS =
-  'id, title, kind, config_json, status, created_at, completed_at'
+  'id, title, kind, config_json, preset_id, status, created_at, completed_at'
 
 export function listGoals(status?: GoalStatus): Goal[] {
   const db = openDatabase()
@@ -28,14 +28,15 @@ export function createGoal(input: CreateGoalInput): Goal {
   const id = newUlid()
   const created_at = new Date().toISOString()
   db.prepare(
-    `INSERT INTO goals (id, title, kind, config_json, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(id, input.title, input.kind, input.config_json, 'active', created_at)
+    `INSERT INTO goals (id, title, kind, config_json, preset_id, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run(id, input.title, input.kind, input.config_json, input.preset_id, 'active', created_at)
   return {
     id,
     title: input.title,
     kind: input.kind,
     config_json: input.config_json,
+    preset_id: input.preset_id,
     status: 'active',
     created_at,
     completed_at: null,

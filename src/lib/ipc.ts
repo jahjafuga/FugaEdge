@@ -143,8 +143,10 @@ export const ipc = {
     title: string
     kind: import('@shared/identity-types').GoalKind
     config: unknown
+    preset_id: string | null
   }) => window.api.goalsCreate(input),
   goalsAbandon: (id: string) => window.api.goalsAbandon({ id }),
+  badgesList: () => window.api.badgesList(),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

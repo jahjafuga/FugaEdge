@@ -17,6 +17,7 @@ import type { TradingStyle } from '@/core/onboarding/types'
 import AvatarPicker from '@/components/profile/AvatarPicker'
 import LevelRing from '@/components/profile/LevelRing'
 import GoalsSection from '@/components/profile/goals/GoalsSection'
+import BadgeWall from '@/components/profile/badges/BadgeWall'
 import { profileStrings as S } from '@/components/profile/strings'
 
 interface IdentityDraft {
@@ -84,6 +85,17 @@ export default function Profile() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  // R4 — persist the featured-3 selection. The picker enforces the cap
+  // client-side; updateProfile rejects >3 defensively (surfaced as an error).
+  async function setFeatured(next: string[]) {
+    if (!profile) return
+    try {
+      setProfile(await ipc.profileUpdate({ featured_badges: next }))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -296,6 +308,12 @@ export default function Profile() {
 
       {/* ── Goals (S5's L18 increment — full-width below the S4 grid) ── */}
       <GoalsSection />
+
+      {/* ── Badges (S6's L18 increment — the wall + featured-3 picker) ── */}
+      <BadgeWall
+        featured={profile?.featured_badges ?? []}
+        onSetFeatured={(next) => void setFeatured(next)}
+      />
     </PageShell>
   )
 }

@@ -106,4 +106,18 @@ describe('profile repo', () => {
     expect(updated.member_since).toBe(before.member_since) // untouched
     expect(updated.updated_at).not.toBeNull()
   })
+
+  it('R4 — rejects featured_badges over the cap of 3 (loud, not a silent truncate)', () => {
+    getOrCreateProfile()
+    expect(() =>
+      updateProfile({ featured_badges: ['a', 'b', 'c', 'd'] }),
+    ).toThrow(/cap of 3/)
+  })
+
+  it('R4 — accepts exactly 3 featured badges', () => {
+    getOrCreateProfile()
+    expect(
+      updateProfile({ featured_badges: ['a', 'b', 'c'] }).featured_badges,
+    ).toEqual(['a', 'b', 'c'])
+  })
 })

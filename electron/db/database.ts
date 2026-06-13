@@ -761,6 +761,18 @@ function migrateAfterSchema(
     conn.exec("ALTER TABLE playbooks ADD COLUMN tier TEXT NOT NULL DEFAULT 'B'")
   }
 
+  // v0.2.5 Session 6 (R2) — goals.preset_id records which preset created a
+  // goal; the engine maps it to the named catalog badge at completion
+  // (challengeBadgeId), null for custom. Additive PRAGMA-gated ALTER, no
+  // version bump (the trade_technicals/warmup precedent). The goals table was
+  // just created by SCHEMA_SQL, so it always exists here.
+  const goalCols = conn.prepare('PRAGMA table_info(goals)').all() as {
+    name: string
+  }[]
+  if (!goalCols.some((c) => c.name === 'preset_id')) {
+    conn.exec('ALTER TABLE goals ADD COLUMN preset_id TEXT')
+  }
+
   seedDefaultPlaybooksOnce(conn)
   seedDefaultPlaybookTiersOnce(conn)
 

@@ -22,7 +22,12 @@ export function registerGoalsIpc(): void {
     IPC.GOALS_CREATE,
     (
       _e,
-      input: { title: string; kind: GoalKind; config: unknown },
+      input: {
+        title: string
+        kind: GoalKind
+        config: unknown
+        preset_id?: string | null
+      },
     ): CreateGoalResult => {
       const v = validateCreateGoal(input)
       if (!v.ok) return { ok: false, error: v.error }
@@ -30,6 +35,7 @@ export function registerGoalsIpc(): void {
         title: input.title.trim(),
         kind: input.kind,
         config_json: v.config_json,
+        preset_id: input.preset_id ?? null,
       })
       return { ok: true, goal }
     },

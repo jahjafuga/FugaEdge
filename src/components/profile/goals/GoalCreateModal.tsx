@@ -177,7 +177,7 @@ export default function GoalCreateModal({
     }
     setBusy(true)
     try {
-      const result = await ipc.goalsCreate({ title, kind, config })
+      const result = await ipc.goalsCreate({ title, kind, config, preset_id: selectedPreset })
       if (!result.ok) {
         setError(result.error)
         return

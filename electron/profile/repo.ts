@@ -108,6 +108,14 @@ const UPDATABLE: Record<string, string> = {
 
 export function updateProfile(input: UpdateProfileInput): Profile {
   const db = openDatabase()
+  // R4 — defensive ≤3 cap on featured badges. REJECT (not truncate) so a UI
+  // bug that lets a 4th through surfaces loudly instead of silently dropping a
+  // selection. The picker also enforces the cap client-side.
+  if (input.featured_badges && input.featured_badges.length > 3) {
+    throw new Error(
+      `updateProfile: featured_badges exceeds the cap of 3 (got ${input.featured_badges.length})`,
+    )
+  }
   const current = getOrCreateProfile()
 
   const sets: string[] = []

@@ -122,4 +122,21 @@ export const profileStrings = {
         'Equity challenges track account growth from the start date. They earn a badge on completion — never XP.',
     },
   },
+
+  // ── Badges (Session 6 — the wall + featured-3 picker). The wall shows the
+  // whole catalog: earned in gold, locked dimmed with the threshold hint, so
+  // it reads as a goal board from day one even before threshold-minting ships.
+  badges: {
+    heading: 'Badges',
+    featuredHeading: 'Featured',
+    emptyFeatured: 'Pick up to 3 earned badges to feature on your profile.',
+    earnedWord: 'earned', // "{n} of {total} earned"
+    pickHint: 'Tap an earned badge to feature it — up to 3.',
+    capReached: 'Featured is full — unfeature one first.',
+    locked: 'Locked',
+    tierLabels: { copper: 'Copper', silver: 'Silver', gold: 'Gold' } as Record<
+      string,
+      string
+    >,
+  },
 } as const

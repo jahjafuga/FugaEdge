@@ -76,6 +76,7 @@ function goal(overrides: Record<string, unknown> = {}) {
     title: 'Journal 30 Days',
     kind: 'process',
     config_json: '{"metric":"journaled_days","target":3}',
+    preset_id: null,
     status: 'active',
     created_at: '2026-06-01T00:00:00.000Z',
     completed_at: null,
@@ -122,7 +123,7 @@ describe('process progress (L25 — ledger counts since goal creation)', () => {
       store.events.some((e) => e.idempotency_key === 'goal:G1:completed'),
     ).toBe(true)
     expect(store.badges).toEqual([
-      { badge_id: 'goal:G1', tier: null, source_ref: 'G1' },
+      { badge_id: 'challenge-complete', tier: null, source_ref: 'G1' },
     ])
     expect(out.completed.map((g) => g.id)).toEqual(['G1'])
   })
@@ -166,10 +167,26 @@ describe('equity progress + the D19 wall (L26)', () => {
     expect(out.justCompleted).toEqual(['E1'])
     expect(store.goals[0].status).toBe('completed')
     expect(store.badges).toEqual([
-      { badge_id: 'goal:E1', tier: null, source_ref: 'E1' },
+      { badge_id: 'challenge-complete', tier: null, source_ref: 'E1' },
     ])
     expect(store.insertCalls).toBe(0) // the wall: no intent batch was ever sent
     expect(store.events).toHaveLength(0)
+  })
+
+  it('a preset goal mints its NAMED catalog badge, not the generic (R2)', () => {
+    store.goals = [
+      goal({
+        id: 'E1',
+        kind: 'equity',
+        preset_id: 'equity-million',
+        config_json: '{"start_date":"2026-06-01","start_amount":2000,"target_amount":3000}',
+      }),
+    ]
+    store.cumPnl = 1500
+    evaluateAndListGoals()
+    expect(store.badges).toEqual([
+      { badge_id: 'challenge-million', tier: null, source_ref: 'E1' },
+    ])
   })
 
   it('awardGoalCompletion THROWS on an equity goal (the programmer-error guard)', () => {

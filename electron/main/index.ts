@@ -32,6 +32,7 @@ import {
 import { registerSessionIpc } from '../session/ipc'
 import { registerProfileIpc } from '../profile/ipc'
 import { registerGoalsIpc } from '../goals/ipc'
+import { registerBadgesIpc } from '../badges/ipc'
 import { registerXpIpc } from '../xp/ipc'
 import { runXpReconcile } from '../xp/reconcile'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
@@ -172,6 +173,7 @@ app.whenReady().then(() => {
   registerSessionIpc()
   registerProfileIpc()
   registerGoalsIpc()
+  registerBadgesIpc()
   registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()

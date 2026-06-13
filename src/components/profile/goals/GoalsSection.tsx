@@ -6,12 +6,15 @@
 // pulse S6 replaces.
 
 import { useEffect, useRef, useState } from 'react'
-import { Check, Plus, Target } from 'lucide-react'
+import { Plus, Target } from 'lucide-react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { ipc } from '@/lib/ipc'
 import type { GoalsListResult } from '@shared/identity-types'
+import { badgeById, challengeBadgeId } from '@/core/badges/catalog'
+import { useCelebration } from '@/lib/celebration'
 import GoalCard from './GoalCard'
 import GoalCreateModal from './GoalCreateModal'
+import { badgeIcon } from '../badges/badgeIcons'
 import { profileStrings as S } from '../strings'
 
 const PULSE_MS = 4000
@@ -24,15 +27,17 @@ export default function GoalsSection() {
   const [abandonBusy, setAbandonBusy] = useState(false)
   const [pulseIds, setPulseIds] = useState<Set<string>>(new Set())
   const pulseTimer = useRef(0)
+  const celebration = useCelebration()
 
   async function refresh() {
     const result = await ipc.goalsList()
     setData(result)
     if (result.justCompleted.length > 0) {
-      // S5 placeholder highlight only — S6's celebration layer consumes
-      // justCompleted properly. Completed goals land in the strip, so the
-      // pulse rides the strip rows for this interim.
+      // S6 (R1) — a completion is a page-wide moment, so fire the app-level
+      // celebration overlay (src/lib/celebration). The gold-ring pulse + the
+      // minted badge on the completed strip row are the persistent local cues.
       setPulseIds(new Set(result.justCompleted))
+      celebration.fire()
       window.clearTimeout(pulseTimer.current)
       pulseTimer.current = window.setTimeout(() => setPulseIds(new Set()), PULSE_MS)
     }
@@ -129,25 +134,36 @@ export default function GoalsSection() {
                 {G.completedHeading}
               </h3>
               <ul className="space-y-1.5">
-                {data.completed.map((goal) => (
-                  <li
-                    key={goal.id}
-                    data-testid="completed-goal"
-                    className={`flex items-center gap-2 rounded-md border border-gold/25 bg-bg-2 px-3 py-2 text-sm ${
-                      pulseIds.has(goal.id) ? 'ring-2 ring-gold/60' : ''
-                    }`}
-                  >
-                    <Check className="h-4 w-4 shrink-0 text-gold" />
-                    <span className="min-w-0 flex-1 truncate text-fg-secondary">
-                      {goal.title}
-                    </span>
-                    {goal.completed_at && (
-                      <span className="font-mono text-xs text-fg-tertiary">
-                        {goal.completed_at.slice(0, 10)}
+                {data.completed.map((goal) => {
+                  // The minted badge IS the completion mark on the card (R1) —
+                  // its named catalog icon, resolved from the goal's preset_id.
+                  const MintIcon = badgeIcon(
+                    badgeById(challengeBadgeId(goal.preset_id))?.icon ?? 'Award',
+                  )
+                  return (
+                    <li
+                      key={goal.id}
+                      data-testid="completed-goal"
+                      className={`flex items-center gap-2 rounded-md border border-gold/25 bg-bg-2 px-3 py-2 text-sm ${
+                        pulseIds.has(goal.id) ? 'ring-2 ring-gold/60' : ''
+                      }`}
+                    >
+                      <MintIcon
+                        aria-hidden
+                        className="h-4 w-4 shrink-0 text-gold"
+                        strokeWidth={1.75}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-fg-secondary">
+                        {goal.title}
                       </span>
-                    )}
-                  </li>
-                ))}
+                      {goal.completed_at && (
+                        <span className="font-mono text-xs text-fg-tertiary">
+                          {goal.completed_at.slice(0, 10)}
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}

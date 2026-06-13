@@ -350,6 +350,61 @@
     background-size: 20px 20px;
   }
 
+  /* Celebration particle burst (S6, R1) — gold, one-shot, reduced-motion-safe.
+     Particles spawn at the container centre and fly to their per-particle
+     (--cb-dx, --cb-dy) offset while fading. CelebrationBurst renders ZERO
+     particles under prefers-reduced-motion; the global reset below also zeroes
+     the duration — belt-and-suspenders. */
+  @keyframes celebration-burst {
+    0% {
+      transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+      opacity: 1;
+    }
+    70% {
+      opacity: 1;
+    }
+    100% {
+      transform: translate(calc(-50% + var(--cb-dx)), calc(-50% + var(--cb-dy)))
+        scale(1) rotate(var(--cb-rot));
+      opacity: 0;
+    }
+  }
+  .celebration-particle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    border-radius: 9999px;
+    background: rgb(var(--gold));
+    box-shadow: 0 0 8px rgb(var(--gold) / 0.55);
+    animation: celebration-burst 1500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  /* Central gold bloom — a soft luminance pulse the eye catches peripherally
+     (the highest-value cue per the founder). One-shot, vanishes; CelebrationBurst
+     renders zero under reduced motion, the global reset zeroes duration. */
+  @keyframes celebration-flash {
+    0% {
+      transform: translate(-50%, -50%) scale(0.4);
+      opacity: 0;
+    }
+    25% {
+      opacity: 0.5;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1.7);
+      opacity: 0;
+    }
+  }
+  .celebration-flash {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 260px;
+    width: 260px;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgb(var(--gold) / 0.5) 0%, rgb(var(--gold) / 0) 70%);
+    animation: celebration-flash 700ms ease-out forwards;
+  }
+
   /* Legacy gold accent line for un-migrated cards */
   .card-accent {
     @apply relative;

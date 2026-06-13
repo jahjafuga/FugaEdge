@@ -6,6 +6,7 @@ import type {
   XpSummary,
 } from '@shared/xp-types'
 import type {
+  BadgeAward,
   CreateGoalResult,
   GoalKind,
   GoalsListResult,
@@ -279,9 +280,12 @@ const api = {
     title: string
     kind: GoalKind
     config: unknown
+    preset_id: string | null
   }): Promise<CreateGoalResult> => ipcRenderer.invoke(IPC.GOALS_CREATE, input),
   goalsAbandon: (input: { id: string }): Promise<{ updated: boolean }> =>
     ipcRenderer.invoke(IPC.GOALS_ABANDON, input),
+  // ── Badges (v0.2.5 Phase B Session 6) ──
+  badgesList: (): Promise<BadgeAward[]> => ipcRenderer.invoke(IPC.BADGES_LIST),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

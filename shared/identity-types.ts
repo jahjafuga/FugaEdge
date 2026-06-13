@@ -49,6 +49,9 @@ export interface Goal {
    *  process: {metric, target, window}. The Phase B goals engine owns the
    *  parse — the repo stores and returns it verbatim. */
   config_json: string
+  /** Which preset created the goal — challengeBadgeId maps it to the named
+   *  catalog badge at completion (R2); null for custom / diverged-from-preset. */
+  preset_id: string | null
   status: GoalStatus
   created_at: string | null
   completed_at: string | null
@@ -58,6 +61,7 @@ export interface CreateGoalInput {
   title: string
   kind: GoalKind
   config_json: string
+  preset_id: string | null
 }
 
 // ── Goal progress read model (Phase B Session 5, L26/L27) ────────────────

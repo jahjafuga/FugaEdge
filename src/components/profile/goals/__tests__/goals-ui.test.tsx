@@ -26,6 +26,7 @@ function makeGoal(over: Partial<GoalWithProgress>): GoalWithProgress {
     title: 'Goal',
     kind: 'process',
     config_json: '{}',
+    preset_id: null,
     status: 'active',
     created_at: '2026-06-01',
     completed_at: null,

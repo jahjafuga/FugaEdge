@@ -15,6 +15,7 @@ vi.mock('../../db/database', () => ({
             title: string,
             kind: string,
             config_json: string,
+            preset_id: string | null,
             status: string,
             created_at: string,
           ) => {
@@ -23,6 +24,7 @@ vi.mock('../../db/database', () => ({
               title,
               kind,
               config_json,
+              preset_id,
               status,
               created_at,
               completed_at: null,
@@ -62,22 +64,24 @@ beforeEach(() => {
 })
 
 describe('goals repo', () => {
-  it('createGoal mints a ULID, status active, returns the row', () => {
+  it('createGoal mints a ULID, status active, stores preset_id, returns the row', () => {
     const g = createGoal({
       title: 'Journal 30 days',
       kind: 'process',
       config_json: '{"metric":"journaled_days","target":30}',
+      preset_id: 'journal-30',
     })
     expect(g.id).toHaveLength(26)
     expect(g.status).toBe('active')
     expect(g.kind).toBe('process')
+    expect(g.preset_id).toBe('journal-30')
     expect(g.completed_at).toBeNull()
     expect(g.created_at).not.toBeNull()
   })
 
   it('listGoals returns everything; listGoals(status) filters', () => {
-    createGoal({ title: 'A', kind: 'process', config_json: '{}' })
-    const b = createGoal({ title: 'B', kind: 'equity', config_json: '{}' })
+    createGoal({ title: 'A', kind: 'process', config_json: '{}', preset_id: null })
+    const b = createGoal({ title: 'B', kind: 'equity', config_json: '{}', preset_id: null })
     updateGoalStatus(b.id, 'completed', '2026-06-12T00:00:00.000Z')
     expect(listGoals()).toHaveLength(2)
     expect(listGoals('active').map((g) => g.title)).toEqual(['A'])
@@ -85,7 +89,7 @@ describe('goals repo', () => {
   })
 
   it('updateGoalStatus sets status + completed_at and reports updated', () => {
-    const g = createGoal({ title: 'A', kind: 'process', config_json: '{}' })
+    const g = createGoal({ title: 'A', kind: 'process', config_json: '{}', preset_id: null })
     const res = updateGoalStatus(g.id, 'completed', '2026-06-12T00:00:00.000Z')
     expect(res).toEqual({ updated: true })
     expect(listGoals('completed')[0].completed_at).toBe(

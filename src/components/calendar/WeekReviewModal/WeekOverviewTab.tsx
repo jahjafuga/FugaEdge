@@ -1,5 +1,9 @@
+import { useEffect, useState } from 'react'
+import { CheckCircle2 } from 'lucide-react'
 import type { WeekDetail } from '@shared/week-types'
 import Card from '@/components/ui/Card'
+import CelebrationBurst from '@/components/ui/CelebrationBurst'
+import { ipc } from '@/lib/ipc'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import StatStrip, {
   type Kpi,
@@ -15,11 +19,86 @@ import { formatPnlRatio, int, signed, pnlClass, shortDate } from '@/lib/format'
 // a narrative summary (net, win rate, best/worst DAY, streak).
 export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
   const m = detail.metrics
+  const weekStart = detail.weekStart
+
+  // R5 — the weekly-review Complete button. weekStart is the Sunday anchor
+  // (the calendar grid row); buildWeeklyReviewIntent's Sunday guard rejects
+  // anything else. Mount-fetch the completed state so reopening shows it.
+  const [reviewed, setReviewed] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [burst, setBurst] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .xpWeeklyReviewGet({ weekStart })
+      .then((s) => {
+        if (!cancelled) setReviewed(s.completed)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [weekStart])
+
+  async function completeReview() {
+    if (submitting || reviewed) return
+    setSubmitting(true)
+    setReviewError(null)
+    try {
+      const res = await ipc.xpWeeklyReviewComplete({ weekStart })
+      if (res.completed) {
+        setReviewed(true)
+        if (res.awarded) setBurst((k) => k + 1) // light celebration on a FRESH award only
+      } else {
+        // Shouldn't happen — the Sunday guard rejects a non-Sunday anchor.
+        setReviewError(res.error ?? 'Could not complete the review.')
+      }
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const reviewCard = (
+    <div className="relative flex items-center justify-between gap-3 overflow-visible rounded-lg border border-border-subtle bg-bg-2 p-4">
+      <CelebrationBurst trigger={burst} intensity="light" />
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-fg-primary">Weekly review</div>
+        <div className="text-xs text-fg-tertiary">
+          {reviewed
+            ? 'Logged for this week — weekly-review XP banked.'
+            : 'Mark this week reviewed to bank the weekly-review XP.'}
+        </div>
+        {reviewError && <div className="mt-1 text-xs text-danger">{reviewError}</div>}
+      </div>
+      {reviewed ? (
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-gold/40 bg-gold/[0.08] px-3 py-1.5 text-sm font-medium text-gold">
+          <CheckCircle2 aria-hidden className="h-4 w-4" strokeWidth={2} />
+          Reviewed
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void completeReview()}
+          disabled={submitting}
+          className="shrink-0 rounded-md bg-gold px-4 py-1.5 text-sm font-medium text-accent-ink hover:bg-gold-hover disabled:opacity-60"
+        >
+          {submitting ? 'Saving…' : 'Complete review'}
+        </button>
+      )}
+    </div>
+  )
 
   if (m.tradeCount === 0) {
     return (
-      <div className="rounded-md border border-border-subtle bg-bg-2 p-6 text-sm text-fg-secondary">
-        No trades this week.
+      <div className="space-y-4">
+        {reviewCard}
+        <div className="rounded-md border border-border-subtle bg-bg-2 p-6 text-sm text-fg-secondary">
+          No trades this week.
+        </div>
       </div>
     )
   }
@@ -42,6 +121,7 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
 
   return (
     <div className="space-y-4">
+      {reviewCard}
       <StatStrip items={kpis} />
 
       <Card

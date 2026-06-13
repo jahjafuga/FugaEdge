@@ -15,6 +15,7 @@
 
 import type { Goal, GoalProgress, GoalsListResult, GoalWithProgress } from '@shared/identity-types'
 import { METRIC_EVENT_TYPE, parseGoalConfig } from '@/core/goals/config'
+import { challengeBadgeId } from '@/core/badges/catalog'
 import { buildGoalCompletedIntent } from '@/core/xp/engine'
 import { listGoals, updateGoalStatus } from './repo'
 import { insertXpEvents, listXpEvents } from '../xp/repo'
@@ -71,7 +72,10 @@ export function evaluateAndListGoals(): GoalsListResult {
     // re-entry idempotent; the XP key + badge index dedupe the rest.
     updateGoalStatus(goal.id, 'completed', new Date().toISOString())
     if (goal.kind === 'process') awardGoalCompletion(goal)
-    awardBadge({ badge_id: `goal:${goal.id}`, tier: null, source_ref: goal.id })
+    // R2 — preset_id → its NAMED catalog badge ('Make a Million' → the million
+    // badge); custom / diverged goals (null preset_id) mint the generic
+    // 'challenge-complete'. Never 'goal:'+ulid — the wall shows named trophies.
+    awardBadge({ badge_id: challengeBadgeId(goal.preset_id), tier: null, source_ref: goal.id })
     justCompleted.push(goal.id)
   }
 
