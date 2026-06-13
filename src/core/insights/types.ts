@@ -24,6 +24,12 @@ export interface InsightResult {
    *  top N for the Dashboard card. Magnitude × sample size is the typical
    *  shape, but each rule decides what "important" means for it. */
   priority: number
+  /** Sample size — the number of trades the card's claim is computed over
+   *  (e.g. hot+cold for sentiment-edge, the bucket size for a dimension rule).
+   *  0 for non-trade cards (discipline-streak). Drives the visible n-count and
+   *  Beat 2's confidence chips / n<5 suppression. ADDITIVE: no rule's detection,
+   *  tone, priority, or body depends on it. */
+  n: number
 }
 
 /** Inputs to the rule registry. All rules take the same object so the

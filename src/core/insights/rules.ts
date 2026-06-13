@@ -70,6 +70,7 @@ export function runSentimentEdge(input: InsightInput): InsightResult | null {
 
   return {
     id: 'sentiment-edge',
+    n: hot.length + cold.length,
     rule: 'sentiment-edge',
     tone,
     title: 'Sentiment edge',
@@ -115,6 +116,7 @@ export function runCatalystStrength(input: InsightInput): InsightResult[] {
   const lead = top[0]
   return [{
     id: 'catalyst-strength',
+    n: top.reduce((s, r) => s + r.agg.trade_count, 0),
     rule: 'catalyst-strength',
     tone: 'positive',
     title: 'Your strongest catalysts',
@@ -139,6 +141,7 @@ export function runCatalystWeakness(input: InsightInput): InsightResult[] {
     if (agg.net_pnl >= 0) continue
     out.push({
       id: `catalyst-weakness:${catalyst}`,
+      n: agg.trade_count,
       rule: 'catalyst-weakness',
       tone: 'negative',
       title: `Weak catalyst: ${catalyst}`,
@@ -177,6 +180,7 @@ export function runConfidenceCorrelation(input: InsightInput): InsightResult | n
       id: 'confidence-correlation',
       rule: 'confidence-correlation',
       tone: 'negative',
+      n: high.length + low.length,
       title: 'Your gut may be miscalibrated',
       body:
         `Low-confidence trades (1–2 dots) win ${fmtPct(loWR)} vs ${fmtPct(hiWR)} on high-confidence picks. ` +
@@ -191,6 +195,7 @@ export function runConfidenceCorrelation(input: InsightInput): InsightResult | n
     id: 'confidence-correlation',
     rule: 'confidence-correlation',
     tone: 'positive',
+    n: high.length + low.length,
     title: 'Trust your gut',
     body:
       `High-confidence trades (4–5 dots) win ${fmtPct(hiWR)} vs ${fmtPct(loWR)} on low-confidence ones. ` +
@@ -229,6 +234,7 @@ export function runEma9Chasing(input: InsightInput): InsightResult | null {
   const avgLossOnChase = ext.avg_loser != null ? fmtMoneyAbs(ext.avg_loser) : null
   return {
     id: 'ema9-chasing',
+    n: extended.length + clean.length,
     rule: 'ema9-chasing',
     tone: 'negative',
     title: 'Stop chasing extended moves',
@@ -269,6 +275,7 @@ export function runPlaybookPerformance(input: InsightInput): InsightResult | nul
 
   return {
     id: 'playbook-performance',
+    n: best.agg.trade_count + worst.agg.trade_count,
     rule: 'playbook-performance',
     tone: best.agg.net_pnl > 0 ? 'positive' : 'neutral',
     title: 'Playbook ranking',
@@ -318,6 +325,7 @@ export function runTimeOfDay(input: InsightInput): InsightResult | null {
   const tone = openShare > 0.5 ? 'positive' : openShare < 0 ? 'negative' : 'neutral'
   return {
     id: 'time-of-day',
+    n: Array.from(byHour.values()).reduce((s, g) => s + g.length, 0),
     rule: 'time-of-day',
     tone,
     title: 'Where your day-money comes from',
@@ -355,6 +363,7 @@ export function runMistakePattern(input: InsightInput): InsightResult | null {
 
   return {
     id: `mistake-pattern:${worst.label}`,
+    n: worst.agg.trade_count,
     rule: 'mistake-pattern',
     tone: 'negative',
     title: `Recurring mistake: ${worst.label}`,
@@ -398,6 +407,7 @@ export function runFloatSweetSpot(input: InsightInput): InsightResult | null {
 
   return {
     id: 'float-sweet-spot',
+    n: best.agg.trade_count + worst.agg.trade_count,
     rule: 'float-sweet-spot',
     tone,
     title: 'Float sweet spot',
@@ -432,6 +442,7 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
   if (best.agg.net_pnl > 100) {
     out.push({
       id: `symbol-best:${best.symbol}`,
+      n: best.agg.trade_count,
       rule: 'symbol-best',
       tone: 'positive',
       title: `${best.symbol} is your top symbol`,
@@ -446,6 +457,7 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
   if (worst !== best && worst.agg.net_pnl < -100) {
     out.push({
       id: `symbol-worst:${worst.symbol}`,
+      n: worst.agg.trade_count,
       rule: 'symbol-worst',
       tone: 'negative',
       title: `${worst.symbol} keeps costing you`,
@@ -492,6 +504,7 @@ export function runDayOfWeek(input: InsightInput): InsightResult | null {
       : ''
   return {
     id: 'day-of-week',
+    n: best.agg.trade_count + worst.agg.trade_count,
     rule: 'day-of-week',
     tone,
     title: `${best.day}s are your strongest day`,
@@ -518,6 +531,7 @@ export function runExpectancy(input: InsightInput): InsightResult | null {
   if (avgR > 0) {
     return {
       id: 'expectancy-positive',
+      n: withR.length,
       rule: 'expectancy-positive',
       tone: 'positive',
       title: 'Positive expectancy',
@@ -530,6 +544,7 @@ export function runExpectancy(input: InsightInput): InsightResult | null {
   }
   return {
     id: 'expectancy-negative',
+    n: withR.length,
     rule: 'expectancy-negative',
     tone: 'negative',
     title: 'Negative expectancy',
@@ -557,6 +572,7 @@ export function runRewardRiskRatio(input: InsightInput): InsightResult | null {
   if (ratio >= 1.5) {
     return {
       id: 'rr-healthy',
+      n: winners.length + losers.length,
       rule: 'rr-healthy',
       tone: 'positive',
       title: 'Healthy reward-to-risk',
@@ -570,6 +586,7 @@ export function runRewardRiskRatio(input: InsightInput): InsightResult | null {
   if (ratio < 0.8) {
     return {
       id: 'rr-inverted',
+      n: winners.length + losers.length,
       rule: 'rr-inverted',
       tone: 'negative',
       title: 'Losers are bigger than winners',
@@ -618,6 +635,7 @@ export function runHoldTimeFlipped(input: InsightInput): InsightResult | null {
   if (avgLose <= avgWin * 1.2) return null
   return {
     id: 'hold-time-flipped',
+    n: winners.length + losers.length,
     rule: 'hold-time-flipped',
     tone: 'negative',
     title: 'You hold losers longer than winners',
@@ -666,6 +684,7 @@ export function runRevengeTrading(input: InsightInput): InsightResult | null {
   if (gap < 0.15) return null
   return {
     id: 'revenge-trading',
+    n: pairsAfterLoss + pairsAfterWin,
     rule: 'revenge-trading',
     tone: 'negative',
     title: 'Revenge trading detected',
@@ -698,6 +717,7 @@ export function runMistakeInLosers(input: InsightInput): InsightResult[] {
     if (rate < 0.25) continue
     out.push({
       id: `mistake-in-losers:${name}`,
+      n: total,
       rule: 'mistake-in-losers',
       tone: 'negative',
       title: `"${name}" shows up in ${fmtPct(rate)} of your losers`,
@@ -735,6 +755,7 @@ export function runFirstThirtyMinutes(input: InsightInput): InsightResult | null
   if (agg.net_pnl > -100) return null
   return {
     id: 'first-thirty-minutes',
+    n: agg.trade_count,
     rule: 'first-thirty-minutes',
     tone: 'negative',
     title: 'You bleed in the first 30 minutes',
@@ -756,6 +777,7 @@ export function runDisciplineStreakMilestone(input: InsightInput): InsightResult
   const tone: InsightResult['tone'] = streak >= 10 ? 'positive' : 'neutral'
   return {
     id: 'discipline-streak',
+    n: 0,
     rule: 'discipline-streak',
     tone,
     title: streak >= 10 ? 'Discipline streak — fire' : 'Discipline streak',
@@ -813,6 +835,7 @@ export function runRegionWeakness(input: InsightInput): InsightResult | null {
     `(${weak.trades} trades). Consider tightening size or skipping this region.`
   return {
     id: `region-weakness:${weak.region}`,
+    n: weak.trades,
     rule: 'region-weakness',
     tone: 'negative',
     title,
@@ -838,6 +861,7 @@ export function runRegionStrength(input: InsightInput): InsightResult | null {
     `(${strong.trades} trades). You have edge here — consider sizing up.`
   return {
     id: `region-strength:${strong.region}`,
+    n: strong.trades,
     rule: 'region-strength',
     tone: 'positive',
     title,

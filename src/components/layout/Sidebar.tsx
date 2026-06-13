@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   PieChart,
+  Crosshair,
   NotebookPen,
   Download,
   Settings as SettingsIcon,
@@ -33,6 +34,9 @@ const NAV: NavItem[] = [
   { to: '/reports',   label: 'Reports',   Icon: BarChart3 },
   { to: '/playbook',  label: 'Playbook',  Icon: BookOpen },
   { to: '/analytics', label: 'Analytics', Icon: PieChart },
+  // v0.2.5 Edge Intelligence — one new route after Analytics (§I). The broader
+  // sidebar-IA regrouping (footer rail, grouping) stays deferred to Phase E.
+  { to: '/intelligence', label: 'Edge Intelligence', Icon: Crosshair },
   { to: '/journal',   label: 'Journal',   Icon: NotebookPen },
   { to: '/import',    label: 'Import',    Icon: Download },
   // v0.2.5 Phase B Session 4 (L17) — interim placement: Phase E moves

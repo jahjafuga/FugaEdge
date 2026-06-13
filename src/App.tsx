@@ -13,6 +13,7 @@ const Trades    = lazy(() => import('./pages/Trades'))
 const Calendar  = lazy(() => import('./pages/Calendar'))
 const Reports   = lazy(() => import('./pages/Reports'))
 const Analytics = lazy(() => import('./pages/Analytics'))
+const Intelligence = lazy(() => import('./pages/Intelligence'))
 const Playbook  = lazy(() => import('./pages/Playbook'))
 const Journal   = lazy(() => import('./pages/Journal'))
 const Import    = lazy(() => import('./pages/Import'))
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/calendar"  element={<Lazy><Calendar /></Lazy>} />
         <Route path="/reports"   element={<Lazy><Reports /></Lazy>} />
         <Route path="/analytics" element={<Lazy><Analytics /></Lazy>} />
+        <Route path="/intelligence" element={<Lazy><Intelligence /></Lazy>} />
         <Route path="/playbook"  element={<Lazy><Playbook /></Lazy>} />
         <Route path="/journal"   element={<Lazy><Journal /></Lazy>} />
         <Route path="/import"    element={<Lazy><Import /></Lazy>} />

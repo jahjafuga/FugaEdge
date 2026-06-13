@@ -33,8 +33,8 @@ export const TOUR_STEPS: TourStep[] = [
       "which sentiment days you trade best — your edge lives in this data.",
   },
   {
-    id: 'edge-insights',
-    anchor: 'edge-insights',
+    id: 'edge-intelligence',
+    anchor: 'edge-intelligence',
     title: 'Patterns surface automatically',
     body:
       "We analyze your trades for catalysts that work, setups that don't, " +

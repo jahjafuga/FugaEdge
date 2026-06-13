@@ -64,6 +64,9 @@ describe('runSentimentEdge — post-flip polarity (5=best, 1=worst)', () => {
     // Body must label hot as 4–5 and cold as 1–2 (the copy flips with the math).
     expect(result!.body).toContain('hot-market days (sentiment 4–5)')
     expect(result!.body).toContain('cold days (1–2)')
+    // n = the relevant sample the card is computed over (hot + cold; the 4
+    // neutral s=3 trades are excluded). Foundation for Beat 2's confidence chips.
+    expect(result!.n).toBe(10)
   })
 
   it('returns null below the 5-per-side sample floor', () => {

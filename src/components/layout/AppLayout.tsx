@@ -226,7 +226,7 @@ export default function AppLayout() {
             // a per-page refresh dance. The tour then triggers on the
             // fresh load because its flag is still unset — but it needs
             // Dashboard-only anchors (today-session, sentiment,
-            // edge-insights) so we route there first.
+            // edge-intelligence) so we route there first.
             setShowOnboarding(false)
             window.location.hash = '#/dashboard'
             window.location.reload()

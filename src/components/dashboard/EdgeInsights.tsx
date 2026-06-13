@@ -19,7 +19,9 @@ import type { InsightResult, InsightTone } from '@/core/insights'
 
 const VISIBLE_BY_DEFAULT = 5
 
-export default function EdgeInsights() {
+// `fullFeed` (the /intelligence page) renders every insight with no truncation
+// or expander; the Dashboard preview keeps the top-5 + "View all" behaviour.
+export default function EdgeInsights({ fullFeed = false }: { fullFeed?: boolean } = {}) {
   const { insights, loading, error, empty } = useInsights()
   const [expanded, setExpanded] = useState(false)
 
@@ -27,7 +29,7 @@ export default function EdgeInsights() {
     // Don't blow up the dashboard for an insights failure — fall back to
     // nothing so the rest of the page still renders. The console will have
     // the underlying error.
-    if (typeof console !== 'undefined') console.error('[edge-insights]', error)
+    if (typeof console !== 'undefined') console.error('[edge-intelligence]', error)
     return null
   }
 
@@ -37,12 +39,12 @@ export default function EdgeInsights() {
 
   if (empty) {
     return (
-      <section aria-label="Edge insights" data-tour="edge-insights" className="space-y-3">
+      <section aria-label="Edge Intelligence" data-tour="edge-intelligence" className="space-y-3">
         <Header />
         <div className="rounded-lg border border-dashed border-border-subtle bg-bg-2 p-6 text-center">
           <Lightbulb size={20} strokeWidth={1.75} className="mx-auto mb-2 text-gold/60" />
           <div className="text-sm text-fg-secondary">
-            Tag more trades to unlock pattern insights.
+            Tag more trades to unlock Edge Intelligence.
           </div>
           <div className="mt-1 text-xs text-fg-tertiary">
             Set catalysts, playbooks, confidence, and sentiment on your trades
@@ -53,11 +55,11 @@ export default function EdgeInsights() {
     )
   }
 
-  const visible = expanded ? insights : insights.slice(0, VISIBLE_BY_DEFAULT)
-  const hasMore = insights.length > VISIBLE_BY_DEFAULT
+  const visible = fullFeed || expanded ? insights : insights.slice(0, VISIBLE_BY_DEFAULT)
+  const hasMore = !fullFeed && insights.length > VISIBLE_BY_DEFAULT
 
   return (
-    <section aria-label="Edge insights" data-tour="edge-insights" className="space-y-3">
+    <section aria-label="Edge Intelligence" data-tour="edge-intelligence" className="space-y-3">
       <Header count={insights.length} />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {visible.map((ins) => (
@@ -94,7 +96,7 @@ function Header({ count }: { count?: number }) {
     <div className="flex items-baseline justify-between gap-3">
       <div className="flex items-baseline gap-2">
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Edge insights
+          Edge Intelligence
         </h2>
         {count != null && count > 0 && (
           <span className="font-mono text-[10px] text-fg-muted tnum">
@@ -146,6 +148,11 @@ function InsightCard({ insight }: { insight: InsightResult }) {
         <p className="mt-1 text-xs leading-snug text-fg-secondary">
           {insight.body}
         </p>
+        {insight.n > 0 && (
+          <div className="mt-1.5 font-mono text-[10px] text-fg-muted tnum">
+            n = {insight.n}
+          </div>
+        )}
       </div>
     </article>
   )
@@ -159,7 +166,7 @@ function iconFor(tone: InsightTone): typeof TrendingUp {
 
 function SkeletonShell() {
   return (
-    <section aria-label="Edge insights loading" className="space-y-3">
+    <section aria-label="Edge Intelligence loading" className="space-y-3">
       <Header />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
