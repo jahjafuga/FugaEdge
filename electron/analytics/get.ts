@@ -736,11 +736,14 @@ function computeSentimentAnalytics(rows: TradeRow[]): SentimentAnalytics {
   // numbered rows form a clean 1→5 sequence at the top of the table.
   const order: (1 | 2 | 3 | 4 | 5 | null)[] = [1, 2, 3, 4, 5, null]
   const labels: Record<string, string> = {
-    '1': '1 — 3+ stocks >100%',
-    '2': '2 — 2 stocks >100%',
+    // Kept in sync BY HAND with SENTIMENT_LABELS (shared/session-types.ts) —
+    // post-schema-29 polarity: 5 = best, 1 = worst. (Collapsing this duplicate
+    // into the shared record is its own later hygiene beat.)
+    '1': '1 — 0 stocks >50%',
+    '2': '2 — 1 stock >50%',
     '3': '3 — 1 stock >100%',
-    '4': '4 — 1 stock >50%',
-    '5': '5 — 0 stocks >50%',
+    '4': '4 — 2 stocks >100%',
+    '5': '5 — 3+ stocks >100%',
     null: 'Unrated',
   }
 

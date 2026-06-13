@@ -10,6 +10,7 @@ import { migrateFloatRename } from './migrate-float-rename'
 import { migrateAddDeletedAt } from './migrate-add-deleted-at'
 import { migrateScratchReclassify } from './migrate-scratch-reclassify'
 import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
+import { migrateSentimentPolarity } from './migrate-sentiment-polarity'
 import { migrateAddWarmupBars } from './migrate-add-warmup-bars'
 import { migrateAddWarmupAttemptedAt } from './migrate-add-warmup-attempted-at'
 import { migrateAddWarmupError } from './migrate-add-warmup-error'
@@ -32,6 +33,9 @@ const SCRATCH_RECLASSIFY_BACKUP_LATCH_KEY = 'scratch_reclassify_migration_backup
 
 // Latch for the v0.2.3 mae/mfe-reset migration's pre-migration backup (schema 24→25).
 const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
+
+// Latch for the v0.2.5 sentiment-polarity migration's pre-migration backup (schema 28→29).
+const SENTIMENT_POLARITY_BACKUP_LATCH_KEY = 'sentiment_polarity_migration_backup_done'
 
 let db: Database.Database | null = null
 
@@ -518,6 +522,65 @@ function backupBeforeMaeMfeResetMigration(
   }
 }
 
+// Pre-migration backup for the v0.2.5 sentiment-polarity flip. Same shape as
+// backupBeforeMaeMfeResetMigration: checkpoint WAL → copy DB aside → throw on
+// failure so migrateSentimentPolarity aborts without flipping. This flip
+// rewrites real user-entered sentiment values IN PLACE (the transform is its
+// own inverse, so a hand-rollback is re-applying the same UPDATE — but the .bak
+// is the certain safety net), so a backup failure MUST abort before the UPDATE.
+// Latch lives in settings so a successful backup on a prior launch is never
+// repeated.
+function backupBeforeSentimentPolarityMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(SENTIMENT_POLARITY_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-v0.2.5-sentiment-polarity-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before sentiment-polarity backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so the
+  // migration aborts instead of flipping with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] sentiment-polarity pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(SENTIMENT_POLARITY_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] sentiment-polarity backup latch write failed: ${e}`)
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -851,6 +914,16 @@ function migrateAfterSchema(
   // migrations above — destroys values only recoverable from cached bars.
   migrateResetMaeMfe(conn, priorVersion, {
     backup: () => backupBeforeMaeMfeResetMigration(conn, dbPath),
+  })
+
+  // v0.2.5 (schema 28 → 29) — flip session_meta.sentiment polarity to the
+  // intuitive 5 = best / 1 = worst. Gated by priorVersion + settings latch; the
+  // flip is an involution, so the version gate (priorVersion < 29) is the
+  // load-bearing guard against a double-apply (which would flip back and
+  // corrupt). The backup closure throws-to-abort because this rewrites real
+  // user-entered values in place.
+  migrateSentimentPolarity(conn, priorVersion, {
+    backup: () => backupBeforeSentimentPolarityMigration(conn, dbPath),
   })
 
   // v0.2.4 — additive intraday_bars.warmup_bars column (prior-day MACD warmup).

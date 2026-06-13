@@ -5,6 +5,17 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 29 for v0.2.5 sentiment-polarity flip — session_meta.sentiment was
+// inverted (1 = best market / 3+ runners, 5 = worst / thin tape). The scale
+// flips to the intuitive 5 = best / 1 = worst so it matches a standard 1–5
+// mental model and the upgraded sentiment card's fire…ice icon ladder. One-shot
+// `UPDATE session_meta SET sentiment = 6 - sentiment WHERE sentiment IS NOT NULL`
+// in migrate-sentiment-polarity.ts; version-gated + settings-latched, with a
+// throwing pre-migration backup. NOT idempotent (the transform is its own
+// inverse — a double-apply flips back), so the version gate is load-bearing, not
+// just defense-in-depth. First session_meta DATA transform (prior bumps were
+// trades / market_data / intraday_bars additive ALTERs or derived-cache rebuilds).
+//
 // Bumped to 28 for v0.2.4 §K.1 — additive intraday_bars.warmup_error column
 // (nullable TEXT; NULL = warmup succeeded or was legitimately empty, set = the
 // fetch threw). Lets runWarmupBackfill's worklist predicate retry transient
@@ -69,7 +80,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '28'
+export const SCHEMA_VERSION = '29'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -382,14 +393,15 @@ CREATE TABLE IF NOT EXISTS week_notes (
 );
 
 -- Per-day market session metadata. Currently holds the trader's market
--- sentiment rating (1..5) for the session. Keyed by YYYY-MM-DD; a single
+-- sentiment rating (1..5; 5 = best/hottest market, 1 = worst — flipped to this
+-- polarity at schema 29) for the session. Keyed by YYYY-MM-DD; a single
 -- row per trading day. Created on first edit — no migration needed for
 -- existing data. The notes column is reserved for future short notes
 -- on the trading day at the session level (distinct from the longer-form
 -- journal entry which has its own table).
 CREATE TABLE IF NOT EXISTS session_meta (
   date              TEXT PRIMARY KEY,
-  sentiment         INTEGER,                          -- 1..5 or NULL
+  sentiment         INTEGER,                          -- 1..5 or NULL (5 = best, 1 = worst; schema 29 flip)
   notes             TEXT NOT NULL DEFAULT '',
   no_trade_day      INTEGER NOT NULL DEFAULT 0,       -- 1 = trader sat out
   no_trade_reason   TEXT NOT NULL DEFAULT '',         -- free-form reason

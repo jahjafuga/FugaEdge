@@ -8,18 +8,20 @@ interface SentimentSelectorProps {
 }
 
 // Tri-color radio row for setting the day's market sentiment 1..5.
-// Color coding mirrors the calendar badge: 1-2 = win green (best),
-// 3 = gold (neutral), 4-5 = loss red (worst). Clicking the active level
+// Color coding mirrors the calendar badge: 4-5 = win green (best),
+// 3 = gold (neutral), 1-2 = loss red (worst). Clicking the active level
 // clears it back to null. Labels come from session-types so the
 // momentum-trading vocabulary stays in one place.
 
-const LEVELS: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5]
+// Rendered best-first (5→1) per the display-order ruling — stored values,
+// colors, and meaning are unchanged; only the left-to-right order flips.
+const LEVELS: (1 | 2 | 3 | 4 | 5)[] = [5, 4, 3, 2, 1]
 
 function toneFor(level: 1 | 2 | 3 | 4 | 5, active: boolean) {
   if (!active) {
     return 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-secondary'
   }
-  if (level <= 2) return 'border-win/60 bg-win/15 text-win'
+  if (level >= 4) return 'border-win/60 bg-win/15 text-win'
   if (level === 3) return 'border-gold/60 bg-gold/15 text-gold'
   return 'border-loss/60 bg-loss/15 text-loss'
 }

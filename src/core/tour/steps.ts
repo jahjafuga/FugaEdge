@@ -29,7 +29,7 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: 'sentiment',
     title: 'Rate the market 1-5',
     body:
-      '1 = 3+ stocks running 100%+ (hot), 5 = nothing running (cold). Track ' +
+      '5 = 3+ stocks running 100%+ (hot), 1 = nothing running (cold). Track ' +
       "which sentiment days you trade best — your edge lives in this data.",
   },
   {

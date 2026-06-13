@@ -27,7 +27,7 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
           content={
             <>
               Sentiment is the trader's read on the day's market environment.
-              1 = 3+ stocks running &gt;100% (best). 5 = 0 stocks &gt;50%
+              5 = 3+ stocks running &gt;100% (best). 1 = 0 stocks &gt;50%
               (worst). Set it on the Journal page or by clicking the badge
               in a Calendar day cell.
             </>
@@ -118,7 +118,7 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
 // for green vs red days at a glance.
 function LevelDot({ level }: { level: 1 | 2 | 3 | 4 | 5 }) {
   const cls =
-    level <= 2
+    level >= 4
       ? 'bg-win'
       : level === 3
         ? 'bg-gold'

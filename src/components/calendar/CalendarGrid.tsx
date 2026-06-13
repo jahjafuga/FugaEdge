@@ -290,11 +290,11 @@ function DayCell({
 
 // Small click-to-cycle market-sentiment badge that lives in the day cell's
 // top-right cluster. Visual encoding per the spec:
-//   1 = best market (3+ runners >100%) → bright win green
-//   2 = great                            → win green (slightly muted)
+//   5 = best market (3+ runners >100%) → bright win green
+//   4 = great                            → win green (slightly muted)
 //   3 = OK                               → gold
-//   4 = weak                             → loss red (muted)
-//   5 = worst (no runners >50%)          → loss red
+//   2 = weak                             → loss red (muted)
+//   1 = worst (no runners >50%)          → loss red
 // Null → dim placeholder so the affordance is discoverable.
 //
 // Rendered as a span (not a button) because the outer DayCell is already
@@ -308,15 +308,15 @@ function SentimentBadge({
   onCycle: (e: React.MouseEvent) => void
 }) {
   const tone =
-    value === 1
+    value === 5
       ? 'border-win/60 bg-win/20 text-win'
-      : value === 2
+      : value === 4
         ? 'border-win/40 bg-win/12 text-win'
         : value === 3
           ? 'border-gold/50 bg-gold/15 text-gold'
-          : value === 4
+          : value === 2
             ? 'border-loss/40 bg-loss/12 text-loss'
-            : value === 5
+            : value === 1
               ? 'border-loss/60 bg-loss/20 text-loss'
               : 'border-border-subtle bg-bg-3 text-fg-muted'
   const display = value ?? '–'

@@ -385,7 +385,7 @@ function SentimentBadge({
 }) {
   const safe = value as 1 | 2 | 3 | 4 | 5
   const tone =
-    value <= 2
+    value >= 4
       ? 'border-win/40 bg-win/[0.10] text-win'
       : value === 3
         ? 'border-gold/40 bg-gold/[0.10] text-gold'
@@ -581,7 +581,7 @@ function NoTradeFlow({
         value={reason}
         onChange={(e) => onReasonChange(e.target.value)}
         rows={2}
-        placeholder="Market choppy, no clean setups · Sat out, sentiment 5 · FOMC day"
+        placeholder="Market choppy, no clean setups · Sat out, sentiment 1 · FOMC day"
         className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
       />
       <div className="flex flex-wrap gap-1.5">
@@ -636,19 +636,20 @@ function SentimentRow({
   value: number | null
   onChange: (v: number | null) => void
 }) {
-  const levels: (1 | 2 | 3 | 4 | 5)[] = [1, 2, 3, 4, 5]
+  // Best-first row order (5→1); display-order only — values/colors unchanged.
+  const levels: (1 | 2 | 3 | 4 | 5)[] = [5, 4, 3, 2, 1]
   return (
     <div className="flex items-center gap-1" data-tour="sentiment">
       {levels.map((n) => {
         const active = value === n
         const tone =
-          n <= 2
+          n >= 4
             ? 'border-win/40 text-win hover:border-win'
             : n === 3
               ? 'border-gold/40 text-gold hover:border-gold'
               : 'border-loss/40 text-loss hover:border-loss'
         const activeBg =
-          n <= 2 ? 'bg-win/[0.15]' : n === 3 ? 'bg-gold/[0.15]' : 'bg-loss/[0.12]'
+          n >= 4 ? 'bg-win/[0.15]' : n === 3 ? 'bg-gold/[0.15]' : 'bg-loss/[0.12]'
         return (
           <button
             key={n}

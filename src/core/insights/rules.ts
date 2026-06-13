@@ -29,7 +29,8 @@ import {
 // ── 1. SENTIMENT EDGE ────────────────────────────────────────────────────
 // Requires 5+ trades on at least 2 distinct sentiment levels (looking at
 // the trade's day's sentiment, not the trade itself). Compares win rate
-// + net P&L on hot-market days (sentiment 1-2) vs cold-market days (4-5).
+// + net P&L on hot-market days (sentiment 4-5) vs cold-market days (1-2).
+// Post-flip polarity (schema 29): 5 = best/hottest, 1 = worst/coldest.
 
 export function runSentimentEdge(input: InsightInput): InsightResult | null {
   const { trades, sentimentByDate } = input
@@ -38,8 +39,8 @@ export function runSentimentEdge(input: InsightInput): InsightResult | null {
   for (const t of trades) {
     const s = sentimentByDate.get(t.date)
     if (s == null) continue
-    if (s <= 2) hot.push(t)
-    else if (s >= 4) cold.push(t)
+    if (s >= 4) hot.push(t)
+    else if (s <= 2) cold.push(t)
   }
   if (hot.length < 5 || cold.length < 5) return null
 
@@ -73,7 +74,7 @@ export function runSentimentEdge(input: InsightInput): InsightResult | null {
     tone,
     title: 'Sentiment edge',
     body:
-      `Win rate ${fmtPct(hotWR)} on hot-market days (sentiment 1–2) vs ${fmtPct(coldWR)} on cold days (4–5). ` +
+      `Win rate ${fmtPct(hotWR)} on hot-market days (sentiment 4–5) vs ${fmtPct(coldWR)} on cold days (1–2). ` +
       `Net ${fmtMoney(hotAgg.net_pnl)} hot vs ${fmtMoney(coldAgg.net_pnl)} cold.${action}`,
     metric: fmtPct(wrGap, 0).replace('-', '−'),
     priority: Math.abs(pnlGap) + Math.min(hot.length, cold.length) * 10,
