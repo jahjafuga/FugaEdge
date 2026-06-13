@@ -8,11 +8,16 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import { buildWeeklyReviewIntent } from '@/core/xp/engine'
+import { levelProgress } from '@/core/xp/curve'
+import { computeStreak } from '@/core/xp/streak'
+import { todayDateISO } from '@/core/session/today'
 import type {
   WeeklyReviewCompleteResult,
   WeeklyReviewStatus,
+  XpSummary,
 } from '@shared/xp-types'
-import { insertXpEvents, listIdempotencyKeys } from './repo'
+import { listTradeDates } from './facts'
+import { getXpTotal, insertXpEvents, listIdempotencyKeys } from './repo'
 
 export function registerXpIpc(): void {
   ipcMain.handle(
@@ -46,4 +51,33 @@ export function registerXpIpc(): void {
       return { completed: listIdempotencyKeys(key).includes(key) }
     },
   )
+
+  // S4/L20 — the profile page's read model. Uncached + read-only; the page
+  // refetches on route mount (no push channel — single-window app, D24).
+  // journaledDates come from the LEDGER (streak:{date} keys), never a
+  // recomputed D9 — the L19 design lock. `today` is the house machine-local
+  // convention (todayDateISO); statelessness makes the midnight boundary
+  // self-healing (A2/D24).
+  ipcMain.handle(IPC.XP_SUMMARY_GET, (): XpSummary => {
+    const totalXp = getXpTotal()
+    const { level, intoLevel, neededForNext } = levelProgress(totalXp)
+    const prefix = 'streak:'
+    const journaledDates = listIdempotencyKeys(prefix).map((k) =>
+      k.slice(prefix.length),
+    )
+    const { current, longest, freezesBanked } = computeStreak({
+      journaledDates,
+      tradeDates: listTradeDates(),
+      today: todayDateISO(),
+    })
+    return {
+      totalXp,
+      level,
+      intoLevel,
+      neededForNext,
+      currentStreak: current,
+      longestStreak: longest,
+      freezesBanked,
+    }
+  })
 }

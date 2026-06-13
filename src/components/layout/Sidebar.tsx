@@ -11,6 +11,7 @@ import {
   Download,
   Settings as SettingsIcon,
   Sparkles,
+  User,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -34,6 +35,10 @@ const NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics', Icon: PieChart },
   { to: '/journal',   label: 'Journal',   Icon: NotebookPen },
   { to: '/import',    label: 'Import',    Icon: Download },
+  // v0.2.5 Phase B Session 4 (L17) — interim placement: Phase E moves
+  // Profile + Settings to the footer rail; until then Profile sits directly
+  // above Settings in the main rail. data-tour="nav-profile" derives below.
+  { to: '/profile',   label: 'Profile',   Icon: User },
   { to: '/settings',  label: 'Settings',  Icon: SettingsIcon },
 ]
 

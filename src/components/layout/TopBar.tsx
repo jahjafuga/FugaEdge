@@ -10,6 +10,7 @@ const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/analytics': { crumb: 'Analytics',  title: 'Deep Analytics' },
   '/journal':   { crumb: 'Journal',    title: 'Trading Journal' },
   '/import':    { crumb: 'Import',     title: 'Import Trades' },
+  '/profile':   { crumb: 'Profile',    title: 'Trader Identity' },
   '/settings':  { crumb: 'Settings',   title: 'Configuration' },
   '/playbook':  { crumb: 'Playbook',   title: 'Setup Library' },
 }

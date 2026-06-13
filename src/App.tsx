@@ -16,6 +16,7 @@ const Analytics = lazy(() => import('./pages/Analytics'))
 const Playbook  = lazy(() => import('./pages/Playbook'))
 const Journal   = lazy(() => import('./pages/Journal'))
 const Import    = lazy(() => import('./pages/Import'))
+const Profile   = lazy(() => import('./pages/Profile'))
 const Settings  = lazy(() => import('./pages/Settings'))
 
 function RouteFallback() {
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="/playbook"  element={<Lazy><Playbook /></Lazy>} />
         <Route path="/journal"   element={<Lazy><Journal /></Lazy>} />
         <Route path="/import"    element={<Lazy><Import /></Lazy>} />
+        <Route path="/profile"   element={<Lazy><Profile /></Lazy>} />
         <Route path="/settings"  element={<Lazy><Settings /></Lazy>} />
       </Route>
     </Routes>

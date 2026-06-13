@@ -47,3 +47,16 @@ export interface WeeklyReviewCompleteResult {
 export interface WeeklyReviewStatus {
   completed: boolean
 }
+
+// ── Profile-page read model (Phase B Session 4, L20) ──────────────────────
+
+export interface XpSummary {
+  totalXp: number
+  level: number
+  intoLevel: number
+  neededForNext: number
+  /** Ledger-derived journaling streak (streak:{date} keys — L19/D24). */
+  currentStreak: number
+  longestStreak: number
+  freezesBanked: number
+}

@@ -30,6 +30,7 @@ import {
   registerAttachmentProtocolScheme,
 } from '../attachments/protocol'
 import { registerSessionIpc } from '../session/ipc'
+import { registerProfileIpc } from '../profile/ipc'
 import { registerXpIpc } from '../xp/ipc'
 import { runXpReconcile } from '../xp/reconcile'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
@@ -168,6 +169,7 @@ app.whenReady().then(() => {
   registerAttachmentsIpc()
   registerAttachmentProtocolHandler()
   registerSessionIpc()
+  registerProfileIpc()
   registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()

@@ -185,6 +185,18 @@ export function assembleExistingEvents(): ExistingEventFact[] {
     .all() as ExistingEventFact[]
 }
 
+/** Every distinct non-deleted trade date — the streak engine's tradeDates
+ *  input (S4/L20). Same allowlist-guard coverage as every query here. */
+export function listTradeDates(): string[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare(
+      'SELECT DISTINCT date FROM trades WHERE deleted_at IS NULL ORDER BY date ASC',
+    )
+    .all() as { date: string }[]
+  return rows.map((r) => r.date)
+}
+
 /** Dates for a set of trade ids (the per-trade hook path). deleted_at is
  *  deliberately unfiltered — reconciling a date is idempotent either way. */
 export function lookupTradeDates(ids: number[]): string[] {

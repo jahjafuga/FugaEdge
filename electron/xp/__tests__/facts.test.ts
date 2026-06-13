@@ -38,6 +38,7 @@ import {
   assembleExistingEvents,
   assembleSessionFacts,
   assembleTradeFacts,
+  listTradeDates,
   lookupTradeDates,
   mapSessionRow,
   mapTradeRow,
@@ -231,6 +232,13 @@ describe('assemblers', () => {
     expect(store.params[store.params.length - 1]).toEqual([5, 7, 9])
   })
 
+  it('listTradeDates returns every distinct non-deleted trade date (S4 streak feed)', () => {
+    store.dateRows = [{ date: '2026-06-09' }, { date: '2026-06-10' }]
+    expect(listTradeDates()).toEqual(['2026-06-09', '2026-06-10'])
+    const sql = store.sqls[store.sqls.length - 1]
+    expect(sql).toMatch(/deleted_at IS NULL/)
+  })
+
   // ── A2 allowlist guard ────────────────────────────────────────────────
   // The invariant is "facts.ts cannot read anything not explicitly
   // permitted", NOT "doesn't mention pnl" — avg_buy_price would have
@@ -280,7 +288,8 @@ describe('assemblers', () => {
     assembleTradeFacts('2026-06-05', ['2026-06-10'])
     assembleExistingEvents()
     lookupTradeDates([1])
-    expect(store.sqls.length).toBeGreaterThanOrEqual(6)
+    listTradeDates()
+    expect(store.sqls.length).toBeGreaterThanOrEqual(7)
     for (const sql of store.sqls) {
       expect(unpermittedTokens(sql), `unpermitted identifiers in: ${sql}`).toEqual([])
       expect(sql).not.toMatch(/pnl/i) // second line of defense

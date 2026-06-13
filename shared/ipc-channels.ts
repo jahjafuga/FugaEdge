@@ -64,6 +64,10 @@ export const IPC = {
   // v0.2.3 Stage A — standalone sector/industry backfill (FMP /stable/profile).
   // Separate channel from FLOAT/COUNTRY: own API call, independent
   // trigger/progress/result.
+  // NB (v0.2.5 A3): these two are the FMP COMPANY-profile backfill squatting
+  // on the 'profile:' domain for legacy reasons — the USER profile
+  // (PROFILE_GET / PROFILE_UPDATE below) is the rightful long-term owner of
+  // the prefix. Do not add further company-profile channels here.
   PROFILE_BACKFILL: 'profile:backfillAll',
   PROFILE_BACKFILL_PROGRESS: 'profile:backfillProgress',
   TRADE_COUNTRY_SAVE: 'trade:countrySave',
@@ -124,6 +128,17 @@ export const IPC = {
   // The "Complete review" button UI ships in Phase B Session 6.
   XP_WEEKLY_REVIEW_COMPLETE: 'xp:weeklyReviewComplete',
   XP_WEEKLY_REVIEW_GET: 'xp:weeklyReviewGet',
+  // v0.2.5 Phase B Session 4 (L20) — the profile page's read model:
+  // level/XP progress + the ledger-derived journaling streak. Read-only,
+  // uncached, refetched on route mount (no push channel — single-window
+  // app; see D24).
+  XP_SUMMARY_GET: 'xp:summaryGet',
+  // ── Profile (USER profile — spec §B identity row) ──────────────────────
+  // v0.2.5 Phase B Session 4 (L20). NOT the FMP company-profile backfill
+  // that squats on this domain at PROFILE_BACKFILL* above (A3) — the user
+  // profile owns 'profile:' long-term.
+  PROFILE_GET: 'profile:get',
+  PROFILE_UPDATE: 'profile:update',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

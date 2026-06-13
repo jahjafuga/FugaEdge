@@ -3,7 +3,9 @@ import { IPC, type DbHealthcheck, type DbResetResult } from '@shared/ipc-channel
 import type {
   WeeklyReviewCompleteResult,
   WeeklyReviewStatus,
+  XpSummary,
 } from '@shared/xp-types'
+import type { Profile, UpdateProfileInput } from '@shared/identity-types'
 import type {
   CommitInput,
   CommitResult,
@@ -259,6 +261,12 @@ const api = {
     ipcRenderer.invoke(IPC.XP_WEEKLY_REVIEW_COMPLETE, input),
   xpWeeklyReviewGet: (input: { weekStart: string }): Promise<WeeklyReviewStatus> =>
     ipcRenderer.invoke(IPC.XP_WEEKLY_REVIEW_GET, input),
+  xpSummaryGet: (): Promise<XpSummary> =>
+    ipcRenderer.invoke(IPC.XP_SUMMARY_GET),
+  // ── Profile (USER profile — v0.2.5 Phase B Session 4, L20) ──────────
+  profileGet: (): Promise<Profile> => ipcRenderer.invoke(IPC.PROFILE_GET),
+  profileUpdate: (input: UpdateProfileInput): Promise<Profile> =>
+    ipcRenderer.invoke(IPC.PROFILE_UPDATE, input),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

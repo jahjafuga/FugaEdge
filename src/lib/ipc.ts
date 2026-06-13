@@ -132,6 +132,11 @@ export const ipc = {
     window.api.xpWeeklyReviewComplete(input),
   xpWeeklyReviewGet: (input: { weekStart: string }) =>
     window.api.xpWeeklyReviewGet(input),
+  // ── Profile page (v0.2.5 Phase B Session 4, L20) ──
+  xpSummaryGet: () => window.api.xpSummaryGet(),
+  profileGet: () => window.api.profileGet(),
+  profileUpdate: (input: import('@shared/identity-types').UpdateProfileInput) =>
+    window.api.profileUpdate(input),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

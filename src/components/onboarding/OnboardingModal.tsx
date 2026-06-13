@@ -70,6 +70,16 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
         max_daily_loss: maxDailyLoss,
       })
 
+      // v0.2.5 Phase B Session 4 (L22) — persist the style answer to the
+      // user profile UNCONDITIONALLY, 'mixed' included (the playbook
+      // seeding below skips mixed; the identity answer is still real).
+      // Fire-and-forget: a profile write must never block completion.
+      if (state.style) {
+        void ipc
+          .profileUpdate({ trading_style: state.style })
+          .catch((e) => console.info('[onboarding] profile style save failed:', e))
+      }
+
       if (state.style && state.style !== 'mixed') {
         const templates = templatesForStyle(state.style)
         // Seed sequentially so a UNIQUE-name collision on one doesn't
