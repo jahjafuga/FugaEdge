@@ -49,11 +49,15 @@ interface HeaderStat {
   tone?: string
 }
 
-// Header stats — read straight off the already-fetched metrics (no extra fetch /
-// compute). Common to both scopes: net P&L, win rate, profit factor. Week adds
-// green days + streak; session adds the W/L record. Every field already exists
-// on WeekMetrics/DayMetrics (no aggregate fork). Null/∞ handled gracefully.
-function headerStats(m: Metrics, scope: Scope): HeaderStat[] {
+// Header stats — MODE-AWARE: only reads fields that EXIST for the scope. Common
+// to both shapes: netPnl, winRate, profitFactor, winCount, lossCount. WEEK-ONLY
+// (WeekMetrics): greenDays, tradingDays, streak, perPlaybook, bestDay, worstDay —
+// these do NOT exist on DayMetrics, so this MUST branch by scope and never read
+// them in session mode. They're null-guarded in week mode too, so a desynced
+// render (scope flips before metrics refetches) can't throw — the bug that
+// crashed the Session↔Week toggle (wm.streak.kind on a DayMetrics). Exported for
+// the regression test.
+export function headerStats(m: Metrics, scope: Scope): HeaderStat[] {
   const stats: HeaderStat[] = [
     {
       label: 'Net P&L',
@@ -65,11 +69,12 @@ function headerStats(m: Metrics, scope: Scope): HeaderStat[] {
   ]
   if (scope === 'week') {
     const wm = m as WeekMetrics
-    stats.push({ label: 'Green days', value: `${wm.greenDays}/${wm.tradingDays}` })
+    stats.push({ label: 'Green days', value: `${wm.greenDays ?? '—'}/${wm.tradingDays ?? '—'}` })
+    const streak = wm.streak
     stats.push({
       label: 'Streak',
-      value: wm.streak.kind === 'none' ? '—' : `${wm.streak.days}d ${wm.streak.kind}`,
-      tone: wm.streak.kind === 'win' ? 'text-win' : wm.streak.kind === 'loss' ? 'text-loss' : undefined,
+      value: !streak || streak.kind === 'none' ? '—' : `${streak.days}d ${streak.kind}`,
+      tone: streak?.kind === 'win' ? 'text-win' : streak?.kind === 'loss' ? 'text-loss' : undefined,
     })
   } else {
     const dm = m as DayMetrics
@@ -153,7 +158,18 @@ export default function WorkedLeakedSummary() {
             <button
               key={s}
               type="button"
-              onClick={() => setScope(s)}
+              // Kill the scope↔metrics desync: nulling metrics synchronously
+              // with the scope flip means the next render hits the loading guard
+              // (metrics === null) instead of running headerStats on the OTHER
+              // mode's stale, wrong-shape data. The [anchor, scope] effect then
+              // loads the matching shape. Guarded so re-clicking the active tab
+              // is a no-op (no needless null → no stuck skeleton).
+              onClick={() => {
+                if (s !== scope) {
+                  setScope(s)
+                  setMetrics(null)
+                }
+              }}
               className={`px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
                 scope === s
                   ? 'bg-gold text-accent-ink'
