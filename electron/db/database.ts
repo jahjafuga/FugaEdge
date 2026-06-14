@@ -656,6 +656,14 @@ function migrateAfterSchema(
     // user can override via the trade detail modal's Float field.
     conn.exec('ALTER TABLE trades ADD COLUMN float_shares INTEGER')
   }
+  if (!has('daily_change_pct')) {
+    // v0.2.5 EdgeIQ Trader DNA (schema 30) — at-entry daily % change vs the
+    // prior session's close: (entryPrice − prevClose) / prevClose × 100. NULL
+    // until a later beat's rate-limited backfill fills it (the fetch still
+    // drops OHLC today). Additive REAL column; same PRAGMA-gated idiom as the
+    // columns above — no data transform, no backup.
+    conn.exec('ALTER TABLE trades ADD COLUMN daily_change_pct REAL')
+  }
   if (!has('shares_outstanding')) {
     // v0.2.2 Commit A — issued share count, preserved when the legacy
     // shares-outstanding-mislabeled-as-float was renamed. Populated by

@@ -28,6 +28,7 @@ export function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     entry_ema9_distance_pct: null,
     mae: null,
     mfe: null,
+    daily_change_pct: null,
     playbook_id: null,
     playbook_name: null,
     playbook_tier: null,

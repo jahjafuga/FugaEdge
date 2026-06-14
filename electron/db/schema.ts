@@ -5,6 +5,12 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 30 for v0.2.5 EdgeIQ Trader DNA — additive trades.daily_change_pct
+// column (the at-entry daily % change for the stock-selection pillar). Pure
+// additive ALTER in migrateAfterSchema (no data transform); the column is NULL
+// on every row until a later beat's rate-limited backfill fills it. The version
+// bump pre-positions that backfill's arming trigger.
+//
 // Bumped to 29 for v0.2.5 sentiment-polarity flip — session_meta.sentiment was
 // inverted (1 = best market / 3+ runners, 5 = worst / thin tape). The scale
 // flips to the intuitive 5 = best / 1 = worst so it matches a standard 1–5
@@ -80,7 +86,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '29'
+export const SCHEMA_VERSION = '30'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

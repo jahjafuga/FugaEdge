@@ -48,6 +48,7 @@ function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
     deleted_at: null,
     mae: null,
     mfe: null,
+    daily_change_pct: null,
     ...overrides,
   }
 }

@@ -55,6 +55,11 @@ export interface TradeListRow {
   /** Computed: net_pnl / total_risk. Falls back to net_pnl / planned_risk
    *  when stop price is unset. Null when neither path yields a value. */
   r_multiple: number | null
+  /** v0.2.5 Trader DNA — at-entry daily % change vs the prior session's close:
+   *  (entryPrice − prevClose) / prevClose × 100. Backfilled per trade from daily
+   *  bars in a later beat; NULL = not computed yet (treat as "unknown", never
+   *  fabricate). Rides the row like mae/mfe — a trades column, no join. */
+  daily_change_pct: number | null
   /** Tradable free float — CURRENT snapshot (not point-in-time-of-trade;
    *  point-in-time stays a v0.3.0 tentpole). v0.2.2 Commit B onward this
    *  holds REAL FMP float, not the legacy shares-outstanding mislabel.
