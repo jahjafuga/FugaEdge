@@ -732,9 +732,10 @@ function computeFloatAnalytics(rows: TradeRow[]): FloatAnalytics {
 }
 
 function computeSentimentAnalytics(rows: TradeRow[]): SentimentAnalytics {
-  // Stable label order. 'null' bucket (unset) always renders last so the
-  // numbered rows form a clean 1→5 sequence at the top of the table.
-  const order: (1 | 2 | 3 | 4 | 5 | null)[] = [1, 2, 3, 4, 5, null]
+  // Stable label order, best-first (post-schema-29 polarity: 5 = best, 1 = worst).
+  // 'null' bucket (unset) always renders last so the numbered rows form a clean
+  // 5→1 sequence (best at top) — matching the best-first sentiment option rows.
+  const order: (1 | 2 | 3 | 4 | 5 | null)[] = [5, 4, 3, 2, 1, null]
   const labels: Record<string, string> = {
     // Kept in sync BY HAND with SENTIMENT_LABELS (shared/session-types.ts) —
     // post-schema-29 polarity: 5 = best, 1 = worst. (Collapsing this duplicate
