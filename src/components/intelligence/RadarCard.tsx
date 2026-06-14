@@ -70,6 +70,12 @@ export default function RadarCard({ result, loading, error }: UseEdgeScoreResult
                 isAnimationActive={false}
               />
               <Tooltip
+                // recharts' default radar cursor is a center→rim radial spoke at
+                // the hovered angle — VALUE-INDEPENDENT, so it always reaches the
+                // rim and misreads as "maxed" on low axes (e.g. Profit F. at 20%).
+                // The gold vertex + active-dot already mark the true radius and the
+                // axis label names the spoke, so the cursor is confusion, not info.
+                cursor={false}
                 contentStyle={{
                   background: resolved === 'dark' ? '#10131a' : '#ffffff',
                   border: `1px solid ${palette.grid}`,
