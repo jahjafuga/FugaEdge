@@ -18,7 +18,9 @@ import {
 // same aggregate the Weekly Review uses (weekDetailGet / dayDetailGet, no new
 // fetch, no forked compute). A session/week is too small for the pattern rules,
 // so this draws no edge conclusions (that's the hero cards' job over 90 days).
-// Beat 1 (flagship): the outer card adopts the §11.1 premium surface (neutral).
+// Beat 1: the outer card is the §11.1 premium surface (neutral, no glow). The
+// two inner panels carry a SEMANTIC felt glow — WHAT WORKED green / WHAT LEAKED
+// red (the hero Edge/Leak tone language; the colour means good vs bad).
 
 type Scope = 'session' | 'week'
 type Metrics = WeekMetrics | DayMetrics
@@ -197,7 +199,7 @@ export default function WorkedLeakedSummary() {
       ) : (
         <div className="space-y-4">
           {/* Header stat strip — frames "was this a good period" before the breakdowns. */}
-          <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-md border border-border-subtle bg-bg-1 px-4 py-3">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             {headerStats(metrics, scope).map((s) => (
               <div key={s.label} className="flex flex-col">
                 <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">{s.label}</span>
@@ -213,6 +215,7 @@ export default function WorkedLeakedSummary() {
               title="What worked"
               Icon={TrendingUp}
               tone="text-win"
+              glow="card-glow-green"
               items={data.worked}
               emptyText="Nothing green this period."
             />
@@ -220,6 +223,7 @@ export default function WorkedLeakedSummary() {
               title="What leaked"
               Icon={AlertTriangle}
               tone="text-loss"
+              glow="card-glow-red"
               items={data.leaked}
               emptyText="Nothing red this period — clean."
             />
@@ -234,17 +238,19 @@ function Column({
   title,
   Icon,
   tone,
+  glow,
   items,
   emptyText,
 }: {
   title: string
   Icon: typeof TrendingUp
   tone: string
+  glow: string
   items: WorkedLeakedItem[]
   emptyText: string
 }) {
   return (
-    <div className="rounded-md border border-border-subtle bg-bg-1 p-4">
+    <div className={`rounded-md border bg-bg-1 p-4 ${glow}`}>
       <div className="mb-3 flex items-center gap-1.5">
         <Icon size={13} strokeWidth={2.25} className={tone} />
         <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
@@ -258,7 +264,7 @@ function Column({
           {items.map((it, i) => (
             <li key={`${it.kind}-${it.label}-${i}`} className="flex items-baseline justify-between gap-3 text-xs">
               <span className="flex min-w-0 items-baseline gap-2">
-                <span className="shrink-0 rounded border border-border-subtle bg-bg-2 px-1 py-0.5 text-[9px] uppercase tracking-wider text-fg-muted">
+                <span className="shrink-0 rounded border border-border-subtle bg-bg-2 px-1 py-0.5 text-[9px] uppercase tracking-wider text-gold/85">
                   {KIND_LABEL[it.kind]}
                 </span>
                 <span className="truncate text-fg-primary">
