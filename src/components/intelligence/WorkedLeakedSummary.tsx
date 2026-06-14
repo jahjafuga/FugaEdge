@@ -18,7 +18,7 @@ import {
 // same aggregate the Weekly Review uses (weekDetailGet / dayDetailGet, no new
 // fetch, no forked compute). A session/week is too small for the pattern rules,
 // so this draws no edge conclusions (that's the hero cards' job over 90 days).
-// Clean D26 — no glow (Phase E sweep).
+// Beat 1 (flagship): the outer card adopts the §11.1 premium surface (neutral).
 
 type Scope = 'session' | 'week'
 type Metrics = WeekMetrics | DayMetrics
@@ -139,7 +139,7 @@ export default function WorkedLeakedSummary() {
   return (
     <section
       aria-label="What worked / What leaked"
-      className="rounded-lg border border-border-subtle bg-bg-2 p-5"
+      className="card-premium p-5"
     >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">

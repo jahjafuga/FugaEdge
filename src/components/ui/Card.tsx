@@ -11,8 +11,12 @@ interface CardProps {
   hover?: boolean
 }
 
-// MASTER §5.2 — flat bg-2 surface, 12px radius, 16px padding, subtle border.
-// No gradients, no shadow lift, no scale on hover (anti-pattern).
+// MASTER §11.1 (Edge flagship Beat 1) — premium card shape via .card-premium:
+// a felt 0.92 surface so the §11.2 aurora reads through, a white@6% hairline,
+// 20px radius, the §11.1 lift shadow. DARK MODE this beat; .card-premium falls
+// back to the shipped flat bg-2 surface in light (premium light = Beat 1.5).
+// Per-tone glows are opt-in (Edge hero cards), never default here. §11.6
+// supersedes the §10 shadow/glow ban within the sweep. Padding stays 16px.
 export default function Card({
   title,
   subtitle,
@@ -27,7 +31,7 @@ export default function Card({
     : ''
   return (
     <div
-      className={`rounded-lg border border-border-subtle bg-bg-2 shadow-sm ${hoverCls} ${className}`}
+      className={`card-premium ${hoverCls} ${className}`}
     >
       {(title || right || subtitle) && (
         <div className="flex items-baseline justify-between gap-4 border-b border-border-subtle px-4 py-3">

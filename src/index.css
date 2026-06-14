@@ -128,6 +128,24 @@
        page surface. */
     --shadow-sidebar: none;
 
+    /* ── Premium card system (MASTER §11.1) — Edge flagship Beat 1 ───────────
+       These FOUR theme-aware vars drive .card-premium. DARK = premium: a felt
+       0.92 surface (so the §11.2 aurora reads through), a white hairline, 20px
+       radius, the §11.1 lift. The :root.light block points them back at the
+       shipped flat tokens — premium light is Beat 1.5, nothing invented here. */
+    --card-surface: rgb(10 15 28 / 0.92);             /* #0A0F1C, felt */
+    --card-border: rgb(255 255 255 / 0.06);           /* white hairline */
+    --card-radius: 20px;                              /* §11.1 (scale topped at 16) */
+    --card-elevation: 0 8px 24px rgba(0, 0, 0, 0.20); /* §11.1 lift (≠ --shadow-sm rim) */
+    /* Per-tone card glow (felt, not seen — §11.1, ~0.10) + violet/teal accents
+       (§11.3). Theme-independent (:root only), like --win / --loss. */
+    --glow-green:  34 197 94;    /* #22C55E */
+    --glow-red:    239 68 68;    /* #EF4444 */
+    --glow-gold:   212 175 55;   /* #D4AF37 */
+    --glow-purple: 168 85 247;   /* #A855F7 */
+    --accent-violet: 168 85 247; /* #A855F7 */
+    --accent-teal:    45 212 191; /* #2DD4BF */
+
     color-scheme: dark;
   }
 
@@ -185,6 +203,16 @@
        the page bg is unmistakable. Dark mode leaves this unset (resolves
        to 'none'). */
     --shadow-sidebar: 2px 0 8px rgba(0,0,0,0.05);
+
+    /* Premium card system — LIGHT keeps the shipped flat look (premium light =
+       Beat 1.5, deferred — NOT invented here). .card-premium reads these vars,
+       so light cards stay exactly as today; .app-premium-bg + .card-glow-* are
+       neutralized in the components layer below. Glow tones + violet/teal
+       accents are shared (defined in :root above). */
+    --card-surface: rgb(var(--bg-2));
+    --card-border: rgb(var(--border-subtle));
+    --card-radius: 12px;
+    --card-elevation: var(--shadow-sm);
 
     color-scheme: light;
   }
@@ -424,4 +452,64 @@
     );
     pointer-events: none;
   }
+
+  /* ── Edge Intelligence flagship — Beat 1 premium foundation (MASTER §11.1 /
+     §11.2 / §11.3). DARK MODE this beat; light keeps the shipped flat look.
+     §11.6 supersedes the §10 purple/glow bans within the sweep. ───────────── */
+
+  /* Premium card shape — adopted by the Card primitive (all 29 consumers) and
+     the inline Edge cards. Var-driven so it's ONE class (a consumer's Tailwind
+     className still overrides by layer order) and light = the flat tokens. */
+  .card-premium {
+    background-color: var(--card-surface);
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-elevation);
+  }
+
+  /* Per-tone felt glow (§11.1) — top-left radial bloom (~0.10) + tone border
+     (.25). Opt-in: the Edge hero cards only, never every card. Defined AFTER
+     .card-premium so the tone border wins; a Tailwind border-l can still layer
+     on top. */
+  .card-glow-green  { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-green)  / 0.10), transparent 60%); border-color: rgb(var(--glow-green)  / 0.25); }
+  .card-glow-red    { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-red)    / 0.10), transparent 60%); border-color: rgb(var(--glow-red)    / 0.25); }
+  .card-glow-gold   { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-gold)   / 0.10), transparent 60%); border-color: rgb(var(--glow-gold)   / 0.25); }
+  .card-glow-purple { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-purple) / 0.10), transparent 60%); border-color: rgb(var(--glow-purple) / 0.25); }
+  /* Light this beat: no felt glow (premium light deferred) — stay flat. */
+  :root.light .card-glow-green,
+  :root.light .card-glow-red,
+  :root.light .card-glow-gold,
+  :root.light .card-glow-purple { background-image: none; border-color: rgb(var(--border-subtle)); }
+
+  /* App-wide premium background (§11.2) — the gold-aurora SVG, mounted behind
+     <main> (AppLayout adds the <div>). DARK MODE only; light hides it and keeps
+     the current flat bg-0. Vite content-hashes the url() at build. */
+  .app-premium-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: url('./assets/FugaEdge_Premium_Background.svg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  /* Tuning (Beat 1) — drop the aurora to "felt, not seen". A dark wash ABOVE
+     the SVG but BELOW content: darkest at the upper-centre (where the bright
+     stroke + the score panel's empty left land) and easing toward the edges so
+     the two corner glows survive as barely-there warmth. The bright stroke
+     reads at ~0.19 effective here, so it stops tracing as a line. Rides
+     .app-premium-bg's z-index:-1 (behind content) and is light-gated with the
+     parent (display:none in light → the ::after doesn't render either). */
+  .app-premium-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(135% 105% at 50% 38%,
+      rgb(4 8 20 / 0.80) 0%,
+      rgb(4 8 20 / 0.66) 45%,
+      rgb(4 8 20 / 0.55) 100%);
+  }
+  :root.light .app-premium-bg { display: none; }
 }

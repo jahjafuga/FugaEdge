@@ -5,10 +5,11 @@ import { selectHeroCards, type FocusArea } from '@/core/insights/heroCards'
 // v0.2.5 Edge Intelligence Beat 3 — the prescriptive spine (§F): three hero cards
 // above the Edge Score + feed. Biggest Edge (green) and Biggest Leak (red) are a
 // pure selection over runAllInsightRules output; Focus Area (gold) is the fix
-// derived from the SAME insight chosen as the leak. Reuses the EdgeInsights tone
-// treatment (left-border + tone color) so the band reads consistent with the
-// feed below. Degrade-in-place empty states keep the 3-card layout stable. Clean
-// D26 grammar — no glow (the futuristic skin is the Phase E sweep).
+// derived from the SAME insight chosen as the leak. Beat 1 (flagship) skins the
+// three cards onto the §11.1 premium surface with per-tone felt glows (Edge →
+// green, Leak → red, Focus → gold); the icon/metric tone colors stay. Degrade-
+// in-place empty states keep the 3-card layout stable. The futuristic skin
+// deepens through B2–B4.
 
 export default function HeroCards({
   insights,
@@ -34,7 +35,7 @@ export default function HeroCards({
       <ToneCard
         label="Biggest Edge"
         Icon={TrendingUp}
-        border="border-l-win"
+        glow="card-glow-green"
         iconTone="text-win"
         insight={edge}
         emptyText="No clear edge yet — keep tagging trades."
@@ -42,7 +43,7 @@ export default function HeroCards({
       <ToneCard
         label="Biggest Leak"
         Icon={AlertTriangle}
-        border="border-l-loss"
+        glow="card-glow-red"
         iconTone="text-loss"
         insight={leak}
         emptyText="No major leaks — clean book."
@@ -55,19 +56,19 @@ export default function HeroCards({
 function Shell({
   Icon,
   iconTone,
-  border,
+  glow,
   label,
   children,
 }: {
   Icon: LucideIcon
   iconTone: string
-  border: string
+  glow: string
   label: string
   children: React.ReactNode
 }) {
   return (
     <article
-      className={`flex min-h-[132px] flex-col gap-2 rounded-lg border border-border-subtle border-l-2 bg-bg-2 p-4 ${border}`}
+      className={`flex min-h-[132px] flex-col gap-2 card-premium ${glow} p-4`}
     >
       <div className="flex items-center gap-1.5">
         <Icon size={13} strokeWidth={2.25} className={iconTone} />
@@ -83,20 +84,20 @@ function Shell({
 function ToneCard({
   label,
   Icon,
-  border,
+  glow,
   iconTone,
   insight,
   emptyText,
 }: {
   label: string
   Icon: LucideIcon
-  border: string
+  glow: string
   iconTone: string
   insight: InsightResult | null
   emptyText: string
 }) {
   return (
-    <Shell Icon={Icon} iconTone={iconTone} border={border} label={label}>
+    <Shell Icon={Icon} iconTone={iconTone} glow={glow} label={label}>
       {insight === null ? (
         <div className="flex flex-1 items-center text-sm text-fg-muted">{emptyText}</div>
       ) : (
@@ -121,7 +122,7 @@ function ToneCard({
 
 function FocusCard({ focus }: { focus: FocusArea }) {
   return (
-    <Shell Icon={Target} iconTone="text-gold" border="border-l-gold" label="Focus Area">
+    <Shell Icon={Target} iconTone="text-gold" glow="card-glow-gold" label="Focus Area">
       {focus.leakInsight === null ? (
         <div className="flex flex-1 items-center text-sm text-fg-muted">
           No major leaks — clean book.

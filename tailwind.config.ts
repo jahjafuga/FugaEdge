@@ -99,6 +99,15 @@ const config: Config = {
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger:  'rgb(var(--danger) / <alpha-value>)',
 
+        // Edge flagship Beat 1 (§11.1/§11.3) — per-tone felt-glow palette +
+        // violet/teal futuristic accents. Theme-independent (vars in :root).
+        'glow-green':    'rgb(var(--glow-green) / <alpha-value>)',
+        'glow-red':      'rgb(var(--glow-red) / <alpha-value>)',
+        'glow-gold':     'rgb(var(--glow-gold) / <alpha-value>)',
+        'glow-purple':   'rgb(var(--glow-purple) / <alpha-value>)',
+        'accent-violet': 'rgb(var(--accent-violet) / <alpha-value>)',
+        'accent-teal':   'rgb(var(--accent-teal) / <alpha-value>)',
+
         // Fixed text color for use on gold/accent backgrounds — always dark.
         // Replaces `text-bg-0` on accent buttons so contrast stays correct
         // when bg-0 inverts to a light surface in light mode.
@@ -132,6 +141,7 @@ const config: Config = {
         md: '8px',
         lg: '12px',
         xl: '16px',
+        '2xl': '20px', // Edge flagship Beat 1 — §11.1 premium card radius
       },
       boxShadow: {
         // Shadows are themed via CSS vars (see src/index.css). Dark mode
@@ -141,6 +151,7 @@ const config: Config = {
         sm: 'var(--shadow-sm)',
         md: 'var(--shadow-md)',
         lg: 'var(--shadow-lg)',
+        card: 'var(--card-elevation)', // Edge flagship Beat 1 — §11.1 lift (themed)
         'glow-gold':   '0 0 0 3px rgba(212,175,55,0.13)',
         'glow-danger': '0 0 0 3px rgba(239,68,68,0.20)',
       },

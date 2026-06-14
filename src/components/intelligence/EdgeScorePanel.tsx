@@ -16,8 +16,9 @@ import { EDGE_SCORE_BANDS, type AxisKey, type AxisResult } from '@/core/score/ed
 // v0.2.5 Edge Intelligence — Beat 2. The Edge Score surface: the 0–100 composite,
 // a 6-axis radar, the published weights + bands (the published-formula rule), the
 // per-axis raw value, and the honesty chips — the Discipline data-coverage chip
-// ("based on X of Y trades") and the n / provisional gates. Clean D26 grammar —
-// no glow; the futuristic skin is the Phase E sweep.
+// ("based on X of Y trades") and the n / provisional gates. Beat 1 (flagship)
+// skins this onto the §11.1 premium surface (neutral — no tone glow on the
+// score/radar); B2 restructures it into the compact score + radar-as-own-card.
 
 const GOLD = '#d4af37' // brand accent, theme-constant (matches EquityChart)
 
@@ -182,7 +183,7 @@ function Shell({
   return (
     <section
       aria-label="Edge Score"
-      className="rounded-lg border border-border-subtle bg-bg-2 p-5"
+      className="card-premium p-5"
     >
       <div className="mb-4 flex items-baseline justify-between gap-3">
         <h2 className="text-[11px] font-semibold uppercase tracking-wider text-fg-tertiary">

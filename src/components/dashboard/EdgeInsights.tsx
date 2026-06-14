@@ -139,7 +139,7 @@ function InsightCard({ insight }: { insight: InsightResult }) {
 
   return (
     <article
-      className={`flex items-start gap-3 rounded-lg border border-border-subtle border-l-2 bg-bg-2 p-3 shadow-sm transition-colors duration-150 hover:border-border ${borderTone}`}
+      className={`flex items-start gap-3 card-premium border-l-2 p-3 transition-colors duration-150 hover:border-border ${borderTone}`}
     >
       <div
         className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-bg-3 ${iconTone}`}

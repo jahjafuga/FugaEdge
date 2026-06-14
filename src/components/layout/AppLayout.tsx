@@ -180,7 +180,11 @@ export default function AppLayout() {
       }`}
     >
       <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
-      <main className="relative flex min-w-0 flex-col overflow-hidden bg-bg-0">
+      <main className="relative isolate flex min-w-0 flex-col overflow-hidden bg-bg-0">
+        {/* Edge flagship Beat 1 — app-wide premium aurora (§11.2), DARK MODE
+            only (CSS-gated in .app-premium-bg). Sits behind content via
+            z-index:-1 inside this isolated, relative, overflow-hidden main. */}
+        <div className="app-premium-bg" aria-hidden="true" />
         <TopBar />
         <UpdateBanner />
         <GraceBanner
