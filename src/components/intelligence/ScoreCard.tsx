@@ -14,7 +14,12 @@ import { fmtRaw } from './edgeScoreFormat'
 // is COMPLETE as-is (no reserved empty slot). card-premium + a card-glow-gold
 // first-class treatment matching the hero band (B2 tuning); reads the lifted
 // useEdgeScore result and owns its own loading / suppressed / error.
-export default function ScoreCard({ result, loading, error }: UseEdgeScoreResult) {
+export default function ScoreCard({
+  result,
+  loading,
+  error,
+  rangeLabel,
+}: UseEdgeScoreResult & { rangeLabel: string }) {
   const [showFormula, setShowFormula] = useState(false)
 
   if (error) {
@@ -36,7 +41,7 @@ export default function ScoreCard({ result, loading, error }: UseEdgeScoreResult
               </span>
             )}
             <span className="font-mono text-[10px] text-fg-muted tnum">
-              n = {result.n} · last 90 days
+              n = {result.n} · {rangeLabel}
             </span>
           </div>
         )}
@@ -46,8 +51,8 @@ export default function ScoreCard({ result, loading, error }: UseEdgeScoreResult
         <div className="skeleton mt-4 h-[120px]" />
       ) : result.suppressed ? (
         <div className="mt-4 rounded-md border border-dashed border-border-subtle bg-bg-1 p-6 text-center text-sm text-fg-secondary">
-          Not enough trades to score yet — the Edge Score needs at least 5 in the
-          last 90 days (you have {result.n}).
+          Not enough trades to score yet — the Edge Score needs at least 5 in
+          {' '}{rangeLabel} (you have {result.n}).
         </div>
       ) : (
         <div className="flex flex-1 flex-col justify-center">

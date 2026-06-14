@@ -21,6 +21,32 @@ export type TimeRange = '7d' | '30d' | '60d' | '90d' | 'all'
 
 export const TIME_RANGES: TimeRange[] = ['7d', '30d', '60d', '90d', 'all']
 
+/** Human label for a range — shared by the Dashboard subtitle and the EdgeIQ
+ *  Edge Score chip so they read identically. */
+export const RANGE_LABEL: Record<TimeRange, string> = {
+  '7d': 'last 7 days',
+  '30d': 'last 30 days',
+  '60d': 'last 60 days',
+  '90d': 'last 90 days',
+  all: 'all time',
+}
+
+/** Day count for a range; null = 'all' (no lower bound — skip day-windowing). */
+export function rangeDays(range: TimeRange): number | null {
+  switch (range) {
+    case '7d':
+      return 7
+    case '30d':
+      return 30
+    case '60d':
+      return 60
+    case '90d':
+      return 90
+    case 'all':
+      return null
+  }
+}
+
 export interface DailyPnlPoint {
   date: string       // YYYY-MM-DD
   net_pnl: number

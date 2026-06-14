@@ -3,6 +3,7 @@ import { ipc } from '@/lib/ipc'
 import { filterLastNDays } from '@/core/insights/helpers'
 import { runAllInsightRules } from '@/core/insights'
 import type { InsightResult } from '@/core/insights'
+import { rangeDays, type TimeRange } from '@shared/dashboard-types'
 
 // useInsights — composes the data fetches (trades + session sentiment +
 // discipline streak) and pipes them through the pure rule engine in
@@ -24,7 +25,7 @@ export interface UseInsightsResult {
   empty: boolean
 }
 
-export function useInsights(): UseInsightsResult {
+export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
   const [trades, setTrades] = useState<Awaited<ReturnType<typeof ipc.tradesList>> | null>(null)
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof ipc.sessionListAll>> | null>(null)
   const [streak, setStreak] = useState<number | null>(null)
@@ -63,12 +64,16 @@ export function useInsights(): UseInsightsResult {
     return m
   }, [sessions])
 
-  // Filter trades to the last 90 days per spec — rules see only the
-  // window, no per-rule filtering needed.
-  const windowedTrades = useMemo(
-    () => (trades ? filterLastNDays(trades, 90) : []),
-    [trades],
-  )
+  // Window trades to the selected range — rules see only the window, no
+  // per-rule filtering. Client-side (all trades are fetched once), so a range
+  // change re-filters INSTANTLY with no refetch. Default '90d' reproduces the
+  // pre-filter behavior, keeping the no-arg Dashboard caller (EdgeInsights)
+  // unchanged. 'all' (rangeDays null) skips the day-window entirely.
+  const windowedTrades = useMemo(() => {
+    if (!trades) return []
+    const days = rangeDays(range)
+    return days == null ? trades : filterLastNDays(trades, days)
+  }, [trades, range])
 
   const insights = useMemo(() => {
     if (trades == null || sessions == null || streak == null) return []

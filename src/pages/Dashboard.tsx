@@ -16,15 +16,7 @@ import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import BrandMark from '@/components/layout/BrandMark'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
-import type { DashboardData, TimeRange } from '@shared/dashboard-types'
-
-const RANGE_LABEL: Record<TimeRange, string> = {
-  '7d': 'last 7 days',
-  '30d': 'last 30 days',
-  '60d': 'last 60 days',
-  '90d': 'last 90 days',
-  all: 'all time',
-}
+import { RANGE_LABEL, type DashboardData, type TimeRange } from '@shared/dashboard-types'
 
 export default function Dashboard() {
   const [range, setRange] = useState<TimeRange>('30d')
