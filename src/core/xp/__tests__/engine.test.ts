@@ -22,6 +22,7 @@ function trade(overrides: Partial<TradeFact> = {}): TradeFact {
     hasPlaybook: true,
     hasCatalyst: true,
     hasNote: true,
+    isPreMarket: false,
     technicals1m: null, // annotate-only by default; discipline tests opt in
     ...overrides,
   }

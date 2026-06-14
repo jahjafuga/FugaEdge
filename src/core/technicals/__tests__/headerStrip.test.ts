@@ -209,3 +209,18 @@ describe('computeHeaderStrip — percent edge cases', () => {
     expect(computeHeaderStrip(seven, '1m').macdPositive.percent).toBe(14.3)
   })
 })
+
+describe('computeHeaderStrip — fullAlignment pre-market amendment', () => {
+  it('pre-market entry: macd + 9EMA aligned, VWAP null → counted in fullAlignment', () => {
+    const snap = makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 })
+    const row = makeRow({ technicals: snap, open_time: '2026-05-15T13:00:00.000Z' }) // 09:00 ET
+    const result = computeHeaderStrip([row], '1m')
+    expect(result.fullAlignment.n).toBe(1)
+    expect(result.aboveVwap.n).toBe(0) // the individual VWAP card still reads "not above" (null)
+  })
+  it('regular hours with the SAME null-VWAP snapshot → not fully aligned', () => {
+    const snap = makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 })
+    const row = makeRow({ technicals: snap, open_time: '2026-05-15T13:45:00.000Z' }) // 09:45 ET
+    expect(computeHeaderStrip([row], '1m').fullAlignment.n).toBe(0)
+  })
+})

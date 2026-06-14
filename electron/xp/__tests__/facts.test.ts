@@ -57,6 +57,8 @@ function tradeRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
     date: '2026-06-10',
+    open_time: '2026-06-10T13:45:00.000Z', // 09:45 ET — regular hours
+
     content_hash: 'abc',
     playbook_id: 3,
     catalyst_type: 'News',
@@ -129,6 +131,11 @@ describe('mapTradeRow', () => {
     expect(f.hasNote).toBe(false)
     expect(mapTradeRow(tradeRow({ catalyst_type: '  ' })).hasCatalyst).toBe(false)
     expect(mapTradeRow(tradeRow()).hasPlaybook).toBe(true)
+  })
+
+  it('isPreMarket: derived from open_time (pre-09:30 ET → true; regular → false)', () => {
+    expect(mapTradeRow(tradeRow({ open_time: '2026-06-10T13:00:00.000Z' })).isPreMarket).toBe(true) // 09:00 ET
+    expect(mapTradeRow(tradeRow({ open_time: '2026-06-10T13:45:00.000Z' })).isPreMarket).toBe(false) // 09:45 ET
   })
 })
 
@@ -256,7 +263,7 @@ describe('assemblers', () => {
   ])
   const PERMITTED_COLUMNS = new Set([
     // trades
-    'id', 'date', 'deleted_at', 'playbook_id', 'catalyst_type',
+    'id', 'date', 'open_time', 'deleted_at', 'playbook_id', 'catalyst_type',
     'content_hash', 'created_at',
     // session_meta
     'sentiment', 'no_trade_day',

@@ -1,8 +1,9 @@
 // Pure Combined Signal Reads aggregation (spec §B Section 5 / §A9) — the
 // full-alignment vs any-misalignment comparison, the "are you trading the system
 // or not" read. Partitions data-complete trades into two cells by the §A9
-// discipline conjunction (macd_positive AND above_vwap AND above_9ema, all at
-// entry on the toggled timeframe) and computes a BucketStats for each, with the
+// discipline conjunction — the shared isFullyAligned predicate (macd_positive
+// AND above_9ema, plus above_vwap for regular-hours entries; pre-market entries
+// drop the N/A session VWAP) — and computes a BucketStats for each, with the
 // same expectancy / low-sample treatment as the distance bands.
 //
 // Null-handling matches computeHeaderStrip's disciplineScore EXACTLY (the other
@@ -20,6 +21,7 @@
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from './headerStrip'
 import type { BucketStats } from './types'
+import { isFullyAligned, isPreMarketEntry } from './alignment'
 
 /** The two Combined-Reads cells: fully aligned vs any-misalignment. */
 export type AlignmentKey = 'aligned' | 'misaligned'
@@ -42,11 +44,11 @@ export interface CombinedReadsStats {
 
 /**
  * Whether a trade was fully aligned on `timeframe`, or null when it fails the
- * data gate (the excluded tier). Mirrors computeHeaderStrip's disciplineScore
- * predicate: macd_positive AND above_vwap AND above_9ema, with above_* the strict
- * (> 0) binary off the snapshot. A data-complete trade always returns 'aligned'
- * or 'misaligned'; only the gate returns null. Single source of truth for the
- * partition — computeCombinedReads and rowsForAlignment both resolve through it.
+ * data gate (the excluded tier). Delegates to the shared isFullyAligned
+ * predicate — now the literal single source of truth across XP + both analytics
+ * surfaces (pre-market entries drop the N/A session VWAP). A data-complete trade
+ * always returns 'aligned' or 'misaligned'; only the gate returns null.
+ * computeCombinedReads and rowsForAlignment both resolve through it.
  */
 export function classifyAlignment(
   row: TradeWithTechnicalsRow,
@@ -55,13 +57,12 @@ export function classifyAlignment(
   const t = row.technicals
   if (t === null || !t.data_complete) return null
   const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
-  // Strict binary, null-safe: a null dist defaults to -1 (definitely not above)
-  // so the conjunction fails correctly — behaviourally identical to headerStrip's
-  // `dist !== null && dist > 0`. A null macd_positive reads as not-positive.
-  const aligned =
-    snap.macd_positive === true &&
-    (snap.vwap_dist_pct ?? -1) > 0 &&
-    (snap.ema9_dist_pct ?? -1) > 0
+  const aligned = isFullyAligned(
+    snap.macd_positive,
+    snap.vwap_dist_pct,
+    snap.ema9_dist_pct,
+    isPreMarketEntry(row.open_time),
+  )
   return aligned ? 'aligned' : 'misaligned'
 }
 

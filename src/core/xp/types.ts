@@ -43,6 +43,10 @@ export interface TradeFact {
   hasCatalyst: boolean
   /** D8: non-empty note (trade_notes row; saveNote never stores ''). */
   hasNote: boolean
+  /** True when the entry was placed pre-market (before 09:30 ET) — derived from
+   *  open_time in facts.ts. Session VWAP is N/A pre-market, so the D7 predicate
+   *  drops the VWAP condition (see isFullyAligned). */
+  isPreMarket: boolean
   /**
    * D7 inputs from the trade's tf_1m technicals snapshot; null when the
    * trade has no trade_technicals row. Any null field → not disciplined.

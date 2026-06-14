@@ -6,6 +6,7 @@
 // identical module runs server-side on the future Next.js + Postgres port.
 
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
+import { isFullyAligned, isPreMarketEntry } from './alignment'
 
 export type Timeframe = '1m' | '5m'
 
@@ -38,7 +39,8 @@ export interface CardStats {
  * - macdPositive: toggled-timeframe macd_positive === true
  * - aboveVwap: toggled-timeframe vwap_dist_pct > 0
  * - aboveEma9: toggled-timeframe ema9_dist_pct > 0
- * - fullAlignment: ALL THREE predicates (spec §A9 discipline score)
+ * - fullAlignment: the shared isFullyAligned predicate (§A9; pre-market entries
+ *   drop the N/A session-VWAP condition — judged on MACD + 9EMA only)
  */
 export interface HeaderStripStats {
   denominator: number
@@ -92,7 +94,9 @@ export function computeHeaderStrip(
     if (macdPos) add(macd)
     if (aboveVwap) add(vwap)
     if (aboveEma9) add(ema9)
-    if (macdPos && aboveVwap && aboveEma9) add(full)
+    if (isFullyAligned(snap.macd_positive, snap.vwap_dist_pct, snap.ema9_dist_pct, isPreMarketEntry(row.open_time))) {
+      add(full)
+    }
   }
 
   const toCard = (a: Acc): CardStats => ({

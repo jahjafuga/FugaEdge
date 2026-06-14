@@ -4,6 +4,7 @@
 
 import type { XpEventType } from '@shared/xp-types'
 import type { SessionFact, TradeFact } from './types'
+import { isFullyAligned } from '@/core/technicals/alignment'
 
 /** Single source of truth for every §A2 amount and per-date cap. */
 export const XP_AWARDS = {
@@ -30,20 +31,16 @@ export function isFullyAnnotated(t: TradeFact): boolean {
 }
 
 /**
- * D7, evaluated on the tf_1m snapshot only: macd_positive === true AND
- * vwap_dist_pct > 0 AND ema9_dist_pct > 0. Strict triple — a missing
- * snapshot or any null field is never an award.
+ * D7, evaluated on the tf_1m snapshot only, via the shared isFullyAligned
+ * predicate (single source of truth across XP + analytics). Regular-hours
+ * entry: macd_positive AND vwap_dist_pct > 0 AND ema9_dist_pct > 0. Pre-market
+ * entry (t.isPreMarket): macd_positive AND ema9_dist_pct > 0 — session VWAP is
+ * N/A before the 09:30 open and is dropped. A missing snapshot is never an award.
  */
 export function isDisciplinedEntry(t: TradeFact): boolean {
   const s = t.technicals1m
   if (s === null) return false
-  return (
-    s.macdPositive === true &&
-    s.vwapDistPct !== null &&
-    s.vwapDistPct > 0 &&
-    s.ema9DistPct !== null &&
-    s.ema9DistPct > 0
-  )
+  return isFullyAligned(s.macdPositive, s.vwapDistPct, s.ema9DistPct, t.isPreMarket)
 }
 
 /**

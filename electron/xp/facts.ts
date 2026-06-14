@@ -10,6 +10,7 @@
 
 import { openDatabase } from '../db/database'
 import { tradeKeyFor } from '@/core/xp/awards'
+import { isPreMarketEntry } from '@/core/technicals/alignment'
 import type {
   ExistingEventFact,
   SessionFact,
@@ -30,6 +31,7 @@ export interface SessionFactDbRow {
 export interface TradeFactDbRow {
   id: number
   date: string
+  open_time: string // entry timestamp (UTC ISO) — for the pre-market check; NOT a P&L column (A2)
   content_hash: string | null
   playbook_id: number | null
   catalyst_type: string | null
@@ -75,6 +77,9 @@ export function mapTradeRow(r: TradeFactDbRow): TradeFact {
     // defensive spirit as the TRIM note guard; can only under-award).
     hasCatalyst: r.catalyst_type !== null && r.catalyst_type.trim() !== '',
     hasNote: r.has_note === 1,
+    // Pre-market entries (before 09:30 ET) drop the N/A session-VWAP condition
+    // in the D7 predicate (isFullyAligned). Derived from open_time, not P&L (A2).
+    isPreMarket: isPreMarketEntry(r.open_time),
     // null when the trade has no trade_technicals row at all; a row whose
     // 1m fields are NULL maps to nulls and fails D7's strict triple anyway.
     technicals1m:
@@ -153,6 +158,7 @@ export function assembleTradeFacts(
       `SELECT
          t.id            AS id,
          t.date          AS date,
+         t.open_time     AS open_time,
          t.content_hash  AS content_hash,
          t.playbook_id   AS playbook_id,
          t.catalyst_type AS catalyst_type,

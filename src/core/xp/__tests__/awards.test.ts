@@ -21,6 +21,7 @@ function trade(overrides: Partial<TradeFact> = {}): TradeFact {
     hasPlaybook: true,
     hasCatalyst: true,
     hasNote: true,
+    isPreMarket: false,
     technicals1m: { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: 0.4 },
     ...overrides,
   }
@@ -115,6 +116,31 @@ describe('isDisciplinedEntry (D7 — strict triple on the tf_1m snapshot)', () =
     ['ema9DistPct negative', { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: -2 }],
   ] as const)('%s → false', (_label, snapshot) => {
     expect(isDisciplinedEntry(trade({ technicals1m: { ...snapshot } }))).toBe(false)
+  })
+})
+
+describe('isDisciplinedEntry — pre-market amendment (session VWAP N/A before 09:30)', () => {
+  it('pre-market, macd + 9EMA aligned, VWAP null → disciplined (the fix)', () => {
+    expect(
+      isDisciplinedEntry(
+        trade({ isPreMarket: true, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
+      ),
+    ).toBe(true)
+  })
+  it('regular hours with the SAME null-VWAP snapshot → NOT disciplined (VWAP still required)', () => {
+    expect(
+      isDisciplinedEntry(
+        trade({ isPreMarket: false, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
+      ),
+    ).toBe(false)
+  })
+  it('pre-market still requires MACD-positive AND above the 9EMA', () => {
+    expect(
+      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: false, vwapDistPct: null, ema9DistPct: 0.4 } })),
+    ).toBe(false)
+    expect(
+      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: -0.1 } })),
+    ).toBe(false)
   })
 })
 

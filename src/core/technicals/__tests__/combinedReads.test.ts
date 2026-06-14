@@ -200,3 +200,20 @@ describe('rowsForAlignment', () => {
     expect(rowsForAlignment(rows, '1m', 'misaligned')).toEqual([misaligned])
   })
 })
+
+describe('classifyAlignment — pre-market amendment', () => {
+  it('pre-market entry: macd + 9EMA aligned, VWAP null → aligned', () => {
+    const r = makeRow({
+      technicals: makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 }),
+      open_time: '2026-05-15T13:00:00.000Z', // 09:00 ET
+    })
+    expect(classifyAlignment(r, '1m')).toBe('aligned')
+  })
+  it('regular hours with the SAME null-VWAP snapshot → misaligned', () => {
+    const r = makeRow({
+      technicals: makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 }),
+      open_time: '2026-05-15T13:45:00.000Z', // 09:45 ET
+    })
+    expect(classifyAlignment(r, '1m')).toBe('misaligned')
+  })
+})
