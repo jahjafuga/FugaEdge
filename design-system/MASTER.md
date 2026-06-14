@@ -560,13 +560,39 @@ specified against the current flat background — they are **re-tuned against th
 aurora in the same sweep** (see the Frame note). Do not apply cards and
 background separately.
 
-### 11.3 Futuristic Edge Intelligence skin
+### 11.3 Futuristic Edge Intelligence skin — the FLAGSHIP redesign (founder ruling, 2026-06-14)
 
-The **violet / teal glow + DNA / fingerprint motif** mockup — already the
-recorded §F visual target. In the sweep, the Edge Intelligence **cards / score /
-radar** get the premium treatment, consistent with the 11.1 card system. (Edge
-SHIPS in its build phase with clean D26-grammar UI; this is the futuristic
-realization, deferred here on purpose.)
+Edge Intelligence is the **flagship** surface, redesigned to the founder's
+2026-06-14 mockup (**violet / teal glow + DNA / fingerprint motif**, gradient
+depth on dark). Full spec + the multi-beat sequence: the *"Edge Intelligence
+flagship redesign"* section in `docs/plans/v0.2.5-identity.md`.
+
+**This redesign BEGINS the sweep.** Per **OPTION A**, the premium background
+(§11.2) and the unified card system (§11.1) are built TOGETHER as Beat 1 — the
+per-tone glows are tuned against the aurora in the same pass (the §11 Frame
+coupling), app-wide. Edge is simply the **first surface** to land on the new
+system; the remaining surfaces inherit it as the sweep continues. The earlier
+"Edge ships clean in its build phase, futuristic realization deferred to a later
+sweep" framing is superseded **for Edge specifically**: Edge's build phase IS
+this mockup-gated flagship build.
+
+Component treatment (mockup target):
+- **Edge Score** — compact card: the 0–100 numeral + a vs-last-30-days delta +
+  a small sparkline (not the full-width panel).
+- **Radar** — its own compact card beside the score.
+- **Hero cards** (Biggest Edge / Biggest Leak / Focus Area) + a **Trading
+  Coach** directive list (check / warn / focus icons over existing
+  insight-rule output) — skinned to the mockup.
+- **Trader DNA** — honest v1 only (best / weak conditions); no fabricated
+  archetype name or confidence % until the taxonomy beat (§11.5).
+
+Build beats (each live-look-gated to the mockup): **B1** background + card-glow
+foundation · **B2** Edge layout (compact score, radar card, reflow) · **B3**
+hero cards + Trading Coach · **B4** Trader DNA (honest v1) + DNA motif + feel
+tuning.
+
+Boundary (D19): the skin is PRESENTATION — Edge analyzes P&L but never wires
+into the XP / badge ledger.
 
 ### 11.4 Sentiment icon ladder
 
@@ -579,10 +605,13 @@ polarity (schema-29 flip). Per §E: `5 = fire`, `4 = fire (small/dim)`, `3 = sun
 
 ### 11.5 Trader DNA
 
-Archetype + confidence % + best / weak conditions. **Design-blocked** (the
-archetype taxonomy + thresholds are undefined) — its own beat, lands **in or
-after** the sweep once the taxonomy is ruled. The "best/weak conditions" half is
-derivable from existing dimension insights; the archetype classifier is net-new.
+**Split into honest-v1 + deferred archetype (founder ruling, 2026-06-14).** The
+**best / weak conditions** half is derivable from existing dimension insights
+and SHIPS as the honest-v1 DNA card in the Edge flagship build (Beat 4, §11.3).
+The **archetype name + confidence %** stay **design-blocked** (the taxonomy +
+thresholds are undefined) — their own DEFERRED beat, after the founder rules the
+archetype taxonomy. v1 must not invent an archetype or a confidence number it
+cannot compute (the no-fabricated-numbers law).
 
 ### 11.6 Anti-pattern reconciliation (supersedes parts of §10 — within the sweep ONLY)
 
