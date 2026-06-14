@@ -8,8 +8,9 @@ import { selectHeroCards, type FocusArea } from '@/core/insights/heroCards'
 // derived from the SAME insight chosen as the leak. Beat 1 (flagship) skins the
 // three cards onto the §11.1 premium surface with per-tone felt glows (Edge →
 // green, Leak → red, Focus → gold); the icon/metric tone colors stay. Degrade-
-// in-place empty states keep the 3-card layout stable. The futuristic skin
-// deepens through B2–B4.
+// in-place empty states keep the 3-card layout stable. B3 adds the honest skin:
+// the real metric enlarged + an oversized FAINT tone glyph (decoration, NOT a
+// chart — no honest per-card series exists, so nothing is fabricated).
 
 export default function HeroCards({
   insights,
@@ -68,15 +69,26 @@ function Shell({
 }) {
   return (
     <article
-      className={`flex min-h-[132px] flex-col gap-2 card-premium ${glow} p-4`}
+      className={`relative flex min-h-[132px] flex-col overflow-hidden card-premium ${glow} p-4`}
     >
-      <div className="flex items-center gap-1.5">
-        <Icon size={13} strokeWidth={2.25} className={iconTone} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          {label}
-        </span>
+      {/* Ornamental tone watermark — oversized + faint, purely decorative. NOT a
+          chart: a hero card is a single scalar (no honest per-card series), so it
+          must imply no data — premium density without fabrication (B3). */}
+      <Icon
+        size={104}
+        strokeWidth={1.5}
+        aria-hidden="true"
+        className={`pointer-events-none absolute -bottom-4 -right-3 opacity-[0.08] ${iconTone}`}
+      />
+      <div className="relative z-10 flex flex-1 flex-col gap-2">
+        <div className="flex items-center gap-1.5">
+          <Icon size={13} strokeWidth={2.25} className={iconTone} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            {label}
+          </span>
+        </div>
+        {children}
       </div>
-      {children}
     </article>
   )
 }
@@ -102,14 +114,12 @@ function ToneCard({
         <div className="flex flex-1 items-center text-sm text-fg-muted">{emptyText}</div>
       ) : (
         <>
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-sm font-semibold text-fg-primary">{insight.title}</div>
-            {insight.metric && (
-              <div className={`shrink-0 font-mono text-sm font-semibold tnum ${iconTone}`}>
-                {insight.metric}
-              </div>
-            )}
-          </div>
+          <div className="text-sm font-semibold text-fg-primary">{insight.title}</div>
+          {insight.metric && (
+            <div className={`font-mono text-2xl font-semibold leading-none tnum ${iconTone}`}>
+              {insight.metric}
+            </div>
+          )}
           <p className="text-xs leading-snug text-fg-secondary">{insight.body}</p>
           <div className="mt-auto pt-1 font-mono text-[10px] text-fg-muted tnum">
             based on {insight.n} trades

@@ -47,7 +47,7 @@ function metricMagnitude(metric: string | undefined): number {
 
 /** The fix is the leak body's trailing sentence (the rules end each leak with an
  *  imperative directive). Falls back to the whole body if no terminator. */
-function deriveAction(body: string): string {
+export function deriveAction(body: string): string {
   const sentences = body.trim().match(/[^.!?]+[.!?]+/g)
   if (!sentences || sentences.length === 0) return body.trim()
   return sentences[sentences.length - 1].trim()
