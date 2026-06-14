@@ -26,6 +26,21 @@ export interface SettingsValues {
    *  already had trades; starts the 14-day grace window. Stamped exactly
    *  once; null when never started. */
   activation_grace_started_at: string | null
+  // v0.2.5 Trader DNA — stock-selection pillars. The user's own scan profile;
+  // EdgeIQ's Trader DNA card measures how well their trades matched it. Defaults
+  // to the Ross Cameron momentum profile ($2–20, ≥10% day change, ≥5× RVOL,
+  // ≤20M float, catalyst required) — all user-editable. Float is a RAW share
+  // count (the UI displays millions). Self-contained block so the future
+  // Settings remodel can lift it whole.
+  dna_price_min: number
+  dna_price_max: number
+  /** Daily % change floor (e.g. 10 = "up ≥10% on the day"). */
+  dna_change_min: number
+  /** Relative-volume floor (e.g. 5 = "≥5× average volume"). */
+  dna_rvol_min: number
+  dna_float_min: number
+  dna_float_max: number
+  dna_require_catalyst: boolean
 }
 
 export interface SettingsPayload {

@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
+import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
 import { ipc } from '@/lib/ipc'
@@ -308,6 +309,11 @@ export default function Settings() {
             }
           />
         </SettingsAccordion>
+
+        {/* v0.2.5 EdgeIQ Trader DNA — self-contained, relocatable (owns its own
+            load + save of the 7 dna_* keys; the future remodel moves this line
+            + the component file as one piece). */}
+        <DnaSettingsSection />
 
         <Card
           title="Market data"

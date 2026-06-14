@@ -18,6 +18,14 @@ const KEYS = {
   activationKey: 'activation_key',
   activationPayload: 'activation_payload',
   activationGraceStartedAt: 'activation_grace_started_at',
+  // v0.2.5 Trader DNA — stock-selection pillars (liftable block).
+  dnaPriceMin: 'dna_price_min',
+  dnaPriceMax: 'dna_price_max',
+  dnaChangeMin: 'dna_change_min',
+  dnaRvolMin: 'dna_rvol_min',
+  dnaFloatMin: 'dna_float_min',
+  dnaFloatMax: 'dna_float_max',
+  dnaRequireCatalyst: 'dna_require_catalyst',
 } as const
 
 const DEFAULTS: SettingsValues = {
@@ -33,6 +41,15 @@ const DEFAULTS: SettingsValues = {
   activation_key: '',
   activation_payload: '',
   activation_grace_started_at: null,
+  // Ross Cameron momentum scan profile — sensible config, all user-editable.
+  // Float as a raw share count (20M). dna_float_min 0 = no lower floor.
+  dna_price_min: 2,
+  dna_price_max: 20,
+  dna_change_min: 10,
+  dna_rvol_min: 5,
+  dna_float_min: 0,
+  dna_float_max: 20_000_000,
+  dna_require_catalyst: true,
 }
 
 function parseStringArray(raw: string | null | undefined): string[] {
@@ -99,6 +116,18 @@ export function getSettings(): SettingsPayload {
     activation_payload: (map[KEYS.activationPayload] ?? '').trim(),
     activation_grace_started_at:
       (map[KEYS.activationGraceStartedAt] ?? '').trim() || null,
+    // Trader DNA pillars — numbers via parseNumber, the toggle via parseBoolean,
+    // each falling back to its RC-profile default.
+    dna_price_min: parseNumber(map[KEYS.dnaPriceMin], DEFAULTS.dna_price_min),
+    dna_price_max: parseNumber(map[KEYS.dnaPriceMax], DEFAULTS.dna_price_max),
+    dna_change_min: parseNumber(map[KEYS.dnaChangeMin], DEFAULTS.dna_change_min),
+    dna_rvol_min: parseNumber(map[KEYS.dnaRvolMin], DEFAULTS.dna_rvol_min),
+    dna_float_min: parseNumber(map[KEYS.dnaFloatMin], DEFAULTS.dna_float_min),
+    dna_float_max: parseNumber(map[KEYS.dnaFloatMax], DEFAULTS.dna_float_max),
+    dna_require_catalyst: parseBoolean(
+      map[KEYS.dnaRequireCatalyst],
+      DEFAULTS.dna_require_catalyst,
+    ),
   }
   return {
     values,
@@ -171,6 +200,25 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
         KEYS.activationGraceStartedAt,
         input.activation_grace_started_at ?? '',
       )
+    }
+    // Trader DNA pillars — the 6 numbers reuse the max_daily_loss guard
+    // (finite & ≥ 0), the catalyst toggle the show_macd_pane '1'/'0' encoding.
+    const dnaNums: [number | undefined, string][] = [
+      [input.dna_price_min, KEYS.dnaPriceMin],
+      [input.dna_price_max, KEYS.dnaPriceMax],
+      [input.dna_change_min, KEYS.dnaChangeMin],
+      [input.dna_rvol_min, KEYS.dnaRvolMin],
+      [input.dna_float_min, KEYS.dnaFloatMin],
+      [input.dna_float_max, KEYS.dnaFloatMax],
+    ]
+    for (const [raw, key] of dnaNums) {
+      if (raw != null) {
+        const v = Number(raw)
+        if (Number.isFinite(v) && v >= 0) upsert.run(key, String(v))
+      }
+    }
+    if (input.dna_require_catalyst != null) {
+      upsert.run(KEYS.dnaRequireCatalyst, input.dna_require_catalyst ? '1' : '0')
     }
   })
   tx()
