@@ -3,6 +3,7 @@ import { ipc } from '@/lib/ipc'
 import { filterLastNDays } from '@/core/insights/helpers'
 import { runAllInsightRules } from '@/core/insights'
 import type { InsightResult } from '@/core/insights'
+import { computeKpiStrip, type KpiStripData } from '@/core/insights/kpiStrip'
 import { rangeDays, type TimeRange } from '@shared/dashboard-types'
 
 // useInsights — composes the data fetches (trades + session sentiment +
@@ -23,6 +24,10 @@ export interface UseInsightsResult {
    *  or all rules below their minimum sample size. Drives the "tag more
    *  trades" empty state. */
   empty: boolean
+  /** The EdgeIQ KPI strip's six best-of tiles, computed over the SAME windowed
+   *  trades as `insights` — so the strip and the hero cards always agree on the
+   *  window. All-null fields until trades load / when the window is empty. */
+  kpis: KpiStripData
 }
 
 export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
@@ -84,8 +89,13 @@ export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
     })
   }, [trades, sessions, streak, windowedTrades, sentimentByDate])
 
+  // KPI strip — computed over the SAME windowedTrades, so it re-windows in step
+  // with the hero cards (instant client-side re-filter, no refetch) and its
+  // numbers are guaranteed consistent with them. All-null when the window is empty.
+  const kpis = useMemo(() => computeKpiStrip(windowedTrades), [windowedTrades])
+
   const loading = trades == null || sessions == null || streak == null
   const empty = !loading && insights.length === 0
 
-  return { insights, loading, error, empty }
+  return { insights, loading, error, empty, kpis }
 }

@@ -147,3 +147,14 @@ export function entryHour(t: TradeListRow): number | null {
 export function hourLabel(h: number): string {
   return `${h < 10 ? '0' : ''}${h}:00`
 }
+
+/** Full weekday name (UTC) for a YYYY-MM-DD date, or null when unparseable.
+ *  Full names so templated copy that appends "s" reads correctly ("Thursdays",
+ *  not "Thus"). Shared by runDayOfWeek (rules.ts) and the KPI strip's
+ *  best-weekday tile (kpiStrip.ts) — single source of truth. */
+export function dowName(date: string | null | undefined): string | null {
+  if (!date) return null
+  const d = new Date(date + 'T12:00:00Z')
+  if (Number.isNaN(d.getTime())) return null
+  return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()] ?? null
+}

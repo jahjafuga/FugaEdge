@@ -5,6 +5,7 @@ import TradingCoachCard from '@/components/intelligence/TradingCoachCard'
 import ScoreCard from '@/components/intelligence/ScoreCard'
 import RadarCard from '@/components/intelligence/RadarCard'
 import WorkedLeakedSummary from '@/components/intelligence/WorkedLeakedSummary'
+import EdgeStatStrip from '@/components/intelligence/EdgeStatStrip'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import EdgeIqMark from '@/components/icons/EdgeIqMark'
 import { useInsights } from '@/lib/useInsights'
@@ -47,6 +48,7 @@ export default function Intelligence() {
           <RadarCard {...edgeScore} />
         </div>
         <WorkedLeakedSummary />
+        <EdgeStatStrip data={insightsData.kpis} loading={insightsData.loading} />
       </div>
     </PageShell>
   )

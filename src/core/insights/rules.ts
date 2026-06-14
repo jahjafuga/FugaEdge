@@ -16,6 +16,7 @@ import { utcToEasternParts } from '@/lib/format'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import {
   aggregate,
+  dowName,
   entryHour,
   fmtMoney,
   fmtMoneyAbs,
@@ -472,16 +473,8 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
 }
 
 // ── 10b. DAY OF WEEK ─────────────────────────────────────────────────────
-// Best / worst weekday by net P&L. Requires 5+ trades on each day.
-
-function dowName(date: string | null | undefined): string | null {
-  if (!date) return null
-  const d = new Date(date + 'T12:00:00Z')
-  if (Number.isNaN(d.getTime())) return null
-  // Full names so templated copy that appends "s" reads correctly
-  // ("Thursdays are your strongest day", not "Thus are your strongest day").
-  return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d.getUTCDay()] ?? null
-}
+// Best / worst weekday by net P&L. Requires 5+ trades on each day. dowName (the
+// weekday formatter) now lives in ./helpers — shared with the KPI strip.
 
 export function runDayOfWeek(input: InsightInput): InsightResult | null {
   const buckets = groupBy(input.trades, (t) => dowName(t.date))
