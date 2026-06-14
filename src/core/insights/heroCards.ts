@@ -45,12 +45,36 @@ function metricMagnitude(metric: string | undefined): number {
   return Number.isFinite(v) ? Math.abs(v) : 0
 }
 
-/** The fix is the leak body's trailing sentence (the rules end each leak with an
- *  imperative directive). Falls back to the whole body if no terminator. */
+/** Split a body into sentences. A terminator (. ! ?) ends a sentence ONLY when
+ *  it's followed by whitespace or end-of-string — so a decimal point inside a
+ *  number ($1.5M, +0.16R, 47.5%, 1.3×) is NEVER a boundary. Shared by
+ *  deriveAction + deriveFinding so the two can't drift, and both get the decimal
+ *  fix in one place (the old `[.!?]+` split broke "+0.16R" into "+0." | "16R…"). */
+export function splitSentences(body: string): string[] {
+  return body
+    .trim()
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+}
+
+/** The fix/directive — the body's trailing sentence (the rules end each insight
+ *  with an imperative directive). Falls back to the whole body if no terminator. */
 export function deriveAction(body: string): string {
-  const sentences = body.trim().match(/[^.!?]+[.!?]+/g)
-  if (!sentences || sentences.length === 0) return body.trim()
-  return sentences[sentences.length - 1].trim()
+  const sentences = splitSentences(body)
+  if (sentences.length === 0) return body.trim()
+  return sentences[sentences.length - 1]
+}
+
+/** The FINDING — the body's FIRST sentence (the names + numbers), the companion
+ *  to deriveAction's trailing directive. Returns '' when the body is a single
+ *  sentence (then finding == directive; the caller shows the directive alone,
+ *  not duplicated). Used by the Trading Coach to surface the specifics rather
+ *  than only the generic tail. */
+export function deriveFinding(body: string): string {
+  const sentences = splitSentences(body)
+  if (sentences.length <= 1) return ''
+  return sentences[0]
 }
 
 /** fmtMoney/fmtMoneyAbs produce a "$"; rate/ratio metrics (%, ×, R) never do. */
