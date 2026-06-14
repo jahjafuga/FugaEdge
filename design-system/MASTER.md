@@ -560,9 +560,9 @@ specified against the current flat background — they are **re-tuned against th
 aurora in the same sweep** (see the Frame note). Do not apply cards and
 background separately.
 
-### 11.3 Futuristic Edge Intelligence skin — the FLAGSHIP redesign (founder ruling, 2026-06-14)
+### 11.3 Futuristic EdgeIQ skin — the FLAGSHIP redesign (founder ruling, 2026-06-14)
 
-Edge Intelligence is the **flagship** surface, redesigned to the founder's
+EdgeIQ (the Edge Intelligence feature, renamed 2026-06-14) is the **flagship** surface, redesigned to the founder's
 2026-06-14 mockup (**violet / teal glow + DNA / fingerprint motif**, gradient
 depth on dark). Full spec + the multi-beat sequence: the *"Edge Intelligence
 flagship redesign"* section in `docs/plans/v0.2.5-identity.md`.

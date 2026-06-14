@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -20,11 +20,16 @@ import {
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
 import BrandMark from './BrandMark'
+import EdgeIqMark from '@/components/icons/EdgeIqMark'
 
 interface NavItem {
   to: string
   label: string
   Icon: LucideIcon
+  /** Optional icon-component override (e.g. the inline EdgeIqMark). When set,
+   *  the row renders it in place of the lucide <Icon> — same currentColor /
+   *  active-state treatment, since both are inline svg components. */
+  iconComponent?: ComponentType<{ size?: number; className?: string }>
 }
 
 const NAV: NavItem[] = [
@@ -36,7 +41,7 @@ const NAV: NavItem[] = [
   { to: '/analytics', label: 'Analytics', Icon: PieChart },
   // v0.2.5 Edge Intelligence — one new route after Analytics (§I). The broader
   // sidebar-IA regrouping (footer rail, grouping) stays deferred to Phase E.
-  { to: '/intelligence', label: 'Edge Intelligence', Icon: Crosshair },
+  { to: '/intelligence', label: 'EdgeIQ', Icon: Crosshair, iconComponent: EdgeIqMark },
   { to: '/journal',   label: 'Journal',   Icon: NotebookPen },
   { to: '/import',    label: 'Import',    Icon: Download },
   // v0.2.5 Phase B Session 4 (L17) — interim placement: Phase E moves
@@ -143,7 +148,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           </div>
         )}
         <ul className="space-y-0.5">
-          {NAV.map(({ to, label, Icon }) => (
+          {NAV.map(({ to, label, Icon, iconComponent: IconComponent }) => (
             <li key={to}>
               <NavLink
                 to={to}
@@ -160,7 +165,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                   }`
                 }
               >
-                <Icon size={18} strokeWidth={1.75} />
+                {IconComponent ? (
+                  <IconComponent size={18} className="shrink-0" />
+                ) : (
+                  <Icon size={18} strokeWidth={1.75} />
+                )}
                 {!collapsed && <span>{label}</span>}
               </NavLink>
             </li>
