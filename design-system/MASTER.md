@@ -508,3 +508,89 @@ Plugins: `@tailwindcss/forms` (strategy: `class`), small CSS layer for tabular-n
 - ❌ Hard-coded hex in components — always tokens
 - ❌ Mixing radii (8/10/12/14 — pick from the scale)
 - ❌ `transform: scale()` on hover for cards/buttons
+
+---
+
+## 11. Phase E — coordinated premium visual sweep (v0.2.5, recorded target)
+
+**This is the recorded TARGET for the Phase E sweep — not a build.** No current
+surface changes until the sweep beat runs. Recorded 2026-06-13 while fresh.
+
+**Frame (Path A deferral):** these five pieces are **ONE coordinated sweep**,
+applied to every surface **together** so the app emerges coherent — NOT bolted on
+piecemeal. They are interdependent: in particular **the background changes how
+cards read**, so the card values below (glow / border / text contrast) were
+specified against the *current flat* background and get **RE-TUNED against the
+aurora in the same pass**. Applying cards and background in separate passes would
+mean tuning the cards twice and shipping mismatched intermediate states. Treat
+the package as atomic.
+
+### 11.1 Unified card design system (founder-provided 2026-06-13 — verbatim)
+
+The unified card spec, applied to **all cards app-wide** in the sweep.
+
+- **References:** Linear / Vercel / Arc / Stripe. **Avoid:** crypto / gaming /
+  neon / heavy-shadow / glassmorphism. **Feel:** premium, institutional,
+  minimal, confident.
+- **App background:** `#050A14` / `#071224` / `#020611`, very subtle gradient,
+  no texture / no noise.
+- **Card:** bg `rgba(10,15,28,0.92)`; border `1px rgba(255,255,255,0.06)`;
+  radius `20px`; padding `24px`; gap `24px`; hover `translateY(-2px)` `200ms`;
+  shadow `0 8px 24px rgba(0,0,0,0.20)`.
+- **Per-tone top-left radial glow (felt, not seen):** green
+  `rgba(34,197,94,0.10)` / red `rgba(239,68,68,0.10)` / gold
+  `rgba(212,175,55,0.10)` / purple `rgba(168,85,247,0.10)`.
+- **Tone borders:** green `.25` / red `.25` / gold `.25`; normal `.06`.
+- **Typography:** primary `#F8FAFC` / secondary `#94A3B8` / muted `#64748B`;
+  section labels `12px / 700 / uppercase / 0.08em`; titles `20px / 700`; primary
+  metric `56px / 700`; secondary `18px / 600`.
+- **Icon containers:** `40×40` circle, bg `rgba(255,255,255,0.04)`, per-tone
+  `.12` variants.
+- **Charts:** gridlines `rgba(255,255,255,0.04)`, `2px` lines, no bright axes.
+- **Spacing:** sections `32px` / cards `24px` / internal `≥16px`.
+
+### 11.2 Premium background
+
+The founder-provided **gold-aurora-on-near-black**. **Use the SVG**
+(`FugaEdge_Premium_Background.svg`), **NOT the PNG** — vector scales crisp at any
+window size and stays small; raster blurs on large windows and bloats the bundle.
+
+⚠ **Coupling:** the 11.1 card glow / border / text-contrast values were
+specified against the current flat background — they are **re-tuned against this
+aurora in the same sweep** (see the Frame note). Do not apply cards and
+background separately.
+
+### 11.3 Futuristic Edge Intelligence skin
+
+The **violet / teal glow + DNA / fingerprint motif** mockup — already the
+recorded §F visual target. In the sweep, the Edge Intelligence **cards / score /
+radar** get the premium treatment, consistent with the 11.1 card system. (Edge
+SHIPS in its build phase with clean D26-grammar UI; this is the futuristic
+realization, deferred here on purpose.)
+
+### 11.4 Sentiment icon ladder
+
+Upgrade to the glossy **fire / sun / snowflake / ice** set (svgrepo source —
+**license-check for commercial use: CC0 or owned only**). This **builds the icon
+ladder for the first time** (no ladder exists today; the sentiment surfaces show
+numbers + colors) and inherits the already-correct **5 = best / 1 = worst**
+polarity (schema-29 flip). Per §E: `5 = fire`, `4 = fire (small/dim)`, `3 = sun`,
+`2 = snowflake`, `1 = ice`.
+
+### 11.5 Trader DNA
+
+Archetype + confidence % + best / weak conditions. **Design-blocked** (the
+archetype taxonomy + thresholds are undefined) — its own beat, lands **in or
+after** the sweep once the taxonomy is ruled. The "best/weak conditions" half is
+derivable from existing dimension insights; the archetype classifier is net-new.
+
+### 11.6 Anti-pattern reconciliation (supersedes parts of §10 — within the sweep ONLY)
+
+The §10 bans on **"Purple/pink gradients (AI vibe)"** and **"Neon, glow auras"**
+were aimed at *cheap* gradients and harsh neon. The Phase E package introduces a
+**controlled** violet/teal (11.3) and **felt, not seen** per-tone radial glows
+(11.1, `0.10` alpha) — the premium realization those bans were protecting the
+product from cheapening, not banning outright. **Within the coordinated sweep**
+these supersede the two bans; **for ad-hoc / piecemeal use the §10 bans still
+hold.** The `transform: scale()` ban is untouched — 11.1 hover is `translateY`,
+already compliant.
