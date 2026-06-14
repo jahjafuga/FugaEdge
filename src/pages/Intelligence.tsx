@@ -1,19 +1,23 @@
 import PageShell from '@/components/layout/PageShell'
+import HeroCards from '@/components/intelligence/HeroCards'
 import EdgeScorePanel from '@/components/intelligence/EdgeScorePanel'
-import EdgeInsights from '@/components/dashboard/EdgeInsights'
+import { EdgeInsightsView } from '@/components/dashboard/EdgeInsights'
+import { useInsights } from '@/lib/useInsights'
 
-// v0.2.5 Edge Intelligence. The /intelligence home: the Edge Score panel
-// (Beat 2 — 0–100 composite + 6-axis radar + published weights + the discipline
-// coverage chip) above the full insight feed (Beat 1 — the pure
-// src/core/insights engine in `fullFeed` mode). The three prescriptive cards
-// (Biggest Edge / Biggest Leak / Focus Area) and the session/week summary land
-// in Beats 3–4.
+// v0.2.5 Edge Intelligence. The /intelligence home, top-to-bottom: the three
+// prescriptive hero cards (Beat 3 — Biggest Edge / Biggest Leak / Focus Area,
+// the §F "spine"), the Edge Score panel (Beat 2 — 0–100 composite + radar), then
+// the full insight feed (Beat 1). useInsights is lifted here so the hero cards
+// and the feed share ONE fetch of the same data. The session/week summary lands
+// in a later beat.
 export default function Intelligence() {
+  const insightsData = useInsights()
   return (
     <PageShell>
       <div className="space-y-5">
+        <HeroCards insights={insightsData.insights} loading={insightsData.loading} />
         <EdgeScorePanel />
-        <EdgeInsights fullFeed />
+        <EdgeInsightsView {...insightsData} fullFeed />
       </div>
     </PageShell>
   )

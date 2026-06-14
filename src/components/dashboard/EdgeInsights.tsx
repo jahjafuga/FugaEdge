@@ -7,7 +7,7 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react'
-import { useInsights } from '@/lib/useInsights'
+import { useInsights, type UseInsightsResult } from '@/lib/useInsights'
 import type { InsightResult, InsightTone } from '@/core/insights'
 
 // EDGE INSIGHTS — the surface for the renderer's pure-logic insights
@@ -19,10 +19,24 @@ import type { InsightResult, InsightTone } from '@/core/insights'
 
 const VISIBLE_BY_DEFAULT = 5
 
-// `fullFeed` (the /intelligence page) renders every insight with no truncation
-// or expander; the Dashboard preview keeps the top-5 + "View all" behaviour.
+// Self-fetching wrapper (Dashboard + standalone usage). On /intelligence the
+// page lifts useInsights once and renders EdgeInsightsView directly, so HeroCards
+// and the feed share ONE fetch of the same data.
 export default function EdgeInsights({ fullFeed = false }: { fullFeed?: boolean } = {}) {
-  const { insights, loading, error, empty } = useInsights()
+  const data = useInsights()
+  return <EdgeInsightsView {...data} fullFeed={fullFeed} />
+}
+
+// Presentational feed — no hook of its own. `fullFeed` (the /intelligence page)
+// renders every insight with no truncation or expander; the Dashboard preview
+// keeps the top-5 + "View all" behaviour.
+export function EdgeInsightsView({
+  insights,
+  loading,
+  error,
+  empty,
+  fullFeed = false,
+}: UseInsightsResult & { fullFeed?: boolean }) {
   const [expanded, setExpanded] = useState(false)
 
   if (error) {

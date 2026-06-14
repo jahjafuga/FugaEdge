@@ -14,7 +14,7 @@ import type { InsightResult } from '@/core/insights'
 // runner is memoized over those three inputs so toggling between tabs
 // doesn't re-aggregate trades unnecessarily.
 
-interface UseInsightsResult {
+export interface UseInsightsResult {
   insights: InsightResult[]
   loading: boolean
   error: string | null
