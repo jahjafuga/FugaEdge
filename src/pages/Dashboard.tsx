@@ -13,6 +13,7 @@ import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import EdgeInsights from '@/components/dashboard/EdgeInsights'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
+import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import BrandMark from '@/components/layout/BrandMark'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
@@ -106,6 +107,15 @@ export default function Dashboard() {
             trades exist, the no-trade-day flow when sitting out, or the
             blank-canvas prompt before the market session begins. */}
         <TodaySessionCard />
+
+        {/* Daily goal + main challenge band (below Today's Session, above
+            EdgeInsights). Self-contained: fetches the active equity goal via
+            goalsProgressRead; the Daily Goal half reads todayPnl + settings. */}
+        <GoalChallengeBand
+          todayPnl={todayPnl}
+          dailyProfitTarget={data.settings.daily_profit_target}
+          maxDailyLoss={data.settings.max_daily_loss}
+        />
 
         {/* EDGE INSIGHTS — pattern engine over the last-90-days trade set.
             Pure rules in /src/core/insights — web-portable. Sits between
