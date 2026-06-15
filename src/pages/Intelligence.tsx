@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import PageShell from '@/components/layout/PageShell'
 import HeroCards from '@/components/intelligence/HeroCards'
 import TradingCoachCard from '@/components/intelligence/TradingCoachCard'
@@ -6,10 +6,13 @@ import ScoreCard from '@/components/intelligence/ScoreCard'
 import RadarCard from '@/components/intelligence/RadarCard'
 import WorkedLeakedSummary from '@/components/intelligence/WorkedLeakedSummary'
 import EdgeStatStrip from '@/components/intelligence/EdgeStatStrip'
+import TraderDnaCard from '@/components/intelligence/TraderDnaCard'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import EdgeIqMark from '@/components/icons/EdgeIqMark'
 import { useInsights } from '@/lib/useInsights'
 import { useEdgeScore } from '@/lib/useEdgeScore'
+import { useDnaConfig } from '@/lib/useDnaConfig'
+import { computeDnaAdherence } from '@/core/dna/adherence'
 import { RANGE_LABEL, type TimeRange } from '@shared/dashboard-types'
 
 // v0.2.5 EdgeIQ — the /intelligence home, top-to-bottom: the EdgeIQ mark + the
@@ -27,6 +30,14 @@ export default function Intelligence() {
   const [range, setRange] = useState<TimeRange>('90d')
   const insightsData = useInsights(range)
   const edgeScore = useEdgeScore(range)
+  const dnaConfig = useDnaConfig()
+  const dna = useMemo(
+    () =>
+      dnaConfig.config
+        ? computeDnaAdherence(insightsData.windowedTrades, dnaConfig.config)
+        : null,
+    [insightsData.windowedTrades, dnaConfig.config],
+  )
   return (
     <PageShell>
       <div className="space-y-5">
@@ -47,6 +58,12 @@ export default function Intelligence() {
           <ScoreCard {...edgeScore} rangeLabel={RANGE_LABEL[range]} />
           <RadarCard {...edgeScore} />
         </div>
+        <TraderDnaCard
+          data={dna}
+          loading={insightsData.loading || dnaConfig.loading}
+          requireCatalyst={dnaConfig.config?.dna_require_catalyst ?? false}
+          rangeLabel={RANGE_LABEL[range]}
+        />
         <WorkedLeakedSummary />
         <EdgeStatStrip data={insightsData.kpis} loading={insightsData.loading} />
       </div>
