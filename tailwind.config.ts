@@ -164,6 +164,7 @@ const config: Config = {
       // contrast against white card surfaces.
       textColor: {
         gold: 'rgb(var(--gold-text) / <alpha-value>)',
+        violet: 'rgb(var(--violet-text) / <alpha-value>)',
         win:  'rgb(var(--win-text) / <alpha-value>)',
       },
       transitionTimingFunction: {
