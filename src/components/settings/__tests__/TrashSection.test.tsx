@@ -48,6 +48,7 @@ function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     mae: null,
     mfe: null,
     daily_change_pct: null,
+    rvol: null,
     playbook_id: null,
     playbook_name: null,
     playbook_tier: null,

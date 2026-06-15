@@ -5,6 +5,14 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 32 for v0.2.5 EdgeIQ Trader DNA — additive trades.rvol column
+// (full-day relative volume = daily_volumes[date] / avg_volume, from cached
+// market_data) + arms its fire-once CACHE re-derive. migrateAfterSchema adds
+// the column AND sets `rvol_backfill_pending` on the upgrade (priorVersion < 32);
+// runPendingRvolBackfill consumes + clears it at ready-to-show. ZERO API — a
+// pure cache re-derive (the mae/mfe pattern, not daily-%'s network sweep), so
+// column + arm ship in one bump.
+//
 // Bumped to 31 for v0.2.5 EdgeIQ Trader DNA — arms the daily_change_pct
 // backfill EXACTLY ONCE. No schema/data change at 31: migrateAfterSchema sets
 // the `daily_change_backfill_pending` settings flag on the upgrade (priorVersion
@@ -93,7 +101,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '31'
+export const SCHEMA_VERSION = '32'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

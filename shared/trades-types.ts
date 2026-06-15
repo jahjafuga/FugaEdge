@@ -60,6 +60,11 @@ export interface TradeListRow {
    *  bars in a later beat; NULL = not computed yet (treat as "unknown", never
    *  fabricate). Rides the row like mae/mfe — a trades column, no join. */
   daily_change_pct: number | null
+  /** v0.2.5 Trader DNA — full-day relative volume: the trade day's volume ÷ the
+   *  symbol's ~30-day average, from cached market_data (the Reports definition).
+   *  Zero-API cache re-derive; NULL = no cache / uncomputable, never fabricated.
+   *  Rides the row like daily_change_pct. */
+  rvol: number | null
   /** Tradable free float — CURRENT snapshot (not point-in-time-of-trade;
    *  point-in-time stays a v0.3.0 tentpole). v0.2.2 Commit B onward this
    *  holds REAL FMP float, not the legacy shares-outstanding mislabel.

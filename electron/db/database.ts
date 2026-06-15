@@ -664,6 +664,13 @@ function migrateAfterSchema(
     // columns above — no data transform, no backup.
     conn.exec('ALTER TABLE trades ADD COLUMN daily_change_pct REAL')
   }
+  if (!has('rvol')) {
+    // v0.2.5 EdgeIQ Trader DNA (schema 32) — full-day relative volume:
+    // daily_volumes[date] / avg_volume from cached market_data (the Reports
+    // definition). NULL until the fire-once CACHE re-derive fills it (ZERO API,
+    // mirrors mae/mfe). Additive REAL column; same PRAGMA-gated idiom.
+    conn.exec('ALTER TABLE trades ADD COLUMN rvol REAL')
+  }
   if (!has('shares_outstanding')) {
     // v0.2.2 Commit A — issued share count, preserved when the legacy
     // shares-outstanding-mislabeled-as-float was renamed. Populated by
@@ -943,6 +950,18 @@ function migrateAfterSchema(
     conn
       .prepare(
         `INSERT INTO settings (key, value) VALUES ('daily_change_backfill_pending', 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run()
+  }
+
+  // v0.2.5 (schema 31 → 32) — arm the rvol CACHE re-derive EXACTLY ONCE (same
+  // flag-only idiom; ZERO API). runPendingRvolBackfill consumes + clears it at
+  // ready-to-show. Literal key must match electron/market/rvol-backfill.ts.
+  if (priorVersion > 0 && priorVersion < 32) {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES ('rvol_backfill_pending', 'true')
          ON CONFLICT(key) DO UPDATE SET value = 'true'`,
       )
       .run()

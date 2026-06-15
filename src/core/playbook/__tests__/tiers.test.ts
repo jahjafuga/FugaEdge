@@ -19,7 +19,7 @@ function trade(over: Partial<TradeListRow>): TradeListRow {
     country: 'US', country_name: 'United States', region: 'USA', country_source: 'polygon',
     attachment_count: 0,
     deleted_at: null,
-    mae: null, mfe: null, daily_change_pct: null,
+    mae: null, mfe: null, daily_change_pct: null, rvol: null,
     ...over,
   }
 }

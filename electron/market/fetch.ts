@@ -13,6 +13,7 @@ import {
   upsertMarketRow,
   type MarketRow,
 } from './repo'
+import { backfillAllRvol } from './rvol-backfill'
 import type { MarketRefreshProgress } from '@shared/market-types'
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
@@ -256,6 +257,19 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
     )
   }
   await Promise.all(workers)
+
+  // v0.2.5 Trader DNA — re-derive RVOL from the now-fresh market_data
+  // (daily_volumes / avg_volume). Cache-only + fast, the backfillAllMaeMfe-
+  // after-intraday-refresh precedent; skipped on cancel (idempotent next run).
+  // Best-effort: the market_data writes already landed, so a re-derive hiccup
+  // must NOT fail the refresh (the main/index.ts backfill try/catch posture).
+  if (!cancelRequested) {
+    try {
+      backfillAllRvol()
+    } catch (e) {
+      console.error(`[FE rvol] re-derive after market refresh failed (non-fatal): ${e}`)
+    }
+  }
 
   const result: RefreshResult = {
     attempted: allSymbolsForLogging,

@@ -70,6 +70,7 @@ function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
     mae: null,
     mfe: null,
     daily_change_pct: null,
+    rvol: null,
     ...overrides,
   }
 }

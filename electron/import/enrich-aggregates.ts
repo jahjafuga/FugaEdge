@@ -14,6 +14,7 @@ import { withRateLimitRetry } from '../market/rate-limit'
 import {
   getMarketRow,
   setTradeDailyChange,
+  setTradeRvol,
   tradeDateRangePerSymbol,
   tradesNeedingDailyChangeForSymbol,
   upsertMarketRow,
@@ -24,6 +25,7 @@ import {
   type EnrichAggregatesResult,
 } from '@/core/aggregates/orchestrator'
 import { dailyChangeForTrade } from '@/core/market/dailyChange'
+import { rvolFor } from '@/core/market/rvol'
 
 const REQUEST_SPACING_MS = 350
 
@@ -88,7 +90,10 @@ export async function enrichAggregatesForImportedSymbols(
       // trade with no prior close in range gets NULL (honest "uncomputable").
       const bars = Object.entries(result.daily_closes).map(([date, close]) => ({ date, close }))
       for (const t of tradesNeedingDailyChangeForSymbol(symbol)) {
+        // New trades need BOTH — daily % (close/prevClose) and RVOL (the day's
+        // volume / avg), both from this same fetch's data. One combined pass.
         setTradeDailyChange(t.id, dailyChangeForTrade(t, bars))
+        setTradeRvol(t.id, rvolFor(result.daily_volumes[t.date], result.avg_volume))
       }
     },
     emitProgress: onProgress,

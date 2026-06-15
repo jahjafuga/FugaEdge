@@ -476,6 +476,43 @@ export function tradesNeedingDailyChangeForSymbol(symbol: string): DailyChangeTr
     .all(symbol) as DailyChangeTradeRow[]
 }
 
+// v0.2.5 Trader DNA — RVOL fill helpers, the cache-re-derive cousin (the
+// market_data read happens in the backfill; these are the same NULL-only
+// work-list + UPDATE-by-id shapes). rvol needs only the trade's date (to index
+// daily_volumes); entry price is irrelevant.
+
+export function setTradeRvol(tradeId: number, rvol: number | null): void {
+  const db = openDatabase()
+  db.prepare('UPDATE trades SET rvol = ? WHERE id = ?').run(rvol, tradeId)
+}
+
+export function symbolsNeedingRvol(): string[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT symbol FROM trades
+       WHERE rvol IS NULL AND deleted_at IS NULL
+       ORDER BY symbol ASC`,
+    )
+    .all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
+}
+
+export interface RvolTradeRow {
+  id: number
+  date: string
+}
+
+export function tradesNeedingRvolForSymbol(symbol: string): RvolTradeRow[] {
+  const db = openDatabase()
+  return db
+    .prepare(
+      `SELECT id, date FROM trades
+       WHERE symbol = ? AND rvol IS NULL AND deleted_at IS NULL`,
+    )
+    .all(symbol) as RvolTradeRow[]
+}
+
 export interface TradeDateRange {
   from: string  // YYYY-MM-DD
   to: string    // YYYY-MM-DD
