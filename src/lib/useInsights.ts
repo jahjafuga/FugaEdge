@@ -5,6 +5,7 @@ import { runAllInsightRules } from '@/core/insights'
 import type { InsightResult } from '@/core/insights'
 import { computeKpiStrip, type KpiStripData } from '@/core/insights/kpiStrip'
 import { rangeDays, type TimeRange } from '@shared/dashboard-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 // useInsights — composes the data fetches (trades + session sentiment +
 // discipline streak) and pipes them through the pure rule engine in
@@ -28,6 +29,10 @@ export interface UseInsightsResult {
    *  trades as `insights` — so the strip and the hero cards always agree on the
    *  window. All-null fields until trades load / when the window is empty. */
   kpis: KpiStripData
+  /** The range-windowed trades the insights + KPI strip ride. Exposed so the
+   *  Intelligence page can compose the Trader-DNA card over the SAME window
+   *  (computeDnaAdherence) without a second fetch. Empty until trades load. */
+  windowedTrades: TradeListRow[]
 }
 
 export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
@@ -97,5 +102,5 @@ export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
   const loading = trades == null || sessions == null || streak == null
   const empty = !loading && insights.length === 0
 
-  return { insights, loading, error, empty, kpis }
+  return { insights, loading, error, empty, kpis, windowedTrades }
 }
