@@ -152,6 +152,8 @@ export const IPC = {
   GOALS_LIST: 'goals:list',
   GOALS_CREATE: 'goals:create',
   GOALS_ABANDON: 'goals:abandon',
+  // Read-only: active equity goals + progress, NO evaluate/award (cf. GOALS_LIST).
+  GOALS_PROGRESS_READ: 'goals:progress-read',
   // ── Badges (v0.2.5 Phase B Session 6) — read-only award list for the badge
   // wall. The catalog (what CAN be earned) is the pure code module
   // src/core/badges/catalog.ts; minting is engine-side + future threshold sweeps.

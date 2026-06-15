@@ -91,3 +91,14 @@ export function evaluateAndListGoals(): GoalsListResult {
     justCompleted,
   }
 }
+
+/** Read-only progress for active EQUITY goals — NO evaluate/award (unlike
+ *  evaluateAndListGoals). progressFor is side-effect-free, so this is safe for
+ *  the dashboard to call on every render without minting badges or
+ *  transitioning status. The dashboard picks the "main" one via the pure
+ *  pickMainChallenge selector (src/core/goals/mainChallenge). */
+export function listActiveEquityProgress(): GoalWithProgress[] {
+  return listGoals('active')
+    .filter((goal) => goal.kind === 'equity')
+    .map((goal) => ({ ...goal, progress: progressFor(goal) }))
+}

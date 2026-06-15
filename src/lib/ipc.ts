@@ -150,6 +150,7 @@ export const ipc = {
     preset_id: string | null
   }) => window.api.goalsCreate(input),
   goalsAbandon: (id: string) => window.api.goalsAbandon({ id }),
+  goalsProgressRead: () => window.api.goalsProgressRead(),
   badgesList: () => window.api.badgesList(),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),

@@ -10,6 +10,7 @@ import type {
   CreateGoalResult,
   GoalKind,
   GoalsListResult,
+  GoalWithProgress,
   Profile,
   UpdateProfileInput,
 } from '@shared/identity-types'
@@ -297,6 +298,8 @@ const api = {
   }): Promise<CreateGoalResult> => ipcRenderer.invoke(IPC.GOALS_CREATE, input),
   goalsAbandon: (input: { id: string }): Promise<{ updated: boolean }> =>
     ipcRenderer.invoke(IPC.GOALS_ABANDON, input),
+  goalsProgressRead: (): Promise<GoalWithProgress[]> =>
+    ipcRenderer.invoke(IPC.GOALS_PROGRESS_READ),
   // ── Badges (v0.2.5 Phase B Session 6) ──
   badgesList: (): Promise<BadgeAward[]> => ipcRenderer.invoke(IPC.BADGES_LIST),
   // ── Auto-updater ─────────────────────────────────────────────────────

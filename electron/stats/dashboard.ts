@@ -300,12 +300,13 @@ function readDisciplineStreak(
 
 function readSettings(db: ReturnType<typeof openDatabase>): DashboardSettings {
   const rows = db
-    .prepare('SELECT key, value FROM settings WHERE key IN (?, ?)')
-    .all('max_daily_loss', 'account_size') as { key: string; value: string }[]
+    .prepare('SELECT key, value FROM settings WHERE key IN (?, ?, ?)')
+    .all('max_daily_loss', 'account_size', 'daily_profit_target') as { key: string; value: string }[]
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
   return {
     max_daily_loss: Number.parseFloat(map.max_daily_loss ?? '500') || 0,
+    daily_profit_target: Number.parseFloat(map.daily_profit_target ?? '0') || 0,
     account_size: Number.parseFloat(map.account_size ?? '25000') || 0,
   }
 }

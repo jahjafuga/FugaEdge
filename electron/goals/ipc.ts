@@ -10,9 +10,10 @@ import type {
   CreateGoalResult,
   GoalKind,
   GoalsListResult,
+  GoalWithProgress,
 } from '@shared/identity-types'
 import { validateCreateGoal } from '@/core/goals/config'
-import { evaluateAndListGoals } from './engine'
+import { evaluateAndListGoals, listActiveEquityProgress } from './engine'
 import { createGoal, updateGoalStatus } from './repo'
 
 export function registerGoalsIpc(): void {
@@ -45,5 +46,12 @@ export function registerGoalsIpc(): void {
     IPC.GOALS_ABANDON,
     (_e, input: { id: string }): { updated: boolean } =>
       updateGoalStatus(input.id, 'abandoned'),
+  )
+
+  // Read-only: active equity goals + progress, NO evaluate/award (unlike
+  // GOALS_LIST). Safe for the dashboard's main-challenge widget to read.
+  ipcMain.handle(
+    IPC.GOALS_PROGRESS_READ,
+    (): GoalWithProgress[] => listActiveEquityProgress(),
   )
 }
