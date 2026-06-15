@@ -24,7 +24,6 @@ const REQUIRED_AUTHORS = [
   'Larry Williams',
   'Van Tharp',
   'Brett Steenbarger',
-  'Ross Cameron',
 ]
 
 const VALID_CATEGORIES: QuoteCategory[] = [

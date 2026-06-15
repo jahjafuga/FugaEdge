@@ -57,7 +57,7 @@ export const QUOTES: TradingQuote[] = [
   { id: 18, text: 'The way to build long-term returns is through preservation of capital and home runs.', author: 'Stanley Druckenmiller', category: 'edge' },
   { id: 19, text: 'It takes courage to be a pig — to size up when you know you are right.', author: 'Stanley Druckenmiller', category: 'edge' },
   { id: 20, text: 'Never invest in the present. Invest in where the puck is going, not where it has been.', author: 'Stanley Druckenmiller', category: 'process' },
-  { id: 21, text: 'What matters is not whether you are right or wrong, but how much you make when right and how much you lose when wrong.', author: 'Stanley Druckenmiller', category: 'edge' },
+  { id: 21, text: 'What matters is not whether you are right or wrong, but how much you make when right and how much you lose when wrong.', author: 'George Soros', category: 'edge' },
 
   // ── Ray Dalio ─ process / psychology ────────────────────────────────
   { id: 22, text: 'He who lives by the crystal ball will eat shattered glass.', author: 'Ray Dalio', category: 'psychology' },
@@ -108,7 +108,7 @@ export const QUOTES: TradingQuote[] = [
 
   // ── Larry Williams ─ risk / edge ────────────────────────────────────
   { id: 53, text: 'Of all my technical tools, I rate proper money management as the most important.', author: 'Larry Williams', category: 'risk' },
-  { id: 54, text: 'If you can\'t take a small loss, you will eventually take the mother of all losses.', author: 'Larry Williams', category: 'losses' },
+  { id: 54, text: 'Discipline is doing the boring thing on the hundredth trade exactly as you did on the first.', author: 'Trading wisdom', category: 'discipline' },
   { id: 55, text: 'Forget about what the market will do — focus on what you will do in response.', author: 'Larry Williams', category: 'process' },
 
   // ── Van Tharp ─ psychology / risk ───────────────────────────────────
@@ -123,11 +123,20 @@ export const QUOTES: TradingQuote[] = [
   { id: 62, text: 'In trading, as in life, patience is a virtue. Impatience is fatal.', author: 'Brett Steenbarger', category: 'patience' },
   { id: 63, text: 'Self-mastery precedes market mastery.', author: 'Brett Steenbarger', category: 'psychology' },
 
-  // ── Ross Cameron ─ discipline / edge ────────────────────────────────
-  { id: 64, text: 'No setup, no trade. That\'s the whole game.', author: 'Ross Cameron', category: 'discipline' },
-  { id: 65, text: 'I\'d rather be a king of singles than a king of strikeouts.', author: 'Ross Cameron', category: 'process' },
-  { id: 66, text: 'Trade the A+ setups, skip everything else. Boredom is part of the job.', author: 'Ross Cameron', category: 'patience' },
-  { id: 67, text: 'Risk is the price of admission to the gains.', author: 'Ross Cameron', category: 'risk' },
+  // ── Original / distilled ─ discipline / process / patience / risk ──
+  { id: 64, text: 'No setup, no trade. The waiting is the work.', author: 'Trading wisdom', category: 'discipline' },
+  { id: 65, text: 'Be the trader who hits singles. Strikeouts are what blow up accounts.', author: 'Trading wisdom', category: 'process' },
+  { id: 66, text: 'Take the A+ setups and skip the rest. Boredom is part of the job.', author: 'Trading wisdom', category: 'patience' },
+  { id: 67, text: 'Risk is the admission price. Size it so the ticket never costs more than the show is worth.', author: 'Trading wisdom', category: 'risk' },
+  { id: 68, text: 'Survive until you thrive. Stay in the game long enough and the skill has time to catch up to your ambition.', author: 'Trading wisdom', category: 'discipline' },
+  { id: 69, text: 'This is a marathon, not a sprint. One green month is a data point, not a verdict. Let the years tell your story.', author: 'Trading wisdom', category: 'process' },
+  { id: 70, text: 'Want keeps you patient. Desperation makes you force trades. Protect the difference between the two.', author: 'Trading wisdom', category: 'psychology' },
+  { id: 71, text: 'A big loss costs you twice: once on the day, and again in the smaller, scared trades that follow it.', author: 'Trading wisdom', category: 'losses' },
+  { id: 72, text: 'Stair-step your size. Prove the smaller version works before you fund the bigger one.', author: 'Trading wisdom', category: 'discipline' },
+  { id: 73, text: 'Skill is maybe thirty percent of this. The rest is the mind you bring to the screen each morning.', author: 'Trading wisdom', category: 'psychology' },
+  { id: 74, text: "The most dangerous account is the one telling you it's fine. Check in before the market checks you.", author: 'Trading wisdom', category: 'psychology' },
+  { id: 75, text: 'Quitting a losing trade on time is a skill, not a failure. Knowing when to fold is its own edge.', author: 'Trading wisdom', category: 'edge' },
+  { id: 76, text: "You're betting on probabilities, not certainties. A good decision can still lose, and a bad one can still win.", author: 'Trading wisdom', category: 'psychology' },
 ]
 
 // Map a day-context onto the categories whose quotes should be eligible.
