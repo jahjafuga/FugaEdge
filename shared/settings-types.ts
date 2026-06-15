@@ -1,5 +1,8 @@
 export interface SettingsValues {
   max_daily_loss: number
+  /** v0.2.5 — daily net-P&L profit target in dollars; 0 = not set / disabled.
+   *  The profit-side mirror of max_daily_loss (a per-day threshold). */
+  daily_profit_target: number
   account_size: number
   journal_rules: string[]
   mistake_list: string[]

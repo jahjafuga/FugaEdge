@@ -7,6 +7,7 @@ import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
+import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
 import { ipc } from '@/lib/ipc'
@@ -314,6 +315,11 @@ export default function Settings() {
             load + save of the 7 dna_* keys; the future remodel moves this line
             + the component file as one piece). */}
         <DnaSettingsSection />
+
+        {/* Daily profit target — self-contained (own settingsGet/Save of just
+            daily_profit_target); a sibling section, distinct from the Profile
+            Goals feature. Relocatable as one file in the future Settings remodel. */}
+        <DailyTargetSection />
 
         <Card
           title="Market data"

@@ -7,6 +7,7 @@ import type {
 
 const KEYS = {
   maxDailyLoss: 'max_daily_loss',
+  dailyProfitTarget: 'daily_profit_target',
   accountSize: 'account_size',
   journalRules: 'journal_rules',
   mistakeList: 'mistake_list',
@@ -30,6 +31,7 @@ const KEYS = {
 
 const DEFAULTS: SettingsValues = {
   max_daily_loss: 500,
+  daily_profit_target: 0,
   account_size: 25000,
   journal_rules: [],
   mistake_list: [],
@@ -101,6 +103,7 @@ export function getSettings(): SettingsPayload {
   const map = readMap()
   const values: SettingsValues = {
     max_daily_loss: parseNumber(map[KEYS.maxDailyLoss], DEFAULTS.max_daily_loss),
+    daily_profit_target: parseNumber(map[KEYS.dailyProfitTarget], DEFAULTS.daily_profit_target),
     account_size: parseNumber(map[KEYS.accountSize], DEFAULTS.account_size),
     journal_rules: parseStringArray(map[KEYS.journalRules]),
     mistake_list: parseStringArray(map[KEYS.mistakeList]),
@@ -151,6 +154,12 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
       const v = Number(input.max_daily_loss)
       if (Number.isFinite(v) && v >= 0) {
         upsert.run(KEYS.maxDailyLoss, String(v))
+      }
+    }
+    if (input.daily_profit_target != null) {
+      const v = Number(input.daily_profit_target)
+      if (Number.isFinite(v) && v >= 0) {
+        upsert.run(KEYS.dailyProfitTarget, String(v))
       }
     }
     if (input.account_size != null) {
