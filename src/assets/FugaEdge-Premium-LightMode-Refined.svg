@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+
+    <defs>
+
+        <!-- Main Background -->
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#FFFFFF"></stop>
+            <stop offset="55%" stop-color="#F8FAFC"></stop>
+            <stop offset="100%" stop-color="#EEF3F8"></stop>
+        </linearGradient>
+
+        <!-- Luxury Gold Glow -->
+        <radialGradient id="goldGlowLeft" cx="10%" cy="35%" r="55%">
+            <stop offset="0%" stop-color="#F4C542" stop-opacity="0.25"></stop>
+            <stop offset="35%" stop-color="#D4AF37" stop-opacity="0.12"></stop>
+            <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"></stop>
+        </radialGradient>
+
+        <!-- Bottom Right Glow -->
+        <radialGradient id="goldGlowRight" cx="100%" cy="100%" r="35%">
+            <stop offset="0%" stop-color="#D4AF37" stop-opacity="0.14"></stop>
+            <stop offset="100%" stop-color="#D4AF37" stop-opacity="0"></stop>
+        </radialGradient>
+
+        <!-- Main Luxury Line -->
+        <linearGradient id="goldLine" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#FFE7A0"></stop>
+            <stop offset="50%" stop-color="#D4AF37"></stop>
+            <stop offset="100%" stop-color="#B8860B"></stop>
+        </linearGradient>
+
+        <!-- Secondary Line -->
+        <linearGradient id="goldLineSoft" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#F8E4A4"></stop>
+            <stop offset="100%" stop-color="#D4AF37"></stop>
+        </linearGradient>
+
+    </defs>
+
+    <!-- Background -->
+    <rect width="3840" height="2160" fill="url(#bg)"></rect>
+
+    <!-- Ambient Glow -->
+    <circle cx="500" cy="850" r="1000" fill="url(#goldGlowLeft)"></circle>
+
+    <circle cx="3500" cy="1950" r="750" fill="url(#goldGlowRight)"></circle>
+
+    <!-- Main Luxury Sweep -->
+    <path d="
+        M -200 1600
+        C 500 500,
+          1450 900,
+          2800 180
+        C 3250 0,
+          3550 -50,
+          4100 -100" fill="none" stroke="url(#goldLine)" stroke-width="5" opacity="0.55" stroke-linecap="round"></path>
+
+    <!-- Secondary Sweep -->
+    <path d="
+        M 2850 2200
+        C 3350 1850,
+          3700 1350,
+          3920 650" fill="none" stroke="url(#goldLineSoft)" stroke-width="2" opacity="0.45" stroke-linecap="round"></path>
+
+    <!-- Third Ultra Soft Sweep -->
+    <path d="
+        M 3050 2200
+        C 3520 1900,
+          3820 1450,
+          3980 950" fill="none" stroke="#D4AF37" stroke-width="1" opacity="0.18" stroke-linecap="round"></path>
+
+</svg>

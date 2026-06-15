@@ -136,8 +136,8 @@
     /* ── Premium card system (MASTER §11.1) — Edge flagship Beat 1 ───────────
        These FOUR theme-aware vars drive .card-premium. DARK = premium: a felt
        0.92 surface (so the §11.2 aurora reads through), a white hairline, 20px
-       radius, the §11.1 lift. The :root.light block points them back at the
-       shipped flat tokens — premium light is Beat 1.5, nothing invented here. */
+       radius, the §11.1 lift. Light mode: premium light treatment (v0.2.5) —
+       translucent felt surface + deeper lift below. */
     --card-surface: rgb(10 15 28 / 0.92);             /* #0A0F1C, felt */
     --card-border: rgb(255 255 255 / 0.06);           /* white hairline */
     --card-radius: 20px;                              /* §11.1 (scale topped at 16) */
@@ -160,7 +160,7 @@
   :root.light {
     /* App background — soft grey, NOT white. Pulls cards forward via
        contrast against the page surface. */
-    --bg-0: 240 242 245;         /* #f0f2f5 */
+    --bg-0: 228 231 238;         /* #e4e7ee */
     --bg-1: 255 255 255;         /* #ffffff  sidebar, topbar */
     --bg-2: 255 255 255;         /* #ffffff  cards on light bg */
     --bg-3: 240 241 244;         /* #f0f1f4  elevated panels */
@@ -212,15 +212,16 @@
        to 'none'). */
     --shadow-sidebar: 2px 0 8px rgba(0,0,0,0.05);
 
-    /* Premium card system — LIGHT keeps the shipped flat look (premium light =
-       Beat 1.5, deferred — NOT invented here). .card-premium reads these vars,
-       so light cards stay exactly as today; .app-premium-bg + .card-glow-* are
-       neutralized in the components layer below. Glow tones + violet/teal
+    /* Premium card system — LIGHT uses the premium treatment (v0.2.5):
+       translucent felt surface, deeper lift, per-tone tinted borders. .card-premium reads these vars,
+       so light cards get the premium treatment too; .app-premium-bg shows the
+       light premium SVG and .card-glow-* use tinted borders in the components
+       layer below. Glow tones + violet/teal
        accents are shared (defined in :root above). */
-    --card-surface: rgb(var(--bg-2));
+    --card-surface: rgb(252 253 255 / 0.92);
     --card-border: rgb(var(--border-subtle));
     --card-radius: 12px;
-    --card-elevation: var(--shadow-sm);
+    --card-elevation: 0 1px 3px rgba(15, 23, 42, 0.08), 0 6px 16px rgba(15, 23, 42, 0.08);
 
     color-scheme: light;
   }
@@ -483,11 +484,11 @@
   .card-glow-red    { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-red)    / 0.10), transparent 60%); border-color: rgb(var(--glow-red)    / 0.25); }
   .card-glow-gold   { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-gold)   / 0.10), transparent 60%); border-color: rgb(var(--glow-gold)   / 0.25); }
   .card-glow-purple { background-image: radial-gradient(120% 120% at 0% 0%, rgb(var(--glow-purple) / 0.10), transparent 60%); border-color: rgb(var(--glow-purple) / 0.25); }
-  /* Light this beat: no felt glow (premium light deferred) — stay flat. */
-  :root.light .card-glow-green,
-  :root.light .card-glow-red,
-  :root.light .card-glow-gold,
-  :root.light .card-glow-purple { background-image: none; border-color: rgb(var(--border-subtle)); }
+  /* Light: per-tone tinted borders, no glow bloom (bloom stays off white surfaces). */
+  :root.light .card-glow-green  { background-image: none; border-color: rgb(var(--glow-green)  / 0.45); }
+  :root.light .card-glow-red    { background-image: none; border-color: rgb(var(--glow-red)    / 0.45); }
+  :root.light .card-glow-gold   { background-image: none; border-color: rgb(var(--glow-gold)   / 0.45); }
+  :root.light .card-glow-purple { background-image: none; border-color: rgb(var(--glow-purple) / 0.45); }
 
   /* App-wide premium background (§11.2) — the gold-aurora SVG, mounted behind
      <main> (AppLayout adds the <div>). DARK MODE only; light hides it and keeps
@@ -519,5 +520,10 @@
       rgb(4 8 20 / 0.66) 45%,
       rgb(4 8 20 / 0.55) 100%);
   }
-  :root.light .app-premium-bg { display: none; }
+  :root.light .app-premium-bg {
+    background-image: url('./assets/FugaEdge-Premium-LightMode-Refined.svg');
+  }
+  :root.light .app-premium-bg::after {
+    display: none;
+  }
 }
