@@ -233,6 +233,10 @@ interface MassiveAggsResp {
 export interface DailyAggregate {
   date: string  // YYYY-MM-DD
   volume: number
+  /** Bar close. Kept (v0.2.5 Trader DNA) so the daily % change derivation has
+   *  prevClose without a second request. null on the rare bar with no close —
+   *  volume callers ignore this field, so the volume path is unchanged. */
+  close: number | null
 }
 
 function pad(n: number): string {
@@ -257,7 +261,11 @@ export async function fetchDailyAggregates(
   const out: DailyAggregate[] = []
   for (const bar of data.results ?? []) {
     if (typeof bar.t !== 'number' || typeof bar.v !== 'number') continue
-    out.push({ date: dateFromMs(bar.t), volume: bar.v })
+    out.push({
+      date: dateFromMs(bar.t),
+      volume: bar.v,
+      close: typeof bar.c === 'number' ? bar.c : null,
+    })
   }
   return out
 }

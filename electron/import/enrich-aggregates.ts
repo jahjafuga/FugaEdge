@@ -13,7 +13,9 @@ import { fetchAggregatesForSymbol } from '../market/fetch'
 import { withRateLimitRetry } from '../market/rate-limit'
 import {
   getMarketRow,
+  setTradeDailyChange,
   tradeDateRangePerSymbol,
+  tradesNeedingDailyChangeForSymbol,
   upsertMarketRow,
   type TradeDateRange,
 } from '../market/repo'
@@ -21,6 +23,7 @@ import {
   enrichAggregatesForSymbols,
   type EnrichAggregatesResult,
 } from '@/core/aggregates/orchestrator'
+import { dailyChangeForTrade } from '@/core/market/dailyChange'
 
 const REQUEST_SPACING_MS = 350
 
@@ -78,6 +81,15 @@ export async function enrichAggregatesForImportedSymbols(
         fetched_at: new Date().toISOString(),
         error: null,
       })
+
+      // v0.2.5 Trader DNA — fill daily_change_pct for THIS symbol's new trades
+      // from the closes in the SAME fetch (FREE, no extra request). NULL-only,
+      // so only freshly-imported trades are touched; existing values stand. A
+      // trade with no prior close in range gets NULL (honest "uncomputable").
+      const bars = Object.entries(result.daily_closes).map(([date, close]) => ({ date, close }))
+      for (const t of tradesNeedingDailyChangeForSymbol(symbol)) {
+        setTradeDailyChange(t.id, dailyChangeForTrade(t, bars))
+      }
     },
     emitProgress: onProgress,
     spacingMs: REQUEST_SPACING_MS,

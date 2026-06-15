@@ -58,6 +58,8 @@ import type {
 import type { MassiveKeyStatus } from '@shared/massive-types'
 import type { FmpKeyStatus } from '@shared/fmp-types'
 import type {
+  DailyChangeBackfillProgress,
+  DailyChangeBackfillResult,
   FloatBackfillProgress,
   FloatBackfillResult,
   IntradayBarsPayload,
@@ -163,6 +165,17 @@ const api = {
     ipcRenderer.on(IPC.FLOAT_BACKFILL_PROGRESS, listener)
     return () => {
       ipcRenderer.removeListener(IPC.FLOAT_BACKFILL_PROGRESS, listener)
+    }
+  },
+  dailyChangeBackfill: (): Promise<DailyChangeBackfillResult> =>
+    ipcRenderer.invoke(IPC.DAILY_CHANGE_BACKFILL),
+  dailyChangeOnBackfillProgress: (
+    cb: (p: DailyChangeBackfillProgress) => void,
+  ): (() => void) => {
+    const listener = (_e: unknown, p: DailyChangeBackfillProgress) => cb(p)
+    ipcRenderer.on(IPC.DAILY_CHANGE_BACKFILL_PROGRESS, listener)
+    return () => {
+      ipcRenderer.removeListener(IPC.DAILY_CHANGE_BACKFILL_PROGRESS, listener)
     }
   },
   profileBackfill: (force?: boolean): Promise<ProfileBackfillResult> =>

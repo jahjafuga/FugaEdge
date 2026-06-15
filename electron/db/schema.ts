@@ -5,6 +5,13 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 31 for v0.2.5 EdgeIQ Trader DNA — arms the daily_change_pct
+// backfill EXACTLY ONCE. No schema/data change at 31: migrateAfterSchema sets
+// the `daily_change_backfill_pending` settings flag on the upgrade (priorVersion
+// < 31, skipping fresh installs), and runPendingDailyChangeBackfill consumes +
+// clears it at ready-to-show (the migrate-reset-mae-mfe + runPendingMaeMfeBackfill
+// pattern). The column itself landed at 30.
+//
 // Bumped to 30 for v0.2.5 EdgeIQ Trader DNA — additive trades.daily_change_pct
 // column (the at-entry daily % change for the stock-selection pillar). Pure
 // additive ALTER in migrateAfterSchema (no data transform); the column is NULL
@@ -86,7 +93,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '30'
+export const SCHEMA_VERSION = '31'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

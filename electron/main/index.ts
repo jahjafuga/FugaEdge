@@ -19,6 +19,7 @@ import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
 import { runPendingMaeMfeBackfill } from '../market/intraday'
+import { runPendingDailyChangeBackfill } from '../market/daily-change-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
 import { runWarmupBackfill } from '../market/warmup-backfill'
 import { registerChartsIpc } from '../charts/ipc'
@@ -201,6 +202,9 @@ app.whenReady().then(() => {
   // recompute, unrelated to the warmup→technicals→xp chain.)
   win.once('ready-to-show', () => {
     setImmediate(runPendingMaeMfeBackfill)
+    // v0.2.5 Trader DNA — fire-once daily % change backfill (schema-31 arm).
+    // Gentle/background/cancelable network sweep; no-op when the flag is unset.
+    setImmediate(runPendingDailyChangeBackfill)
     setImmediate(async () => {
       try {
         const warmupResult = await runWarmupBackfill({

@@ -75,6 +75,10 @@ export const ipc = {
   floatOnBackfillProgress: (
     cb: (p: import('@shared/market-types').FloatBackfillProgress) => void,
   ) => window.api.floatOnBackfillProgress(cb),
+  dailyChangeBackfill: () => window.api.dailyChangeBackfill(),
+  dailyChangeOnBackfillProgress: (
+    cb: (p: import('@shared/market-types').DailyChangeBackfillProgress) => void,
+  ) => window.api.dailyChangeOnBackfillProgress(cb),
   profileBackfill: (force?: boolean) => window.api.profileBackfill(force),
   profileOnBackfillProgress: (
     cb: (p: import('@shared/market-types').ProfileBackfillProgress) => void,

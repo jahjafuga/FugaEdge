@@ -4,6 +4,7 @@ import BackfillKeyModal from '@/components/settings/BackfillKeyModal'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
 import type {
+  DailyChangeBackfillProgress,
   FloatBackfillProgress,
   ProfileBackfillProgress,
   WarmupBackfillProgress,
@@ -53,6 +54,13 @@ export default function DataBackfillCard({
   } | null>(null)
   const [profileErr, setProfileErr] = useState<string | null>(null)
 
+  // ── Daily % change backfill — Massive daily bars; the manual retry for the
+  // fire-once auto-arm. Independent trigger/progress/result like the others.
+  const [dcRunning, setDcRunning] = useState(false)
+  const [dcProgress, setDcProgress] = useState<DailyChangeBackfillProgress | null>(null)
+  const [dcResult, setDcResult] = useState<{ filled: number; uncomputable: number; failed: number } | null>(null)
+  const [dcErr, setDcErr] = useState<string | null>(null)
+
   // ── Indicators (warmup) — passive: warmup is auto-armed at launch + chained on
   // refresh, so there's no button here, only a live "Computing N trades…" status.
   const [warmupProgress, setWarmupProgress] = useState<WarmupBackfillProgress | null>(null)
@@ -74,6 +82,11 @@ export default function DataBackfillCard({
 
   useEffect(() => {
     const off = ipc.warmupOnBackfillProgress((p) => setWarmupProgress(p))
+    return off
+  }, [])
+
+  useEffect(() => {
+    const off = ipc.dailyChangeOnBackfillProgress((p) => setDcProgress(p))
     return off
   }, [])
 
@@ -157,6 +170,33 @@ export default function DataBackfillCard({
     }
   }
 
+  const runDailyChange = async () => {
+    if (dcRunning) return
+    setDcRunning(true)
+    setDcResult(null)
+    setDcErr(null)
+    setDcProgress(null)
+    try {
+      const r = await ipc.dailyChangeBackfill()
+      if (r.apiKeyMissing) {
+        setDcErr(
+          'No Massive/Polygon key set — add it under Market data above, then retry.',
+        )
+      } else {
+        setDcResult({
+          filled: r.tradesFilled,
+          uncomputable: r.tradesUncomputable,
+          failed: r.failedSymbols.length,
+        })
+      }
+    } catch (e) {
+      setDcErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDcRunning(false)
+      setDcProgress(null)
+    }
+  }
+
   const pct = progress && progress.total > 0 ? Math.floor((progress.current / progress.total) * 100) : 0
   const floatPct =
     floatProgress && floatProgress.total > 0
@@ -165,6 +205,10 @@ export default function DataBackfillCard({
   const profilePct =
     profileProgress && profileProgress.total > 0
       ? Math.floor((profileProgress.current / profileProgress.total) * 100)
+      : 0
+  const dcPct =
+    dcProgress && dcProgress.total > 0
+      ? Math.floor((dcProgress.current / dcProgress.total) * 100)
       : 0
 
   return (
@@ -317,6 +361,44 @@ export default function DataBackfillCard({
               </div>
             )}
             {profileErr && <div className="text-xs text-loss">{profileErr}</div>}
+          </div>
+        </div>
+
+        {/* ── Daily % change backfill — Massive daily bars (EdgeIQ Trader DNA) ── */}
+        <div className="border-t border-border-strong pt-3">
+          <div className="mb-2 text-xs font-medium text-fg-secondary">Daily % change (Massive)</div>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={runDailyChange}
+              disabled={dcRunning}
+              className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {dcRunning ? 'Backfilling…' : 'Backfill daily % change'}
+            </button>
+            <p className="text-xs text-fg-tertiary">
+              Computes each trade&apos;s at-entry daily % change (vs the prior session&apos;s close)
+              for the EdgeIQ Trader DNA selection pillar. One daily-bar fetch per symbol; fills only
+              trades still missing it. Auto-runs once after upgrade — use this to finish a partial run.
+            </p>
+            {dcProgress && (
+              <div>
+                <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+                  <div className="h-full bg-gold transition-all" style={{ width: `${dcPct}%` }} />
+                </div>
+                <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+                  Fetching {dcProgress.current} of {dcProgress.total}… ({dcProgress.symbol})
+                </div>
+              </div>
+            )}
+            {dcResult && (
+              <div className="font-mono text-xs">
+                <span className="text-win">{dcResult.filled}</span> filled &middot;{' '}
+                <span className="text-fg-tertiary">{dcResult.uncomputable}</span> uncomputable &middot;{' '}
+                <span className="text-loss">{dcResult.failed}</span> symbol{dcResult.failed === 1 ? '' : 's'} failed
+              </div>
+            )}
+            {dcErr && <div className="text-xs text-loss">{dcErr}</div>}
           </div>
         </div>
 

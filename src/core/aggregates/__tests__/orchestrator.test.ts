@@ -12,8 +12,9 @@ describe('enrichAggregatesForSymbols', () => {
       AAA: {
         daily_volumes: { '2026-05-12': 4_200_000, '2026-05-13': 5_800_000 },
         avg_volume: 5_000_000,
+        daily_closes: {},
       },
-      BBB: { daily_volumes: {}, avg_volume: null },
+      BBB: { daily_volumes: {}, avg_volume: null, daily_closes: {} },
     }
     const writes: { symbol: string; result: AggregatesFetchResult }[] = []
 
@@ -56,7 +57,7 @@ describe('enrichAggregatesForSymbols', () => {
   })
 
   it('is a fast no-op on an empty symbol list', async () => {
-    const fetchAggregates = vi.fn(async () => ({ daily_volumes: {}, avg_volume: null }))
+    const fetchAggregates = vi.fn(async () => ({ daily_volumes: {}, avg_volume: null, daily_closes: {} }))
     const persistAggregates = vi.fn()
     const emitProgress = vi.fn()
 
@@ -80,6 +81,7 @@ describe('enrichAggregatesForSymbols', () => {
       fetchAggregates: async () => ({
         daily_volumes: { '2026-05-12': 1 },
         avg_volume: 1,
+        daily_closes: {},
       }),
       persistAggregates: () => {},
       emitProgress: (p) => events.push(p),

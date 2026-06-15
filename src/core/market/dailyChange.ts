@@ -15,6 +15,15 @@ export interface DailyBar {
   close: number
 }
 
+/** The minimal per-trade shape the derivation needs: entry price is by side
+ *  (long enters on the buy, short enters on the sell). */
+export interface DailyChangeTrade {
+  side: 'long' | 'short'
+  avg_buy_price: number
+  avg_sell_price: number
+  date: string
+}
+
 /** The close of the trading day immediately BEFORE `date` — the last bar whose
  *  date is strictly less than `date`. Null when no prior bar exists (the trade
  *  day is the earliest bar, or predates the range). Trading-day aware by
@@ -41,4 +50,13 @@ export function dailyChangePct(entryPrice: number, prevClose: number): number | 
     return null
   }
   return ((entryPrice - prevClose) / prevClose) * 100
+}
+
+/** End-to-end per-trade derivation, shared by the backfill + the import-time
+ *  fill: by-side entry price → prior close → at-entry %. Null when there's no
+ *  prior bar (or the math is uncomputable) — stored honestly as "unknown". */
+export function dailyChangeForTrade(t: DailyChangeTrade, sortedBars: DailyBar[]): number | null {
+  const entry = t.side === 'long' ? t.avg_buy_price : t.avg_sell_price
+  const prevClose = prevCloseFor(t.date, sortedBars)
+  return prevClose === null ? null : dailyChangePct(entry, prevClose)
 }

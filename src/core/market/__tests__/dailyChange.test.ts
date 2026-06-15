@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { prevCloseFor, dailyChangePct, type DailyBar } from '../dailyChange'
+import {
+  prevCloseFor,
+  dailyChangePct,
+  dailyChangeForTrade,
+  type DailyBar,
+  type DailyChangeTrade,
+} from '../dailyChange'
 
 // A symbol's daily bars, sorted ascending by date. June 5 2026 = Fri, June 8 =
 // Mon (the weekend gap), so the prior TRADING day before Mon is Fri.
@@ -54,5 +60,27 @@ describe('dailyChangePct', () => {
   it('guard: a non-finite input → null', () => {
     expect(dailyChangePct(Number.NaN, 10)).toBeNull()
     expect(dailyChangePct(11.2, Number.NaN)).toBeNull()
+  })
+})
+
+describe('dailyChangeForTrade', () => {
+  // date 06-05 → prevClose is the 06-04 bar (10.00), so long 11.20 → +12.0 and
+  // short 9.00 → −10.0.
+  const base: Omit<DailyChangeTrade, 'side'> = {
+    avg_buy_price: 11.2,
+    avg_sell_price: 9.0,
+    date: '2026-06-05',
+  }
+
+  it('long uses the buy price vs the prior close (11.20 vs 10.00 → +12.0)', () => {
+    expect(dailyChangeForTrade({ ...base, side: 'long' }, BARS)).toBeCloseTo(12.0, 6)
+  })
+
+  it('short uses the sell price vs the prior close (9.00 vs 10.00 → −10.0)', () => {
+    expect(dailyChangeForTrade({ ...base, side: 'short' }, BARS)).toBeCloseTo(-10.0, 6)
+  })
+
+  it('null when there is no prior bar (earliest date)', () => {
+    expect(dailyChangeForTrade({ ...base, side: 'long', date: '2026-06-03' }, BARS)).toBeNull()
   })
 })

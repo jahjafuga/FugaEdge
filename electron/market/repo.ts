@@ -432,6 +432,50 @@ export function setTradeMaeMfe(
   db.prepare('UPDATE trades SET mae = ?, mfe = ? WHERE id = ?').run(mae, mfe, tradeId)
 }
 
+// v0.2.5 Trader DNA — daily % change fill helpers, mirroring the float
+// backfill's NULL-only work-list (import/repo.ts symbolsNeedingFloatFetch) and
+// the mae/mfe UPDATE-by-id setter above. NULL-only everywhere → idempotent.
+
+export function setTradeDailyChange(tradeId: number, pct: number | null): void {
+  const db = openDatabase()
+  db.prepare('UPDATE trades SET daily_change_pct = ? WHERE id = ?').run(pct, tradeId)
+}
+
+/** Distinct symbols with ≥1 live trade still missing daily_change_pct — the
+ *  backfill work-list. A symbol drops out once all its live trades are filled. */
+export function symbolsNeedingDailyChange(): string[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT symbol FROM trades
+       WHERE daily_change_pct IS NULL AND deleted_at IS NULL
+       ORDER BY symbol ASC`,
+    )
+    .all() as { symbol: string }[]
+  return rows.map((r) => r.symbol)
+}
+
+/** The by-side shape the pure dailyChangeForTrade needs, plus the id to UPDATE. */
+export interface DailyChangeTradeRow {
+  id: number
+  side: 'long' | 'short'
+  avg_buy_price: number
+  avg_sell_price: number
+  date: string
+}
+
+/** Live trades of `symbol` still missing daily_change_pct — the per-symbol fill
+ *  list for both the backfill and the import-time enrichment. */
+export function tradesNeedingDailyChangeForSymbol(symbol: string): DailyChangeTradeRow[] {
+  const db = openDatabase()
+  return db
+    .prepare(
+      `SELECT id, side, avg_buy_price, avg_sell_price, date FROM trades
+       WHERE symbol = ? AND daily_change_pct IS NULL AND deleted_at IS NULL`,
+    )
+    .all(symbol) as DailyChangeTradeRow[]
+}
+
 export interface TradeDateRange {
   from: string  // YYYY-MM-DD
   to: string    // YYYY-MM-DD

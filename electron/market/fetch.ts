@@ -63,12 +63,20 @@ export async function fetchAggregatesForSymbol(
   symbol: string,
   from: string,
   to: string,
-): Promise<{ daily_volumes: Record<string, number>; avg_volume: number | null }> {
+): Promise<{
+  daily_volumes: Record<string, number>
+  avg_volume: number | null
+  daily_closes: Record<string, number>
+}> {
   const aggs = await fetchDailyAggregates(apiKey, symbol, from, to)
   const daily_volumes: Record<string, number> = {}
-  for (const a of aggs) daily_volumes[a.date] = a.volume
+  const daily_closes: Record<string, number> = {}
+  for (const a of aggs) {
+    daily_volumes[a.date] = a.volume
+    if (a.close !== null) daily_closes[a.date] = a.close
+  }
   const avg = aggs.length > 0 ? avgVolume(aggs.map((a) => a.volume)) : null
-  return { daily_volumes, avg_volume: avg }
+  return { daily_volumes, avg_volume: avg, daily_closes }
 }
 
 // Public entrypoint. Locks behind a singleton promise so concurrent callers

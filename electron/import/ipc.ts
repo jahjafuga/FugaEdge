@@ -28,6 +28,7 @@ import { reconcileXpForDates } from '../xp/reconcile'
 import { resolveCountriesForImportedSymbols } from './resolve-countries'
 import { enrichFloatForImportedSymbols } from './enrich-float'
 import { backfillAllFloat } from './backfill-float'
+import { backfillAllDailyChange } from '../market/daily-change-backfill'
 import { backfillAllProfiles } from './backfill-profile'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { backupBeforeImport } from '@/core/import/backup'
@@ -58,6 +59,20 @@ export function registerImportIpc(): void {
         : undefined,
     })
     if (result.filled > 0) bumpDataVersion()
+    return result
+  })
+
+  // v0.2.5 Trader DNA — standalone daily % change backfill over existing trades.
+  // Thin shell (ARCHITECTURE rule 1): wires per-symbol progress and delegates to
+  // backfillAllDailyChange. The manual retry for the fire-once auto-arm.
+  ipcMain.handle(IPC.DAILY_CHANGE_BACKFILL, async (e) => {
+    const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
+    const result = await backfillAllDailyChange({
+      emitProgress: wc
+        ? (p) => wc.send(IPC.DAILY_CHANGE_BACKFILL_PROGRESS, p)
+        : undefined,
+    })
+    if (result.tradesFilled > 0) bumpDataVersion()
     return result
   })
 

@@ -40,6 +40,10 @@ export interface EnrichAggregatesProgress {
 export interface AggregatesFetchResult {
   daily_volumes: Record<string, number>
   avg_volume: number | null
+  /** v0.2.5 Trader DNA — date → close from the SAME daily-bar fetch, so the
+   *  import-time fill can derive each new trade's at-entry daily % change with
+   *  no extra request. Dates with no close are omitted. */
+  daily_closes: Record<string, number>
 }
 
 export interface EnrichAggregatesDeps {

@@ -61,6 +61,11 @@ export const IPC = {
   // trigger/progress/result (never coupled into one combined action).
   FLOAT_BACKFILL: 'float:backfillAll',
   FLOAT_BACKFILL_PROGRESS: 'float:backfillProgress',
+  // v0.2.5 Trader DNA — standalone daily % change backfill over existing trades
+  // (Massive daily bars). Auto-arms once on the schema-31 upgrade; this channel
+  // backs the Settings manual retry button. Mirrors FLOAT_BACKFILL.
+  DAILY_CHANGE_BACKFILL: 'dailyChange:backfillAll',
+  DAILY_CHANGE_BACKFILL_PROGRESS: 'dailyChange:backfillProgress',
   // v0.2.3 Stage A — standalone sector/industry backfill (FMP /stable/profile).
   // Separate channel from FLOAT/COUNTRY: own API call, independent
   // trigger/progress/result.

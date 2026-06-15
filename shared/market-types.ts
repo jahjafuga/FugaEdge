@@ -64,6 +64,32 @@ export interface FloatBackfillResult {
   durationMs: number
 }
 
+// v0.2.5 Trader DNA — daily % change backfill over existing trades. Auto-arms
+// once on the schema-31 upgrade (background, gentle) and is re-runnable from the
+// Settings "Backfill daily % change" button (the partial-failure / key-missing
+// retry). Per-symbol Massive daily-bar fetch; mirrors the Float shapes.
+export interface DailyChangeBackfillProgress {
+  current: number
+  total: number
+  symbol: string
+}
+
+export interface DailyChangeBackfillResult {
+  /** Distinct symbols whose daily bars were fetched. */
+  symbolsAttempted: number
+  /** Trades that received a non-null daily % change this run. */
+  tradesFilled: number
+  /** Trades set to NULL — no prior close in range (uncomputable, honest). */
+  tradesUncomputable: number
+  /** Symbols whose fetch failed after retries; their trades stay NULL. */
+  failedSymbols: string[]
+  /** True when no Massive/Polygon key is configured — nothing was fetched. */
+  apiKeyMissing: boolean
+  /** True when the user cancelled mid-run; resolves cleanly with partial counts. */
+  cancelled: boolean
+  durationMs: number
+}
+
 // v0.2.3 Stage A — standalone sector/industry backfill (Settings → Data
 // backfill, "Backfill sector & industry" button). Calls FMP /stable/profile
 // once per market_data symbol and writes FMP sector + industry. Independent of

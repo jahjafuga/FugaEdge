@@ -934,6 +934,20 @@ function migrateAfterSchema(
     backup: () => backupBeforeSentimentPolarityMigration(conn, dbPath),
   })
 
+  // v0.2.5 (schema 30 → 31) — arm the daily_change_pct backfill EXACTLY ONCE.
+  // No data change: just set the pending flag on the upgrade (skip fresh
+  // installs — nothing to fill). runPendingDailyChangeBackfill consumes + clears
+  // it at ready-to-show (the migrate-reset-mae-mfe pattern, but flag-only — no
+  // wipe, no backup). Literal key must match electron/market/daily-change-backfill.ts.
+  if (priorVersion > 0 && priorVersion < 31) {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES ('daily_change_backfill_pending', 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run()
+  }
+
   // v0.2.4 — additive intraday_bars.warmup_bars column (prior-day MACD warmup).
   // Idempotent PRAGMA-gated ALTER; no version gate, no backup (legacy rows keep
   // warmup_bars NULL → parseBars maps to []). Same idiom as migrateAddDeletedAt.
