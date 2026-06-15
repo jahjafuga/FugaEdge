@@ -492,7 +492,7 @@ Plugins: `@tailwindcss/forms` (strategy: `class`), small CSS layer for tabular-n
 - [ ] Tables: monospace right-aligned numerics, sticky header, row hover
 - [ ] Charts: tooltip uses tokens, grid stroke `#1e2330`, animation off after first render
 - [ ] Renders cleanly at 1280 / 1440 / 1920 / 2560 widths
-- [ ] No light-mode bleed (we are dark-only)
+- [ ] Light mode uses the premium light treatment (light-mode premium shipped v0.2.5 — see §11.6)
 
 ---
 
@@ -623,3 +623,5 @@ product from cheapening, not banning outright. **Within the coordinated sweep**
 these supersede the two bans; **for ad-hoc / piecemeal use the §10 bans still
 hold.** The `transform: scale()` ban is untouched — 11.1 hover is `translateY`,
 already compliant.
+
+**Light mode (v0.2.5).** Premium light shipped: a light-base premium-background SVG (`FugaEdge-Premium-LightMode-Refined.svg`), a translucent felt card surface (`rgb(252 253 255 / 0.92)`) so the background reads through, a deeper soft elevation, and per-tone tinted card borders (`rgb(var(--glow-{tone}) / 0.45)`) in place of glow blooms — the bloom stays off white surfaces (§10 "glow auras" still holds for light), the tone reads through the border instead. The §9 dark-only QA item is retired. Light is the coordinated counterpart to the dark §11.1 spec, not a separate per-surface treatment. All cards consume the shared `card-premium` / `card-glow-*` / token layer; light mode is inherited through those tokens, never re-applied per surface — a new card built on the shared classes gets the correct light treatment for free.
