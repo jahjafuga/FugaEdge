@@ -24,11 +24,14 @@ import { getSettings } from '../settings/repo'
 import { fetchDailyAggregates } from './massive'
 import { withRateLimitRetry } from './rate-limit'
 import {
+  getMarketRow,
   setTradeDailyChange,
   symbolsNeedingDailyChange,
   tradeDateRangePerSymbol,
   tradesNeedingDailyChangeForSymbol,
+  upsertMarketRow,
 } from './repo'
+import { backfillAllRvol } from './rvol-backfill'
 import { dailyChangeForTrade } from '@/core/market/dailyChange'
 
 // Literal must match the migration's arm in electron/db/database.ts.
@@ -115,12 +118,49 @@ async function run(opts: {
         if (pct === null) tradesUncomputable++
         else tradesFilled++
       }
+
+      // Synergy (zero extra API): the SAME aggs carry per-date volume — capture
+      // it into market_data so RVOL can re-derive (it came out thin because the
+      // cache lacked volume). MERGE-safe: read the existing row and preserve
+      // float/shares/cap (those OVERWRITE on upsert — a naive null would clobber
+      // them), set ONLY the volume fields. The enrich-aggregates persistAggregates
+      // shape, verbatim.
+      const daily_volumes: Record<string, number> = {}
+      for (const a of aggs) daily_volumes[a.date] = a.volume
+      const avg_volume =
+        aggs.length > 0 ? aggs.reduce((s, a) => s + a.volume, 0) / aggs.length : null
+      const existing = getMarketRow(symbol)
+      upsertMarketRow({
+        symbol,
+        float: existing?.float ?? null,
+        shares_outstanding: existing?.shares_outstanding ?? null,
+        market_cap: existing?.market_cap ?? null,
+        sector: existing?.sector ?? null,
+        industry: existing?.industry ?? null,
+        avg_volume,
+        daily_volumes,
+        country: existing?.country ?? null,
+        country_name: existing?.country_name ?? null,
+        region: existing?.region ?? null,
+        fetched_at: new Date().toISOString(),
+        error: null,
+      })
     } catch {
       // Per-symbol failure (429 after retries, network) — leave its trades NULL
       // so the manual retry re-attempts them. The sweep keeps going.
       failedSymbols.push(symbol)
     }
     opts.emitProgress?.({ current: i + 1, total: symbols.length, symbol })
+  }
+
+  // Synergy: market_data now carries fresh volume for every fetched symbol, so
+  // re-derive RVOL from the cache in this same pass (data-producer → consumer,
+  // the warmup→technicals ordering). Best-effort: a re-derive hiccup must not
+  // fail the daily-% pass (the post-refresh chain's try/catch posture).
+  try {
+    backfillAllRvol()
+  } catch (e) {
+    console.error(`[FE daily-change] RVOL re-derive after fill failed (non-fatal): ${e}`)
   }
 
   return empty({
