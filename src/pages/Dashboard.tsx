@@ -12,6 +12,7 @@ import LatestSessionTable from '@/components/dashboard/LatestSessionTable'
 import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
+import MarketSentimentCard from '@/components/dashboard/MarketSentimentCard'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
@@ -110,6 +111,11 @@ export default function Dashboard() {
             trades exist, the no-trade-day flow when sitting out, or the
             blank-canvas prompt before the market session begins. */}
         <TodaySessionCard />
+
+        {/* TEMP placement (v0.2.5 beat 1) — the standalone Market Sentiment
+            card extracted from Today's Session. The final three-widget row is a
+            later beat; mounted here for now so it's live-lookable. */}
+        <MarketSentimentCard />
 
         {/* Goals + EdgeIQ debrief row (below Today's Session). Two columns
             at lg: the Daily Goal / Main Challenge

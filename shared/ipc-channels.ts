@@ -81,6 +81,7 @@ export const IPC = {
   SESSION_LIST_ALL: 'session:listAll',
   SESSION_GET: 'session:get',
   SESSION_TODAY_SAVE: 'session:todaySave',
+  SESSION_NO_TRADE_SAVE: 'session:noTradeSave',
   // ── Auto-updater (main → renderer notification + renderer → main control)
   UPDATER_STATUS: 'updater:status',
   UPDATER_GET_STATUS: 'updater:getStatus',

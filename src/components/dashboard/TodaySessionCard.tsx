@@ -22,7 +22,6 @@ import {
   type TradingQuote,
 } from '@/core/quotes/tradingQuotes'
 import { longDate, money, percent, signed } from '@/lib/format'
-import { SENTIMENT_LABELS } from '@shared/session-types'
 
 // TODAY'S SESSION CARD
 //
@@ -31,7 +30,7 @@ import { SENTIMENT_LABELS } from '@shared/session-types'
 //   2. EDIT MODE (user clicked the EDIT link, or pressed "Mark no-trade")
 //      → form with textarea + reason chips + Save / Unmark
 //   3. COMMITTED + not editing → compact "logged" state with status
-//      badge, summary line, sentiment badge, motivational quote, EDIT link
+//      badge, summary line, motivational quote, EDIT link
 //
 // "Committed" is a pure derivation in /src/core/session/today — trades
 // imported, no-trade-day saved with a reason, OR a journal entry exists.
@@ -71,13 +70,10 @@ export default function TodaySessionCard() {
     setReason(status.meta.no_trade_reason ?? '')
   }, [status.meta.no_trade_reason])
 
-  const sentiment = status.meta.sentiment
-
   const handleSaveNoTrade = async () => {
     setSaving(true)
     await save({
       date: status.date,
-      sentiment,
       no_trade_day: true,
       no_trade_reason: reason.trim(),
     })
@@ -92,21 +88,11 @@ export default function TodaySessionCard() {
     setSaving(true)
     await save({
       date: status.date,
-      sentiment,
       no_trade_day: false,
       no_trade_reason: '',
     })
     setEditing(false)
     setSaving(false)
-  }
-
-  const handleSetSentiment = async (next: number | null) => {
-    await save({
-      date: status.date,
-      sentiment: next,
-      no_trade_day: status.meta.no_trade_day,
-      no_trade_reason: status.meta.no_trade_reason,
-    })
   }
 
   if (error) {
@@ -139,7 +125,6 @@ export default function TodaySessionCard() {
           noTradeDaysThisMonth={noTradeDaysThisMonth}
           onEdit={() => setEditing(true)}
           onJournal={() => navigate('/journal')}
-          onSetSentiment={handleSetSentiment}
           savedFlash={savedFlash}
         />
       ) : (
@@ -155,7 +140,6 @@ export default function TodaySessionCard() {
           onCancelEdit={() => setEditing(false)}
           saving={saving}
           onJournal={() => navigate('/journal')}
-          onSetSentiment={handleSetSentiment}
         />
       )}
     </SessionCardShell>
@@ -184,7 +168,6 @@ function CompletedView({
   noTradeDaysThisMonth,
   onEdit,
   onJournal,
-  onSetSentiment,
   savedFlash,
 }: {
   status: TodaySessionStatus
@@ -192,7 +175,6 @@ function CompletedView({
   noTradeDaysThisMonth: number
   onEdit: () => void
   onJournal: () => void
-  onSetSentiment: (v: number | null) => void
   savedFlash: boolean
 }) {
   // Pick a quote each time the nonce changes (save → completed re-entry).
@@ -211,7 +193,6 @@ function CompletedView({
 
   const summary = buildSummaryLine(status)
   const badge = badgeForCommittedStatus(status)
-  const sentiment = status.meta.sentiment
 
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
@@ -247,16 +228,8 @@ function CompletedView({
         <QuoteCard quote={quote} />
       </div>
 
-      {/* Right — sentiment + journal + edit */}
+      {/* Right — journal + edit */}
       <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
-          Market sentiment
-        </span>
-        {sentiment != null ? (
-          <SentimentBadge value={sentiment} onClear={() => onSetSentiment(null)} />
-        ) : (
-          <SentimentRow value={null} onChange={onSetSentiment} />
-        )}
         <button
           type="button"
           onClick={onJournal}
@@ -374,36 +347,6 @@ function QuoteCard({ quote }: { quote: TradingQuote }) {
   )
 }
 
-// ── Sentiment badge (set state, single chip with clear-on-click) ─────────
-
-function SentimentBadge({
-  value,
-  onClear,
-}: {
-  value: number
-  onClear: () => void
-}) {
-  const safe = value as 1 | 2 | 3 | 4 | 5
-  const tone =
-    value >= 4
-      ? 'border-win/40 bg-win/[0.10] text-win'
-      : value === 3
-        ? 'border-gold/40 bg-gold/[0.10] text-gold'
-        : 'border-loss/40 bg-loss/[0.10] text-loss'
-  return (
-    <button
-      type="button"
-      onClick={onClear}
-      title={`Sentiment ${value}/5 — ${SENTIMENT_LABELS[safe]}. Click to clear.`}
-      data-tour="sentiment"
-      className={`inline-flex h-7 cursor-pointer items-center gap-2 self-start rounded-md border px-2 font-mono text-xs ${tone}`}
-    >
-      <span className="font-semibold">{value}/5</span>
-      <span className="text-[10px] opacity-80">{SENTIMENT_LABELS[safe]}</span>
-    </button>
-  )
-}
-
 // ── Editable view (existing input flows) ─────────────────────────────────
 
 function EditableView({
@@ -418,7 +361,6 @@ function EditableView({
   onCancelEdit,
   saving,
   onJournal,
-  onSetSentiment,
 }: {
   status: TodaySessionStatus
   noTradeDaysThisMonth: number
@@ -431,9 +373,7 @@ function EditableView({
   onCancelEdit: () => void
   saving: boolean
   onJournal: () => void
-  onSetSentiment: (v: number | null) => void
 }) {
-  const sentiment = status.meta.sentiment
   // The form opens automatically when status is no-trade (already marked
   // but user wants to edit) OR when `editing` is set explicitly from the
   // not-started prompt.
@@ -482,13 +422,6 @@ function EditableView({
         )}
       </div>
 
-      {/* Right — sentiment */}
-      <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
-          Market sentiment
-        </span>
-        <SentimentRow value={sentiment} onChange={onSetSentiment} />
-      </aside>
     </div>
   )
 }
@@ -625,44 +558,6 @@ function NoTradeFlow({
           Cancel
         </button>
       </div>
-    </div>
-  )
-}
-
-function SentimentRow({
-  value,
-  onChange,
-}: {
-  value: number | null
-  onChange: (v: number | null) => void
-}) {
-  // Best-first row order (5→1); display-order only — values/colors unchanged.
-  const levels: (1 | 2 | 3 | 4 | 5)[] = [5, 4, 3, 2, 1]
-  return (
-    <div className="flex items-center gap-1" data-tour="sentiment">
-      {levels.map((n) => {
-        const active = value === n
-        const tone =
-          n >= 4
-            ? 'border-win/40 text-win hover:border-win'
-            : n === 3
-              ? 'border-gold/40 text-gold hover:border-gold'
-              : 'border-loss/40 text-loss hover:border-loss'
-        const activeBg =
-          n >= 4 ? 'bg-win/[0.15]' : n === 3 ? 'bg-gold/[0.15]' : 'bg-loss/[0.12]'
-        return (
-          <button
-            key={n}
-            type="button"
-            onClick={() => onChange(active ? null : n)}
-            aria-pressed={active}
-            title={`Sentiment ${n}/5 — ${SENTIMENT_LABELS[n]}`}
-            className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border font-mono text-xs font-semibold transition-colors duration-150 ${tone} ${active ? activeBg : 'bg-transparent'}`}
-          >
-            {n}
-          </button>
-        )
-      })}
     </div>
   )
 }

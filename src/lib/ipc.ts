@@ -130,6 +130,9 @@ export const ipc = {
   sessionTodaySave: (
     input: import('@shared/session-types').SaveTodaySessionInput,
   ) => window.api.sessionTodaySave(input),
+  sessionNoTradeSave: (
+    input: import('@shared/session-types').SaveNoTradeDayInput,
+  ) => window.api.sessionNoTradeSave(input),
   // ── XP (v0.2.5 Phase A Session 3, D5/L15) — consumed by the Phase B
   // Session 6 weekly-review Complete button.
   xpWeeklyReviewComplete: (input: { weekStart: string }) =>

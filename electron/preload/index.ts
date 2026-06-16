@@ -78,6 +78,7 @@ import type {
   AttachmentRecord,
 } from '@shared/attachment-types'
 import type {
+  SaveNoTradeDayInput,
   SaveSentimentInput,
   SaveTodaySessionInput,
   SessionMeta,
@@ -275,6 +276,8 @@ const api = {
     ipcRenderer.invoke(IPC.SESSION_GET, date),
   sessionTodaySave: (input: SaveTodaySessionInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_TODAY_SAVE, input),
+  sessionNoTradeSave: (input: SaveNoTradeDayInput): Promise<SessionMeta> =>
+    ipcRenderer.invoke(IPC.SESSION_NO_TRADE_SAVE, input),
   // ── XP (v0.2.5 Phase A Session 3, D5/L15) ───────────────────────────
   xpWeeklyReviewComplete: (input: {
     weekStart: string

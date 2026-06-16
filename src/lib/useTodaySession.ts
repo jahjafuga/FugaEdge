@@ -8,7 +8,7 @@ import {
   todayDateISO,
   type TodaySessionStatus,
 } from '@/core/session/today'
-import type { SaveTodaySessionInput, SessionMeta } from '@shared/session-types'
+import type { SaveNoTradeDayInput, SessionMeta } from '@shared/session-types'
 import type { TradeListRow } from '@shared/trades-types'
 import type { JournalEntry } from '@shared/journal-types'
 
@@ -21,8 +21,10 @@ interface UseTodaySessionResult {
   error: string | null
   /** Re-fetch trades + meta (e.g. after an external mutation). */
   refresh: () => void
-  /** Save sentiment + no-trade-day + reason in one round-trip. */
-  save: (input: SaveTodaySessionInput) => Promise<void>
+  /** Save the no-trade-day flag + reason. Sentiment is owned by the
+   *  MarketSentimentCard (written via its own sessionSentimentSave), so this
+   *  no-trade write is sentiment-agnostic and never clobbers it. */
+  save: (input: SaveNoTradeDayInput) => Promise<void>
 }
 
 // Composes the IPC fetches (trades + all sessions for the month count)
@@ -81,8 +83,8 @@ export function useTodaySession(): UseTodaySessionResult {
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
 
   const save = useCallback(
-    async (input: SaveTodaySessionInput) => {
-      const saved = await ipc.sessionTodaySave(input)
+    async (input: SaveNoTradeDayInput) => {
+      const saved = await ipc.sessionNoTradeSave(input)
       setMeta(saved)
       // Refresh the all-sessions list AND the calendar union so the
       // "no-trade days this month" counter updates without waiting for a

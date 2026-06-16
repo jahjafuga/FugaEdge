@@ -1,11 +1,16 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
-import type { SaveSentimentInput, SaveTodaySessionInput } from '@shared/session-types'
+import type {
+  SaveNoTradeDayInput,
+  SaveSentimentInput,
+  SaveTodaySessionInput,
+} from '@shared/session-types'
 import { bumpDataVersion } from '../lib/cache'
 import { reconcileXpForDates } from '../xp/reconcile'
 import {
   getSessionMeta,
   listAllSessions,
+  saveNoTradeDay,
   saveSentiment,
   saveTodaySession,
 } from './repo'
@@ -32,6 +37,18 @@ export function registerSessionIpc(): void {
     const out = saveTodaySession(input)
     bumpDataVersion()
     // v0.2.5 XP hook (L11/L12 — no_trade_day + sentiment feed D9).
+    void Promise.resolve()
+      .then(() => reconcileXpForDates([input.date]))
+      .catch((e) => console.warn('[xp hook]', e))
+    return out
+  })
+  // Sentiment-agnostic no-trade-day save (v0.2.5 sentiment extraction) — the
+  // dashboard's no-trade flow writes ONLY the no-trade columns so it can never
+  // clobber the sentiment the MarketSentimentCard owns. Mirrors the sentiment
+  // handler's bump + XP reconcile.
+  ipcMain.handle(IPC.SESSION_NO_TRADE_SAVE, (_e, input: SaveNoTradeDayInput) => {
+    const out = saveNoTradeDay(input.date, input.no_trade_day, input.no_trade_reason)
+    bumpDataVersion()
     void Promise.resolve()
       .then(() => reconcileXpForDates([input.date]))
       .catch((e) => console.warn('[xp hook]', e))

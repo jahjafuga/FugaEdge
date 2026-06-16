@@ -121,9 +121,44 @@ export function saveDayMistakes(date: string, tags: string[]): void {
   `).run(date, json)
 }
 
+// Upsert the no-trade-day flag + reason ONLY — sentiment / notes /
+// day_mistakes_json are preserved (same per-column ON CONFLICT pattern as
+// saveSentiment). This is the sentiment-agnostic write the dashboard's
+// no-trade flow uses so it can never clobber the sentiment the standalone
+// MarketSentimentCard owns. When `noTradeDay` is false the reason is cleared.
+export function saveNoTradeDay(
+  date: string,
+  noTradeDay: boolean,
+  noTradeReason: string,
+): SessionMeta {
+  const db = openDatabase()
+  const flag = noTradeDay ? 1 : 0
+  const reason = noTradeDay ? (noTradeReason ?? '').trim() : ''
+  db.prepare(`
+    INSERT INTO session_meta (date, no_trade_day, no_trade_reason, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(date) DO UPDATE SET
+      no_trade_day    = excluded.no_trade_day,
+      no_trade_reason = excluded.no_trade_reason,
+      updated_at      = excluded.updated_at
+  `).run(date, flag, reason)
+  return getSessionMeta(date) ?? {
+    date,
+    sentiment: null,
+    notes: '',
+    no_trade_day: !!flag,
+    no_trade_reason: reason,
+  }
+}
+
 // Combined save for the Today's Session card. Sentiment + no-trade-day +
 // reason in one write. When `no_trade_day` is false we clear the reason
 // so a flipped-off day doesn't keep stale copy hanging around.
+//
+// NOTE (v0.2.5 sentiment extraction): the dashboard no longer uses this —
+// the MarketSentimentCard owns sentiment via saveSentiment and the Today's
+// Session no-trade flow uses saveNoTradeDay. Retained for any caller that
+// genuinely needs an atomic sentiment + no-trade write.
 export function saveTodaySession(input: SaveTodaySessionInput): SessionMeta {
   const db = openDatabase()
   const sentiment = cleanSentiment(input.sentiment)

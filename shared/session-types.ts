@@ -25,6 +25,15 @@ export interface SaveTodaySessionInput {
   no_trade_reason: string
 }
 
+/** No-trade-day-only save — sets the no-trade flag + reason WITHOUT touching
+ *  sentiment (owned by the MarketSentimentCard). Backs SESSION_NO_TRADE_SAVE so
+ *  the dashboard's no-trade flow never clobbers the day's sentiment pick. */
+export interface SaveNoTradeDayInput {
+  date: string                   // YYYY-MM-DD
+  no_trade_day: boolean
+  no_trade_reason: string
+}
+
 /**
  * Stable labels for each sentiment level. Mirrors the spec; matches
  * momentum-trading vocabulary about how many "runner" stocks the market
