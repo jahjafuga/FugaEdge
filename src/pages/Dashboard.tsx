@@ -13,6 +13,7 @@ import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import MarketSentimentCard from '@/components/dashboard/MarketSentimentCard'
+import WelcomeBanner from '@/components/dashboard/WelcomeBanner'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
@@ -101,6 +102,10 @@ export default function Dashboard() {
       }
     >
       <div className="space-y-5">
+        {/* Welcome greeting — reads the existing profile display_name; honest
+            "Welcome back" fallback when unset. First content element. */}
+        <WelcomeBanner />
+
         <MaxLossBanner
           todayPnl={todayPnl}
           maxDailyLoss={data.settings.max_daily_loss}
