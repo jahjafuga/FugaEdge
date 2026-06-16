@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
   CalendarOff,
   CheckCircle2,
   CircleDashed,
-  NotebookPen,
   Pencil,
   Save,
 } from 'lucide-react'
@@ -31,7 +29,6 @@ import { longDate, money, percent, signed } from '@/lib/format'
 
 export default function TodaySessionCard() {
   const { status, noTradeDaysThisMonth, loading, error, save } = useTodaySession()
-  const navigate = useNavigate()
 
   // User can explicitly enter edit mode from the completed state.
   // Also auto-engaged when the user clicks "Mark as no-trade day" from
@@ -98,7 +95,6 @@ export default function TodaySessionCard() {
           status={status}
           noTradeDaysThisMonth={noTradeDaysThisMonth}
           onEdit={() => setEditing(true)}
-          onJournal={() => navigate('/journal')}
           savedFlash={savedFlash}
         />
       ) : (
@@ -113,7 +109,6 @@ export default function TodaySessionCard() {
           onUnmark={status.meta.no_trade_day ? handleUnmarkNoTrade : undefined}
           onCancelEdit={() => setEditing(false)}
           saving={saving}
-          onJournal={() => navigate('/journal')}
         />
       )}
     </SessionCardShell>
@@ -140,13 +135,11 @@ function CompletedView({
   status,
   noTradeDaysThisMonth,
   onEdit,
-  onJournal,
   savedFlash,
 }: {
   status: TodaySessionStatus
   noTradeDaysThisMonth: number
   onEdit: () => void
-  onJournal: () => void
   savedFlash: boolean
 }) {
   const summary = buildSummaryLine(status)
@@ -185,20 +178,12 @@ function CompletedView({
         <div className="text-sm text-fg-secondary">{summary}</div>
       </div>
 
-      {/* Right — journal + edit */}
-      <aside className="flex shrink-0 flex-col gap-2 border-t border-border-subtle/60 pt-3 lg:w-[200px] lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <button
-          type="button"
-          onClick={onJournal}
-          className="mt-auto inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-        >
-          <NotebookPen size={12} strokeWidth={2} />
-          Open journal
-        </button>
+      {/* Right — edit affordance */}
+      <aside className="flex shrink-0 justify-end border-t border-border-subtle/60 pt-3 lg:border-t-0 lg:pt-0">
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 self-end text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+          className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
         >
           <Pencil size={11} strokeWidth={2} />
           Edit
@@ -293,7 +278,6 @@ function EditableView({
   onUnmark,
   onCancelEdit,
   saving,
-  onJournal,
 }: {
   status: TodaySessionStatus
   noTradeDaysThisMonth: number
@@ -305,7 +289,6 @@ function EditableView({
   onUnmark?: () => void
   onCancelEdit: () => void
   saving: boolean
-  onJournal: () => void
 }) {
   // The form opens automatically when status is no-trade (already marked
   // but user wants to edit) OR when `editing` is set explicitly from the
@@ -350,7 +333,6 @@ function EditableView({
         ) : (
           <NotStartedPrompt
             onMarkNoTrade={onMarkNoTrade}
-            onOpenJournal={onJournal}
           />
         )}
       </div>
@@ -388,10 +370,8 @@ function StatusBadge({ status }: { status: SessionStatus }) {
 
 function NotStartedPrompt({
   onMarkNoTrade,
-  onOpenJournal,
 }: {
   onMarkNoTrade: () => void
-  onOpenJournal: () => void
 }) {
   return (
     <div className="flex h-full flex-col justify-center gap-2">
@@ -407,14 +387,6 @@ function NotStartedPrompt({
         >
           <CalendarOff size={12} strokeWidth={2} />
           Mark as no-trade day
-        </button>
-        <button
-          type="button"
-          onClick={onOpenJournal}
-          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-        >
-          <NotebookPen size={12} strokeWidth={2} />
-          Add journal entry
         </button>
       </div>
     </div>

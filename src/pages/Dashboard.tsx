@@ -15,6 +15,7 @@ import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import MarketSentimentCard from '@/components/dashboard/MarketSentimentCard'
 import WelcomeBanner from '@/components/dashboard/WelcomeBanner'
 import QuoteOfDayCard from '@/components/dashboard/QuoteOfDayCard'
+import JournalCard from '@/components/dashboard/JournalCard'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
@@ -128,6 +129,12 @@ export default function Dashboard() {
             badge. The final three-card row (Today's Session | Quote | Journal)
             is a later layout beat. */}
         <QuoteOfDayCard todayPnl={todayPnl} />
+
+        {/* TEMP placement (v0.2.5 beat 3) — the standalone Journal card, taking
+            over the journal affordance removed from Today's Session. The final
+            three-card row (Today's Session | Quote | Journal) is a later layout
+            beat. */}
+        <JournalCard />
 
         {/* Goals + EdgeIQ debrief row (below Today's Session). Two columns
             at lg: the Daily Goal / Main Challenge
