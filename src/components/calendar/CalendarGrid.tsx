@@ -2,6 +2,7 @@ import { CalendarOff, Pencil } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
 import { int, money, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
+import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
 import WeeklyPanel from './WeeklyPanel'
 
 interface CalendarGridProps {
@@ -288,14 +289,12 @@ function DayCell({
   )
 }
 
-// Small click-to-cycle market-sentiment badge that lives in the day cell's
-// top-right cluster. Visual encoding per the spec:
-//   5 = best market (3+ runners >100%) → bright win green
-//   4 = great                            → win green (slightly muted)
-//   3 = OK                               → gold
-//   2 = weak                             → loss red (muted)
-//   1 = worst (no runners >50%)          → loss red
-// Null → dim placeholder so the affordance is discoverable.
+// Small click-to-cycle market-sentiment badge in the day cell's top-right
+// cluster — the fire/ice icon for the day's level (shared SENTIMENT_ICONS, the
+// same art as the dashboard + journal pickers), rendered ICON-ALONE at 18px.
+// No colored circle / green→red tone: the icon carries the meaning, so the
+// calendar never inherits the fire-ladder's red=hot vs the app's red=loss
+// clash. Null → a muted '–' so the click-to-set affordance stays discoverable.
 //
 // Rendered as a span (not a button) because the outer DayCell is already
 // a <button>, and nested buttons are invalid HTML. role + tabIndex give
@@ -307,19 +306,6 @@ function SentimentBadge({
   value: number | null
   onCycle: (e: React.MouseEvent) => void
 }) {
-  const tone =
-    value === 5
-      ? 'border-win/60 bg-win/20 text-win'
-      : value === 4
-        ? 'border-win/40 bg-win/12 text-win'
-        : value === 3
-          ? 'border-gold/50 bg-gold/15 text-gold'
-          : value === 2
-            ? 'border-loss/40 bg-loss/12 text-loss'
-            : value === 1
-              ? 'border-loss/60 bg-loss/20 text-loss'
-              : 'border-border-subtle bg-bg-3 text-fg-muted'
-  const display = value ?? '–'
   const title = value
     ? `Sentiment ${value}/5 — click to cycle`
     : 'Click to set market sentiment (1–5)'
@@ -337,9 +323,18 @@ function SentimentBadge({
       }}
       title={title}
       aria-label={title}
-      className={`inline-flex h-[18px] w-[18px] cursor-pointer items-center justify-center rounded-full border font-mono text-[10px] font-semibold leading-none transition-colors duration-150 hover:brightness-110 ${tone}`}
+      className="inline-flex h-[18px] w-[18px] cursor-pointer items-center justify-center transition-opacity duration-150 hover:opacity-80"
     >
-      {display}
+      {value ? (
+        <img
+          src={SENTIMENT_ICONS[value as 1 | 2 | 3 | 4 | 5]}
+          alt=""
+          aria-hidden="true"
+          className="h-[18px] w-[18px]"
+        />
+      ) : (
+        <span className="font-mono text-[11px] font-semibold leading-none text-fg-muted">–</span>
+      )}
     </span>
   )
 }

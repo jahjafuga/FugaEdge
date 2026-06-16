@@ -3,11 +3,7 @@ import { Info } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import { todayDateISO } from '@/core/session/today'
 import { SENTIMENT_LABELS } from '@shared/session-types'
-import icon1 from '@/assets/1.svg'
-import icon2 from '@/assets/2.svg'
-import icon3 from '@/assets/3.svg'
-import icon4 from '@/assets/4.svg'
-import icon5 from '@/assets/5.svg'
+import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 
 // MARKET SENTIMENT CARD — the standalone dashboard widget for the trader's
 // daily 1..5 market read (snowflake/ice → fire). Self-contained: reads today's
@@ -17,22 +13,11 @@ import icon5 from '@/assets/5.svg'
 // this card. The CARD background tints cold→hot to the active level; an unset
 // day is an honest neutral card, never a fake default pick.
 //
-// The icons are multi-color/gradient SVGs (not CSS-tintable), rendered as
-// <img> URL imports — so the CARD tints, not the icon. Order is 1→5
-// left-to-right (cold→hot) per the mockup. Labels are the momentum-runner
-// SENTIMENT_LABELS (kept, Decision B).
+// The 1→5 icon ladder is the shared <SentimentIconPicker> (the same component
+// the Journal page uses). The card keeps ONLY its tint + data fetch; the picker
+// markup + icon imports live in the shared component.
 
 type Level = 1 | 2 | 3 | 4 | 5
-
-const LEVELS: Level[] = [1, 2, 3, 4, 5]
-
-const ICONS: Record<Level, string> = {
-  1: icon1,
-  2: icon2,
-  3: icon3,
-  4: icon4,
-  5: icon5,
-}
 
 // Per-level card tint — a flat low-alpha background + border that transitions
 // smoothly cold→hot (transition-colors, NOT the radial card-glow which can't
@@ -48,15 +33,6 @@ const TINT: Record<Level, { bg: string; border: string }> = {
   3: { bg: 'rgb(var(--sentiment-3) / 0.12)', border: 'rgb(var(--sentiment-3) / 0.40)' },
   4: { bg: 'rgb(var(--loss) / 0.16)', border: 'rgb(var(--loss) / 0.48)' },
   5: { bg: 'rgb(var(--danger) / 0.20)', border: 'rgb(var(--danger) / 0.58)' },
-}
-
-// Active-icon ring color per level (matches the tint hue).
-const RING: Record<Level, string> = {
-  1: 'rgb(var(--info))',
-  2: 'rgb(var(--neutral))',
-  3: 'rgb(var(--sentiment-3))',
-  4: 'rgb(var(--loss))',
-  5: 'rgb(var(--danger))',
 }
 
 export default function MarketSentimentCard() {
@@ -83,19 +59,20 @@ export default function MarketSentimentCard() {
     }
   }, [today])
 
-  const pick = useCallback(
-    (n: Level) => {
-      const next = sentiment === n ? null : n // tap the active level to clear
-      setSentiment(next) // optimistic
+  // Persist the picker's chosen level (the picker already handles tap-to-clear
+  // → null). Optimistic; re-read the persisted truth on failure so the UI
+  // never lies.
+  const persist = useCallback(
+    (next: number | null) => {
+      setSentiment(next)
       ipc.sessionSentimentSave({ date: today, sentiment: next }).catch(() => {
-        // On failure re-read the persisted truth so the UI never lies.
         ipc
           .sessionGet(today)
           .then((m) => setSentiment(m?.sentiment ?? null))
           .catch(() => {})
       })
     },
-    [sentiment, today],
+    [today],
   )
 
   const active = sentiment != null ? (sentiment as Level) : null
@@ -121,45 +98,8 @@ export default function MarketSentimentCard() {
         </span>
       </div>
 
-      {/* The 1→5 icon ladder (cold→hot). Inactive icons are dimmed + grayscale
-          so the active read pops; hover previews full color. */}
-      <div className="flex items-end justify-between gap-1.5">
-        {LEVELS.map((n) => {
-          const isActive = active === n
-          return (
-            <button
-              key={n}
-              type="button"
-              onClick={() => pick(n)}
-              aria-pressed={isActive}
-              aria-label={`Sentiment ${n} of 5 — ${SENTIMENT_LABELS[n]}`}
-              title={`${n}/5 — ${SENTIMENT_LABELS[n]}`}
-              className={`group flex flex-1 cursor-pointer flex-col items-center gap-1 rounded-lg border border-transparent px-1.5 py-2 transition-all duration-200 ${
-                isActive ? 'bg-bg-3' : 'hover:bg-bg-2'
-              }`}
-              style={isActive ? { boxShadow: `inset 0 0 0 1.5px ${RING[n]}` } : undefined}
-            >
-              <img
-                src={ICONS[n]}
-                alt=""
-                aria-hidden="true"
-                className={`h-9 w-9 transition-all duration-200 ${
-                  isActive
-                    ? 'opacity-100 grayscale-0'
-                    : 'opacity-40 grayscale group-hover:opacity-100 group-hover:grayscale-0'
-                }`}
-              />
-              <span
-                className={`font-mono text-[11px] font-semibold tnum transition-colors duration-200 ${
-                  isActive ? 'text-fg-primary' : 'text-fg-muted group-hover:text-fg-secondary'
-                }`}
-              >
-                {n}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      {/* The 1→5 icon ladder (cold→hot) — shared with the Journal page. */}
+      <SentimentIconPicker value={sentiment} onChange={persist} iconSize={36} />
 
       {/* Active label / honest empty prompt. */}
       <div className="min-h-[16px] text-center text-xs">

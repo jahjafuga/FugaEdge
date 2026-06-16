@@ -7,7 +7,7 @@ import EmotionPicker from '@/components/ui/EmotionPicker'
 import JournalHeader from '@/components/journal/JournalHeader'
 import DayPnlBanner from '@/components/journal/DayPnlBanner'
 import RuleChecklist, { type RuleState } from '@/components/journal/RuleChecklist'
-import SentimentSelector from '@/components/journal/SentimentSelector'
+import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
 import type { JournalDay } from '@shared/journal-types'
@@ -191,8 +191,10 @@ export default function Journal() {
               title="Market sentiment"
               subtitle="How was the overall market environment today? Drives the by-sentiment Analytics breakdown."
             >
-              <SentimentSelector
+              <SentimentIconPicker
                 value={day.sentiment}
+                showLabels
+                iconSize={30}
                 onChange={(next) => {
                   // Optimistic — flip the local payload immediately so the
                   // selector stays in sync without waiting for the IPC round
