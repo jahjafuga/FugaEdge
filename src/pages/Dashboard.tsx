@@ -14,9 +14,11 @@ import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import EdgeInsights from '@/components/dashboard/EdgeInsights'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
+import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
+import { todayDateISO } from '@/core/session/today'
 import { RANGE_LABEL, type DashboardData, type TimeRange } from '@shared/dashboard-types'
 
 export default function Dashboard() {
@@ -84,7 +86,9 @@ export default function Dashboard() {
     )
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  // local date (matches the trades' Eastern day + the EdgeIQ card); the UTC
+  // slice rolled over after ~8pm ET and falsely zeroed today's P&L.
+  const today = todayDateISO(new Date())
   const todayPnl = data.latest.date === today ? data.latest.net_pnl : 0
 
   return (
@@ -108,14 +112,21 @@ export default function Dashboard() {
             blank-canvas prompt before the market session begins. */}
         <TodaySessionCard />
 
-        {/* Daily goal + main challenge band (below Today's Session, above
-            EdgeInsights). Self-contained: fetches the active equity goal via
-            goalsProgressRead; the Daily Goal half reads todayPnl + settings. */}
-        <GoalChallengeBand
-          todayPnl={todayPnl}
-          dailyProfitTarget={data.settings.daily_profit_target}
-          maxDailyLoss={data.settings.max_daily_loss}
-        />
+        {/* Goals + EdgeIQ debrief row (below Today's Session, above
+            EdgeInsights). Two columns at lg: the Daily Goal / Main Challenge
+            band (left) and the EdgeIQ "Today's Trading Debrief" card (right);
+            stacks to one column below lg. Both self-contained — the band reads
+            todayPnl + settings and fetches the active equity goal; the debrief
+            card owns its own today/30-day score, worked/leaked and focus.
+            items-start so the shorter column doesn't stretch to match. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+          <GoalChallengeBand
+            todayPnl={todayPnl}
+            dailyProfitTarget={data.settings.daily_profit_target}
+            maxDailyLoss={data.settings.max_daily_loss}
+          />
+          <EdgeIqDebriefCard />
+        </div>
 
         {/* EDGE INSIGHTS — pattern engine over the last-90-days trade set.
             Pure rules in /src/core/insights — web-portable. Sits between

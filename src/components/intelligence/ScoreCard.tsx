@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { UseEdgeScoreResult } from '@/lib/useEdgeScore'
 import { EDGE_SCORE_BANDS, type AxisResult } from '@/core/score/edgeScore'
-import { fmtRaw } from './edgeScoreFormat'
+import { tierForScore } from '@/core/score/tier'
+import { fmtRaw, tierToneClass } from './edgeScoreFormat'
 
 // v0.2.5 Edge Intelligence — Beat 2. The COMPACT Edge Score card (left of the
 // RadarCard in the /intelligence 2-col row). The 0–100 composite numeral + the
@@ -21,6 +22,11 @@ export default function ScoreCard({
   rangeLabel,
 }: UseEdgeScoreResult & { rangeLabel: string }) {
   const [showFormula, setShowFormula] = useState(false)
+
+  // v0.2.5 — the named tier for the current score (shared map with the EdgeIQ
+  // daily-debrief card so the two surfaces match). null while loading or when
+  // the score is suppressed — never a fabricated tier for a null score.
+  const tier = result && result.score !== null ? tierForScore(result.score) : null
 
   if (error) {
     if (typeof console !== 'undefined') console.error('[edge-score]', error)
@@ -56,11 +62,18 @@ export default function ScoreCard({
         </div>
       ) : (
         <div className="flex flex-1 flex-col justify-center">
-          <div className="flex items-baseline gap-1">
-            <span className="font-mono text-7xl font-semibold tabular-nums text-gold">
-              {result.score}
-            </span>
-            <span className="font-mono text-xl text-fg-muted">/100</span>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <div className="flex items-baseline gap-1">
+              <span className="font-mono text-7xl font-semibold tabular-nums text-gold">
+                {result.score}
+              </span>
+              <span className="font-mono text-xl text-fg-muted">/100</span>
+            </div>
+            {tier && (
+              <span className={`text-2xl font-semibold tracking-tight ${tierToneClass(tier.name)}`}>
+                {tier.name}
+              </span>
+            )}
           </div>
           <div className="mt-1.5 text-xs text-fg-tertiary">
             How sharp you are right now — process-weighted.

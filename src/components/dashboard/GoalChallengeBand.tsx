@@ -7,13 +7,19 @@ import { remainingRisk } from '@/core/dailyTarget/remainingRisk'
 import { pickMainChallenge } from '@/core/goals/mainChallenge'
 import type { GoalWithProgress } from '@shared/identity-types'
 
-// v0.2.5 — the dashboard's paired Daily Goal / Main Challenge band (built to
-// the gooals.png mockup). Presentational + self-contained: the Daily Goal half
-// is pure-from-props (todayPnl + settings, already in dashboard scope); the
-// Main Challenge half fetches active equity goals via the side-effect-free
+// v0.2.5 — the dashboard's paired Daily Goal / Main Challenge band (built to the
+// gooals.png mockup). Presentational + self-contained: the Daily Goal half is
+// pure-from-props (todayPnl + settings, already in dashboard scope); the Main
+// Challenge half fetches active equity goals via the side-effect-free
 // goalsProgressRead and picks the main one with the pure pickMainChallenge.
 // Colors via win/gold/loss tokens only (light/dark-correct). No fabricated
 // numbers — unset/empty states render a prompt, never $0-as-real or NaN.
+//
+// LAYOUT: each widget is vertical and AIRY (mockup proportions adapted to the
+// half-width left column) — icon + label + big number on top, a progress bar
+// with room to breathe, then the stat cluster on its OWN row below the bar so
+// the four reads never cram side-by-side with the number. Spacing-only; all data
+// and states are unchanged.
 //
 // NUMBER FORMAT NOTE: the mockup uses whole dollars ($18,245, +$86), so this
 // uses whole-dollar formatting (int() + $) rather than the dashboard's 2-dp
@@ -53,7 +59,7 @@ export default function GoalChallengeBand({
   }, [])
 
   return (
-    <div className="space-y-3" aria-label="Daily goal and main challenge">
+    <div className="space-y-4" aria-label="Daily goal and main challenge">
       <DailyGoalCard todayPnl={todayPnl} target={dailyProfitTarget} maxDailyLoss={maxDailyLoss} />
       <MainChallengeCard goal={mainGoal} />
     </div>
@@ -74,7 +80,7 @@ function DailyGoalCard({
   const prog = dailyTargetProgress(todayPnl, target)
 
   return (
-    <section aria-label="Daily goal" className="card-premium p-5">
+    <section aria-label="Daily goal" className="card-premium p-6">
       {prog === null ? (
         <div className="flex items-center gap-4">
           <IconBadge Icon={Target} tone="win" muted />
@@ -87,42 +93,42 @@ function DailyGoalCard({
         </div>
       ) : (
         <>
+          {/* Top — icon + label + today's P&L vs target, with the % headline. */}
           <div className="flex items-center gap-4">
-            {/* Left — icon + label + today's P&L vs target */}
             <IconBadge Icon={Target} tone="win" />
             <div className="min-w-0">
               <Eyebrow label="Daily goal" tone="text-win" />
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-bold leading-none tabular-nums text-win">
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="font-mono text-4xl font-bold leading-none tabular-nums text-win">
                   {wholeSigned(todayPnl)}
                 </span>
-                <span className="font-mono text-lg text-fg-muted">/ {whole(target)}</span>
+                <span className="font-mono text-xl text-fg-muted">/ {whole(target)}</span>
               </div>
             </div>
-
-            {/* Right cluster — %, max loss, remaining risk, status */}
-            <div className="ml-auto flex items-center gap-4 sm:gap-6">
-              <span className="font-mono text-2xl font-bold tabular-nums text-win">
-                {percent(prog.fraction, 0)}
-              </span>
-              <Divider />
-              <StatCol label="Max loss">
-                <span className="text-loss">
-                  {maxDailyLoss > 0 ? `-${whole(maxDailyLoss)}` : '—'}
-                </span>
-              </StatCol>
-              <Divider />
-              <StatCol label="Remaining risk">
-                <RemainingRisk todayPnl={todayPnl} maxDailyLoss={maxDailyLoss} />
-              </StatCol>
-              <Divider />
-              <StatCol label="Status">
-                <StatusPill todayPnl={todayPnl} hit={prog.hit} maxDailyLoss={maxDailyLoss} />
-              </StatCol>
-            </div>
+            <span className="ml-auto font-mono text-3xl font-bold tabular-nums text-win">
+              {percent(prog.fraction, 0)}
+            </span>
           </div>
 
+          {/* Progress — thick, with room above (ProgressBar) and below (stats). */}
           <ProgressBar fraction={prog.fraction} tone="win" thick />
+
+          {/* Stats — Max loss / Remaining risk / Status, on their own row. */}
+          <div className="mt-6 flex items-center gap-5 sm:gap-7">
+            <StatCol label="Max loss">
+              <span className="text-loss">
+                {maxDailyLoss > 0 ? `-${whole(maxDailyLoss)}` : '—'}
+              </span>
+            </StatCol>
+            <Divider />
+            <StatCol label="Remaining risk">
+              <RemainingRisk todayPnl={todayPnl} maxDailyLoss={maxDailyLoss} />
+            </StatCol>
+            <Divider />
+            <StatCol label="Status">
+              <StatusPill todayPnl={todayPnl} hit={prog.hit} maxDailyLoss={maxDailyLoss} />
+            </StatCol>
+          </div>
         </>
       )}
     </section>
@@ -164,15 +170,15 @@ function StatusPill({
 function MainChallengeCard({ goal }: { goal: GoalWithProgress | null | undefined }) {
   if (goal === undefined) {
     return (
-      <section aria-label="Main challenge" className="card-premium p-5">
-        <div className="skeleton h-[64px]" />
+      <section aria-label="Main challenge" className="card-premium p-6">
+        <div className="skeleton h-[120px]" />
       </section>
     )
   }
 
   if (goal === null || goal.progress === null) {
     return (
-      <section aria-label="Main challenge" className="card-premium p-5">
+      <section aria-label="Main challenge" className="card-premium p-6">
         <div className="flex items-center gap-4">
           <IconBadge Icon={Trophy} tone="gold" muted />
           <div>
@@ -191,38 +197,39 @@ function MainChallengeCard({ goal }: { goal: GoalWithProgress | null | undefined
   const remaining = Math.max(0, target - current)
 
   return (
-    <section aria-label="Main challenge" className="card-premium p-5">
+    <section aria-label="Main challenge" className="card-premium p-6">
+      {/* Top — icon + label + title. */}
       <div className="flex items-center gap-4">
-        {/* Left — icon + label + title */}
         <IconBadge Icon={Trophy} tone="gold" />
-        <div className="min-w-0 shrink-0">
+        <div className="min-w-0">
           <Eyebrow label="Main challenge" tone="text-gold" />
-          <div className="mt-0.5 truncate text-base font-semibold text-fg-primary" title={goal.title}>
+          <div className="mt-1 truncate text-base font-semibold text-fg-primary" title={goal.title}>
             {goal.title}
           </div>
         </div>
-
-        {/* Center — current vs target */}
-        <div className="mx-auto flex items-baseline gap-2">
-          <span className="font-mono text-3xl font-bold leading-none tabular-nums text-gold">
-            {whole(current)}
-          </span>
-          <span className="font-mono text-lg text-fg-muted">/ {whole(target)}</span>
-        </div>
-
-        {/* Right cluster — complete %, remaining */}
-        <div className="flex shrink-0 items-center gap-4 sm:gap-6">
-          <StatCol label="Complete" align="end">
-            <span className="text-gold">{percent(fraction, 2)}</span>
-          </StatCol>
-          <Divider />
-          <StatCol label="Remaining" align="end">
-            <span className="text-fg-primary">{whole(remaining)}</span>
-          </StatCol>
-        </div>
       </div>
 
+      {/* Current vs target — big and airy on its own line. */}
+      <div className="mt-5 flex items-baseline gap-2">
+        <span className="font-mono text-4xl font-bold leading-none tabular-nums text-gold">
+          {whole(current)}
+        </span>
+        <span className="font-mono text-xl text-fg-muted">/ {whole(target)}</span>
+      </div>
+
+      {/* Progress — thin. */}
       <ProgressBar fraction={fraction} tone="gold" />
+
+      {/* Stats — Complete / Remaining, on their own row. */}
+      <div className="mt-6 flex items-center gap-5 sm:gap-7">
+        <StatCol label="Complete">
+          <span className="text-gold">{percent(fraction, 2)}</span>
+        </StatCol>
+        <Divider />
+        <StatCol label="Remaining">
+          <span className="text-fg-primary">{whole(remaining)}</span>
+        </StatCol>
+      </div>
     </section>
   )
 }
@@ -241,9 +248,9 @@ function IconBadge({
   const ring = tone === 'win' ? 'bg-win/10 ring-win/20 text-win' : 'bg-gold/10 ring-gold/20 text-gold'
   return (
     <span
-      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-1 ${ring} ${muted ? 'opacity-60' : ''}`}
+      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-1 ${ring} ${muted ? 'opacity-60' : ''}`}
     >
-      <Icon size={22} strokeWidth={2} />
+      <Icon size={24} strokeWidth={2} />
     </span>
   )
 }
@@ -277,7 +284,7 @@ function StatCol({
 }
 
 function Divider() {
-  return <div className="h-8 w-px shrink-0 bg-border-subtle" aria-hidden="true" />
+  return <div className="h-9 w-px shrink-0 bg-border-subtle" aria-hidden="true" />
 }
 
 function ProgressBar({
@@ -291,7 +298,7 @@ function ProgressBar({
 }) {
   const pct = Math.max(0, Math.min(1, fraction)) * 100
   return (
-    <div className={`mt-4 w-full overflow-hidden rounded-full bg-bg-3 ${thick ? 'h-2.5' : 'h-1.5'}`}>
+    <div className={`mt-5 w-full overflow-hidden rounded-full bg-bg-3 ${thick ? 'h-2.5' : 'h-1.5'}`}>
       <div
         className={`h-full rounded-full ${tone === 'win' ? 'bg-win' : 'bg-gold'}`}
         style={{ width: `${pct}%` }}

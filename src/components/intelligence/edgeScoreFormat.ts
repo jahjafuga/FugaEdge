@@ -27,3 +27,24 @@ export function fmtRaw(raw: number | null, fmt: 'pct' | 'frac' | 'x'): string {
 /** The rawFormat for an axis key (from the published bands). */
 export const bandFmt = (key: AxisKey) =>
   EDGE_SCORE_BANDS.find((b) => b.key === key)!.rawFormat
+
+// v0.2.5 — the shared EdgeScore tier → TEXT-tone map. Lives here (not in the
+// pure core tier.ts, which must stay token-free) so the Intelligence ScoreCard
+// label and the dashboard EdgeIQ daily-debrief card read the SAME color for a
+// given tier and can never diverge. Themed tokens only (text-gold/text-win
+// auto-darken in light mode); top tiers read gold/win, mid neutral, bottom loss.
+export function tierToneClass(tierName: string): string {
+  switch (tierName) {
+    case 'Elite':
+    case 'Exceptional':
+      return 'text-gold'
+    case 'Advanced':
+    case 'Consistent':
+      return 'text-win'
+    case 'Leaking':
+    case 'Critical':
+      return 'text-loss'
+    default: // Developing / Improving / Unstable
+      return 'text-fg-secondary'
+  }
+}
