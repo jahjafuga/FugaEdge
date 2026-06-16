@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss, sqlIsScratch } from '@/core/classify/outcome'
+import { summarizeSession } from '@/core/analytics/summarizeSession'
 import type {
   DailyPnlPoint,
   DashboardData,
@@ -166,26 +167,22 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
       trades: [],
     }
   }
-  const summary = db
-    .prepare(`
-      SELECT total_pnl AS net_pnl, gross_pnl, total_fees, trade_count, winners, losers
-      FROM daily_summary WHERE date = ?
-    `)
-    .get(date) as
-      | { net_pnl: number; gross_pnl: number; total_fees: number; trade_count: number; winners: number; losers: number }
-      | undefined
   // v0.1.5: include playbook tier so the dashboard's latest-session table
   // can show the tier badge inline with the playbook name. Cast to a
   // strict shape and coerce the tier text to the union — anything outside
   // the known set drops to null rather than poisoning the typed payload.
   interface SessionTradeDb extends Omit<SessionTrade, 'playbook_tier'> {
     playbook_tier: string | null
+    // Projected for summarizeSession (Fix 2a) — sums the STORED gross_pnl so the
+    // session gross matches daily_summary's. Not part of SessionTrade, so it
+    // rides in the raw row only and is never read renderer-side.
+    gross_pnl: number
   }
   const VALID_TIERS = new Set(['A+', 'A', 'B', 'C'])
   const rawTrades = db
     .prepare(`
       SELECT t.id, t.symbol, t.side, t.shares_bought, t.avg_buy_price,
-             t.shares_sold, t.avg_sell_price, t.total_fees, t.net_pnl,
+             t.shares_sold, t.avg_sell_price, t.total_fees, t.net_pnl, t.gross_pnl,
              p.name AS playbook_name, p.tier AS playbook_tier, t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -198,14 +195,20 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
       ? (r.playbook_tier as SessionTrade['playbook_tier'])
       : null,
   }))
+  // Fix 2(a): source the session summary from the trades we ALREADY loaded —
+  // NOT the daily_summary cache. data.latest.net_pnl (the Daily Goal + the
+  // latest-session header) now matches the trade rows shown, even when the cache
+  // is stale or absent. The equity curve + month calendar still read
+  // daily_summary (readDailySeries / readMonth) — that cache stays as-is.
+  const summary = summarizeSession(rawTrades)
   return {
     date,
-    net_pnl: summary?.net_pnl ?? 0,
-    gross_pnl: summary?.gross_pnl ?? 0,
-    total_fees: summary?.total_fees ?? 0,
-    trade_count: summary?.trade_count ?? trades.length,
-    winners: summary?.winners ?? 0,
-    losers: summary?.losers ?? 0,
+    net_pnl: summary.net_pnl,
+    gross_pnl: summary.gross_pnl,
+    total_fees: summary.total_fees,
+    trade_count: trades.length,
+    winners: summary.winners,
+    losers: summary.losers,
     trades,
   }
 }
