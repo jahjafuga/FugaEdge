@@ -14,6 +14,7 @@ import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import MarketSentimentCard from '@/components/dashboard/MarketSentimentCard'
 import WelcomeBanner from '@/components/dashboard/WelcomeBanner'
+import QuoteOfDayCard from '@/components/dashboard/QuoteOfDayCard'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
@@ -121,6 +122,12 @@ export default function Dashboard() {
             card extracted from Today's Session. The final three-widget row is a
             later beat; mounted here for now so it's live-lookable. */}
         <MarketSentimentCard />
+
+        {/* TEMP placement (v0.2.5 beat 2) — the standalone Quote of the Day,
+            extracted from Today's Session. todayPnl drives the "+$X Today"
+            badge. The final three-card row (Today's Session | Quote | Journal)
+            is a later layout beat. */}
+        <QuoteOfDayCard todayPnl={todayPnl} />
 
         {/* Goals + EdgeIQ debrief row (below Today's Session). Two columns
             at lg: the Daily Goal / Main Challenge

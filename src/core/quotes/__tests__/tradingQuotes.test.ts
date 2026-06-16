@@ -3,6 +3,8 @@ import {
   QUOTES,
   pickQuoteForContext,
   categoriesFor,
+  dateSeed,
+  quoteForDate,
   type QuoteCategory,
   type TradingQuote,
 } from '../tradingQuotes'
@@ -92,5 +94,29 @@ describe('pickQuoteForContext rotation', () => {
     const picked = pickQuoteForContext('losing', target.id, 1)
     expect(picked.id).not.toBe(target.id)
     expect(picked.text.length).toBeGreaterThan(0)
+  })
+})
+
+describe('day-pinned quote (dateSeed + quoteForDate)', () => {
+  it('dateSeed is deterministic and non-negative', () => {
+    expect(dateSeed('2026-06-16')).toBe(dateSeed('2026-06-16'))
+    expect(dateSeed('2026-06-16')).toBeGreaterThanOrEqual(0)
+  })
+
+  it('different dates generally produce different seeds', () => {
+    expect(dateSeed('2026-06-16')).not.toBe(dateSeed('2026-06-17'))
+  })
+
+  it('is day-pinned: the same date + context always yields the same quote', () => {
+    for (const ctx of ['no-trade', 'winning', 'losing', 'mixed', 'journal-only'] as const) {
+      const a = quoteForDate('2026-06-16', ctx)
+      const b = quoteForDate('2026-06-16', ctx)
+      expect(a.id).toBe(b.id)
+    }
+  })
+
+  it('returns a context-appropriate quote for the date', () => {
+    const q = quoteForDate('2026-06-16', 'losing')
+    expect(categoriesFor('losing')).toContain(q.category)
   })
 })

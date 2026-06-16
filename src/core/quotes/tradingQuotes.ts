@@ -199,3 +199,23 @@ export function contextFor({
   if (hasJournalEntry) return 'journal-only'
   return 'mixed'
 }
+
+/** Stable per-date seed — a deterministic hash of a YYYY-MM-DD string, so the
+ *  same calendar day always yields the same nonce (the quote stays put all day
+ *  across reloads/saves, and rolls to a new one the next calendar day). */
+export function dateSeed(dateISO: string): number {
+  let h = 0
+  for (let i = 0; i < dateISO.length; i++) {
+    h = (Math.imul(h, 31) + dateISO.charCodeAt(i)) | 0
+  }
+  return Math.abs(h)
+}
+
+/** The day-pinned "quote of the day" for a calendar date + context.
+ *  Deterministic: the same (dateISO, ctx) always returns the same quote
+ *  (stable across reloads/saves), rolling to a new one the next day. Context
+ *  still picks the category SET; the date hash indexes within it. No dedup
+ *  (excludeId null) — determinism, not rotation, is the point here. */
+export function quoteForDate(dateISO: string, ctx: DayContext): TradingQuote {
+  return pickQuoteForContext(ctx, null, dateSeed(dateISO))
+}

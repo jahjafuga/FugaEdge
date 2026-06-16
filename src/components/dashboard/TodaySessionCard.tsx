@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertCircle,
@@ -8,7 +8,6 @@ import {
   NotebookPen,
   Pencil,
   Save,
-  Sparkles,
 } from 'lucide-react'
 import { useTodaySession } from '@/lib/useTodaySession'
 import {
@@ -16,11 +15,6 @@ import {
   type SessionStatus,
   type TodaySessionStatus,
 } from '@/core/session/today'
-import {
-  contextFor,
-  pickQuoteForContext,
-  type TradingQuote,
-} from '@/core/quotes/tradingQuotes'
 import { longDate, money, percent, signed } from '@/lib/format'
 
 // TODAY'S SESSION CARD
@@ -30,24 +24,10 @@ import { longDate, money, percent, signed } from '@/lib/format'
 //   2. EDIT MODE (user clicked the EDIT link, or pressed "Mark no-trade")
 //      → form with textarea + reason chips + Save / Unmark
 //   3. COMMITTED + not editing → compact "logged" state with status
-//      badge, summary line, motivational quote, EDIT link
+//      badge, summary line, EDIT link
 //
 // "Committed" is a pure derivation in /src/core/session/today — trades
 // imported, no-trade-day saved with a reason, OR a journal entry exists.
-
-const LAST_QUOTE_STORAGE_KEY = 'fuga.quote.lastShownId'
-
-function readLastQuoteId(): number | null {
-  if (typeof window === 'undefined') return null
-  const v = window.localStorage.getItem(LAST_QUOTE_STORAGE_KEY)
-  if (!v) return null
-  const n = parseInt(v, 10)
-  return Number.isFinite(n) ? n : null
-}
-
-function writeLastQuoteId(id: number): void {
-  window.localStorage.setItem(LAST_QUOTE_STORAGE_KEY, String(id))
-}
 
 export default function TodaySessionCard() {
   const { status, noTradeDaysThisMonth, loading, error, save } = useTodaySession()
@@ -60,10 +40,6 @@ export default function TodaySessionCard() {
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
-
-  // Quote rotates each time the committed-state remounts (i.e. on save).
-  // `nonce` resets the lookup to pick a fresh one not equal to last shown.
-  const [quoteNonce, setQuoteNonce] = useState(() => Date.now())
 
   // Hydrate textarea + edit-mode default when persisted state changes.
   useEffect(() => {
@@ -80,7 +56,6 @@ export default function TodaySessionCard() {
     setSaving(false)
     setEditing(false)
     setSavedFlash(true)
-    setQuoteNonce(Date.now())
     setTimeout(() => setSavedFlash(false), 2500)
   }
 
@@ -121,7 +96,6 @@ export default function TodaySessionCard() {
       {showCompleted ? (
         <CompletedView
           status={status}
-          quoteNonce={quoteNonce}
           noTradeDaysThisMonth={noTradeDaysThisMonth}
           onEdit={() => setEditing(true)}
           onJournal={() => navigate('/journal')}
@@ -164,33 +138,17 @@ function SessionCardShell({ children }: { children: React.ReactNode }) {
 
 function CompletedView({
   status,
-  quoteNonce,
   noTradeDaysThisMonth,
   onEdit,
   onJournal,
   savedFlash,
 }: {
   status: TodaySessionStatus
-  quoteNonce: number
   noTradeDaysThisMonth: number
   onEdit: () => void
   onJournal: () => void
   savedFlash: boolean
 }) {
-  // Pick a quote each time the nonce changes (save → completed re-entry).
-  // Persist the picked id so a fresh tab doesn't repeat the same one.
-  const quote = useMemo<TradingQuote>(() => {
-    const ctx = contextFor({
-      status: status.status,
-      netPnL: status.stats?.netPnL ?? null,
-      hasJournalEntry: status.hasJournalEntry,
-    })
-    const last = readLastQuoteId()
-    const picked = pickQuoteForContext(ctx, last, quoteNonce)
-    writeLastQuoteId(picked.id)
-    return picked
-  }, [quoteNonce, status.status, status.stats, status.hasJournalEntry])
-
   const summary = buildSummaryLine(status)
   const badge = badgeForCommittedStatus(status)
 
@@ -222,10 +180,9 @@ function CompletedView({
         </div>
       </header>
 
-      {/* Center — summary + quote */}
+      {/* Center — summary */}
       <div className="flex-1 border-t border-border-subtle/60 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
         <div className="text-sm text-fg-secondary">{summary}</div>
-        <QuoteCard quote={quote} />
       </div>
 
       {/* Right — journal + edit */}
@@ -320,30 +277,6 @@ function badgeForCommittedStatus(status: TodaySessionStatus) {
       <CheckCircle2 size={11} strokeWidth={2.25} />
       Session logged
     </span>
-  )
-}
-
-// ── Quote card ───────────────────────────────────────────────────────────
-
-function QuoteCard({ quote }: { quote: TradingQuote }) {
-  return (
-    <figure className="mt-3 rounded-md border-l-2 border-gold/60 bg-bg-3 px-4 py-3 transition-colors">
-      <blockquote
-        className="font-serif italic text-fg-primary/90"
-        style={{ fontSize: '18px', lineHeight: 1.5 }}
-      >
-        <span className="mr-0.5 align-[-0.05em] text-[22px] leading-none text-gold">“</span>
-        {quote.text}
-        <span className="ml-0.5 align-[-0.05em] text-[22px] leading-none text-gold">”</span>
-      </blockquote>
-      <figcaption
-        className="mt-2 flex items-center gap-1.5 font-sans text-fg-secondary"
-        style={{ fontSize: '13px' }}
-      >
-        <Sparkles size={11} strokeWidth={2} className="text-gold" />
-        {quote.author}
-      </figcaption>
-    </figure>
   )
 }
 
