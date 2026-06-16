@@ -11,7 +11,6 @@ import MonthCalendarPreview from '@/components/dashboard/MonthCalendarPreview'
 import LatestSessionTable from '@/components/dashboard/LatestSessionTable'
 import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
-import EdgeInsights from '@/components/dashboard/EdgeInsights'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
@@ -112,8 +111,8 @@ export default function Dashboard() {
             blank-canvas prompt before the market session begins. */}
         <TodaySessionCard />
 
-        {/* Goals + EdgeIQ debrief row (below Today's Session, above
-            EdgeInsights). Two columns at lg: the Daily Goal / Main Challenge
+        {/* Goals + EdgeIQ debrief row (below Today's Session). Two columns
+            at lg: the Daily Goal / Main Challenge
             band (left) and the EdgeIQ "Today's Trading Debrief" card (right);
             stacks to one column below lg. Both self-contained — the band reads
             todayPnl + settings and fetches the active equity goal; the debrief
@@ -127,12 +126,6 @@ export default function Dashboard() {
           />
           <EdgeIqDebriefCard />
         </div>
-
-        {/* EDGE INSIGHTS — pattern engine over the last-90-days trade set.
-            Pure rules in /src/core/insights — web-portable. Sits between
-            the session card and the KPI strip so the trader sees
-            actionable signals before the raw numbers. */}
-        <EdgeInsights />
 
         {/* Discipline streak chip used to render here; it now lives only in
             the sidebar footer (single source of truth). */}
