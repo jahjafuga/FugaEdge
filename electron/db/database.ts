@@ -794,6 +794,18 @@ function migrateAfterSchema(
   if (!journalCols.some((c) => c.name === 'day_tags')) {
     conn.exec("ALTER TABLE journal ADD COLUMN day_tags TEXT NOT NULL DEFAULT '[]'")
   }
+  // Voice Journal Phase 1 — per-field voice recording length in SECONDS.
+  // Nullable; NULL = no recording (incl. every row predating these columns).
+  // The transcript text lands in premarket_notes/postsession_notes — these hold
+  // only the duration metadata. Additive nullable columns → no SCHEMA_VERSION
+  // bump (the day_tags above / session_meta no_trade_* additive-ALTER precedent).
+  const hasJournal = (n: string) => journalCols.some((c) => c.name === n)
+  if (!hasJournal('premarket_recording_duration')) {
+    conn.exec('ALTER TABLE journal ADD COLUMN premarket_recording_duration INTEGER')
+  }
+  if (!hasJournal('postsession_recording_duration')) {
+    conn.exec('ALTER TABLE journal ADD COLUMN postsession_recording_duration INTEGER')
+  }
 
   // session_meta — no-trade-day flag + reason. Lets the trader log "I sat
   // out today" with context; powers the Dashboard's Today's Session card

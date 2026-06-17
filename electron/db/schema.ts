@@ -393,7 +393,13 @@ CREATE TABLE IF NOT EXISTS journal (
   emotion_rating    INTEGER,
   rules_followed    TEXT NOT NULL DEFAULT '',
   rule_violations   TEXT NOT NULL DEFAULT '',
-  day_tags          TEXT NOT NULL DEFAULT '[]'   -- JSON array of short labels (FOMC, Earnings, Choppy…)
+  day_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array of short labels (FOMC, Earnings, Choppy…)
+  -- Voice Journal Phase 1 — per-field voice recording length in seconds
+  -- (nullable; NULL = no recording). Also added via ALTER in migrateAfterSchema
+  -- for existing DBs; declared here so a FRESH DB gets them at creation (the
+  -- day_tags pattern — present in both CREATE and the additive ALTER).
+  premarket_recording_duration   INTEGER,
+  postsession_recording_duration INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_journal_date ON journal(date);

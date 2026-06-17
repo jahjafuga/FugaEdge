@@ -14,6 +14,8 @@ interface JournalRow {
   emotion_rating: number | null
   rules_followed: string
   rule_violations: string
+  premarket_recording_duration: number | null
+  postsession_recording_duration: number | null
 }
 
 interface DaySummaryRow {
@@ -55,7 +57,8 @@ function readEntry(
   const row = db
     .prepare(`
       SELECT date, premarket_notes, postsession_notes, emotion_rating,
-             rules_followed, rule_violations
+             rules_followed, rule_violations,
+             premarket_recording_duration, postsession_recording_duration
       FROM journal WHERE date = ?
     `)
     .get(date) as JournalRow | undefined
@@ -66,6 +69,10 @@ function readEntry(
     emotion_rating: row.emotion_rating ?? null,
     rules_followed: parseStringArray(row.rules_followed),
     rule_violations: parseStringArray(row.rule_violations),
+    // NULL (no recording / pre-feature row) surfaces as undefined. Identity
+    // passthrough now the type field matches the column name (snake_case).
+    premarket_recording_duration: row.premarket_recording_duration ?? undefined,
+    postsession_recording_duration: row.postsession_recording_duration ?? undefined,
   }
 }
 

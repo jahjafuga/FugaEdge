@@ -11,6 +11,10 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
   const emotion = input.emotion_rating == null ? null : Number(input.emotion_rating)
   const followed = JSON.stringify(input.rules_followed ?? [])
   const violations = JSON.stringify(input.rule_violations ?? [])
+  // Recording lengths (seconds) — coerce to a non-negative integer or null.
+  // NULL = no recording; the transcript text itself lives in the notes columns.
+  const premarketDuration = toDurationOrNull(input.premarket_recording_duration)
+  const postsessionDuration = toDurationOrNull(input.postsession_recording_duration)
 
   // If the entry is wholly empty, remove any existing row to keep the table
   // tidy and make the UI's "no entry yet" state honest.
@@ -34,7 +38,9 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
           postsession_notes = '',
           emotion_rating = NULL,
           rules_followed = '',
-          rule_violations = ''
+          rule_violations = '',
+          premarket_recording_duration = NULL,
+          postsession_recording_duration = NULL
         WHERE date = ?
       `).run(input.date)
     } else {
@@ -42,16 +48,28 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
     }
   } else {
     db.prepare(`
-      INSERT INTO journal (date, premarket_notes, postsession_notes, emotion_rating, rules_followed, rule_violations)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO journal (date, premarket_notes, postsession_notes, emotion_rating, rules_followed, rule_violations, premarket_recording_duration, postsession_recording_duration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(date) DO UPDATE SET
         premarket_notes   = excluded.premarket_notes,
         postsession_notes = excluded.postsession_notes,
         emotion_rating    = excluded.emotion_rating,
         rules_followed    = excluded.rules_followed,
-        rule_violations   = excluded.rule_violations
-    `).run(input.date, premarket, postsession, emotion, followed, violations)
+        rule_violations   = excluded.rule_violations,
+        premarket_recording_duration   = excluded.premarket_recording_duration,
+        postsession_recording_duration = excluded.postsession_recording_duration
+    `).run(input.date, premarket, postsession, emotion, followed, violations, premarketDuration, postsessionDuration)
   }
 
   return getJournalDay(input.date)
+}
+
+/** Coerce a recording-duration input to a non-negative integer of seconds, or
+ *  null. Guards undefined / NaN / Infinity / negatives so the INTEGER column
+ *  never stores garbage (the same "don't persist garbage" discipline as the
+ *  FMP service's toNullableNumber). */
+function toDurationOrNull(v: number | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null
+  const n = Math.round(v)
+  return n < 0 ? null : n
 }

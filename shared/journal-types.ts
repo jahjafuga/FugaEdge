@@ -4,6 +4,13 @@ export interface JournalEntry {
   emotion_rating: number | null
   rules_followed: string[]
   rule_violations: string[]
+  /** Voice Journal Phase 1 — length of the premarket voice recording in
+   *  seconds. Undefined when no recording was made (incl. rows predating the
+   *  feature). The transcript itself lands in premarket_notes. */
+  premarket_recording_duration?: number
+  /** Length of the post-session voice recording in seconds. Undefined when
+   *  none; transcript lands in postsession_notes. */
+  postsession_recording_duration?: number
 }
 
 export interface JournalDaySummary {
@@ -33,4 +40,9 @@ export interface SaveJournalInput {
   emotion_rating: number | null
   rules_followed: string[]
   rule_violations: string[]
+  /** Voice Journal Phase 1 — premarket recording length in seconds. Omitted /
+   *  undefined when no recording was made. */
+  premarket_recording_duration?: number
+  /** Post-session recording length in seconds. Omitted when none. */
+  postsession_recording_duration?: number
 }
