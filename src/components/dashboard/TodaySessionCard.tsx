@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertCircle,
   CalendarOff,
   CheckCircle2,
   CircleDashed,
+  Download,
   Moon,
   Pencil,
   Save,
@@ -456,12 +458,28 @@ function NotStartedPrompt({
   onMarkNoTrade: () => void
 }) {
   return (
-    <div className="flex h-full flex-col justify-center gap-2">
-      <div className="text-sm text-fg-secondary">
-        No trades imported for today yet. If you're sitting out, mark it as a
-        no-trade day so the streak keeps counting — discipline IS a trade.
+    <div className="flex h-full flex-col justify-center gap-3">
+      <div className="space-y-1">
+        <p className="text-sm text-fg-secondary">
+          No trades imported yet. Import your trades to unlock your session
+          insights.
+        </p>
+        <p className="text-xs text-fg-tertiary">
+          Sitting out? Mark it a no-trade day — discipline IS a trade.
+        </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {/* Primary CTA — import. Same affordance as the TopBar (a <Link
+            to="/import"> with the Download icon), filled gold (the app's
+            primary-action idiom) so it's the prominent before-import call. */}
+        <Link
+          to="/import"
+          className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md bg-gold px-3 text-[10px] font-semibold uppercase tracking-wider text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
+        >
+          <Download size={12} strokeWidth={2.25} />
+          Import Trades
+        </Link>
+        {/* Secondary — mark today a no-trade day (unchanged gold-outline). */}
         <button
           type="button"
           onClick={onMarkNoTrade}
