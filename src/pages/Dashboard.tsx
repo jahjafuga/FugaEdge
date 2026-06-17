@@ -5,8 +5,7 @@ import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import KpiStrip from '@/components/dashboard/KpiStrip'
-import RunningPnlChart from '@/components/dashboard/RunningPnlChart'
-import AverageTradePnlChart from '@/components/dashboard/AverageTradePnlChart'
+import CumulativePnlChart from '@/components/dashboard/CumulativePnlChart'
 import MonthCalendarPreview from '@/components/dashboard/MonthCalendarPreview'
 import LatestSessionTable from '@/components/dashboard/LatestSessionTable'
 import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
@@ -22,6 +21,7 @@ import BrandMark from '@/components/layout/BrandMark'
 import { ipc } from '@/lib/ipc'
 import { longDate } from '@/lib/format'
 import { todayDateISO } from '@/core/session/today'
+import { toCumulativeEquity } from '@/core/charts/cumulativePnl'
 import { RANGE_LABEL, type DashboardData, type TimeRange } from '@shared/dashboard-types'
 
 export default function Dashboard() {
@@ -93,6 +93,10 @@ export default function Dashboard() {
   // slice rolled over after ~8pm ET and falsely zeroed today's P&L.
   const today = todayDateISO(new Date())
   const todayPnl = data.latest.date === today ? data.latest.net_pnl : 0
+  // Cache-derived, WINDOW-RELATIVE cumulative P&L for the curve below: a running
+  // total of the (range-filtered) daily series, resetting to $0 at the window's
+  // start — so each range shows P&L within it, not absolute account equity.
+  const cumulativePnl = toCumulativeEquity(data.daily)
 
   return (
     <PageShell
@@ -154,20 +158,19 @@ export default function Dashboard() {
 
         <KpiStrip overview={data.overview} />
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card
-            title="Running P&L"
-            subtitle="Net P&L per trading day in range."
-          >
-            <RunningPnlChart daily={data.daily} />
-          </Card>
-          <Card
-            title="Average trade P&L"
-            subtitle="Daily P&L divided by that day's trade count."
-          >
-            <AverageTradePnlChart daily={data.daily} />
-          </Card>
-        </div>
+        {/* Cumulative P&L — one full-width curve replacing the old per-day
+            Running P&L + Average Trade P&L bars. CumulativePnlChart borrows the
+            calendar IntradayPnLChart's look (smooth monotone line, green-above /
+            red-below zero-split gradient) on our window-relative cumulative
+            series. WINDOW-RELATIVE: toCumulativeEquity running-sums the
+            range-filtered daily series (resets to $0 at the window start), so the
+            range toggle drives it for free. */}
+        <Card
+          title="Cumulative P&L"
+          subtitle="Running total over the selected range."
+        >
+          <CumulativePnlChart equity={cumulativePnl} />
+        </Card>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
           <Card title="Latest session" padded={false} className="overflow-hidden">
@@ -191,10 +194,7 @@ function LoadingSkeleton() {
           <Skeleton key={i} className="h-[78px]" />
         ))}
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Skeleton className="h-[240px]" />
-        <Skeleton className="h-[240px]" />
-      </div>
+      <Skeleton className="h-[320px]" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
         <Skeleton className="h-[360px]" />
         <Skeleton className="h-[360px]" />
