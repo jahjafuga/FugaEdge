@@ -6,6 +6,7 @@ import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import KpiStrip from '@/components/dashboard/KpiStrip'
 import CumulativePnlChart from '@/components/dashboard/CumulativePnlChart'
+import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import MonthCalendarPreview from '@/components/dashboard/MonthCalendarPreview'
 import LatestSessionTable from '@/components/dashboard/LatestSessionTable'
 import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
@@ -23,12 +24,17 @@ import { longDate } from '@/lib/format'
 import { todayDateISO } from '@/core/session/today'
 import { toCumulativeEquity } from '@/core/charts/cumulativePnl'
 import { RANGE_LABEL, type DashboardData, type TimeRange } from '@shared/dashboard-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 export default function Dashboard() {
   const [range, setRange] = useState<TimeRange>('30d')
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
+  // Today's trades WITH fills, for the 1D intraday curve (lazy — fetched only
+  // when 1D is selected; the dashboardGet payload's latest.trades are summary
+  // rows without the .executions IntradayPnLChart needs).
+  const [todaysTrades, setTodaysTrades] = useState<TradeListRow[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -46,6 +52,24 @@ export default function Dashboard() {
           setErr(e.message)
           setLoading(false)
         }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [range])
+
+  // Fetch today's trades-with-fills only when 1D is active (Journal's pattern:
+  // ipc.tradesList({date})). IntradayPnLChart builds its curve from .executions.
+  useEffect(() => {
+    if (range !== '1d') return
+    let cancelled = false
+    ipc
+      .tradesList({ date: todayDateISO(new Date()) })
+      .then((list) => {
+        if (!cancelled) setTodaysTrades(list)
+      })
+      .catch(() => {
+        if (!cancelled) setTodaysTrades([])
       })
     return () => {
       cancelled = true
@@ -158,19 +182,22 @@ export default function Dashboard() {
 
         <KpiStrip overview={data.overview} />
 
-        {/* Cumulative P&L — one full-width curve replacing the old per-day
-            Running P&L + Average Trade P&L bars. CumulativePnlChart borrows the
-            calendar IntradayPnLChart's look (smooth monotone line, green-above /
-            red-below zero-split gradient) on our window-relative cumulative
-            series. WINDOW-RELATIVE: toCumulativeEquity running-sums the
-            range-filtered daily series (resets to $0 at the window start), so the
-            range toggle drives it for free. */}
-        <Card
-          title="Cumulative P&L"
-          subtitle="Running total over the selected range."
-        >
-          <CumulativePnlChart equity={cumulativePnl} />
-        </Card>
+        {/* The P&L curve, by range. 1D = today's INTRADAY curve (IntradayPnLChart
+            from today's trade fills, time axis) rendered headerless (chrome=false)
+            inside the SAME Card so the framing is identical; 7D–ALL = the
+            window-relative Cumulative P&L curve (per-day, daily_summary cache).
+            The card TITLE swaps with the chart. The KPI strip re-scopes to today
+            on 1D for free — dashboardGet('1d') range-filters the overview to
+            today (rangeStart parses '1d'). */}
+        {range === '1d' ? (
+          <Card title="Intraday P&L" subtitle="Today's realized P&L through the session.">
+            <IntradayPnLChart trades={todaysTrades ?? []} date={today} chrome={false} height={260} />
+          </Card>
+        ) : (
+          <Card title="Cumulative P&L" subtitle="Running total over the selected range.">
+            <CumulativePnlChart equity={cumulativePnl} />
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
           <Card title="Latest session" padded={false} className="overflow-hidden">

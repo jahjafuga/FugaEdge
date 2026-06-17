@@ -17,13 +17,14 @@ export interface OverviewStats {
   largest_loser: number | null    // null when there are no losing trades
 }
 
-export type TimeRange = '7d' | '30d' | '60d' | '90d' | 'all'
+export type TimeRange = '1d' | '7d' | '30d' | '60d' | '90d' | 'all'
 
-export const TIME_RANGES: TimeRange[] = ['7d', '30d', '60d', '90d', 'all']
+export const TIME_RANGES: TimeRange[] = ['1d', '7d', '30d', '60d', '90d', 'all']
 
 /** Human label for a range — shared by the Dashboard subtitle and the EdgeIQ
  *  Edge Score chip so they read identically. */
 export const RANGE_LABEL: Record<TimeRange, string> = {
+  '1d': 'today',
   '7d': 'last 7 days',
   '30d': 'last 30 days',
   '60d': 'last 60 days',
@@ -34,6 +35,8 @@ export const RANGE_LABEL: Record<TimeRange, string> = {
 /** Day count for a range; null = 'all' (no lower bound — skip day-windowing). */
 export function rangeDays(range: TimeRange): number | null {
   switch (range) {
+    case '1d':
+      return 1
     case '7d':
       return 7
     case '30d':

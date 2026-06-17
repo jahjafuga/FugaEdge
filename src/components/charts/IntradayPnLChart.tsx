@@ -36,6 +36,10 @@ interface IntradayPnLChartProps {
    *  where HH:MM would repeat/collide across days. Additive — existing
    *  single-day callers (Day Overview, Journal) keep 'time'. */
   xLabelMode?: 'time' | 'datetime'
+  /** When false, render JUST the chart — no self-contained card wrapper and no
+   *  internal "Intraday P&L" header — for hosts that already supply a Card +
+   *  title (the dashboard's 1D view). Default true = the standalone card. */
+  chrome?: boolean
 }
 
 interface CurvePoint {
@@ -107,6 +111,7 @@ export default function IntradayPnLChart({
   date,
   height = 160,
   xLabelMode = 'time',
+  chrome = true,
 }: IntradayPnLChartProps) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
@@ -133,32 +138,46 @@ export default function IntradayPnLChart({
   }, [data])
 
   if (!hasData) {
+    const empty = `No realized P&L curve for ${date} — closing fills haven't landed yet.`
+    // chrome off (dashboard 1D): bare message — the host Card supplies framing.
+    if (!chrome) {
+      return (
+        <div
+          className="flex items-center justify-center text-center text-sm text-fg-tertiary"
+          style={{ minHeight: height }}
+        >
+          {empty}
+        </div>
+      )
+    }
     return (
       <div
         className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-6 text-center text-sm text-fg-tertiary shadow-sm"
         style={{ minHeight: height }}
       >
-        No realized P&L curve for {date} — closing fills haven't landed yet.
+        {empty}
       </div>
     )
   }
 
   const finalPnl = data[data.length - 1]?.pnl ?? 0
 
-  return (
-    <div className="rounded-lg border border-border-subtle bg-bg-2 p-3 shadow-sm">
-      <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          {xLabelMode === 'datetime' ? 'Cumulative P&L' : 'Intraday P&L'}
+  const content = (
+    <>
+      {chrome && (
+        <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            {xLabelMode === 'datetime' ? 'Cumulative P&L' : 'Intraday P&L'}
+          </div>
+          <div
+            className={`font-mono text-sm font-semibold tnum ${
+              finalPnl >= 0 ? 'text-win' : 'text-loss'
+            }`}
+          >
+            {signed(finalPnl)}
+          </div>
         </div>
-        <div
-          className={`font-mono text-sm font-semibold tnum ${
-            finalPnl >= 0 ? 'text-win' : 'text-loss'
-          }`}
-        >
-          {signed(finalPnl)}
-        </div>
-      </div>
+      )}
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart
@@ -216,7 +235,15 @@ export default function IntradayPnLChart({
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </>
+  )
+
+  // chrome on (default): the standalone card with its own border + header.
+  // chrome off (dashboard 1D): just the chart, framed by the host Card.
+  return chrome ? (
+    <div className="rounded-lg border border-border-subtle bg-bg-2 p-3 shadow-sm">{content}</div>
+  ) : (
+    content
   )
 }
 
