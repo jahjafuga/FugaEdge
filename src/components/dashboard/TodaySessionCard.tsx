@@ -4,13 +4,16 @@ import {
   CalendarOff,
   CheckCircle2,
   CircleDashed,
+  Moon,
   Pencil,
   Save,
+  Sun,
 } from 'lucide-react'
 import { useTodaySession } from '@/lib/useTodaySession'
 import {
   NO_TRADE_REASON_CHIPS,
   type SessionStatus,
+  type TodaySessionStats,
   type TodaySessionStatus,
 } from '@/core/session/today'
 import { longDate, money, percent, signed } from '@/lib/format'
@@ -18,11 +21,16 @@ import { longDate, money, percent, signed } from '@/lib/format'
 // TODAY'S SESSION CARD
 //
 // Three visible modes, picked from the derived session state:
-//   1. NOT-STARTED + not committed → big prompt with action buttons
+//   1. NOT-STARTED + not committed → prompt with action button(s)
 //   2. EDIT MODE (user clicked the EDIT link, or pressed "Mark no-trade")
 //      → form with textarea + reason chips + Save / Unmark
-//   3. COMMITTED + not editing → compact "logged" state with status
-//      badge, summary line, EDIT link
+//   3. COMMITTED + not editing → compact "logged" state: header (a time-aware
+//      sun/moon icon + the date), the status badge, then the compact 3-up stat
+//      row (active days) or the no-trade / journal summary line, + an EDIT link
+//
+// Vertical layout — the card lives in a narrow third of the dashboard's
+// three-card row (Today's Session | Quote | Journal), so it stacks instead of
+// spreading into wide columns.
 //
 // "Committed" is a pure derivation in /src/core/session/today — trades
 // imported, no-trade-day saved with a reason, OR a journal entry exists.
@@ -30,9 +38,8 @@ import { longDate, money, percent, signed } from '@/lib/format'
 export default function TodaySessionCard() {
   const { status, noTradeDaysThisMonth, loading, error, save } = useTodaySession()
 
-  // User can explicitly enter edit mode from the completed state.
-  // Also auto-engaged when the user clicks "Mark as no-trade day" from
-  // the not-started prompt.
+  // User can explicitly enter edit mode from the completed state. Also
+  // auto-engaged when "Mark as no-trade day" is pressed from the prompt.
   const [editing, setEditing] = useState(false)
   const [reason, setReason] = useState('')
   const [saving, setSaving] = useState(false)
@@ -116,16 +123,49 @@ export default function TodaySessionCard() {
 }
 
 // ── Shell ────────────────────────────────────────────────────────────────
+// card-premium so the three cards in the row share one surface idiom. flex-col
+// + the inner flex-1 lets the active stats sit at the card's bottom (mt-auto),
+// aligning across the stretched row.
 
 function SessionCardShell({ children }: { children: React.ReactNode }) {
   return (
     <section
       aria-label="Today's session"
       data-tour="today-session"
-      className="rounded-lg border border-border-subtle bg-bg-2 p-4 shadow-sm"
+      className="card-premium flex flex-col p-4"
     >
       {children}
     </section>
+  )
+}
+
+// ── Shared header — time-aware sun/moon icon + eyebrow + date ──────────────
+
+function SessionHeader({ status }: { status: TodaySessionStatus }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <SessionIcon />
+      <div className="flex min-w-0 flex-col">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          Today's session
+        </span>
+        <span className="truncate text-lg font-semibold leading-tight tracking-tight text-fg-primary">
+          {longDate(status.date)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Sun during local daytime (06:00–17:59), Moon overnight (18:00–05:59) — a
+// presentational time-of-day cue read from the user's local clock at render.
+function SessionIcon() {
+  const hr = new Date().getHours()
+  const Icon = hr >= 6 && hr < 18 ? Sun : Moon
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/30 bg-gold/[0.08] text-gold">
+      <Icon size={17} strokeWidth={2} />
+    </span>
   )
 }
 
@@ -142,57 +182,124 @@ function CompletedView({
   onEdit: () => void
   savedFlash: boolean
 }) {
-  const summary = buildSummaryLine(status)
   const badge = badgeForCommittedStatus(status)
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
-      {/* Left — header */}
-      <header className="flex shrink-0 flex-col lg:w-[260px]">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Today's session
-        </span>
-        <span className="mt-0.5 text-lg font-semibold tracking-tight text-fg-primary">
-          {longDate(status.date)}
-        </span>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {badge}
-          {noTradeDaysThisMonth > 0 && (
-            <span
-              className="text-[10px] text-fg-tertiary tnum"
-              title="Distinct no-trade days marked this calendar month."
-            >
-              {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
-            </span>
-          )}
-          {savedFlash && (
-            <span className="text-[10px] uppercase tracking-wider text-win">
-              Saved
-            </span>
-          )}
-        </div>
-      </header>
-
-      {/* Center — summary */}
-      <div className="flex-1 border-t border-border-subtle/60 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
-        <div className="text-sm text-fg-secondary">{summary}</div>
-      </div>
-
-      {/* Right — edit affordance */}
-      <aside className="flex shrink-0 justify-end border-t border-border-subtle/60 pt-3 lg:border-t-0 lg:pt-0">
+    <div className="flex flex-1 flex-col gap-3">
+      {/* Header — session icon + date, with Edit top-right */}
+      <div className="flex items-start justify-between gap-2">
+        <SessionHeader status={status} />
         <button
           type="button"
           onClick={onEdit}
-          className="inline-flex h-7 cursor-pointer items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+          className="inline-flex h-7 shrink-0 cursor-pointer items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
         >
           <Pencil size={11} strokeWidth={2} />
           Edit
         </button>
-      </aside>
+      </div>
+
+      {/* Status badge + counters */}
+      <div className="flex flex-wrap items-center gap-2">
+        {badge}
+        {noTradeDaysThisMonth > 0 && (
+          <span
+            className="text-[10px] text-fg-tertiary tnum"
+            title="Distinct no-trade days marked this calendar month."
+          >
+            {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
+          </span>
+        )}
+        {savedFlash && (
+          <span className="text-[10px] uppercase tracking-wider text-win">Saved</span>
+        )}
+      </div>
+
+      {/* Active → compact stats; otherwise the no-trade / journal summary. */}
+      {status.status === 'active' && status.stats != null ? (
+        <CompactStats stats={status.stats} />
+      ) : (
+        <div className="text-sm text-fg-secondary">{buildSummaryLine(status)}</div>
+      )}
     </div>
   )
 }
 
+// Compact 3-up stat row — fits the narrow third-of-row column (the wide
+// stretched-out mockup layout won't). The cells STRETCH to fill the card's
+// leftover height (flex-1 row + stretched tiles), so the active card reads
+// balanced top-to-bottom instead of stranding the stats near the top. Honest:
+// winRate is null until a decided trade exists (shown "—") and the W/L record
+// sits under it; BEST is the day's best WINNING trade — the P&L figure as the
+// hero with its symbol on the sub-line, "—" on an all-losers day (never a red
+// "best"). The middle BEST cell is the focal hero (a faint win wash). Today's
+// NET P&L is deliberately NOT repeated here — it already shows on the Daily
+// Goal widget and the KPI strip, so the day's +$ was appearing in too many
+// places.
+function CompactStats({ stats }: { stats: TodaySessionStats }) {
+  // Best is shown only when it's an actual winning trade; a non-positive "best"
+  // (an all-losers day) collapses to null → "—", so the cell never paints a
+  // red number as the day's highlight.
+  const best = stats.bestTrade
+  const bestWin = best != null && best.pnl > 0 ? best : null
+  const wr = stats.winRate == null ? '—' : percent(stats.winRate, 0)
+  return (
+    <div className="flex flex-1 gap-2">
+      <StatCell label="Trades" value={String(stats.trades)} />
+      <StatCell
+        label="Best"
+        value={bestWin == null ? '—' : signed(bestWin.pnl)}
+        tone={bestWin == null ? 'text-fg-primary' : 'text-win'}
+        sub={bestWin?.symbol}
+        cellClass={
+          bestWin == null ? 'border-border-strong bg-bg-2' : 'border-win/25 bg-win/[0.06]'
+        }
+      />
+      <StatCell label="Win rate" value={wr} sub={`${stats.winners}W / ${stats.losers}L`} />
+    </div>
+  )
+}
+
+// One stat tile. flex-1 so the three split the row evenly and each stretches to
+// the row's (stretched) height; the value is vertically centered with the label
+// pinned to the top and the optional sub pinned to the bottom. Every cell
+// reserves the sub line (nbsp when absent) so the three hero values stay
+// baseline-aligned across the row.
+function StatCell({
+  label,
+  value,
+  tone,
+  sub,
+  cellClass,
+}: {
+  label: string
+  value: string
+  tone?: string
+  sub?: string
+  cellClass?: string
+}) {
+  return (
+    <div
+      className={`flex flex-1 flex-col rounded-md border px-2.5 py-3 ${
+        cellClass ?? 'border-border-subtle bg-bg-1'
+      }`}
+    >
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-fg-tertiary">
+        {label}
+      </div>
+      <div className="flex flex-1 items-center">
+        <span className={`font-mono text-xl font-bold leading-none tnum ${tone ?? 'text-fg-primary'}`}>
+          {value}
+        </span>
+      </div>
+      <div className="font-mono text-[10px] font-medium text-fg-tertiary tnum">{sub ?? ' '}</div>
+    </div>
+  )
+}
+
+// Summary line for the NON-active committed states (no-trade day, journal-only).
+// The active branch is retained as a defensive fallback but is normally
+// superseded by CompactStats.
 function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
   if (status.status === 'active' && status.stats != null) {
     const s = status.stats
@@ -200,9 +307,6 @@ function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
       s.netPnL > 0 ? 'text-win' : s.netPnL < 0 ? 'text-loss' : 'text-fg-primary'
     const grossTone =
       s.grossPnL > 0 ? 'text-win' : s.grossPnL < 0 ? 'text-loss' : 'text-fg-primary'
-    // v0.1.5: fees are always shown — even $0 — so the user knows it's a
-    // tracked line item. Zero reads as `text-fg-secondary` (de-emphasized);
-    // any actual fee burden reads as `text-fg-primary` so the user notices.
     const feesTone = s.totalFees > 0 ? 'text-fg-primary' : 'text-fg-secondary'
     const wr = s.winRate == null ? '—' : `${percent(s.winRate, 0)} win rate`
     return (
@@ -213,14 +317,6 @@ function buildSummaryLine(status: TodaySessionStatus): React.ReactNode {
         · <span className={`tnum ${feesTone}`}>Fees {money(s.totalFees)}</span>{' '}
         · <span className={`font-medium tnum ${netTone}`}>Net {signed(s.netPnL)}</span>{' '}
         · <span className="text-fg-secondary tnum">{wr}</span>
-        {s.bestTrade && (
-          <>
-            {' · '}
-            <span className="text-fg-tertiary tnum">
-              best {s.bestTrade.symbol} {money(s.bestTrade.pnl)}
-            </span>
-          </>
-        )}
       </>
     )
   }
@@ -265,7 +361,7 @@ function badgeForCommittedStatus(status: TodaySessionStatus) {
   )
 }
 
-// ── Editable view (existing input flows) ─────────────────────────────────
+// ── Editable view (not-committed / editing) ───────────────────────────────
 
 function EditableView({
   status,
@@ -290,36 +386,25 @@ function EditableView({
   onCancelEdit: () => void
   saving: boolean
 }) {
-  // The form opens automatically when status is no-trade (already marked
-  // but user wants to edit) OR when `editing` is set explicitly from the
-  // not-started prompt.
+  // The form opens automatically when status is no-trade (already marked but
+  // user wants to edit) OR when `editing` is set explicitly from the prompt.
   const showForm = editing || (status.status === 'no-trade' && !status.committed)
 
   return (
-    <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch lg:gap-4">
-      {/* Left — header */}
-      <header className="flex shrink-0 flex-col lg:w-[260px]">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Today's session
-        </span>
-        <span className="mt-0.5 text-lg font-semibold tracking-tight text-fg-primary">
-          {longDate(status.date)}
-        </span>
-        <div className="mt-2 flex items-center gap-2">
-          <StatusBadge status={status.status} />
-          {noTradeDaysThisMonth > 0 && (
-            <span
-              className="text-[10px] text-fg-tertiary tnum"
-              title="Distinct no-trade days marked this calendar month."
-            >
-              {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
-            </span>
-          )}
-        </div>
-      </header>
-
-      {/* Center — form or empty prompt */}
-      <div className="flex-1 border-t border-border-subtle/60 pt-3 lg:border-l lg:border-t-0 lg:pl-4 lg:pt-0">
+    <div className="flex flex-1 flex-col gap-3">
+      <SessionHeader status={status} />
+      <div className="flex items-center gap-2">
+        <StatusBadge status={status.status} />
+        {noTradeDaysThisMonth > 0 && (
+          <span
+            className="text-[10px] text-fg-tertiary tnum"
+            title="Distinct no-trade days marked this calendar month."
+          >
+            {noTradeDaysThisMonth} no-trade {noTradeDaysThisMonth === 1 ? 'day' : 'days'} this month
+          </span>
+        )}
+      </div>
+      <div className="flex-1">
         {showForm ? (
           <NoTradeFlow
             reason={reason}
@@ -331,12 +416,9 @@ function EditableView({
             alreadyMarked={status.meta.no_trade_day}
           />
         ) : (
-          <NotStartedPrompt
-            onMarkNoTrade={onMarkNoTrade}
-          />
+          <NotStartedPrompt onMarkNoTrade={onMarkNoTrade} />
         )}
       </div>
-
     </div>
   )
 }

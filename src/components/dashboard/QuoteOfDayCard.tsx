@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { Sparkles, Clock } from 'lucide-react'
-import { signed } from '@/lib/format'
 import { todayDateISO } from '@/core/session/today'
 import { quoteForDate, type DayContext } from '@/core/quotes/tradingQuotes'
 
@@ -34,32 +33,19 @@ export default function QuoteOfDayCard({ todayPnl }: { todayPnl: number }) {
   const quote = useMemo(() => quoteForDate(today, ctx), [today, ctx])
   const sec = readSeconds(quote.text)
 
-  const badgeTone =
-    todayPnl > 0
-      ? 'border-win/40 bg-win/[0.10] text-win'
-      : todayPnl < 0
-        ? 'border-loss/40 bg-loss/[0.10] text-loss'
-        : 'border-border-subtle bg-bg-3 text-fg-tertiary'
-
   return (
     <section
       aria-label="Quote of the day"
       data-tour="quote-of-day"
       className="card-premium flex flex-col gap-3 p-4"
     >
-      {/* Header — eyebrow + today's P&L badge */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Quote of the day
-        </span>
-        <span
-          className={`inline-flex items-baseline gap-1 rounded-md border px-2 py-0.5 ${badgeTone}`}
-          title="Today's net P&L"
-        >
-          <span className="font-mono text-xs font-semibold tnum">{signed(todayPnl)}</span>
-          <span className="text-[9px] font-semibold uppercase tracking-wider opacity-80">Today</span>
-        </span>
-      </div>
+      {/* Header — eyebrow only. The "+$X Today" P&L badge was removed: today's
+          net P&L already shows on the Daily Goal widget and the KPI strip, so
+          repeating it on the quote was redundant. (todayPnl is still read above
+          to pick the winning/losing/mixed quote flavour — it is not displayed.) */}
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+        Quote of the day
+      </span>
 
       {/* The day-pinned quote */}
       <blockquote

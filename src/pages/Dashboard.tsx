@@ -114,27 +114,19 @@ export default function Dashboard() {
           date={data.latest.date}
         />
 
-        {/* TODAY'S SESSION — always renders. Shows active stats when
-            trades exist, the no-trade-day flow when sitting out, or the
-            blank-canvas prompt before the market session begins. */}
-        <TodaySessionCard />
+        {/* The top three-card row (v0.2.5 beat 4, FINAL placement): Today's
+            Session | Quote of the Day | Journal. Unequal split: Today's Session
+            widest (it carries the stats), Quote medium, Journal narrowest;
+            items-stretch so the three share height. Mirrors the goals/EdgeIQ
+            grid idiom below. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1.15fr_0.85fr] lg:items-stretch">
+          <TodaySessionCard />
+          <QuoteOfDayCard todayPnl={todayPnl} />
+          <JournalCard />
+        </div>
 
-        {/* TEMP placement (v0.2.5 beat 1) — the standalone Market Sentiment
-            card extracted from Today's Session. The final three-widget row is a
-            later beat; mounted here for now so it's live-lookable. */}
+        {/* Market Sentiment - full-width below the three-card row (FINAL). */}
         <MarketSentimentCard />
-
-        {/* TEMP placement (v0.2.5 beat 2) — the standalone Quote of the Day,
-            extracted from Today's Session. todayPnl drives the "+$X Today"
-            badge. The final three-card row (Today's Session | Quote | Journal)
-            is a later layout beat. */}
-        <QuoteOfDayCard todayPnl={todayPnl} />
-
-        {/* TEMP placement (v0.2.5 beat 3) — the standalone Journal card, taking
-            over the journal affordance removed from Today's Session. The final
-            three-card row (Today's Session | Quote | Journal) is a later layout
-            beat. */}
-        <JournalCard />
 
         {/* Goals + EdgeIQ debrief row (below Today's Session). Two columns
             at lg: the Daily Goal / Main Challenge
@@ -142,8 +134,10 @@ export default function Dashboard() {
             stacks to one column below lg. Both self-contained — the band reads
             todayPnl + settings and fetches the active equity goal; the debrief
             card owns its own today/30-day score, worked/leaked and focus.
-            items-start so the shorter column doesn't stretch to match. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+            items-stretch so EdgeIQ matches the taller Daily Goal + Main
+            Challenge stack on the left; EdgeIQ's flex-1 body pins its "View
+            Full" footer to the bottom edge of the stretched card. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
           <GoalChallengeBand
             todayPnl={todayPnl}
             dailyProfitTarget={data.settings.daily_profit_target}
