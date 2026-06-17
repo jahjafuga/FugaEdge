@@ -28,5 +28,7 @@ export default function KpiStrip({ overview }: KpiStripProps) {
     { label: 'Largest loser',   value: overview.largest_loser,  format: moneyOrDash,   tone: 'red' },
   ]
 
-  return <StatStrip items={items} />
+  // 'premium' = the dashboard-only distinguished treatment (faint gold frame +
+  // top hairline + gold hover). Day Detail / Week Review omit it → plain tiles.
+  return <StatStrip items={items} variant="premium" />
 }
