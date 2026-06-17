@@ -15,7 +15,7 @@ import StatStrip, {
 import { formatPnlRatio, int, signed, pnlClass, shortDate } from '@/lib/format'
 
 // v0.2.2 Day 4.5b — Week Overview: the at-a-glance shape of the week. Equity
-// curve across the week (the shared CumulativePnlChart in 'datetime' mode) +
+// curve across the week (the shared IntradayPnLChart in 'datetime' mode) +
 // a narrative summary (net, win rate, best/worst DAY, streak).
 export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
   const m = detail.metrics
