@@ -162,3 +162,25 @@ describe('extractTopics — multi-word variants (natural phrasing → one canoni
     expect(out).toEqual([{ term: 'FOMO', category: 'term' }])
   })
 })
+
+describe('extractTopics — common-word tickers excluded (stop-list)', () => {
+  it('a stop-listed ticker ("ANY") does NOT match the lowercase word', () => {
+    const out = extractTopics('any setup today', { ...NO_VOCAB, tickers: ['ANY'] })
+    expect(out).toEqual([])
+  })
+
+  it('a stop-listed ticker does NOT match even when written uppercase ("ANY")', () => {
+    const out = extractTopics('ANY', { ...NO_VOCAB, tickers: ['ANY'] })
+    expect(out).toEqual([])
+  })
+
+  it('does not over-suppress: a normal ticker still matches ("AAPL")', () => {
+    const out = extractTopics('AAPL ripped', { ...NO_VOCAB, tickers: ['AAPL'] })
+    expect(out).toEqual([{ term: 'AAPL', category: 'ticker' }])
+  })
+
+  it('a distinctive ticker still matches ("ELAB")', () => {
+    const out = extractTopics('ELAB didnt work', { ...NO_VOCAB, tickers: ['ELAB'] })
+    expect(out).toEqual([{ term: 'ELAB', category: 'ticker' }])
+  })
+})

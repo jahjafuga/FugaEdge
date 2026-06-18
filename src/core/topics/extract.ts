@@ -6,6 +6,8 @@
 // never invent. Under-matching (missing an unusual phrasing) is acceptable;
 // over-matching (a false positive on a substring or an article) is not.
 
+import { COMMON_WORD_TICKERS } from './terms'
+
 export type TopicCategory = 'ticker' | 'setup' | 'term'
 
 export interface TopicMatch {
@@ -54,8 +56,16 @@ function normalizeTerm(t: CuratedTerm): { canonical: string; variants: string[] 
 // "aapl" and the article "in" do not, even when "IN" is a real ticker.
 const TICKER_CANDIDATE = /(?<![A-Za-z0-9])(\$?)([A-Za-z][A-Za-z0-9.]*)(?![A-Za-z0-9])/g
 
+// Tickers that double as common English words (ANY, ALL, ON, …) are excluded
+// from matching outright — see COMMON_WORD_TICKERS in ./terms. Built once.
+const COMMON_WORD_TICKER_SET = new Set(COMMON_WORD_TICKERS.map((s) => s.toUpperCase()))
+
 function tickerMatches(text: string, tickers: string[]): string[] {
-  const vocab = new Set(tickers.filter((t) => t && t.trim().length > 0))
+  const vocab = new Set(
+    tickers.filter(
+      (t) => t && t.trim().length > 0 && !COMMON_WORD_TICKER_SET.has(t.trim().toUpperCase()),
+    ),
+  )
   if (vocab.size === 0) return []
   const found: string[] = []
   for (const m of text.matchAll(TICKER_CANDIDATE)) {

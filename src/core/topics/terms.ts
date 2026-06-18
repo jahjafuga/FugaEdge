@@ -99,3 +99,13 @@ export const TERM_GROUP: Record<string, TermGroup> = Object.fromEntries([
   ...PITFALL.map((t) => [canonicalOf(t), 'pitfall'] as const),
   ...STRUCTURE.map((t) => [canonicalOf(t), 'structure'] as const),
 ])
+
+// Tickers that are also common English words. Momentum journals here never use a
+// $-prefix, so a bare "ANY" / "ALL" / "ON" in prose is far more often the WORD
+// than the symbol — chipping it as a ticker erodes trust more than missing the
+// rare legit mention. These are EXCLUDED from ticker matching entirely (see the
+// filter in ./extract). Founder-editable values surface, like CURATED_TERMS.
+export const COMMON_WORD_TICKERS: string[] = [
+  'ANY', 'ALL', 'ON', 'IT', 'FOR', 'ARE', 'BIG', 'CAR', 'GO', 'KEY', 'NOW',
+  'OUT', 'SO', 'WELL', 'AM', 'PM', 'BY', 'OR', 'AT', 'AN', 'RE', 'US',
+]
