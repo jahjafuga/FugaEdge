@@ -270,7 +270,7 @@ export default function VoiceRecorder({
           <div className="flex items-center gap-2 text-sm text-fg-secondary">
             <Loader2 size={16} className="animate-spin text-gold" />
             {state === 'downloading'
-              ? `Downloading voice model… ${progress}%`
+              ? `Downloading voice model (one-time, ~293 MB)… ${progress}%`
               : 'Transcribing…'}
           </div>
           {state === 'downloading' && (

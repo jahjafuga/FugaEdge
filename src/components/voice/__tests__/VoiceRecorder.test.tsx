@@ -151,3 +151,21 @@ describe('VoiceRecorder — typed-result mapping', () => {
     expect(transcribeMock).toHaveBeenCalled()
   })
 })
+
+describe('VoiceRecorder — first-use download UX', () => {
+  it('shows the one-time model-download state while preloadModel is pending', async () => {
+    let resolvePreload: (v: { kind: 'ready' }) => void = () => {}
+    preloadMock.mockReturnValue(
+      new Promise((r) => {
+        resolvePreload = r
+      }),
+    )
+    render(<VoiceRecorder onTranscript={vi.fn()} />)
+    await startRecording()
+    fireEvent.click(stopBtn())
+    await waitFor(() => expect(screen.getByText(/downloading voice model/i)).toBeTruthy())
+    // Communicates it's a one-time / large download (the first-use experience).
+    expect(screen.getByText(/one-time|293/i)).toBeTruthy()
+    resolvePreload({ kind: 'ready' }) // let it proceed so no promise dangles
+  })
+})

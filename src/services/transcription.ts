@@ -39,7 +39,10 @@ export interface ModelProgress {
 }
 
 type AsrOutput = { text?: string }
-type AsrPipeline = (audio: Float32Array) => Promise<AsrOutput>
+type AsrPipeline = (
+  audio: Float32Array,
+  opts?: { chunk_length_s?: number; stride_length_s?: number },
+) => Promise<AsrOutput>
 
 // Lazy singleton — the model + ORT wasm load on FIRST use, never at import, so
 // app launch is untouched. Reset to null on failure so a later call (e.g. once
@@ -175,7 +178,10 @@ export async function transcribe(audio: Blob): Promise<TranscriptionResult> {
     return classifyLoadError(e)
   }
   try {
-    const out = await pipe(samples)
+    // chunk_length_s / stride_length_s make Whisper process the WHOLE clip in
+    // overlapping 30s windows. Without them the pipeline transcribes only the
+    // first 30 seconds and silently drops the rest (the Beat-D truncation bug).
+    const out = await pipe(samples, { chunk_length_s: 30, stride_length_s: 5 })
     const text = typeof out?.text === 'string' ? out.text.trim() : ''
     return { kind: 'ok', text, durationSeconds }
   } catch (e) {

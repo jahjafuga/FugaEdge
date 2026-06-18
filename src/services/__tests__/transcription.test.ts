@@ -62,6 +62,15 @@ describe('transcribe — control flow', () => {
     })
   })
 
+  it('passes the long-audio chunk options to the pipeline (guards the >30s truncation fix)', async () => {
+    // Without chunk_length_s, Whisper transcribes only the first 30s — the
+    // Beat-D truncation bug. This pins the options so a regression can't drop them.
+    const { transcribe } = await loadService()
+    await transcribe(aBlob())
+    expect(asrCallable).toHaveBeenCalledTimes(1)
+    expect(asrCallable.mock.calls[0][1]).toEqual({ chunk_length_s: 30, stride_length_s: 5 })
+  })
+
   it('handles a pipeline output with no text field → ok with empty text', async () => {
     asrCallable.mockResolvedValue({})
     const { transcribe } = await loadService()

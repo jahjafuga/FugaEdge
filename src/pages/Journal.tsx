@@ -8,6 +8,7 @@ import JournalHeader from '@/components/journal/JournalHeader'
 import DayPnlBanner from '@/components/journal/DayPnlBanner'
 import RuleChecklist, { type RuleState } from '@/components/journal/RuleChecklist'
 import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
+import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
 import type { JournalDay } from '@shared/journal-types'
@@ -33,10 +34,19 @@ interface EditorState {
   postsession: string
   emotion: number | null
   rules: Record<string, RuleState>
+  premarketDuration: number | null
+  postsessionDuration: number | null
 }
 
 function emptyEditor(): EditorState {
-  return { premarket: '', postsession: '', emotion: null, rules: {} }
+  return {
+    premarket: '',
+    postsession: '',
+    emotion: null,
+    rules: {},
+    premarketDuration: null,
+    postsessionDuration: null,
+  }
 }
 
 function editorFrom(day: JournalDay | null): EditorState {
@@ -49,6 +59,8 @@ function editorFrom(day: JournalDay | null): EditorState {
     postsession: day.entry.postsession_notes,
     emotion: day.entry.emotion_rating,
     rules,
+    premarketDuration: day.entry.premarket_recording_duration ?? null,
+    postsessionDuration: day.entry.postsession_recording_duration ?? null,
   }
 }
 
@@ -56,6 +68,8 @@ function isDirty(saved: EditorState, current: EditorState): boolean {
   if (saved.premarket !== current.premarket) return true
   if (saved.postsession !== current.postsession) return true
   if (saved.emotion !== current.emotion) return true
+  if (saved.premarketDuration !== current.premarketDuration) return true
+  if (saved.postsessionDuration !== current.postsessionDuration) return true
   const allKeys = new Set([...Object.keys(saved.rules), ...Object.keys(current.rules)])
   for (const k of allKeys) {
     if ((saved.rules[k] ?? 'neutral') !== (current.rules[k] ?? 'neutral')) return true
@@ -128,6 +142,8 @@ export default function Journal() {
         emotion_rating: editor.emotion,
         rules_followed,
         rule_violations,
+        premarket_recording_duration: editor.premarketDuration ?? undefined,
+        postsession_recording_duration: editor.postsessionDuration ?? undefined,
       })
       setDay(updated)
       const next = editorFrom(updated)
@@ -213,23 +229,55 @@ export default function Journal() {
             )}
 
             <Card title="Premarket plan" subtitle="Setup, thesis, levels, risk plan.">
-              <textarea
-                value={editor.premarket}
-                onChange={(e) => setEditor({ ...editor, premarket: e.target.value })}
-                rows={6}
-                placeholder="What are you watching today? What's the plan if it triggers?"
-                className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
-              />
+              <div className="space-y-3">
+                <VoiceRecorder
+                  onTranscript={(t) =>
+                    setEditor((p) => ({
+                      ...p,
+                      premarket: p.premarket ? `${p.premarket}\n${t}` : t,
+                    }))
+                  }
+                  onDuration={(s) =>
+                    setEditor((p) => ({
+                      ...p,
+                      premarketDuration: (p.premarketDuration ?? 0) + s,
+                    }))
+                  }
+                />
+                <textarea
+                  value={editor.premarket}
+                  onChange={(e) => setEditor({ ...editor, premarket: e.target.value })}
+                  rows={6}
+                  placeholder="What are you watching today? What's the plan if it triggers?"
+                  className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
+                />
+              </div>
             </Card>
 
             <Card title="Post-session debrief" subtitle="What worked. What didn't. What to fix tomorrow.">
-              <textarea
-                value={editor.postsession}
-                onChange={(e) => setEditor({ ...editor, postsession: e.target.value })}
-                rows={6}
-                placeholder="Mistakes, lessons, what to do differently next session."
-                className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
-              />
+              <div className="space-y-3">
+                <VoiceRecorder
+                  onTranscript={(t) =>
+                    setEditor((p) => ({
+                      ...p,
+                      postsession: p.postsession ? `${p.postsession}\n${t}` : t,
+                    }))
+                  }
+                  onDuration={(s) =>
+                    setEditor((p) => ({
+                      ...p,
+                      postsessionDuration: (p.postsessionDuration ?? 0) + s,
+                    }))
+                  }
+                />
+                <textarea
+                  value={editor.postsession}
+                  onChange={(e) => setEditor({ ...editor, postsession: e.target.value })}
+                  rows={6}
+                  placeholder="Mistakes, lessons, what to do differently next session."
+                  className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
+                />
+              </div>
             </Card>
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
