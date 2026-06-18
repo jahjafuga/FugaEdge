@@ -12,6 +12,8 @@ import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
 import { mmss, wordCount } from '@/lib/format'
+import { extractTopics, type TopicCategory } from '@/core/topics/extract'
+import { CURATED_TERMS } from '@/core/topics/terms'
 import type { JournalDay, SaveJournalInput } from '@shared/journal-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -126,6 +128,49 @@ function RecordingMeta({
   return <div className="text-[11px] tabular-nums text-fg-muted">{parts.join(' · ')}</div>
 }
 
+// Neutral chip styling — no win/loss colours. Tickers render monospaced (they
+// are symbols); setups and curated terms share the same calm treatment. This is
+// a reflection of what the entry mentions, not a scoreboard.
+function topicChipClass(category: TopicCategory): string {
+  const base =
+    'rounded-full border border-border bg-bg-1 px-2.5 py-0.5 text-[11px] text-fg-secondary'
+  return category === 'ticker' ? `${base} font-mono tabular-nums` : base
+}
+
+// Honest, derive-live topic chips for the current entry. Pure local matching
+// (src/core/topics) against the day's traded tickers, the user's setup names,
+// and the curated term list — no model, no API, no network, no save. Renders
+// nothing when the entry mentions none of them (honest empty state).
+function EntryTopics({
+  text,
+  tickers,
+  setups,
+}: {
+  text: string
+  tickers: string[]
+  setups: string[]
+}) {
+  const topics = useMemo(
+    () => extractTopics(text, { tickers, setups, terms: CURATED_TERMS }),
+    [text, tickers, setups],
+  )
+  if (topics.length === 0) return null
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-bg-1 px-4 py-3">
+      <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-muted">
+        Topics in this entry
+      </span>
+      <div className="flex flex-wrap gap-1.5">
+        {topics.map((t) => (
+          <span key={`${t.category}-${t.term}`} className={topicChipClass(t.category)}>
+            {t.term}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Journal() {
   const today = useMemo(todayISO, [])
   const [date, setDate] = useState(today)
@@ -134,6 +179,10 @@ export default function Journal() {
   // the top of the entry. Fetched lazily on date change; null while loading,
   // [] when there were no trades that day.
   const [dayTrades, setDayTrades] = useState<TradeListRow[] | null>(null)
+  // Setup names from the playbook library — the "setup" half of the topic
+  // vocabulary. Date-independent, so loaded once on mount; tolerates failure
+  // (empty vocab just means no setup chips, never an error).
+  const [setupNames, setSetupNames] = useState<string[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [editor, setEditor] = useState<EditorState>(emptyEditor())
   const [savedSnapshot, setSavedSnapshot] = useState<EditorState>(emptyEditor())
@@ -191,6 +240,27 @@ export default function Journal() {
       }
     }
   }, [date])
+
+  // Load setup names once for the topic vocabulary (read-only; never blocks the
+  // page). The playbook library is global, so this is independent of the date.
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .playbooksList()
+      .then((list) => {
+        if (!cancelled) setSetupNames(list.map((p) => p.name))
+      })
+      .catch(() => {
+        if (!cancelled) setSetupNames([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Memoised so the topic matcher doesn't re-run on every keystroke for a
+  // value that only changes when the day's trades reload.
+  const dayTickers = useMemo(() => dayTrades?.map((t) => t.symbol) ?? [], [dayTrades])
 
   // NO-REHYDRATE save: persist a snapshot, then advance the saved baseline ONLY.
   // It NEVER calls setEditor/setDay from the response — rehydrating would clobber
@@ -356,6 +426,12 @@ export default function Journal() {
                 <RecordingMeta text={editor.postsession} durationSeconds={editor.postsessionDuration} />
               </div>
             </Card>
+
+            <EntryTopics
+              text={`${editor.premarket}\n${editor.postsession}`}
+              tickers={dayTickers}
+              setups={setupNames}
+            />
 
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
               <Card title="Rules" subtitle="Mark each as followed (✓) or violated (✗). Leave blank if not applicable.">

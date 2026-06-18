@@ -15,6 +15,7 @@ vi.mock('@/lib/ipc', () => ({
     journalGet: vi.fn(),
     journalSave: vi.fn(),
     tradesList: vi.fn(),
+    playbooksList: vi.fn(),
     sessionSentimentSave: vi.fn(),
   },
 }))
@@ -33,6 +34,7 @@ import { ipc } from '@/lib/ipc'
 const journalGet = vi.mocked(ipc.journalGet)
 const journalSave = vi.mocked(ipc.journalSave)
 const tradesList = vi.mocked(ipc.tradesList)
+const playbooksList = vi.mocked(ipc.playbooksList)
 
 function makeDay(): JournalDay {
   return { date: '2026-06-18', entry: null, summary: null, rules: ['Followed the plan'], sentiment: null }
@@ -42,8 +44,10 @@ beforeEach(() => {
   journalGet.mockReset()
   journalSave.mockReset()
   tradesList.mockReset()
+  playbooksList.mockReset()
   journalGet.mockResolvedValue(makeDay())
   tradesList.mockResolvedValue([])
+  playbooksList.mockResolvedValue([])
   journalSave.mockResolvedValue(makeDay())
 })
 
