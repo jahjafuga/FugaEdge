@@ -184,3 +184,55 @@ describe('extractTopics — common-word tickers excluded (stop-list)', () => {
     expect(out).toEqual([{ term: 'ELAB', category: 'ticker' }])
   })
 })
+
+describe('extractTopics — widened vocab variants (real momentum phrasing)', () => {
+  const withTerms = { ...NO_VOCAB, terms: CURATED_TERMS }
+  it('"I overtraded today" → overtrading', () => {
+    expect(extractTopics('I overtraded today', withTerms)).toContainEqual({
+      term: 'overtrading',
+      category: 'term',
+    })
+  })
+  it('"I was chasing" → chased', () => {
+    expect(extractTopics('I was chasing', withTerms)).toContainEqual({
+      term: 'chased',
+      category: 'term',
+    })
+  })
+  it('"hesitated on the entry" → hesitation', () => {
+    expect(extractTopics('hesitated on the entry', withTerms)).toContainEqual({
+      term: 'hesitation',
+      category: 'term',
+    })
+  })
+  it('"stayed patient" → patience', () => {
+    expect(extractTopics('stayed patient', withTerms)).toContainEqual({
+      term: 'patience',
+      category: 'term',
+    })
+  })
+  it('"stuck to the plan" → followed plan', () => {
+    expect(extractTopics('stuck to the plan', withTerms)).toContainEqual({
+      term: 'followed plan',
+      category: 'term',
+    })
+  })
+  it('"booked it" → took profits', () => {
+    expect(extractTopics('booked it', withTerms)).toContainEqual({
+      term: 'took profits',
+      category: 'term',
+    })
+  })
+})
+
+describe('extractTopics — widened vocab false-positive guards', () => {
+  const withTerms = { ...NO_VOCAB, terms: CURATED_TERMS }
+  it('"purchased shares" does NOT match chase/chasing (word boundary)', () => {
+    const out = extractTopics('purchased shares', withTerms)
+    expect(out.find((t) => t.term === 'chased')).toBeUndefined()
+  })
+  it('"padded the position" does NOT match added (word boundary)', () => {
+    const out = extractTopics('padded the entry', withTerms)
+    expect(out.find((t) => t.term === 'added')).toBeUndefined()
+  })
+})

@@ -106,3 +106,43 @@ describe('aggregateWeekTopics — multi-term, multi-entry', () => {
     expect(out.find((c) => c.term === 'chased')).toMatchObject({ group: 'pitfall', count: 1 })
   })
 })
+
+describe('aggregateWeekTopics — widened vocab new terms + grouping', () => {
+  it('"honored the stop" → process (a strength)', () => {
+    const out = aggregateWeekTopics([e('honored the stop')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'honored the stop')?.group).toBe('process')
+  })
+  it('"moved my stop" → pitfall (the actual mistake)', () => {
+    const out = aggregateWeekTopics([e('moved my stop')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'moved my stop')?.group).toBe('pitfall')
+  })
+  it('"oversized the position" → oversized, pitfall', () => {
+    const out = aggregateWeekTopics([e('oversized the position')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'oversized')?.group).toBe('pitfall')
+  })
+  it('"traded the chop" → wrong hours, pitfall', () => {
+    const out = aggregateWeekTopics([e('traded the chop')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'wrong hours')?.group).toBe('pitfall')
+  })
+  it('"added more" → added, structure (neutral)', () => {
+    const out = aggregateWeekTopics([e('added more')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'added')?.group).toBe('structure')
+  })
+  it('"sized up" → sized up, structure (neutral — distinct from oversized)', () => {
+    const out = aggregateWeekTopics([e('sized up')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'sized up')?.group).toBe('structure')
+  })
+})
+
+describe('aggregateWeekTopics — the wellbeing asymmetry (stopped-out is NOT a mistake)', () => {
+  it('"got stopped out but honored the stop" → neither is a pitfall', () => {
+    const out = aggregateWeekTopics([e('I got stopped out but honored the stop')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'stopped out')?.group).toBe('structure') // system working
+    expect(out.find((c) => c.term === 'honored the stop')?.group).toBe('process') // strength
+    expect(out.some((c) => c.group === 'pitfall')).toBe(false) // NO pitfall
+  })
+  it('"moved my stop" IS the pitfall — the asymmetry counterpart', () => {
+    const out = aggregateWeekTopics([e('I moved my stop')], TERMS_ONLY)
+    expect(out.find((c) => c.term === 'moved my stop')?.group).toBe('pitfall')
+  })
+})
