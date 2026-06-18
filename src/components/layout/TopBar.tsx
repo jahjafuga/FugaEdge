@@ -1,6 +1,7 @@
-import { Link, useLocation } from 'react-router-dom'
-import { Download, Moon, Sun } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/lib/theme'
+import AccountMenu from './AccountMenu'
 
 const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/dashboard': { crumb: 'Dashboard',  title: 'Performance Overview' },
@@ -43,13 +44,7 @@ export default function TopBar() {
       <div className="flex items-center gap-3">
         <LivePill />
         <ThemeToggle />
-        <Link
-          to="/import"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-gold px-3 text-xs font-semibold tracking-wide text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim"
-        >
-          <Download size={14} strokeWidth={2.25} />
-          Import
-        </Link>
+        <AccountMenu />
       </div>
     </header>
   )

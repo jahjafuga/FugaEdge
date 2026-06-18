@@ -7,8 +7,8 @@
 // img-src already allows data: URLs.
 
 import { useRef, useState } from 'react'
-import { User } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
+import Avatar from '@/components/ui/Avatar'
 import type { Profile } from '@shared/identity-types'
 import { initialsFrom } from './helpers'
 import { profileStrings } from './strings'
@@ -80,22 +80,12 @@ export default function AvatarPicker({ profile, onUpdated }: AvatarPickerProps) 
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div
-        className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full border border-border-subtle bg-bg-3"
-        data-testid="avatar-disc"
-      >
-        {profile.avatar_data ? (
-          <img
-            src={profile.avatar_data}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        ) : initials ? (
-          <span className="text-3xl font-semibold text-gold">{initials}</span>
-        ) : (
-          <User className="h-10 w-10 text-fg-tertiary" />
-        )}
-      </div>
+      <Avatar
+        avatarData={profile.avatar_data}
+        initials={initials}
+        size={112}
+        testId="avatar-disc"
+      />
       <input
         ref={inputRef}
         type="file"

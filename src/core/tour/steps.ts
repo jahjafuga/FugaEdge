@@ -44,11 +44,11 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'import',
     anchor: 'nav-import',
-    title: 'Bring in your trades',
+    title: 'Your account menu',
     body:
-      'Drop your DAS Trader CSVs — both the Trades.csv and the daily summary. ' +
-      'We auto-fetch shares outstanding, EMA9 distance, and intraday bars from Massive. ' +
-      'True point-in-time float is coming in a future release. ' +
+      'Profile, Settings, and importing trades all live here, top-right. ' +
+      'Import takes your DAS Trader CSVs — the Trades.csv and the daily summary — ' +
+      'and we auto-fetch shares outstanding, EMA9 distance, and intraday bars from Massive. ' +
       'Lightspeed and Webull support coming soon.',
   },
   {
