@@ -107,6 +107,13 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  // Voice Journal — grant ONLY the 'media' (microphone) permission; deny all
+  // others. Scoped so the voice recorder can capture audio without opening the
+  // renderer to camera / geolocation / etc.
+  win.webContents.session.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+
   win.on('ready-to-show', () => {
     win.show()
   })
