@@ -2,7 +2,7 @@ import { openDatabase } from '../db/database'
 import { listTradesInRange } from '../trades/list'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
-import type { WeekDetail } from '@shared/week-types'
+import type { WeekDetail, WeekJournalEntry } from '@shared/week-types'
 
 function addDaysStr(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number)
@@ -31,6 +31,27 @@ export function getWeekDetail(weekStart: string): WeekDetail {
     .prepare('SELECT text FROM week_notes WHERE week_start = ?')
     .get(weekStart) as { text: string } | undefined
 
+  // Phase 5 — the week's per-day journal entry text, for the weekly pattern
+  // view. Mirrors the calendar/weekly.ts journal range-query. Only days with a
+  // journal row appear; a week with none → []. (journal has no deleted_at.)
+  const journalRows = db
+    .prepare(`
+      SELECT date, premarket_notes, postsession_notes
+      FROM journal
+      WHERE date >= ? AND date <= ?
+      ORDER BY date ASC
+    `)
+    .all(weekStart, weekEnd) as {
+    date: string
+    premarket_notes: string | null
+    postsession_notes: string | null
+  }[]
+  const entries: WeekJournalEntry[] = journalRows.map((r) => ({
+    date: r.date,
+    premarket_notes: r.premarket_notes ?? '',
+    postsession_notes: r.postsession_notes ?? '',
+  }))
+
   const metrics = computeWeekMetrics({ trades, weekEnd, dailyPnl, exitDeltas: computeExitDeltas(trades) })
 
   return {
@@ -39,5 +60,6 @@ export function getWeekDetail(weekStart: string): WeekDetail {
     metrics,
     trades,
     notes: notesRow?.text ?? '',
+    entries,
   }
 }

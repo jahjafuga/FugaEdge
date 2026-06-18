@@ -71,10 +71,23 @@ export interface WeekMetrics {
   streak: { kind: 'win' | 'loss' | 'none'; days: number }
 }
 
+/** One day's journal entry text within a week. Snake_case mirrors the journal
+ *  columns / shared JournalEntry. v0.2.x Phase 5 — feeds the weekly pattern
+ *  view's topic aggregation; carried as raw text, not yet rendered. */
+export interface WeekJournalEntry {
+  date: string
+  premarket_notes: string
+  postsession_notes: string
+}
+
 export interface WeekDetail {
   weekStart: string  // Sunday, YYYY-MM-DD
   weekEnd: string    // Saturday, YYYY-MM-DD
   metrics: WeekMetrics
   trades: TradeListRow[]  // all week trades, for the equity curve + Trades tab
   notes: string           // week_notes reflection
+  /** The week's per-day journal entry text (Sun–Sat). Only days WITH a journal
+   *  row appear; a week with none → []. Phase 5's Patterns tab re-runs the topic
+   *  matcher over these — they are not rendered by any tab yet. */
+  entries: WeekJournalEntry[]
 }
