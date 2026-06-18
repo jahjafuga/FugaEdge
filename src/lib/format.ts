@@ -163,6 +163,21 @@ export function duration(seconds: number | null | undefined): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`
 }
 
+// Seconds → "m:ss" clock (0:34, 1:35, 10:00). Floors to whole seconds. Shared by
+// the voice-recorder live timer and the journal recording-metadata line so both
+// render one canonical m:ss.
+export function mmss(seconds: number): string {
+  const s = Math.floor(seconds)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+// Whitespace-delimited word count for a block of text. Empty / whitespace-only
+// → 0. Used for the journal recording-metadata word count (whole field).
+export function wordCount(text: string): number {
+  const trimmed = text.trim()
+  return trimmed ? trimmed.split(/\s+/).length : 0
+}
+
 // "Deleted X days ago" for the Settings → Trash card (v0.2.3 P5). The input is
 // a `trades.deleted_at` value, which is SQLite `datetime('now')` →
 // 'YYYY-MM-DD HH:MM:SS' in UTC, with a SPACE separator and NO 'Z' suffix.

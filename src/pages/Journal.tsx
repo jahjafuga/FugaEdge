@@ -11,6 +11,7 @@ import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
+import { mmss, wordCount } from '@/lib/format'
 import type { JournalDay, SaveJournalInput } from '@shared/journal-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -103,6 +104,26 @@ function buildSaveInput(
     premarket_recording_duration: snapshot.premarketDuration ?? undefined,
     postsession_recording_duration: snapshot.postsessionDuration ?? undefined,
   }
+}
+
+// Inline recording metadata under each field: the recording length (m:ss, only
+// when a clip exists) + the whole-field word count (only when there's text),
+// joined by "·". Renders nothing for an empty field (honest empty state).
+function RecordingMeta({
+  text,
+  durationSeconds,
+}: {
+  text: string
+  durationSeconds: number | null
+}) {
+  const words = wordCount(text)
+  const parts: string[] = []
+  if (typeof durationSeconds === 'number' && durationSeconds > 0) {
+    parts.push(mmss(durationSeconds))
+  }
+  if (words > 0) parts.push(`${words} ${words === 1 ? 'word' : 'words'}`)
+  if (parts.length === 0) return null
+  return <div className="text-[11px] tabular-nums text-fg-muted">{parts.join(' · ')}</div>
 }
 
 export default function Journal() {
@@ -305,6 +326,7 @@ export default function Journal() {
                   placeholder="What are you watching today? What's the plan if it triggers?"
                   className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
                 />
+                <RecordingMeta text={editor.premarket} durationSeconds={editor.premarketDuration} />
               </div>
             </Card>
 
@@ -331,6 +353,7 @@ export default function Journal() {
                   placeholder="Mistakes, lessons, what to do differently next session."
                   className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-tertiary outline-none transition-colors duration-150 focus:border-gold"
                 />
+                <RecordingMeta text={editor.postsession} durationSeconds={editor.postsessionDuration} />
               </div>
             </Card>
 

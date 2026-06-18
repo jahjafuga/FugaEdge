@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, Square, X, Loader2, AlertCircle, RotateCcw } from 'lucide-react'
 import { preloadModel, transcribe, type ModelProgress } from '@/services/transcription'
+import { mmss } from '@/lib/format'
 
 // Reusable voice recorder. Records mic audio, shows a live waveform + timer, and
 // on Stop hands the clip to the transcription SERVICE (Beat B2) — it imports
@@ -24,11 +25,6 @@ type RecorderState = 'idle' | 'recording' | 'processing' | 'downloading' | 'erro
 
 const OFFLINE_MSG =
   'Voice model needs a one-time download — connect to the internet, then try again.'
-
-function formatElapsed(totalSeconds: number): string {
-  const s = Math.floor(totalSeconds)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
 
 export default function VoiceRecorder({
   onTranscript,
@@ -234,7 +230,7 @@ export default function VoiceRecorder({
               Recording
             </span>
             <span className="font-mono text-sm tabular-nums text-fg-secondary">
-              {formatElapsed(elapsed)}
+              {mmss(elapsed)}
             </span>
           </div>
           <canvas

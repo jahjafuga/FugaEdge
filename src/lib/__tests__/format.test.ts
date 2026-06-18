@@ -26,9 +26,11 @@ import {
   formatProfitFactor,
   int,
   localEasternToUtc,
+  mmss,
   percent,
   signedPct,
   utcToEasternParts,
+  wordCount,
 } from '../format'
 import { parseInput } from '@/components/trades/FloatEditor'
 
@@ -393,5 +395,35 @@ describe('deletedAgo — "Deleted X days ago" for the Trash card', () => {
     expect(deletedAgo(null)).toBe('Deleted recently')
     expect(deletedAgo(undefined)).toBe('Deleted recently')
     expect(deletedAgo('not-a-date')).toBe('Deleted recently')
+  })
+})
+
+describe('mmss — m:ss clock (voice recorder timer + journal metadata)', () => {
+  it('formats sub-minute, minute, and ten-minute durations', () => {
+    expect(mmss(0)).toBe('0:00')
+    expect(mmss(34)).toBe('0:34')
+    expect(mmss(95)).toBe('1:35')
+    expect(mmss(600)).toBe('10:00')
+  })
+
+  it('floors fractional seconds (matches the recorder timer)', () => {
+    expect(mmss(34.7)).toBe('0:34')
+    expect(mmss(59.9)).toBe('0:59')
+  })
+})
+
+describe('wordCount — whitespace-delimited word count', () => {
+  it('counts words, treating any whitespace run as one separator', () => {
+    expect(wordCount('hello')).toBe(1)
+    expect(wordCount('a b')).toBe(2)
+    expect(wordCount('a  b')).toBe(2) // multiple spaces
+    expect(wordCount('a\nb')).toBe(2) // newline
+    expect(wordCount('  trimmed  words  ')).toBe(2)
+  })
+
+  it('returns 0 for empty or whitespace-only text', () => {
+    expect(wordCount('')).toBe(0)
+    expect(wordCount('   ')).toBe(0)
+    expect(wordCount('\n\t ')).toBe(0)
   })
 })
