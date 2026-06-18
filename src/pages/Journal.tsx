@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertCircle, Check, Loader2 } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
@@ -11,7 +11,7 @@ import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
-import type { JournalDay } from '@shared/journal-types'
+import type { JournalDay, SaveJournalInput } from '@shared/journal-types'
 import type { TradeListRow } from '@shared/trades-types'
 
 function pad(n: number): string {
@@ -77,6 +77,34 @@ function isDirty(saved: EditorState, current: EditorState): boolean {
   return false
 }
 
+const AUTOSAVE_DEBOUNCE_MS = 1500
+
+// Build the journalSave payload from an editor snapshot. Pure — shared by the
+// debounced save and the flush-on-navigate path so the two can't drift.
+function buildSaveInput(
+  snapshot: EditorState,
+  day: JournalDay,
+  date: string,
+): SaveJournalInput {
+  const rules_followed: string[] = []
+  const rule_violations: string[] = []
+  for (const rule of day.rules) {
+    const state = snapshot.rules[rule] ?? 'neutral'
+    if (state === 'followed') rules_followed.push(rule)
+    else if (state === 'violated') rule_violations.push(rule)
+  }
+  return {
+    date,
+    premarket_notes: snapshot.premarket,
+    postsession_notes: snapshot.postsession,
+    emotion_rating: snapshot.emotion,
+    rules_followed,
+    rule_violations,
+    premarket_recording_duration: snapshot.premarketDuration ?? undefined,
+    postsession_recording_duration: snapshot.postsessionDuration ?? undefined,
+  }
+}
+
 export default function Journal() {
   const today = useMemo(todayISO, [])
   const [date, setDate] = useState(today)
@@ -90,6 +118,18 @@ export default function Journal() {
   const [savedSnapshot, setSavedSnapshot] = useState<EditorState>(emptyEditor())
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
+  const [saveError, setSaveError] = useState(false)
+
+  // Latest values for the flush-on-navigate / unmount path (no stale closures).
+  const editorRef = useRef(editor)
+  editorRef.current = editor
+  const savedSnapshotRef = useRef(savedSnapshot)
+  savedSnapshotRef.current = savedSnapshot
+  const dayRef = useRef(day)
+  dayRef.current = day
+  // The exact snapshot of the last save attempt — holds off auto-retry on a
+  // standing error until the user edits again (avoids a tight retry loop).
+  const lastAttemptRef = useRef<EditorState | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -121,39 +161,37 @@ export default function Journal() {
       })
     return () => {
       cancelled = true
+      // Flush a pending edit for THIS date before reload / on unmount, so the
+      // last sub-debounce window isn't silently lost (the old manual-save gap).
+      // Fire-and-forget — no setState (the component is reloading / unmounting).
+      const d = dayRef.current
+      if (d && isDirty(savedSnapshotRef.current, editorRef.current)) {
+        ipc.journalSave(buildSaveInput(editorRef.current, d, date)).catch(() => {})
+      }
     }
   }, [date])
 
-  const handleSave = useCallback(async () => {
-    if (saving || !day) return
-    setSaving(true)
-    try {
-      const rules_followed: string[] = []
-      const rule_violations: string[] = []
-      for (const rule of day.rules) {
-        const state = editor.rules[rule] ?? 'neutral'
-        if (state === 'followed') rules_followed.push(rule)
-        else if (state === 'violated') rule_violations.push(rule)
+  // NO-REHYDRATE save: persist a snapshot, then advance the saved baseline ONLY.
+  // It NEVER calls setEditor/setDay from the response — rehydrating would clobber
+  // keystrokes typed during the async save (silent data loss). If the editor
+  // moved on, it stays dirty and the debounce simply saves again.
+  const save = useCallback(
+    async (snapshot: EditorState) => {
+      if (!day) return
+      setSaving(true)
+      setSaveError(false)
+      try {
+        await ipc.journalSave(buildSaveInput(snapshot, day, date))
+        setSavedSnapshot(snapshot)
+        setSavedAt(Date.now())
+      } catch {
+        setSaveError(true) // leave the baseline un-advanced → still dirty → retries
+      } finally {
+        setSaving(false)
       }
-      const updated = await ipc.journalSave({
-        date,
-        premarket_notes: editor.premarket,
-        postsession_notes: editor.postsession,
-        emotion_rating: editor.emotion,
-        rules_followed,
-        rule_violations,
-        premarket_recording_duration: editor.premarketDuration ?? undefined,
-        postsession_recording_duration: editor.postsessionDuration ?? undefined,
-      })
-      setDay(updated)
-      const next = editorFrom(updated)
-      setEditor(next)
-      setSavedSnapshot(next)
-      setSavedAt(Date.now())
-    } finally {
-      setSaving(false)
-    }
-  }, [saving, day, editor, date])
+    },
+    [day, date],
+  )
 
   const setRuleState = useCallback((rule: string, next: RuleState) => {
     setEditor((prev) => ({
@@ -161,6 +199,22 @@ export default function Journal() {
       rules: { ...prev.rules, [rule]: next },
     }))
   }, [])
+
+  // Debounced auto-save: ~1.5s after edits stop, persist dirty state — each edit
+  // resets the timer. Gated on !saving (no overlapping saves); when a save ends
+  // with the editor still dirty, this re-runs and reschedules. After a failed
+  // save it holds off until the user edits again (lastAttemptRef), so a
+  // persistent failure doesn't become a tight retry loop.
+  useEffect(() => {
+    if (!day || saving) return
+    if (!isDirty(savedSnapshot, editor)) return
+    if (saveError && lastAttemptRef.current === editor) return
+    const t = setTimeout(() => {
+      lastAttemptRef.current = editor
+      void save(editor)
+    }, AUTOSAVE_DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [editor, savedSnapshot, day, saving, saveError, save])
 
   const dirty = isDirty(savedSnapshot, editor)
 
@@ -297,20 +351,34 @@ export default function Journal() {
               </Card>
             </div>
 
-            <div className="flex items-center justify-end gap-3">
-              {savedAt && !dirty && (
-                <span className="text-[10px] uppercase tracking-wider text-win">
-                  saved
+            {/* Auto-save status — replaces the manual Save button. Saves fire
+                ~1.5s after edits stop; this line is the reassurance. */}
+            <div className="flex h-9 items-center justify-end gap-2 text-[11px]">
+              {saving ? (
+                <span className="flex items-center gap-1.5 text-fg-muted">
+                  <Loader2 size={12} className="animate-spin" />
+                  Saving…
                 </span>
-              )}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={!dirty || saving}
-                className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {saving ? 'Saving…' : 'Save journal entry'}
-              </button>
+              ) : saveError ? (
+                <span className="flex items-center gap-2 text-loss">
+                  <AlertCircle size={12} strokeWidth={2} />
+                  <span>Couldn&apos;t save</span>
+                  <button
+                    type="button"
+                    onClick={() => void save(editor)}
+                    className="cursor-pointer rounded border border-loss/40 px-2 py-0.5 font-medium transition-colors hover:bg-loss/10"
+                  >
+                    Retry
+                  </button>
+                </span>
+              ) : dirty ? (
+                <span className="text-fg-muted">Unsaved changes…</span>
+              ) : savedAt ? (
+                <span className="flex items-center gap-1.5 uppercase tracking-wider text-win">
+                  <Check size={12} strokeWidth={2.5} />
+                  Saved
+                </span>
+              ) : null}
             </div>
           </>
         )}

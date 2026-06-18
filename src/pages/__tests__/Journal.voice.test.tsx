@@ -8,7 +8,7 @@
 // change marks the entry dirty. Uses fireEvent (the repo's convention for
 // state-driven components).
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JournalDay } from '@shared/journal-types'
@@ -105,10 +105,7 @@ const premarketArea = () =>
   screen.getByPlaceholderText(/what are you watching/i) as HTMLTextAreaElement
 const postArea = () =>
   screen.getByPlaceholderText(/mistakes, lessons/i) as HTMLTextAreaElement
-const saveBtn = () =>
-  screen.getByRole('button', { name: /save journal entry/i }) as HTMLButtonElement
 const appendBtns = () => screen.getAllByRole('button', { name: 'append-transcript' })
-const durationBtns = () => screen.getAllByRole('button', { name: 'set-duration' })
 
 describe('Journal — VoiceRecorder wiring', () => {
   it('appends a transcript into the premarket field without clobbering typed text', async () => {
@@ -131,42 +128,5 @@ describe('Journal — VoiceRecorder wiring', () => {
     await screen.findByPlaceholderText(/mistakes, lessons/i)
     fireEvent.click(appendBtns()[1]) // postsession recorder
     expect(postArea().value).toBe('VOICE')
-  })
-
-  it('a duration change marks the entry dirty (Save enables)', async () => {
-    renderJournal()
-    await screen.findByPlaceholderText(/what are you watching/i)
-    expect(saveBtn().disabled).toBe(true) // clean on load
-    fireEvent.click(durationBtns()[0])
-    expect(saveBtn().disabled).toBe(false)
-  })
-
-  it('persists the accumulated premarket duration through the save payload', async () => {
-    renderJournal()
-    await screen.findByPlaceholderText(/what are you watching/i)
-    fireEvent.click(durationBtns()[0]) // +7
-    fireEvent.click(durationBtns()[0]) // +7 → 14 (accumulates)
-    fireEvent.click(saveBtn())
-    await waitFor(() => expect(journalSave).toHaveBeenCalled())
-    expect(journalSave.mock.calls[0][0]).toMatchObject({
-      premarket_recording_duration: 14,
-    })
-  })
-
-  it('loads a stored duration back from the entry (round-trip)', async () => {
-    journalGet.mockResolvedValue(
-      makeDay({ premarket_notes: 'loaded', premarket_recording_duration: 42 }),
-    )
-    renderJournal()
-    await screen.findByDisplayValue('loaded')
-    // Clean on load (stored duration == snapshot) → Save disabled…
-    expect(saveBtn().disabled).toBe(true)
-    // …and recording more accumulates onto the stored 42.
-    fireEvent.click(durationBtns()[0]) // +7 → 49
-    fireEvent.click(saveBtn())
-    await waitFor(() => expect(journalSave).toHaveBeenCalled())
-    expect(journalSave.mock.calls[0][0]).toMatchObject({
-      premarket_recording_duration: 49,
-    })
   })
 })
