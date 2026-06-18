@@ -2,30 +2,31 @@ import type { CuratedTerm } from './extract'
 
 // Curated vocabulary for honest, local topic extraction in the Journal.
 //
-// This list is BALANCED BY DESIGN: it pairs process/discipline and structural
-// terms with the psychology pitfalls, so the journal reflects what a trader did
-// WELL as readily as what went wrong — reflect-and-support, never a shame
-// scoreboard. The exact contents (and the accepted phrasings below) are a VALUES
-// decision (founder-authored), not a technical one: changing them changes what
-// the journal chooses to notice about a session.
+// This list is BALANCED BY DESIGN: it pairs process/discipline strengths with
+// the psychology pitfalls, so the journal reflects what a trader did WELL as
+// readily as what went wrong — reflect-and-support, never a shame scoreboard.
+// The contents, the accepted phrasings, AND the group each term belongs to are a
+// VALUES decision (founder-authored), not a technical one.
 //
 // Matching is pure and local (see ./extract): no AI model, no API, no network.
-// Terms are matched case-insensitively at word boundaries, so the canonical
-// casing here (e.g. FOMO, VWAP) is exactly what renders in the UI.
+// Terms are matched case-insensitively at word boundaries; the canonical casing
+// here (e.g. FOMO, VWAP) is exactly what renders in the UI. Multi-word concepts
+// carry an EXPLICIT list of accepted phrasings (the object form) that all map to
+// ONE canonical chip — an honest enumeration, never fuzzy matching.
 //
-// Multi-word concepts carry an EXPLICIT list of accepted phrasings (the object
-// form) that all map to ONE canonical chip. This exists because the constructive
-// terms are disproportionately phrases ("followed the plan") while the mistake
-// terms are single words ("FOMO") — strict adjacent-phrase matching would
-// lopsidedly catch mistakes and miss good behaviour, defeating the balance. The
-// variants are an explicit enumeration, never fuzzy matching: a phrasing not
-// listed simply doesn't match (an honest under-match, never a surprise).
+// The three groups below drive the WEEKLY pattern view's balanced split
+// (Phase 5): PROCESS = strengths, PITFALL = struggles, STRUCTURE = neutral
+// context (market mechanics + behaviours like "hesitation" that cut both ways,
+// surfaced without a good/bad label). The flat CURATED_TERMS the per-entry
+// matcher consumes is assembled from these groups and is unchanged in shape.
 
-export const CURATED_TERMS: CuratedTerm[] = [
-  // Process / discipline — the constructive half: what good execution looks like.
+/** Which side of the balanced weekly view a curated term belongs to. */
+export type TermGroup = 'process' | 'pitfall' | 'structure'
+
+// PROCESS — constructive strengths: what good execution looks like.
+const PROCESS: CuratedTerm[] = [
   'discipline',
   'patience',
-  'waited',
   {
     canonical: 'followed plan',
     variants: [
@@ -53,24 +54,48 @@ export const CURATED_TERMS: CuratedTerm[] = [
     canonical: 'took profits',
     variants: ['took profits', 'took some profits', 'took profit', 'booked profits'],
   },
-  // Psychology — the pitfalls, named plainly so they can be seen, not to shame.
+]
+
+// PITFALL — psychology struggles: named plainly so they can be seen, not to shame.
+const PITFALL: CuratedTerm[] = [
   'FOMO',
   'overtrading',
   {
     canonical: 'revenge trade',
     variants: ['revenge trade', 'revenge traded', 'revenge trading'],
   },
-  'hesitation',
   'chased',
   'tilt',
   'forced',
   'impulsive',
-  // Structure — neutral market mechanics.
+]
+
+// STRUCTURE — neutral market mechanics, plus behaviours that cut both ways
+// ("hesitation"): surfaced as context, without a good/bad label.
+const STRUCTURE: CuratedTerm[] = [
   'VWAP',
   'gap',
+  'breakout',
   {
     canonical: 'halt resume',
     variants: ['halt resume', 'halt resumption', 'halt and resume'],
   },
-  'breakout',
+  'hesitation',
 ]
+
+// Phase-4 contract: the flat list the per-entry matcher consumes. Assembled from
+// the three groups; IDENTICAL in shape to before. ("waited" was intentionally
+// dropped this phase — too ambiguous to carry a label.)
+export const CURATED_TERMS: CuratedTerm[] = [...PROCESS, ...PITFALL, ...STRUCTURE]
+
+// canonical → group, DERIVED from the sub-arrays at module load so the map can
+// never drift from the lists. Consumed by the Phase-5 weekly aggregation; the
+// per-entry Phase-4 chips don't use it.
+function canonicalOf(t: CuratedTerm): string {
+  return typeof t === 'string' ? t : t.canonical
+}
+export const TERM_GROUP: Record<string, TermGroup> = Object.fromEntries([
+  ...PROCESS.map((t) => [canonicalOf(t), 'process'] as const),
+  ...PITFALL.map((t) => [canonicalOf(t), 'pitfall'] as const),
+  ...STRUCTURE.map((t) => [canonicalOf(t), 'structure'] as const),
+])
