@@ -19,6 +19,7 @@ interface PlaybookRowDb {
   rules: string
   ideal_conditions: string
   archived: number
+  is_system: number
   tier: string
   created_at: string
 }
@@ -40,6 +41,7 @@ function rowToPlaybook(r: PlaybookRowDb): Playbook {
     rules: r.rules ?? '',
     ideal_conditions: r.ideal_conditions ?? '',
     archived: !!r.archived,
+    is_system: !!r.is_system,
     tier: normalizeTier(r.tier),
     created_at: r.created_at,
   }
@@ -153,7 +155,7 @@ export function listPlaybooks(): PlaybookWithStats[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT id, name, description, rules, ideal_conditions, archived, tier, created_at
+      SELECT id, name, description, rules, ideal_conditions, archived, is_system, tier, created_at
       FROM playbooks
       ORDER BY archived ASC, name ASC
     `)
@@ -168,7 +170,7 @@ export function getPlaybook(id: number): PlaybookWithStats | null {
   const db = openDatabase()
   const row = db
     .prepare(`
-      SELECT id, name, description, rules, ideal_conditions, archived, tier, created_at
+      SELECT id, name, description, rules, ideal_conditions, archived, is_system, tier, created_at
       FROM playbooks WHERE id = ?
     `)
     .get(id) as PlaybookRowDb | undefined

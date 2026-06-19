@@ -12,6 +12,10 @@ export interface Playbook {
   rules: string
   ideal_conditions: string
   archived: boolean
+  /** v0.2.5 Beat 3 — app-owned protected row (the seeded "No Setup"). Exposed to
+   *  the renderer so the picker can pin/identify the system row and the
+   *  confluence filter can exclude it. Mapped from the 0/1 column like archived. */
+  is_system: boolean
   tier: PlaybookTier
   created_at: string
 }

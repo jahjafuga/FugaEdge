@@ -27,6 +27,7 @@ import CatalystEditor from './CatalystEditor'
 import NoteEditor from './NoteEditor'
 import AttachmentManager from './AttachmentManager'
 import MistakesChecklist from './MistakesChecklist'
+import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
@@ -475,6 +476,10 @@ function OverviewTab({
           }
         />
       </div>
+
+      {/* Beat 3 — secondary confluence tags. Hidden when the primary is
+          "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid. */}
+      <ConfluenceTags trade={t} />
 
       {/* P&L mini-grid — gross, fees, net at a glance */}
       <div className="grid grid-cols-3 gap-3">

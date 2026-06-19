@@ -325,6 +325,11 @@ export default function Playbook() {
                   Setup definition
                 </div>
                 <div className="flex items-center gap-3">
+                  {selected.is_system && (
+                    <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
+                      System playbook
+                    </span>
+                  )}
                   {savedAt && (
                     <span className="text-[10px] uppercase tracking-wider text-win">
                       saved
@@ -333,22 +338,24 @@ export default function Playbook() {
                   <button
                     type="button"
                     onClick={handleArchiveToggle}
-                    className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold"
+                    disabled={selected.is_system}
+                    className="rounded border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wider text-subtle transition-colors hover:border-gold/40 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-white/[0.08] disabled:hover:text-subtle"
                   >
                     {editor.archived ? 'restore' : 'archive'}
                   </button>
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="rounded border border-red/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-red transition-colors hover:bg-red/[0.08]"
-                    title="Permanently delete this playbook. Trades will be unlinked but not deleted."
+                    disabled={selected.is_system}
+                    className="rounded border border-red/40 px-2 py-0.5 text-[10px] uppercase tracking-wider text-red transition-colors hover:bg-red/[0.08] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                    title={selected.is_system ? 'System playbooks cannot be deleted.' : 'Permanently delete this playbook. Trades will be unlinked but not deleted.'}
                   >
                     delete
                   </button>
                   <button
                     type="button"
                     onClick={handleSave}
-                    disabled={saving}
+                    disabled={saving || selected.is_system}
                     className="rounded-md px-3 py-1 text-xs font-medium text-bg transition-all duration-150 hover:brightness-110 disabled:opacity-40"
                     style={{
                       background:

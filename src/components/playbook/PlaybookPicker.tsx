@@ -65,6 +65,26 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
 
   const active = value != null
 
+  const renderPlaybookRow = (p: PlaybookWithStats) => {
+    const isActive = p.id === value
+    return (
+      <button
+        key={p.id}
+        type="button"
+        onClick={() => {
+          onChange(p.id)
+          setOpen(false)
+        }}
+        className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
+          isActive ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
+        }`}
+      >
+        <span>{p.name}</span>
+        {isActive && <Check size={11} strokeWidth={2.5} />}
+      </button>
+    )
+  }
+
   return (
     <div ref={wrapRef} className="relative inline-flex items-center">
       <button
@@ -116,27 +136,24 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
           {!playbooks && (
             <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
           )}
-          {playbooks
-            ?.filter((p) => !p.archived)
-            .map((p) => {
-              const isActive = p.id === value
+          {playbooks &&
+            (() => {
+              const visible = playbooks.filter((p) => !p.archived)
+              // System rows (e.g. "No Setup") pin to the TOP, above a thin
+              // divider; user playbooks keep their alphabetical order below.
+              // Plain name, no tier chip — identical row treatment for both.
+              const system = visible.filter((p) => p.is_system)
+              const users = visible.filter((p) => !p.is_system)
               return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(p.id)
-                    setOpen(false)
-                  }}
-                  className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
-                    isActive ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
-                  }`}
-                >
-                  <span>{p.name}</span>
-                  {isActive && <Check size={11} strokeWidth={2.5} />}
-                </button>
+                <>
+                  {system.map(renderPlaybookRow)}
+                  {system.length > 0 && users.length > 0 && (
+                    <div className="my-1 h-px bg-white/[0.04]" />
+                  )}
+                  {users.map(renderPlaybookRow)}
+                </>
               )
-            })}
+            })()}
         </div>
       )}
     </div>
