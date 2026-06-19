@@ -1,155 +1,214 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Card from '@/components/ui/Card'
 import { money, percent, signed, pnlClass } from '@/lib/format'
-import {
-  computeSignalBuckets,
-  type SignalBucketRow,
-} from '@/core/playbook/signalBuckets'
+import { computeSignalBuckets } from '@/core/playbook/signalBuckets'
+import { computeOutcomeStats } from '@/core/stats/outcomeStats'
+import { primaryState } from '@/core/playbook/primaryState'
 import type { TradeListRow } from '@shared/trades-types'
 
 interface ConfluencePerformanceCardProps {
   trades: readonly TradeListRow[]
 }
 
-// signalCount per trade: a non-system primary setup counts as 1 signal, plus
-// each secondary confluence tag (secondary_tag_count). Route-A inference — a
-// non-system primary always carries a real tier, so `playbook_tier != null`
-// distinguishes it from the system "No Setup" primary (Route A nulls that
-// tier). This is the pre-classification the pure bucketer is handed; the
-// bucketer itself knows nothing about tiers / is_system.
+type Mode = 'with-vs-without' | 'by-signal'
+
+// signalCount per trade: a graded (non-system) primary counts as 1 signal, plus
+// each secondary confluence tag. Reuses primaryState's Route-A classification so
+// MODE 1 and MODE 2 derive "is there a real primary" the same way. Drives the
+// signal-count buckets (MODE 2).
 function signalCount(t: TradeListRow): number {
-  const primary = t.playbook_id != null && t.playbook_tier != null ? 1 : 0
+  const primary = primaryState(t) === 'graded' ? 1 : 0
   return primary + t.secondary_tag_count
 }
 
-// A No-Setup primary: a playbook IS assigned (playbook_id) but Route A nulled
-// its tier because it's the system "No Setup" playbook. These feed the cost
-// line — the honest tally of trades taken without a setup, never a verdict.
-function isSystemPrimary(t: TradeListRow): boolean {
-  return t.playbook_id != null && t.playbook_tier == null
+// One stat row, shared by both modes so their columns line up exactly:
+// Trades · Win% · Net P&L · Expectancy.
+interface StatRowData {
+  id: string
+  label: string
+  count: number
+  win_rate: number | null
+  net_pnl: number
+  expectancy: number | null
 }
 
-// Confluence performance — does stacking more signals pay? Buckets trades by
-// signal count (1 / 2 / 3+) and shows the Convention-A stats per bucket, with a
-// neutral No-Setup cost line beside them. All-time (Analytics is unfiltered).
+const MODES: readonly { key: Mode; label: string }[] = [
+  { key: 'with-vs-without', label: 'With vs Without' },
+  { key: 'by-signal', label: 'By signal count' },
+]
+
+// Confluence performance — two lenses on the same trades, switched by a
+// segmented toggle. MODE 1 "With a setup vs No setup" compares the edge of a
+// graded primary against a deliberate No-Setup primary (untagged trades
+// excluded); MODE 2 "By signal count" buckets by total signals (primary plus
+// confluence tags). All-time (Analytics is unfiltered). Neutral framing
+// throughout — honest numbers, never a verdict.
 export default function ConfluencePerformanceCard({
   trades,
 }: ConfluencePerformanceCardProps) {
-  const { buckets, signalledTotal, noSetupCount, noSetupNet } = useMemo(() => {
-    const buckets = computeSignalBuckets(
-      trades.map((t) => ({ net_pnl: t.net_pnl, signalCount: signalCount(t) })),
-    )
-    const signalledTotal = buckets.reduce((n, b) => n + b.count, 0)
-    const noSetup = trades.filter(isSystemPrimary)
-    const noSetupNet = noSetup.reduce((s, t) => s + t.net_pnl, 0)
-    return {
-      buckets,
-      signalledTotal,
-      noSetupCount: noSetup.length,
-      noSetupNet,
+  const [mode, setMode] = useState<Mode>('with-vs-without')
+
+  // MODE 1 — partition primaries into graded / no-setup (drop untagged), then
+  // the Convention-A stats per subset.
+  const compareRows = useMemo<StatRowData[]>(() => {
+    const graded: { net_pnl: number }[] = []
+    const noSetup: { net_pnl: number }[] = []
+    for (const t of trades) {
+      const st = primaryState(t)
+      if (st === 'graded') graded.push(t)
+      else if (st === 'no-setup') noSetup.push(t)
+      // 'untagged' → excluded (Option A; mirrors the signal-count buckets)
     }
+    const toRow = (
+      id: string,
+      label: string,
+      subset: { net_pnl: number }[],
+    ): StatRowData => {
+      const s = computeOutcomeStats(subset)
+      return {
+        id,
+        label,
+        count: subset.length,
+        win_rate: s.win_rate,
+        net_pnl: s.net_pnl,
+        expectancy: s.expectancy,
+      }
+    }
+    return [
+      toRow('graded', 'With a setup', graded),
+      toRow('no-setup', 'No setup', noSetup),
+    ]
   }, [trades])
 
-  if (signalledTotal === 0 && noSetupCount === 0) {
-    return (
-      <Card
-        title="Confluence"
-        subtitle="Does stacking more signals pay off?"
-      >
-        <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4 text-sm text-fg-tertiary">
-          No confluence-tagged trades yet. Assign a setup and add confluence
-          signals in the trade detail to see whether more signals pays.
-        </div>
-      </Card>
-    )
-  }
+  // MODE 2 — the existing 1 / 2 / 3+ signal-count buckets.
+  const signalRows = useMemo<StatRowData[]>(() => {
+    const label = (k: string) =>
+      k === '1' ? '1 signal' : k === '2' ? '2 signals' : '3+ signals'
+    return computeSignalBuckets(
+      trades.map((t) => ({ net_pnl: t.net_pnl, signalCount: signalCount(t) })),
+    ).map((b) => ({
+      id: b.bucket,
+      label: label(b.bucket),
+      count: b.count,
+      win_rate: b.win_rate,
+      net_pnl: b.net_pnl,
+      expectancy: b.expectancy,
+    }))
+  }, [trades])
+
+  const comparedTotal = compareRows.reduce((n, r) => n + r.count, 0)
+  const signalledTotal = signalRows.reduce((n, r) => n + r.count, 0)
+
+  const subtitle =
+    mode === 'with-vs-without'
+      ? 'Does following a setup pay off?'
+      : 'Does stacking signals pay off?'
+
+  const toggle = (
+    <div
+      role="tablist"
+      aria-label="Confluence view"
+      className="inline-flex items-center rounded-md border border-border-subtle bg-bg-2 p-0.5"
+    >
+      {MODES.map((m) => {
+        const active = mode === m.key
+        return (
+          <button
+            key={m.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setMode(m.key)}
+            className={`cursor-pointer rounded-[6px] px-3 py-1 text-[11px] font-semibold tracking-wider transition-colors duration-150 ease-out-soft ${
+              active
+                ? 'bg-gold text-accent-ink'
+                : 'text-fg-tertiary hover:bg-bg-3 hover:text-fg-primary'
+            }`}
+          >
+            {m.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
-    <Card
-      title="Confluence"
-      subtitle="Does stacking more signals pay off? Primary setup plus confluence tags, all-time."
-      padded={false}
-    >
-      {signalledTotal > 0 ? (
-        <div className="overflow-auto">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
-                <th className="px-3 py-2 text-left font-semibold">Signals</th>
-                <th className="px-3 py-2 text-right font-semibold">Trades</th>
-                <th className="px-3 py-2 text-right font-semibold">Win %</th>
-                <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
-                <th className="px-3 py-2 text-right font-semibold">Expectancy</th>
-              </tr>
-            </thead>
-            <tbody>
-              {buckets.map((b) => (
-                <BucketRow key={b.bucket} row={b} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <Card title="Confluence" subtitle={subtitle} right={toggle} padded={false}>
+      {mode === 'with-vs-without' ? (
+        comparedTotal > 0 ? (
+          <StatTable firstCol="Setup" rows={compareRows} />
+        ) : (
+          <div className="px-4 py-5 text-sm text-fg-tertiary">
+            No setup-tagged trades yet. Assign a setup — or No Setup — on your
+            trades to compare your edge with a plan versus without.
+          </div>
+        )
+      ) : signalledTotal > 0 ? (
+        <StatTable firstCol="Signals" rows={signalRows} />
       ) : (
         <div className="px-3 py-3 text-sm text-fg-tertiary">
           No multi-signal trades tagged yet.
-        </div>
-      )}
-
-      {noSetupCount > 0 && (
-        <div className="flex items-center justify-between gap-3 border-t border-border-subtle/60 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
-              Taken without a setup
-            </span>
-            <span className="tnum text-[10px] text-fg-tertiary">
-              {noSetupCount} {noSetupCount === 1 ? 'trade' : 'trades'}
-            </span>
-          </div>
-          <span
-            className={`tnum font-mono text-sm font-medium ${pnlClass(noSetupNet)}`}
-          >
-            {signed(noSetupNet)}
-          </span>
         </div>
       )}
     </Card>
   )
 }
 
-function BucketRow({ row: b }: { row: SignalBucketRow }) {
-  const label =
-    b.bucket === '1' ? '1 signal' : b.bucket === '2' ? '2 signals' : '3+ signals'
-  const empty = b.count === 0
+function StatTable({ firstCol, rows }: { firstCol: string; rows: StatRowData[] }) {
+  return (
+    <div className="overflow-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
+            <th className="px-3 py-2 text-left font-semibold">{firstCol}</th>
+            <th className="px-3 py-2 text-right font-semibold">Trades</th>
+            <th className="px-3 py-2 text-right font-semibold">Win %</th>
+            <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
+            <th className="px-3 py-2 text-right font-semibold">Expectancy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <StatRow key={r.id} row={r} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function StatRow({ row: r }: { row: StatRowData }) {
+  const empty = r.count === 0
   return (
     <tr className="border-b border-border-subtle/40 last:border-b-0">
       <td className="px-3 py-2">
         <span className={empty ? 'text-fg-tertiary' : 'text-fg-primary'}>
-          {label}
+          {r.label}
         </span>
       </td>
       <td className="tnum px-3 py-2 text-right font-mono text-fg-primary">
-        {b.count}
+        {r.count}
       </td>
       <td className="tnum px-3 py-2 text-right font-mono">
-        {b.win_rate == null ? (
+        {r.win_rate == null ? (
           <span className="text-fg-tertiary">—</span>
         ) : (
-          <span className="text-gold">{percent(b.win_rate, 0)}</span>
+          <span className="text-gold">{percent(r.win_rate, 0)}</span>
         )}
       </td>
       <td
         className={`tnum px-3 py-2 text-right font-mono font-medium ${
-          empty ? 'text-fg-tertiary' : pnlClass(b.net_pnl)
+          empty ? 'text-fg-tertiary' : pnlClass(r.net_pnl)
         }`}
       >
-        {empty ? '—' : signed(b.net_pnl)}
+        {empty ? '—' : signed(r.net_pnl)}
       </td>
       <td className="tnum px-3 py-2 text-right font-mono">
-        {b.expectancy == null ? (
+        {r.expectancy == null ? (
           <span className="text-fg-tertiary">—</span>
         ) : (
-          <span className={pnlClass(b.expectancy)}>
-            {money(b.expectancy)}/trade
+          <span className={pnlClass(r.expectancy)}>
+            {money(r.expectancy)}/trade
           </span>
         )}
       </td>
