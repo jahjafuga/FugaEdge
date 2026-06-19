@@ -60,6 +60,10 @@ export interface ExitDelta {
   actual_net_pnl: number
   best_exit_net_pnl: number       // hypothetical: all exits at best_exit_price (fees unchanged)
   delta: number                   // best_exit_net_pnl - actual_net_pnl (>= 0)
+  // |best_exit_price - actual_avg_exit| / best_exit_price — the gap as a 0..1
+  // fraction of best exit (the % form of delta). Math.abs keeps it >= 0 for
+  // shorts too (best = min cover < avg), mirroring the sign-normalized delta.
+  pct_left_on_table: number
 }
 
 export interface MomentumBucket {

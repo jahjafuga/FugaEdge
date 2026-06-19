@@ -147,11 +147,13 @@ describe('computeWeekMetrics', () => {
         trade_id: 1, date: '2026-05-11', symbol: 'HCTO', side: 'long',
         exit_count: 2, actual_avg_exit: 10.4, best_exit_price: 10.8,
         actual_net_pnl: 100, best_exit_net_pnl: 280, delta: 180,
+        pct_left_on_table: 0.037, // |10.8 - 10.4| / 10.8
       },
       {
         trade_id: 2, date: '2026-05-12', symbol: 'AMSS', side: 'long',
         exit_count: 2, actual_avg_exit: 5.2, best_exit_price: 5.6,
         actual_net_pnl: 50, best_exit_net_pnl: 130, delta: 80,
+        pct_left_on_table: 0.0714, // |5.6 - 5.2| / 5.6
       },
     ]
     const r = computeWeekMetrics({ trades, weekEnd: WEEK_END, exitDeltas })

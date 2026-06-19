@@ -55,6 +55,16 @@ export function computeExitDeltas(trades: ExitDeltaInput[]): ExitDelta[] {
     const delta = bestNet - t.net_pnl
     if (delta <= 0) continue // best exit was the only one, or no better than actual
 
+    // The gap as a 0..1 fraction of the best exit price — the % form of `delta`.
+    // Math.abs is deliberate: best_exit_price is the FAVORABLE extreme (max for a
+    // long, MIN for a short), so (best − avg) is positive for longs but negative
+    // for shorts. `delta` above is already sign-normalized to ≥ 0; mirroring it
+    // with Math.abs keeps the $ and % columns consistent and the % positive for
+    // both sides (Dave's literal (best − avg)/best would go negative on shorts).
+    // best_exit_price is structurally > 0 when delta > 0; if it were 0 the
+    // fraction is non-finite and the formatter renders "—" — never a fake 0.
+    const pctLeftOnTable = Math.abs(bestExitPrice - actualAvgExit) / bestExitPrice
+
     out.push({
       trade_id: t.id,
       date: t.date,
@@ -66,6 +76,7 @@ export function computeExitDeltas(trades: ExitDeltaInput[]): ExitDelta[] {
       actual_net_pnl: t.net_pnl,
       best_exit_net_pnl: bestNet,
       delta,
+      pct_left_on_table: pctLeftOnTable,
     })
   }
 

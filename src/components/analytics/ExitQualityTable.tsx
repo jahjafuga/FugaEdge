@@ -1,6 +1,6 @@
 import Card from '@/components/ui/Card'
 import type { ExitDelta } from '@shared/analytics-types'
-import { money, price, signed, pnlClass, longDate } from '@/lib/format'
+import { money, price, signed, pnlClass, longDate, percent } from '@/lib/format'
 
 interface ExitQualityTableProps {
   rows: ExitDelta[]
@@ -30,6 +30,7 @@ export default function ExitQualityTable({ rows }: ExitQualityTableProps) {
               <th className="px-3 py-2 text-right font-semibold">Actual P&amp;L</th>
               <th className="px-3 py-2 text-right font-semibold">Best-exit P&amp;L</th>
               <th className="px-3 py-2 text-right font-semibold">Left on table</th>
+              <th className="px-3 py-2 text-right font-semibold">Left %</th>
             </tr>
           </thead>
           <tbody>
@@ -57,6 +58,9 @@ export default function ExitQualityTable({ rows }: ExitQualityTableProps) {
                 </td>
                 <td className="px-3 py-2 text-right font-mono font-medium text-gold">
                   +{money(r.delta)}
+                </td>
+                <td className="px-3 py-2 text-right font-mono text-fg-secondary">
+                  {percent(r.pct_left_on_table, 0)}
                 </td>
               </tr>
             ))}
