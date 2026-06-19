@@ -49,6 +49,7 @@ interface TradeRowDb {
   country_source: string | null
   note_text: string | null
   attachment_count: number
+  secondary_tag_count: number
   deleted_at: string | null
 }
 
@@ -184,13 +185,17 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.country, t.country_name, t.region, t.country_source,
         t.deleted_at,
         n.note_text,
-        COALESCE(att.n, 0) AS attachment_count
+        COALESCE(att.n, 0) AS attachment_count,
+        COALESCE(tp.n, 0) AS secondary_tag_count
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_attachments GROUP BY trade_id
       ) att ON att.trade_id = t.id
+      LEFT JOIN (
+        SELECT trade_id, COUNT(*) AS n FROM trade_playbooks GROUP BY trade_id
+      ) tp ON tp.trade_id = t.id
       ${where}
       ORDER BY t.open_time DESC
     `)
@@ -240,6 +245,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
+      secondary_tag_count: r.secondary_tag_count ?? 0,
       deleted_at: r.deleted_at,
     }
   })
@@ -268,13 +274,17 @@ export function getTrade(id: number): TradeListRow | null {
         t.country, t.country_name, t.region, t.country_source,
         t.deleted_at,
         n.note_text,
-        COALESCE(att.n, 0) AS attachment_count
+        COALESCE(att.n, 0) AS attachment_count,
+        COALESCE(tp.n, 0) AS secondary_tag_count
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_attachments GROUP BY trade_id
       ) att ON att.trade_id = t.id
+      LEFT JOIN (
+        SELECT trade_id, COUNT(*) AS n FROM trade_playbooks GROUP BY trade_id
+      ) tp ON tp.trade_id = t.id
       WHERE t.id = ?
     `)
     .get(id) as TradeRowDb | undefined
@@ -322,6 +332,7 @@ export function getTrade(id: number): TradeListRow | null {
     country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
+    secondary_tag_count: row.secondary_tag_count ?? 0,
     deleted_at: row.deleted_at,
   }
 }

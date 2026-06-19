@@ -108,6 +108,11 @@ export interface TradeListRow {
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */
   attachment_count: number
+  /** Beat 4c — count of SECONDARY confluence tags (trade_playbooks rows) on this
+   *  trade, for the Analytics confluence count-buckets. Secondaries ONLY; the
+   *  primary setup lives on playbook_id. Mirrors attachment_count (correlated
+   *  COUNT subquery, COALESCE 0). */
+  secondary_tag_count: number
   /** v0.2.3 soft-delete. NULL = live; ISO-8601 UTC timestamp = in Trash.
    *  List reads exclude deleted rows; getTrade returns them so the modal /
    *  Trash UI can render the deleted state. */

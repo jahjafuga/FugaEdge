@@ -63,6 +63,7 @@ function mk(over: Partial<TradeListRow>): TradeListRow {
     region: 'Unknown',
     country_source: 'unknown',
     attachment_count: 0,
+    secondary_tag_count: 0,
     deleted_at: null,
     ...over,
   }

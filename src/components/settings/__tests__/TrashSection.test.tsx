@@ -68,6 +68,7 @@ function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     region: 'Unknown',
     country_source: 'unknown',
     attachment_count: 0,
+    secondary_tag_count: 0,
     // All Trash rows are soft-deleted by definition.
     deleted_at: '2026-06-01 10:00:00',
     ...overrides,

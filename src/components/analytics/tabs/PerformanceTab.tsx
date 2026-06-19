@@ -2,6 +2,7 @@ import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import StreaksCard from '@/components/analytics/StreaksCard'
 import TierPerformanceCard from '@/components/analytics/TierPerformanceCard'
+import ConfluencePerformanceCard from '@/components/analytics/ConfluencePerformanceCard'
 import FullStatsTable from '@/components/reports/FullStatsTable'
 import { duration, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
@@ -23,6 +24,8 @@ export default function PerformanceTab({ data, reports, trades }: PerformanceTab
       />
 
       <TierPerformanceCard trades={trades} />
+
+      <ConfluencePerformanceCard trades={trades} />
 
       {reports ? (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
