@@ -365,6 +365,31 @@
     border: 1px solid rgb(var(--border-subtle) / 0.6);
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
   }
+
+  /* Settings save-bar — Phase 2 follow-up. A sticky bottom footer (content
+     scrolls UNDER it), restyled into the same glass family as the rail/TopBar:
+     identical bg alpha + blur/saturate/brightness so the material matches, but
+     ANCHORED rather than floating — rounded TOP corners only, a soft TOP
+     hairline, and an UPWARD shadow (inverted from the rail's, since it sits at
+     the bottom) to lift it off the content scrolling beneath. The bar already
+     used backdrop-blur, so frosting-over-scroll is unchanged — only the blur
+     widens (8 -> 16px) and gains saturate/brightness over light page content. */
+  .savebar-glass {
+    background: rgb(var(--bg-1) / 0.55);
+    backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    border-top: 1px solid rgb(255 255 255 / 0.06);
+    box-shadow: 0 -8px 28px rgb(0 0 0 / 0.38);
+  }
+  :root.light .savebar-glass {
+    /* Light: lighter alpha + gentler saturate, with a softened dark top hairline
+       (a white edge is invisible on the white surface). */
+    background: rgb(var(--bg-1) / 0.62);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border-top: 1px solid rgb(var(--border-subtle) / 0.6);
+    box-shadow: 0 -6px 20px rgb(0 0 0 / 0.12);
+  }
   .sidebar-aside,
   .sidebar-scroll {
     scrollbar-width: none;

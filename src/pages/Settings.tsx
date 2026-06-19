@@ -737,7 +737,7 @@ export default function Settings() {
           <AboutPanel />
         </Card>
 
-        <div className="sticky bottom-0 -mx-6 mt-2 flex items-center justify-end gap-3 border-t border-white/[0.06] bg-bg/85 px-6 py-3 backdrop-blur">
+        <div className="savebar-glass sticky bottom-0 -mx-6 mt-2 flex items-center justify-end gap-3 rounded-t-xl px-6 py-3">
           {savedAt && !dirty && (
             <span className="text-[10px] uppercase tracking-wider text-win">
               saved
