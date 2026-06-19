@@ -5,6 +5,16 @@
 // have multiple `trades` rows per day. Dedup moved from (date, symbol) to a
 // content hash over the round trip's TradeID:OrderID pairs.
 
+// Bumped to 33 for v0.2.5 playbook confluence — a new `trade_playbooks`
+// junction (the EXTRA confluence tags only; the primary grade-bearing setup
+// stays on trades.playbook_id, never duplicated here), a new
+// `playbooks.is_system` flag for app-owned protected rows, and a seeded
+// protected "No Setup" playbook. All additive + idempotent: the table + column
+// are declared in SCHEMA_SQL (fresh installs) and re-applied by
+// migrate-confluence-junction.ts (the guarded ALTER for upgrades + the
+// existence-checked seed), which runs UNCONDITIONALLY from migrateAfterSchema.
+// The bump is release-tracking only — the migration is NOT version-gated.
+//
 // Bumped to 32 for v0.2.5 EdgeIQ Trader DNA — additive trades.rvol column
 // (full-day relative volume = daily_volumes[date] / avg_volume, from cached
 // market_data) + arms its fire-once CACHE re-derive. migrateAfterSchema adds
@@ -101,7 +111,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '32'
+export const SCHEMA_VERSION = '33'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -339,12 +349,34 @@ CREATE TABLE IF NOT EXISTS playbooks (
   -- to 'B' (the average tier) so existing playbooks neither over- nor
   -- under-claim quality until the user grades them.
   tier             TEXT    NOT NULL DEFAULT 'B',
+  -- v0.2.5: app-owned protected rows (the seeded "No Setup"). 0 = user
+  -- playbook (editable / deletable), 1 = system (protected). Also added via the
+  -- guarded ALTER in migrate-confluence-junction.ts for upgraded DBs.
+  is_system        INTEGER NOT NULL DEFAULT 0,
   created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Default playbooks are seeded EXACTLY ONCE — on first launch, via
 -- migrateAfterSchema(). Deleting one in the UI must stay deleted. The
 -- defaults_seeded settings flag below is the latch.
+
+-- v0.2.5 playbook confluence — the EXTRA confluence tags on a trade (the
+-- secondary signals). The PRIMARY, grade-bearing setup stays on
+-- trades.playbook_id and is NOT duplicated here. Composite PK keeps a
+-- (trade, playbook) pair unique. FK + ON DELETE CASCADE on both columns lets
+-- the DB itself clear a trade's confluence rows when the trade is deleted, and
+-- a playbook's rows when the playbook is deleted — no orphans, no app-side
+-- cleanup (the executions / trade_technicals / trade_notes convention, under
+-- foreign_keys = ON). Declared here for fresh installs and re-applied
+-- idempotently (IF NOT EXISTS) by migrate-confluence-junction.ts on upgrade.
+CREATE TABLE IF NOT EXISTS trade_playbooks (
+  trade_id    INTEGER NOT NULL REFERENCES trades(id)    ON DELETE CASCADE,
+  playbook_id INTEGER NOT NULL REFERENCES playbooks(id) ON DELETE CASCADE,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (trade_id, playbook_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trade_playbooks_playbook ON trade_playbooks(playbook_id);
 
 -- Market metadata, keyed by symbol. As of schema 21 the columns carry their
 -- semantically-correct values: \`float\` is real tradable free float (from
