@@ -98,6 +98,9 @@ const config: Config = {
         info:    'rgb(var(--info) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         danger:  'rgb(var(--danger) / <alpha-value>)',
+        // Tier C grade colour (v0.2.5 re-tone) — orange-amber, freeing --loss
+        // for P&L only. Enables text-tier-c / bg-tier-c/[0.10] / border-tier-c.
+        'tier-c': 'rgb(var(--tier-c) / <alpha-value>)',
 
         // Edge flagship Beat 1 (§11.1/§11.3) — per-tone felt-glow palette +
         // violet/teal futuristic accents. Theme-independent (vars in :root).

@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
 import TierBadge from '@/components/playbook/TierBadge'
+import { tierTone } from '@/components/playbook/tierTone'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
 import { ipc } from '@/lib/ipc'
 import { int, percent, pnlClass, signed } from '@/lib/format'
@@ -420,13 +421,7 @@ export default function Playbook() {
                             aria-pressed={active}
                             className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
                               active
-                                ? t === 'A+'
-                                  ? 'border-gold/60 bg-gold/[0.14] text-gold'
-                                  : t === 'A'
-                                    ? 'border-win/50 bg-win/[0.12] text-win'
-                                    : t === 'C'
-                                      ? 'border-loss/40 bg-loss/[0.10] text-loss'
-                                      : 'border-border-strong bg-bg-3 text-fg-primary'
+                                ? tierTone(t)
                                 : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-secondary'
                             }`}
                           >
@@ -435,7 +430,7 @@ export default function Playbook() {
                         )
                       })}
                       <span className="text-[11px] text-fg-tertiary">
-                        A+ = best · A = strong · B = neutral · C = weak
+                        A+ = best · A = strong · B = solid · C = weak
                       </span>
                     </div>
                   )}

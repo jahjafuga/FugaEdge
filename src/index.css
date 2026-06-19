@@ -121,6 +121,12 @@
        v0.2.5 MarketSentimentCard cold→hot ladder; theme-independent (:root). */
     --sentiment-3: 249 115 22;   /* #f97316 */
 
+    /* Tier C grade colour — orange-leaning amber, deliberately distinct from
+       A+ gold (#d4af37) at a glance. v0.2.5 tier re-tone: C moved off --loss so
+       RED is reserved for P&L. Drives the grade chip's bg-tint + border + text;
+       darkened in light mode (below) for text-on-white contrast, like --win. */
+    --tier-c: 245 158 11;        /* #f59e0b — amber-500 */
+
     /* Skeleton shimmer base colour — themed (dark vs light needs different) */
     --skeleton-base: 28 34 48;   /* bg-3 in dark mode */
     --skeleton-band: 255 255 255; /* white at low opacity in dark mode */
@@ -203,6 +209,10 @@
        table tints all resolve to this same value. */
     --win: 22 163 74;            /* #16a34a — green-600 */
     --win-text: 22 163 74;       /* #16a34a — matches --win for unified palette */
+
+    /* Tier C amber — darker in light mode (amber-600) for legible chip text on
+       white, mirroring --win's darkening above. */
+    --tier-c: 217 119 6;         /* #d97706 — amber-600 */
 
     /* Light-mode shadows: layered drop. The 1px-3px near-cast handles edge
        definition; the 4px-12px wider cast gives depth without grey-bloom.

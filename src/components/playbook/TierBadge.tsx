@@ -1,4 +1,5 @@
 import type { PlaybookTier } from '@shared/playbook-types'
+import { tierTone } from './tierTone'
 
 interface TierBadgeProps {
   tier: PlaybookTier
@@ -8,23 +9,18 @@ interface TierBadgeProps {
   className?: string
 }
 
-// Setup quality tier — A+ → A → B → C. Colors are theme-locked so the badge
-// reads the same in dark and light mode:
+// Setup quality tier — A+ → A → B → C. Colours come from the shared tierTone()
+// helper so this badge and the Setup-editor tier picker never drift. Theme-
+// locked graded gradient:
 //   A+ → gold (the brand accent — best-of-best)
 //   A  → win green
-//   B  → neutral gray (the default; un-graded setups land here)
-//   C  → dim red (deliberate downgrade)
+//   B  → teal (a distinct "solid" grade — no longer neutral grey)
+//   C  → amber (orange-leaning downgrade — no longer red)
+// RED is reserved for P&L; GREY for the ungraded No-Setup chip.
 //
 // Word badge per the v0.1.4 typography rule — sans-serif uppercase.
 export default function TierBadge({ tier, size = 'sm', className = '' }: TierBadgeProps) {
-  const tone =
-    tier === 'A+'
-      ? 'border-gold/60 bg-gold/[0.14] text-gold'
-      : tier === 'A'
-        ? 'border-win/50 bg-win/[0.12] text-win'
-        : tier === 'C'
-          ? 'border-loss/40 bg-loss/[0.10] text-loss'
-          : 'border-border-strong bg-bg-3 text-fg-secondary'
+  const tone = tierTone(tier)
 
   const sz =
     size === 'lg'
