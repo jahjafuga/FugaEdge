@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
 import TierBadge from '@/components/playbook/TierBadge'
+import SystemTierChip from '@/components/playbook/SystemTierChip'
 import { ipc } from '@/lib/ipc'
 import { int, percent, pnlClass, signed } from '@/lib/format'
 import {
@@ -247,64 +248,83 @@ export default function Playbook() {
             </div>
           )}
           <ul className="max-h-[600px] overflow-y-auto">
-            {list.map((p) => {
-              const isSel = p.id === selectedId
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(p.id)}
-                    className={`flex w-full items-start justify-between gap-3 border-b border-border-subtle px-4 py-3 text-left transition-colors duration-150 ${
-                      isSel
-                        ? 'bg-gold/[0.06]'
-                        : 'hover:bg-bg-3'
-                    } ${p.archived ? 'opacity-60' : ''}`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <TierBadge tier={p.tier} />
-                        {/* Active item: full primary text + medium weight. Inactive:
-                            tertiary (#6b7280 in light) — readable but clearly
-                            secondary. Gold indicator dot on the right marks
-                            selection without dyeing the label. */}
-                        <span
-                          className={`truncate text-sm ${
-                            isSel
-                              ? 'font-medium text-fg-primary'
-                              : 'font-normal text-fg-tertiary'
-                          }`}
-                        >
-                          {p.name}
-                        </span>
-                        {p.archived && (
-                          <span className="rounded-sm bg-bg-3 px-1 text-[9px] uppercase tracking-wider text-fg-tertiary">
-                            archived
+            {(() => {
+              // Beat 4b — system rows (e.g. "No Setup") pin to the TOP, above a
+              // thin divider; user playbooks keep their alphabetical order below
+              // (mirrors PlaybookPicker). A system row shows the muted N/A chip
+              // in place of a grade badge — the stored 'C' is inert, never shown.
+              const system = list.filter((p) => p.is_system)
+              const users = list.filter((p) => !p.is_system)
+              const renderRow = (p: PlaybookWithStats) => {
+                const isSel = p.id === selectedId
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(p.id)}
+                      className={`flex w-full items-start justify-between gap-3 border-b border-border-subtle px-4 py-3 text-left transition-colors duration-150 ${
+                        isSel
+                          ? 'bg-gold/[0.06]'
+                          : 'hover:bg-bg-3'
+                      } ${p.archived ? 'opacity-60' : ''}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {p.is_system ? <SystemTierChip /> : <TierBadge tier={p.tier} />}
+                          {/* Active item: full primary text + medium weight. Inactive:
+                              tertiary (#6b7280 in light) — readable but clearly
+                              secondary. Gold indicator dot on the right marks
+                              selection without dyeing the label. */}
+                          <span
+                            className={`truncate text-sm ${
+                              isSel
+                                ? 'font-medium text-fg-primary'
+                                : 'font-normal text-fg-tertiary'
+                            }`}
+                          >
+                            {p.name}
                           </span>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-fg-muted">
-                        <span>{int(p.stats.trade_count)}t</span>
-                        <span>·</span>
-                        <span className={pnlClass(p.stats.net_pnl)}>
-                          {p.stats.trade_count > 0 ? signed(p.stats.net_pnl) : '—'}
-                        </span>
-                        {p.stats.win_rate != null && (
-                          <>
-                            <span>·</span>
-                            <span className="text-gold">
-                              {percent(p.stats.win_rate, 0)}
+                          {p.archived && (
+                            <span className="rounded-sm bg-bg-3 px-1 text-[9px] uppercase tracking-wider text-fg-tertiary">
+                              archived
                             </span>
-                          </>
-                        )}
+                          )}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-fg-muted">
+                          <span>{int(p.stats.trade_count)}t</span>
+                          <span>·</span>
+                          <span className={pnlClass(p.stats.net_pnl)}>
+                            {p.stats.trade_count > 0 ? signed(p.stats.net_pnl) : '—'}
+                          </span>
+                          {p.stats.win_rate != null && (
+                            <>
+                              <span>·</span>
+                              <span className="text-gold">
+                                {percent(p.stats.win_rate, 0)}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    {isSel && (
-                      <span className="ml-1 mt-1 inline-block h-2 w-2 rounded-full bg-gold" />
-                    )}
-                  </button>
-                </li>
+                      {isSel && (
+                        <span className="ml-1 mt-1 inline-block h-2 w-2 rounded-full bg-gold" />
+                      )}
+                    </button>
+                  </li>
+                )
+              }
+              return (
+                <>
+                  {system.map(renderRow)}
+                  {system.length > 0 && users.length > 0 && (
+                    <li aria-hidden="true">
+                      <div className="my-1 h-px bg-white/[0.04]" />
+                    </li>
+                  )}
+                  {users.map(renderRow)}
+                </>
               )
-            })}
+            })()}
           </ul>
         </Card>
 
@@ -373,40 +393,52 @@ export default function Playbook() {
                     onChange={(e) =>
                       setEditor({ ...editor, name: e.target.value })
                     }
-                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary outline-none focus:border-gold"
+                    disabled={selected.is_system}
+                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary outline-none focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </Field>
 
                 <Field label="Tier">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {PLAYBOOK_TIERS.map((t) => {
-                      const active = editor.tier === t
-                      return (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => setEditor({ ...editor, tier: t })}
-                          aria-pressed={active}
-                          className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                            active
-                              ? t === 'A+'
-                                ? 'border-gold/60 bg-gold/[0.14] text-gold'
-                                : t === 'A'
-                                  ? 'border-win/50 bg-win/[0.12] text-win'
-                                  : t === 'C'
-                                    ? 'border-loss/40 bg-loss/[0.10] text-loss'
-                                    : 'border-border-strong bg-bg-3 text-fg-primary'
-                              : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-secondary'
-                          }`}
-                        >
-                          {t}
-                        </button>
-                      )
-                    })}
-                    <span className="text-[11px] text-fg-tertiary">
-                      A+ = best · A = strong · B = neutral · C = weak
-                    </span>
-                  </div>
+                  {selected.is_system ? (
+                    // Beat 4b — a system playbook (No Setup) is NOT graded: a
+                    // static N/A chip, never the clickable A+/A/B/C pills. The
+                    // panel's "System playbook" note covers the why, so this
+                    // line just reads "N/A · not graded".
+                    <div className="flex items-center gap-2">
+                      <SystemTierChip />
+                      <span className="text-[11px] text-fg-tertiary">not graded</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {PLAYBOOK_TIERS.map((t) => {
+                        const active = editor.tier === t
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setEditor({ ...editor, tier: t })}
+                            aria-pressed={active}
+                            className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                              active
+                                ? t === 'A+'
+                                  ? 'border-gold/60 bg-gold/[0.14] text-gold'
+                                  : t === 'A'
+                                    ? 'border-win/50 bg-win/[0.12] text-win'
+                                    : t === 'C'
+                                      ? 'border-loss/40 bg-loss/[0.10] text-loss'
+                                      : 'border-border-strong bg-bg-3 text-fg-primary'
+                                : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-secondary'
+                            }`}
+                          >
+                            {t}
+                          </button>
+                        )
+                      })}
+                      <span className="text-[11px] text-fg-tertiary">
+                        A+ = best · A = strong · B = neutral · C = weak
+                      </span>
+                    </div>
+                  )}
                 </Field>
 
                 <Field label="Description">
@@ -415,8 +447,9 @@ export default function Playbook() {
                     onChange={(e) =>
                       setEditor({ ...editor, description: e.target.value })
                     }
+                    disabled={selected.is_system}
                     placeholder="One-liner — what this setup is."
-                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
+                    className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </Field>
 
@@ -425,8 +458,9 @@ export default function Playbook() {
                     value={editor.rules}
                     onChange={(e) => setEditor({ ...editor, rules: e.target.value })}
                     rows={5}
+                    disabled={selected.is_system}
                     placeholder={`What triggers an entry?\nWhat's the stop?\nWhat's the profit target?`}
-                    className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
+                    className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </Field>
 
@@ -437,8 +471,9 @@ export default function Playbook() {
                       setEditor({ ...editor, ideal_conditions: e.target.value })
                     }
                     rows={4}
+                    disabled={selected.is_system}
                     placeholder={`Time of day, RVOL, news catalyst, daily range, etc.`}
-                    className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold"
+                    className="w-full resize-y rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none focus:border-gold disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </Field>
               </div>
