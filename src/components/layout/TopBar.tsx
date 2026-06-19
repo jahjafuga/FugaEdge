@@ -30,7 +30,7 @@ export default function TopBar() {
   const { crumb, title } = routeFor(pathname)
 
   return (
-    <header className="sticky top-0 z-40 flex h-14 items-center justify-between gap-4 border-b border-border-subtle bg-bg-1/80 px-6 backdrop-blur-md">
+    <header className="topbar-glass sticky top-0 z-40 m-3 flex h-14 items-center justify-between gap-4 rounded-xl px-6">
       <div className="flex min-w-0 items-baseline gap-3">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           {crumb}
@@ -42,7 +42,6 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
-        <LivePill />
         <ThemeToggle />
         <AccountMenu />
       </div>
@@ -63,7 +62,7 @@ function ThemeToggle() {
       title={`Switch to ${next} mode`}
       aria-label={`Switch to ${next} mode`}
       data-tour="theme-toggle"
-      className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 ease-out-soft hover:border-border hover:text-fg-primary"
+      className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 ease-out-soft hover:border-border hover:text-fg-primary"
     >
       {resolved === 'dark' ? (
         <Sun size={14} strokeWidth={2} />
@@ -71,17 +70,5 @@ function ThemeToggle() {
         <Moon size={14} strokeWidth={2} />
       )}
     </button>
-  )
-}
-
-function LivePill() {
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-win/30 bg-win-soft px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-win">
-      <span
-        className="inline-block h-1.5 w-1.5 rounded-full bg-win"
-        style={{ boxShadow: '0 0 6px rgba(52,211,153,0.7)' }}
-      />
-      Live
-    </span>
   )
 }

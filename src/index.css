@@ -339,6 +339,32 @@
     border: 1px solid rgb(var(--border-subtle));
     box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
   }
+
+  /* TopBar — Phase 2 Beat 2. The header now floats (m-3 + rounded-xl) and
+     frost-MATCHES the rail: identical bg alpha, blur/saturate/brightness, and
+     floating shadow, so the rail + TopBar read as ONE glass system over the
+     shared aurora. The old hard `border-b` divider is dropped; the card edge
+     is SOFTENED below the rail's (0.07 -> 0.05 dark) so the horizontal strip
+     doesn't read as a boxy outline above the content. GPU-safe by structure:
+     the header is a flex sibling ABOVE the scroll container, so content scrolls
+     BELOW it (never under it) — backdrop-filter samples the STATIC aurora, not
+     moving pixels, recomputing on scroll/resize only, never per-frame. */
+  .topbar-glass {
+    background: rgb(var(--bg-1) / 0.55);
+    backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    border: 1px solid rgb(255 255 255 / 0.05);
+    box-shadow: 0 8px 28px rgb(0 0 0 / 0.38);
+  }
+  :root.light .topbar-glass {
+    /* Light: match the rail's lighter alpha + gentler saturate, with a softened
+       dark hairline (a white edge is invisible on the white surface). */
+    background: rgb(var(--bg-1) / 0.62);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgb(var(--border-subtle) / 0.6);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+  }
   .sidebar-aside,
   .sidebar-scroll {
     scrollbar-width: none;

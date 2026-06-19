@@ -78,9 +78,9 @@ export default function AccountMenu() {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-full outline-none transition duration-150 ease-out-soft hover:ring-2 hover:ring-gold/40 focus-visible:ring-2 focus-visible:ring-gold/50"
+        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full outline-none transition duration-150 ease-out-soft hover:ring-2 hover:ring-gold/40 focus-visible:ring-2 focus-visible:ring-gold/50"
       >
-        <Avatar avatarData={profile?.avatar_data ?? null} initials={initials} size={32} />
+        <Avatar avatarData={profile?.avatar_data ?? null} initials={initials} size={40} />
       </button>
 
       {open && (
