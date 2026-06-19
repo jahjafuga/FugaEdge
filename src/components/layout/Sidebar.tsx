@@ -9,10 +9,7 @@ import {
   PieChart,
   Crosshair,
   NotebookPen,
-  Download,
-  Settings as SettingsIcon,
   Sparkles,
-  User,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -32,6 +29,8 @@ interface NavItem {
   iconComponent?: ComponentType<{ size?: number; className?: string }>
 }
 
+// Primary destinations only. Profile / Settings / Import moved to the top-right
+// account menu (TopBar / AccountMenu) — the rail is just the workspace pages.
 const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/trades',    label: 'Trades',    Icon: ListOrdered },
@@ -39,16 +38,9 @@ const NAV: NavItem[] = [
   { to: '/reports',   label: 'Reports',   Icon: BarChart3 },
   { to: '/playbook',  label: 'Playbook',  Icon: BookOpen },
   { to: '/analytics', label: 'Analytics', Icon: PieChart },
-  // v0.2.5 Edge Intelligence — one new route after Analytics (§I). The broader
-  // sidebar-IA regrouping (footer rail, grouping) stays deferred to Phase E.
+  // EdgeIQ (v0.2.5 §I) — renders the inline EdgeIqMark in place of the lucide Icon.
   { to: '/intelligence', label: 'EdgeIQ', Icon: Crosshair, iconComponent: EdgeIqMark },
   { to: '/journal',   label: 'Journal',   Icon: NotebookPen },
-  { to: '/import',    label: 'Import',    Icon: Download },
-  // v0.2.5 Phase B Session 4 (L17) — interim placement: Phase E moves
-  // Profile + Settings to the footer rail; until then Profile sits directly
-  // above Settings in the main rail. data-tour="nav-profile" derives below.
-  { to: '/profile',   label: 'Profile',   Icon: User },
-  { to: '/settings',  label: 'Settings',  Icon: SettingsIcon },
 ]
 
 interface SidebarProps {
