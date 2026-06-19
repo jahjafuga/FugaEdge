@@ -15,6 +15,7 @@ import type {
   PeriodMetrics,
 } from './types'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { computeOutcomeStats } from '@/core/stats/outcomeStats'
 
 /** Filter `trades` to those whose date sits inside the inclusive [from, to]
  *  window. Returns the input as-is when range is null. */
@@ -148,14 +149,18 @@ export function computePeriodMetrics(
   range: DateRange,
 ): PeriodMetrics {
   const scoped = tradesInRange(trades, range)
-  let net = 0
+  // Convention-A outcome stats (win/loss/scratch counts, net, win rate, profit
+  // factor, avg winner/loser) come from the shared helper. gross/fees, largest
+  // winner/loser, and hold-time buckets are outside its scope — accumulated in
+  // the same pass below.
+  const s = computeOutcomeStats(scoped)
+  const net = s.net_pnl
+  const winners = s.winners
+  const losers = s.losers
+  const scratches = s.scratches
+
   let gross = 0
   let fees = 0
-  let winners = 0
-  let losers = 0
-  let scratches = 0
-  let winnerSum = 0
-  let loserSum = 0
   let largestWinner: number | null = null
   let largestLoser: number | null = null
   const holdAll: number[] = []
@@ -163,19 +168,12 @@ export function computePeriodMetrics(
   const holdLosers: number[] = []
 
   for (const t of scoped) {
-    net += t.net_pnl
     gross += t.gross_pnl
     fees += t.total_fees
     if (isWin(t.net_pnl)) {
-      winners += 1
-      winnerSum += t.net_pnl
       if (largestWinner == null || t.net_pnl > largestWinner) largestWinner = t.net_pnl
     } else if (isLoss(t.net_pnl)) {
-      losers += 1
-      loserSum += t.net_pnl
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl
-    } else {
-      scratches += 1
     }
     const hs = holdSeconds(t)
     if (hs != null) {
@@ -185,12 +183,10 @@ export function computePeriodMetrics(
     }
   }
 
-  const decided = winners + losers
-  const winRate = decided > 0 ? winners / decided : null
-  const avgWinner = winners > 0 ? winnerSum / winners : null
-  const avgLoser = losers > 0 ? loserSum / losers : null
-  const profitFactor =
-    losers > 0 && loserSum < 0 ? winnerSum / Math.abs(loserSum) : null
+  const winRate = s.win_rate
+  const avgWinner = s.avg_winner
+  const avgLoser = s.avg_loser
+  const profitFactor = s.profit_factor
   const winLossRatio =
     avgWinner != null && avgLoser != null && avgLoser !== 0
       ? avgWinner / Math.abs(avgLoser)

@@ -11,6 +11,7 @@ import {
   type UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { computeOutcomeStats } from '@/core/stats/outcomeStats'
 
 interface PlaybookRowDb {
   id: number
@@ -88,27 +89,16 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
 
   if (trades.length === 0) return emptyStats()
 
-  let net = 0
-  let winnersSum = 0
-  let losersSum = 0
-  let winners = 0
-  let losers = 0
-  let scratches = 0
+  const s = computeOutcomeStats(trades)
+
+  // Largest winner / loser — outside computeOutcomeStats's scope, tracked here.
   let largestWinner: number | null = null
   let largestLoser: number | null = null
-
   for (const t of trades) {
-    net += t.net_pnl
     if (isWin(t.net_pnl)) {
-      winners++
-      winnersSum += t.net_pnl
       if (largestWinner == null || t.net_pnl > largestWinner) largestWinner = t.net_pnl
     } else if (isLoss(t.net_pnl)) {
-      losers++
-      losersSum += t.net_pnl
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl
-    } else {
-      scratches++
     }
   }
 
@@ -133,18 +123,16 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
     }
   }
 
-  const decided = winners + losers
   return {
     trade_count: trades.length,
-    net_pnl: net,
-    winners,
-    losers,
-    scratches,
-    win_rate: decided > 0 ? winners / decided : null,
-    profit_factor:
-      losers > 0 ? winnersSum / Math.abs(losersSum) : null,
-    avg_winner: winners > 0 ? winnersSum / winners : null,
-    avg_loser: losers > 0 ? losersSum / losers : null,
+    net_pnl: s.net_pnl,
+    winners: s.winners,
+    losers: s.losers,
+    scratches: s.scratches,
+    win_rate: s.win_rate,
+    profit_factor: s.profit_factor,
+    avg_winner: s.avg_winner,
+    avg_loser: s.avg_loser,
     largest_winner: largestWinner,
     largest_loser: largestLoser,
     avg_r: rCount > 0 ? rSum / rCount : null,
