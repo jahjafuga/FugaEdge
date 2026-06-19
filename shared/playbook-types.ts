@@ -58,3 +58,21 @@ export interface SetPlaybookOnTradeInput {
   trade_id: number
   playbook_id: number | null
 }
+
+/** A single confluence (secondary) tag on a trade — a lightweight projection of
+ *  the playbook joined from the trade_playbooks junction. Distinct from the
+ *  PRIMARY setup (trades.playbook_id): a playbook is primary OR secondary on a
+ *  given trade, never both, and a system "No Setup" row can never be a
+ *  secondary, so tier is always a real grade here. */
+export interface PlaybookTag {
+  id: number
+  name: string
+  tier: PlaybookTier
+}
+
+/** Add/remove a secondary confluence tag on a trade (the trade_playbooks
+ *  junction). The primary setup keeps its own SetPlaybookOnTradeInput. */
+export interface PlaybookTagInput {
+  trade_id: number
+  playbook_id: number
+}

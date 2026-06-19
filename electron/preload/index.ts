@@ -37,6 +37,8 @@ import type {
 import type { ResolvedCountry } from '@/core/country/resolve'
 import type {
   CreatePlaybookInput,
+  PlaybookTag,
+  PlaybookTagInput,
   PlaybookWithStats,
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
@@ -268,6 +270,12 @@ const api = {
     id: number,
   ): Promise<{ deleted: boolean; trades_unlinked: number }> =>
     ipcRenderer.invoke(IPC.PLAYBOOK_DELETE, id),
+  playbookTagsGet: (tradeId: number): Promise<PlaybookTag[]> =>
+    ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAGS_GET, tradeId),
+  playbookTagAdd: (input: PlaybookTagInput): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_ADD, input),
+  playbookTagRemove: (input: PlaybookTagInput): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_REMOVE, input),
   sessionSentimentSave: (input: SaveSentimentInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_SENTIMENT_SAVE, input),
   sessionListAll: (): Promise<SessionMeta[]> =>

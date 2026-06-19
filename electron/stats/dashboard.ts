@@ -183,7 +183,9 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
     .prepare(`
       SELECT t.id, t.symbol, t.side, t.shares_bought, t.avg_buy_price,
              t.shares_sold, t.avg_sell_price, t.total_fees, t.net_pnl, t.gross_pnl,
-             p.name AS playbook_name, p.tier AS playbook_tier, t.confidence
+             p.name AS playbook_name,
+             CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
+             t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
       WHERE t.date = ? AND t.deleted_at IS NULL ORDER BY t.net_pnl DESC

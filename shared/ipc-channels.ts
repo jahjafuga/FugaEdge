@@ -47,6 +47,12 @@ export const IPC = {
   PLAYBOOK_UPDATE: 'playbook:update',
   TRADE_PLAYBOOK_SAVE: 'trade:playbookSave',
   PLAYBOOK_DELETE: 'playbook:delete',
+  // v0.2.5 Beat 2 — playbook confluence: read a trade's secondary confluence
+  // tag set, and add/remove a secondary tag (the trade_playbooks junction).
+  // Trade-scoped, mirroring TRADE_PLAYBOOK_SAVE (the primary link).
+  TRADE_PLAYBOOK_TAGS_GET: 'trade:playbookTagsGet',
+  TRADE_PLAYBOOK_TAG_ADD: 'trade:playbookTagAdd',
+  TRADE_PLAYBOOK_TAG_REMOVE: 'trade:playbookTagRemove',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_MISTAKES_SAVE: 'trade:mistakesSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',

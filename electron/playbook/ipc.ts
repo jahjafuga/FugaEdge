@@ -2,15 +2,19 @@ import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
   CreatePlaybookInput,
+  PlaybookTagInput,
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import { bumpDataVersion } from '../lib/cache'
 import { xpReconcileForTradeIds } from '../xp/reconcile'
 import {
+  addPlaybookTag,
   createPlaybook,
   deletePlaybook,
+  getPlaybookTagsForTrade,
   listPlaybooks,
+  removePlaybookTag,
   setPlaybookOnTrade,
   updatePlaybook,
 } from './repo'
@@ -45,5 +49,27 @@ export function registerPlaybookIpc(): void {
     const r = deletePlaybook(id)
     bumpDataVersion()
     return r
+  })
+  // Beat 2 — secondary confluence tags (trade_playbooks). TAGS_GET is a pure
+  // read (no bump). ADD/REMOVE mirror TRADE_PLAYBOOK_SAVE exactly: repo write →
+  // bump → fire-and-forget XP reconcile → return the refreshed trade.
+  ipcMain.handle(IPC.TRADE_PLAYBOOK_TAGS_GET, (_e, tradeId: number) =>
+    getPlaybookTagsForTrade(tradeId),
+  )
+  ipcMain.handle(IPC.TRADE_PLAYBOOK_TAG_ADD, (_e, input: PlaybookTagInput) => {
+    addPlaybookTag(input.trade_id, input.playbook_id)
+    bumpDataVersion()
+    void Promise.resolve()
+      .then(() => xpReconcileForTradeIds([input.trade_id]))
+      .catch((e) => console.warn('[xp hook]', e))
+    return getTrade(input.trade_id)
+  })
+  ipcMain.handle(IPC.TRADE_PLAYBOOK_TAG_REMOVE, (_e, input: PlaybookTagInput) => {
+    removePlaybookTag(input.trade_id, input.playbook_id)
+    bumpDataVersion()
+    void Promise.resolve()
+      .then(() => xpReconcileForTradeIds([input.trade_id]))
+      .catch((e) => console.warn('[xp hook]', e))
+    return getTrade(input.trade_id)
   })
 }

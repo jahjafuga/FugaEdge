@@ -5,6 +5,7 @@ import {
   type CreatePlaybookInput,
   type Playbook,
   type PlaybookStats,
+  type PlaybookTag,
   type PlaybookTier,
   type PlaybookWithStats,
   type UpdatePlaybookInput,
@@ -202,6 +203,16 @@ export function createPlaybook(input: CreatePlaybookInput): PlaybookWithStats {
 
 export function updatePlaybook(input: UpdatePlaybookInput): PlaybookWithStats {
   const db = openDatabase()
+  // Beat 2 — "No Setup" (is_system=1) is fully frozen: no rename, re-grade, or
+  // archive (all three flow through this one fn). Guard BEFORE the read/merge/
+  // write so nothing mutates; a non-existent id falls through to the existing
+  // not-found throw below.
+  const sys = db
+    .prepare('SELECT is_system FROM playbooks WHERE id = ?')
+    .get(input.id) as { is_system: number } | undefined
+  if (sys?.is_system === 1) {
+    throw new Error('System playbooks cannot be modified')
+  }
   // Read the current row, merge incoming fields, write back. Cleaner than
   // building a dynamic SET clause per call.
   const current = db
@@ -252,6 +263,15 @@ export interface DeletePlaybookResult {
 // stay intact; they'll just render as "No playbook" afterwards.
 export function deletePlaybook(id: number): DeletePlaybookResult {
   const db = openDatabase()
+  // Beat 2 — "No Setup" (is_system=1) cannot be deleted. Guard BEFORE the txn so
+  // nothing mutates; a non-existent id falls through to the existing no-op (the
+  // txn's not-found early-return leaves { deleted:false }).
+  const sys = db
+    .prepare('SELECT is_system FROM playbooks WHERE id = ?')
+    .get(id) as { is_system: number } | undefined
+  if (sys?.is_system === 1) {
+    throw new Error('System playbooks cannot be deleted')
+  }
   let tradesUnlinked = 0
   let deleted = false
   const tx = db.transaction(() => {
@@ -274,5 +294,74 @@ export function setPlaybookOnTrade(tradeId: number, playbookId: number | null): 
     const exists = db.prepare('SELECT 1 FROM playbooks WHERE id = ?').get(playbookId)
     if (!exists) throw new Error(`Playbook ${playbookId} not found`)
   }
-  db.prepare('UPDATE trades SET playbook_id = ? WHERE id = ?').run(playbookId, tradeId)
+  // Beat 2 — Invariant 1 on the primary path: promoting a playbook to primary
+  // must drop it from the secondary junction so it is never BOTH. Atomic: the
+  // junction delete + the primary update commit together (a crash can't leave
+  // double-membership). Setting primary to null skips the junction delete and
+  // just clears the primary.
+  const tx = db.transaction(() => {
+    if (playbookId != null) {
+      db.prepare(
+        'DELETE FROM trade_playbooks WHERE trade_id = ? AND playbook_id = ?',
+      ).run(tradeId, playbookId)
+    }
+    db.prepare('UPDATE trades SET playbook_id = ? WHERE id = ?').run(playbookId, tradeId)
+  })
+  tx()
+}
+
+// Beat 2 — read a trade's SECONDARY confluence tags (the trade_playbooks
+// junction), NOT the primary on trades.playbook_id. A separate per-trade fetch
+// (the ATTACHMENTS_LIST precedent), ordered by name for a stable display. tier
+// is normalized like everywhere else; a system "No Setup" can never be a
+// secondary, so these are always real graded user playbooks.
+export function getPlaybookTagsForTrade(tradeId: number): PlaybookTag[] {
+  const db = openDatabase()
+  const rows = db
+    .prepare(`
+      SELECT p.id, p.name, p.tier
+      FROM trade_playbooks tp
+      JOIN playbooks p ON p.id = tp.playbook_id
+      WHERE tp.trade_id = ?
+      ORDER BY p.name
+    `)
+    .all(tradeId) as { id: number; name: string; tier: string }[]
+  return rows.map((r) => ({ id: r.id, name: r.name, tier: normalizeTier(r.tier) }))
+}
+
+// Beat 2 — add a SECONDARY confluence tag (trade_playbooks). Mirrors
+// setPlaybookOnTrade's existence check, PLUS the two invariants:
+//   Inv 2 — a system "No Setup" (is_system=1) can never be a secondary.
+//   Inv 1 — the trade's PRIMARY (trades.playbook_id) can't also be a secondary.
+// INSERT OR IGNORE, not a plain INSERT: re-adding the same tag is a benign,
+// idempotent no-op — the composite PK swallows the duplicate without erroring,
+// the right UX for clicking "add" twice. (Contrast the No Setup SEED, which uses
+// a PLAIN insert precisely to SURFACE a UNIQUE-name collision.)
+export function addPlaybookTag(tradeId: number, playbookId: number): void {
+  const db = openDatabase()
+  const pb = db
+    .prepare('SELECT is_system FROM playbooks WHERE id = ?')
+    .get(playbookId) as { is_system: number } | undefined
+  if (!pb) throw new Error(`Playbook ${playbookId} not found`)
+  if (pb.is_system === 1) {
+    throw new Error('A system playbook cannot be a confluence tag')
+  }
+  const trade = db
+    .prepare('SELECT playbook_id FROM trades WHERE id = ?')
+    .get(tradeId) as { playbook_id: number | null } | undefined
+  if (trade && trade.playbook_id === playbookId) {
+    throw new Error('That playbook is already the primary setup on this trade')
+  }
+  db.prepare(
+    'INSERT OR IGNORE INTO trade_playbooks (trade_id, playbook_id) VALUES (?, ?)',
+  ).run(tradeId, playbookId)
+}
+
+// Beat 2 — remove a secondary confluence tag. Removing an absent (trade,
+// playbook) pair deletes zero rows — a clean no-op, never an error.
+export function removePlaybookTag(tradeId: number, playbookId: number): void {
+  const db = openDatabase()
+  db.prepare(
+    'DELETE FROM trade_playbooks WHERE trade_id = ? AND playbook_id = ?',
+  ).run(tradeId, playbookId)
 }

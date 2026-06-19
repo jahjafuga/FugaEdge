@@ -13,6 +13,7 @@ import type {
 } from '@shared/trades-types'
 import type {
   CreatePlaybookInput,
+  PlaybookTagInput,
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
@@ -123,6 +124,10 @@ export const ipc = {
   tradePlaybookSave: (input: SetPlaybookOnTradeInput) =>
     window.api.tradePlaybookSave(input),
   playbookDelete: (id: number) => window.api.playbookDelete(id),
+  playbookTagsGet: (tradeId: number) => window.api.playbookTagsGet(tradeId),
+  playbookTagAdd: (input: PlaybookTagInput) => window.api.playbookTagAdd(input),
+  playbookTagRemove: (input: PlaybookTagInput) =>
+    window.api.playbookTagRemove(input),
   sessionSentimentSave: (input: import('@shared/session-types').SaveSentimentInput) =>
     window.api.sessionSentimentSave(input),
   sessionListAll: () => window.api.sessionListAll(),
