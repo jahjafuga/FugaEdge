@@ -175,16 +175,17 @@ export default function AppLayout() {
   return (
     <CelebrationProvider>
       <div
-      className={`grid h-full text-fg-primary transition-[grid-template-columns] duration-200 ease-out ${
+      className={`relative isolate grid h-full text-fg-primary transition-[grid-template-columns] duration-200 ease-out ${
         collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[180px_1fr]'
       }`}
     >
+      {/* Phase 2 — the ONE app-wide aurora, mounted behind the whole grid as a
+          single continuous field: the frosted rail blurs it, and <main> (now
+          transparent) shows the SAME field in the content area — so there is no
+          seam between the rail's gaps and the content backdrop. */}
+      <div className="app-aurora" aria-hidden="true" />
       <Sidebar collapsed={collapsed} onToggle={toggleCollapsed} />
-      <main className="relative isolate flex min-w-0 flex-col overflow-hidden bg-bg-0">
-        {/* Edge flagship Beat 1 — app-wide premium aurora (§11.2), DARK MODE
-            only (CSS-gated in .app-premium-bg). Sits behind content via
-            z-index:-1 inside this isolated, relative, overflow-hidden main. */}
-        <div className="app-premium-bg" aria-hidden="true" />
+      <main className="relative isolate flex min-w-0 flex-col overflow-hidden">
         <TopBar />
         <UpdateBanner />
         <GraceBanner

@@ -316,10 +316,28 @@
 }
 
 @layer components {
-  /* Sidebar — hide scrollbar chrome but keep scroll behaviour; right-edge
-     shadow is themed via --shadow-sidebar (none in dark, soft drop in light). */
+  /* Sidebar — Phase 2 DETACHED frosted-glass panel. The rail floats (m-3 +
+     rounded-xl on the <aside>) over the behind-grid aurora, which now shows in
+     the gaps around it too. A FULL crisp hairline (all four sides, since it's a
+     card) + a soft floating shadow lift it. GPU-safe: separate grid column over
+     a STATIC aurora, so backdrop-filter recomputes only on scroll/resize/
+     collapse, never per-frame. Scrollbar chrome is hidden in the rules below. */
   .sidebar-aside {
-    box-shadow: var(--shadow-sidebar);
+    background: rgb(var(--bg-1) / 0.55);
+    backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    -webkit-backdrop-filter: blur(16px) saturate(180%) brightness(1.05);
+    border: 1px solid rgb(255 255 255 / 0.07);
+    box-shadow: 0 8px 28px rgb(0 0 0 / 0.38);
+  }
+  :root.light .sidebar-aside {
+    /* Light: lighter alpha + the light aurora SVG, gentler saturate, a dark
+       hairline (a white hairline is invisible on the white surface), and a soft
+       light-mode card shadow. */
+    background: rgb(var(--bg-1) / 0.62);
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    border: 1px solid rgb(var(--border-subtle));
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
   }
   .sidebar-aside,
   .sidebar-scroll {
@@ -493,10 +511,15 @@
   :root.light .card-glow-gold   { background-image: none; border-color: rgb(var(--glow-gold)   / 0.45); }
   :root.light .card-glow-purple { background-image: none; border-color: rgb(var(--glow-purple) / 0.45); }
 
-  /* App-wide premium background (§11.2) — the gold-aurora SVG, mounted behind
-     <main> (AppLayout adds the <div>). DARK MODE only; light hides it and keeps
-     the current flat bg-0. Vite content-hashes the url() at build. */
-  .app-premium-bg {
+  /* Phase 2 — the ONE app-wide aurora (Option A): a single static SVG mounted
+     behind the whole grid (AppLayout's grid <div>, relative + isolate). It is
+     the continuous background for the WHOLE app — the frosted rail blurs it and
+     <main> (transparent) shows the same field in the content area, so there is
+     no seam. ONE wash, tuned to serve both: dark enough at the centre that
+     content (charts / numbers / cards) stays legible, while the window-centred
+     radial keeps the left edge (behind the rail) lighter so the frosted rail
+     still glows. Static SVG → no per-frame cost. */
+  .app-aurora {
     position: absolute;
     inset: 0;
     z-index: -1;
@@ -506,27 +529,20 @@
     background-position: center;
     background-repeat: no-repeat;
   }
-  /* Tuning (Beat 1) — drop the aurora to "felt, not seen". A dark wash ABOVE
-     the SVG but BELOW content: darkest at the upper-centre (where the bright
-     stroke + the score panel's empty left land) and easing toward the edges so
-     the two corner glows survive as barely-there warmth. The bright stroke
-     reads at ~0.19 effective here, so it stops tracing as a line. Rides
-     .app-premium-bg's z-index:-1 (behind content) and is light-gated with the
-     parent (display:none in light → the ::after doesn't render either). */
-  .app-premium-bg::after {
+  .app-aurora::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     background: radial-gradient(135% 105% at 50% 38%,
-      rgb(4 8 20 / 0.80) 0%,
-      rgb(4 8 20 / 0.66) 45%,
-      rgb(4 8 20 / 0.55) 100%);
+      rgb(4 8 20 / 0.78) 0%,
+      rgb(4 8 20 / 0.62) 45%,
+      rgb(4 8 20 / 0.48) 100%);
   }
-  :root.light .app-premium-bg {
+  :root.light .app-aurora {
     background-image: url('./assets/FugaEdge-Premium-LightMode-Refined.svg');
   }
-  :root.light .app-premium-bg::after {
+  :root.light .app-aurora::after {
     display: none;
   }
 }

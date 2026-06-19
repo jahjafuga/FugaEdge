@@ -72,7 +72,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   return (
     <aside
       data-tour="sidebar"
-      className="sidebar-aside relative flex h-full flex-col border-r border-border bg-bg-1"
+      className="sidebar-aside relative m-3 flex flex-col rounded-xl"
     >
       {/* Toggle row — sits at the top-right edge of the rail. Right-aligned
           when expanded; centered when collapsed (the 64px rail has no
