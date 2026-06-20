@@ -39,7 +39,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
     "recharts": "^2.13.0",
-    "ulidx": "^2.4.1"
+    "ulidx": "^2.4.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@fontsource/inter": "^5.1.0",

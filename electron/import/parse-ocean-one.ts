@@ -1,0 +1,308 @@
+import * as XLSX from 'xlsx'
+import { createHash } from 'node:crypto'
+import type { Execution, RoundTrip, RoundTripExecution } from '@shared/import-types'
+import { hashFills, hashFillsByContent } from '@/core/import/build-round-trips'
+import { localEasternToUtc } from '@/lib/format'
+
+// Ocean One broker TRADES report (.xls, OLE2/BIFF — read via SheetJS; exceljs
+// CANNOT read the legacy binary format, so this parser is the reason xlsx is a
+// dependency). Structure: repeating day-blocks —
+//   [ "M/D/YYYY" date line, a 21-column header row, N trade rows, an "Equities"
+//     subtotal row, a blank spacer ].
+// Each TRADE row is a COMPLETE round trip (Opened, Closed, Symbol, Type, Entry,
+// Exit, Qty, Gross, 11 itemized fees, Net) — NOT individual fills. So this
+// parser emits RoundTrips DIRECTLY rather than synthesizing fills for the
+// netting builder (buildRoundTrips would merge two overlapping same-symbol round
+// trips). It still computes the dual dedup hashes from two synthetic fills
+// (entry + exit) via the shared hashFills / hashFillsByContent, so the emitted
+// trip dedups identically to a builder-produced one.
+//
+// TIMEZONE: the Opened/Closed cells carry no explicit zone, and SheetJS's date
+// coercion is machine-local (unreliable). We read the FORMATTED cell string and
+// treat it as US/Eastern broker wall-clock — same convention as the DAS parsers
+// (localEasternToUtc, DST-aware). Dave's pre-market times (05:37 / 07:00 / 08:03
+// ET) fit Eastern pre-market momentum trading. CONFIRM the zone with the broker
+// before this ships in the import UI.
+//
+// FEES — confirmed against the real fixture (residual Gross - Σfees - Net = 0):
+//   Comm → commission (kept DISTINCT, Dave's ask), Ecn Fee → ecn_fee,
+//   SEC → sec_fee, CAT → cat_fee, TAF → finra_fee (Trading Activity Fee),
+//   ORF/OCC/NSCC/Acc/Clr/Misc → other_fees. Only Comm/Ecn/SEC/CAT/TAF/NSCC are
+//   ever non-zero in the fixture; the rest are always 0. total_fees sums all 11,
+//   so commission is preserved separately AND included in total_fees.
+
+type FeeField = 'commission' | 'ecn_fee' | 'sec_fee' | 'cat_fee' | 'finra_fee' | 'other_fees'
+
+const FEE_TO_FIELD: Record<string, FeeField> = {
+  Comm: 'commission',
+  'Ecn Fee': 'ecn_fee',
+  SEC: 'sec_fee',
+  CAT: 'cat_fee',
+  TAF: 'finra_fee',
+  ORF: 'other_fees',
+  OCC: 'other_fees',
+  NSCC: 'other_fees',
+  Acc: 'other_fees',
+  Clr: 'other_fees',
+  Misc: 'other_fees',
+}
+const FEE_COLUMNS = Object.keys(FEE_TO_FIELD)
+const REQUIRED_COLUMNS = ['Opened', 'Closed', 'Symbol', 'Type', 'Entry', 'Exit', 'Qty']
+const DATE_LINE_RE = /^\d{1,2}\/\d{1,2}\/\d{4}$/
+
+// Parenthesized-negative + currency-aware numeric parse: "(0.12)" → -0.12,
+// "$1,234.50" → 1234.5, blank → 0.
+function num(v: unknown): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  let s = String(v ?? '').trim()
+  if (!s) return 0
+  let neg = false
+  if (s.startsWith('(') && s.endsWith(')')) {
+    neg = true
+    s = s.slice(1, -1)
+  }
+  s = s.replace(/[$,\s]/g, '')
+  const n = Number.parseFloat(s)
+  if (!Number.isFinite(n)) return 0
+  return neg ? -n : n
+}
+
+const pad2 = (x: string) => x.padStart(2, '0')
+
+// "5/1/2026 5:37:35.000" → { date: "2026-05-01", time: "05:37:35" }.
+function parseOpened(raw: string): { date: string; time: string } | null {
+  const m = raw
+    .trim()
+    .match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?$/)
+  if (!m) return null
+  const [, mo, d, y, h, mi, s] = m
+  return { date: `${y}-${pad2(mo)}-${pad2(d)}`, time: `${pad2(h)}:${pad2(mi)}:${pad2(s)}` }
+}
+
+// "05:38:20" → "05:38:20" (validate + zero-pad). The Closed column is time-only;
+// the trading day comes from Opened.
+function parseClock(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?$/)
+  if (!m) return null
+  const [, h, mi, s] = m
+  return `${pad2(h)}:${pad2(mi)}:${pad2(s)}`
+}
+
+function parseSide(raw: string): 'long' | 'short' | null {
+  const s = raw.trim().toLowerCase()
+  if (s === 'long') return 'long'
+  if (s === 'short') return 'short'
+  return null
+}
+
+function synthId(parts: (string | number)[]): string {
+  return 'oo-' + createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 12)
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+function round4(n: number): number {
+  return Math.round(n * 10000) / 10000
+}
+
+export interface ParseOceanOneResult {
+  roundTrips: RoundTrip[]
+  skipped: number
+  warnings: string[]
+  trace: { row: number; outcome: 'kept' | 'skipped'; reason?: string; symbol?: string }[]
+}
+
+export function parseOceanOneXls(
+  buffer: Buffer | ArrayBuffer | Uint8Array,
+  sourceFile?: string,
+): ParseOceanOneResult {
+  // Buffer IS a Uint8Array; wrap a bare ArrayBuffer. type:'array' covers all
+  // three so the parser is callable from web contexts (no Buffer dependency).
+  const data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer
+  const wb = XLSX.read(data, { type: 'array' })
+  const ws = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+    header: 1,
+    raw: false,
+    defval: '',
+  })
+
+  const roundTrips: RoundTrip[] = []
+  const trace: ParseOceanOneResult['trace'] = []
+  const warnings: string[] = []
+  let skipped = 0
+
+  // The header row repeats every day-block; rebuild the column map on each one.
+  let colMap: Map<string, number> | null = null
+  const cell = (row: unknown[], label: string): string => {
+    if (!colMap) return ''
+    const i = colMap.get(label)
+    return i == null ? '' : String(row[i] ?? '').trim()
+  }
+  const skip = (row: number, reason: string, symbol?: string) => {
+    skipped++
+    trace.push({ row, outcome: 'skipped', reason, symbol })
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const c0 = String(row[0] ?? '').trim()
+
+    // Blank spacer between day-blocks.
+    if (row.every((c) => String(c ?? '').trim() === '')) continue
+    // Date section marker (date ONLY — trade rows carry a date+time in Opened).
+    if (DATE_LINE_RE.test(c0)) continue
+    // Equities subtotal row.
+    if (c0.toLowerCase() === 'equities') continue
+    // Column-header row — (re)build the column map and validate it.
+    if (c0 === 'Opened') {
+      colMap = new Map()
+      row.forEach((v, idx) => {
+        const k = String(v ?? '').trim()
+        if (k) colMap!.set(k, idx)
+      })
+      for (const req of REQUIRED_COLUMNS) {
+        if (!colMap.has(req)) {
+          throw new Error(`Ocean One .xls: header row is missing required column "${req}"`)
+        }
+      }
+      continue
+    }
+
+    // Otherwise a trade row.
+    if (!colMap) {
+      skip(i, 'trade-row-before-header')
+      continue
+    }
+    const symbol = cell(row, 'Symbol').toUpperCase()
+    if (!symbol) {
+      skip(i, 'empty-symbol')
+      continue
+    }
+    const side = parseSide(cell(row, 'Type'))
+    if (!side) {
+      skip(i, `bad-type:"${cell(row, 'Type')}"`, symbol)
+      continue
+    }
+    const opened = parseOpened(cell(row, 'Opened'))
+    if (!opened) {
+      skip(i, `bad-opened:"${cell(row, 'Opened')}"`, symbol)
+      continue
+    }
+    const closeClock = parseClock(cell(row, 'Closed'))
+    if (!closeClock) {
+      skip(i, `bad-closed:"${cell(row, 'Closed')}"`, symbol)
+      continue
+    }
+    const entry = num(cell(row, 'Entry'))
+    const exit = num(cell(row, 'Exit'))
+    const qty = Math.round(num(cell(row, 'Qty')))
+    if (entry <= 0 || exit <= 0 || qty <= 0) {
+      skip(i, 'non-positive-price-or-qty', symbol)
+      continue
+    }
+
+    const openTimeUtc = localEasternToUtc(opened.date, opened.time)
+    const closeTimeUtc = localEasternToUtc(opened.date, closeClock)
+
+    // Fees — map the 11 columns onto the model fields; commission stays distinct.
+    let commission = 0
+    let ecn = 0
+    let sec = 0
+    let cat = 0
+    let finra = 0
+    let other = 0
+    for (const col of FEE_COLUMNS) {
+      const v = num(cell(row, col))
+      switch (FEE_TO_FIELD[col]) {
+        case 'commission':
+          commission += v
+          break
+        case 'ecn_fee':
+          ecn += v
+          break
+        case 'sec_fee':
+          sec += v
+          break
+        case 'cat_fee':
+          cat += v
+          break
+        case 'finra_fee':
+          finra += v
+          break
+        default:
+          other += v
+      }
+    }
+    const totalFees = round2(commission + ecn + sec + cat + finra + other)
+
+    // Gross from the prices (matches the file's Gross; closeTrip's convention).
+    const grossPnl = round2(
+      side === 'long' ? qty * exit - qty * entry : qty * entry - qty * exit,
+    )
+    const netPnl = round2(grossPnl - totalFees)
+
+    // Two synthetic fills (entry + exit) — NOT run through buildRoundTrips; used
+    // only to compute the dual dedup hashes and to back executions_json.
+    const entrySide: 'B' | 'S' = side === 'long' ? 'B' : 'S'
+    const exitSide: 'B' | 'S' = side === 'long' ? 'S' : 'B'
+    const entryId = synthId([opened.date, openTimeUtc, symbol, entrySide, qty, entry])
+    const exitId = synthId([opened.date, closeTimeUtc, symbol, exitSide, qty, exit])
+    const mkFill = (
+      id: string,
+      s: 'B' | 'S',
+      price: number,
+      timeUtc: string,
+    ): Execution => ({
+      trade_id: id,
+      order_id: id,
+      symbol,
+      side: s,
+      is_short: side === 'short',
+      qty,
+      price,
+      time: timeUtc,
+      date: opened.date,
+    })
+    const fills: Execution[] = [
+      mkFill(entryId, entrySide, entry, openTimeUtc),
+      mkFill(exitId, exitSide, exit, closeTimeUtc),
+    ]
+    const rtExecs: RoundTripExecution[] = fills.map((f) => ({
+      trade_id: f.trade_id,
+      order_id: f.order_id,
+      side: f.side,
+      qty: f.qty,
+      price: f.price,
+      time: f.time,
+    }))
+
+    roundTrips.push({
+      date: opened.date,
+      symbol,
+      side,
+      open_time: openTimeUtc,
+      close_time: closeTimeUtc,
+      is_open: false,
+      shares_bought: qty,
+      avg_buy_price: round4(side === 'long' ? entry : exit),
+      shares_sold: qty,
+      avg_sell_price: round4(side === 'long' ? exit : entry),
+      gross_pnl: grossPnl,
+      total_fees: totalFees,
+      net_pnl: netPnl,
+      exec_hash: hashFills(fills),
+      content_hash: hashFillsByContent(fills),
+      executions: rtExecs,
+      status: 'new',
+      source_broker: 'OceanOne',
+      source_file: sourceFile,
+      fees_reported: true,
+      commission,
+    })
+    trace.push({ row: i, outcome: 'kept', symbol })
+  }
+
+  return { roundTrips, skipped, warnings, trace }
+}

@@ -12,7 +12,7 @@ export type ExecSide = 'B' | 'S'
 
 /** Origin broker for a row. Drives format-specific parser routing only —
  *  the universal Execution shape itself is broker-agnostic. */
-export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS'
+export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS' | 'OceanOne'
 
 /** Which export shape produced this row. 'summary' = daily aggregate,
  *  'execution' = per-fill (DAS Trades.csv), 'tradehistory' = per-fill
@@ -161,6 +161,12 @@ export interface RoundTrip {
    *  component populated. Lets the UI say "Fees: not reported" instead of
    *  rendering $0.00 for brokers/formats that don't surface fees. */
   fees_reported?: boolean
+  /** Broker commission for the round trip, kept DISTINCT from the other fee
+   *  components (which fold into total_fees). Ocean One reports a separate Comm
+   *  column Dave wants surfaced apart from regulatory/clearing fees; total_fees
+   *  still INCLUDES commission. Optional/additive — a trades.commission schema
+   *  column + population for the other parsers land in a later beat. */
+  commission?: number
 }
 
 export interface DaySummaryFeeRow {
