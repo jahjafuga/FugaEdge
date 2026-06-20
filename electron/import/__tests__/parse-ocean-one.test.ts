@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parseOceanOneXls } from '../parse-ocean-one'
+import * as XLSX from 'xlsx'
 
 // Generic real-fixture invariants — NO identifying strings/values asserted
 // (real account data: account number, symbols, $ amounts). Skipped automatically
@@ -107,5 +108,56 @@ describe('Ocean One .xls parser — real fixture, generic invariants only', () =
     expect(a.roundTrips.map((t) => t.content_hash)).toEqual(
       b.roundTrips.map((t) => t.content_hash),
     )
+  })
+})
+
+// ── Fixture-independent CI guard for dedup hash STABILITY (beat 4) ──────────
+// The real-fixture test above proves re-parse determinism too, but the whole
+// block SKIPS in CI (no fixture). Dave's use case is bulk re-upload — re-dropping
+// overlapping Ocean One files MUST skip, not double-add — and that safety rests
+// on the parser producing IDENTICAL exec_hash + content_hash when it re-parses
+// the same bytes. This builds a tiny SYNTHETIC Ocean One sheet (no real data) so
+// a future change that makes those hashes non-deterministic (a parse-time
+// timestamp, a random id) is caught in CI, where the real fixture isn't present.
+function syntheticOceanOneBuffer(): Uint8Array {
+  const header = [
+    'Opened', 'Closed', 'Held', 'Symbol', 'Type', 'Entry', 'Exit', 'Qty', 'Gross',
+    'Comm', 'Ecn Fee', 'SEC', 'ORF', 'CAT', 'TAF', 'OCC', 'NSCC', 'Acc', 'Clr', 'Misc', 'Net',
+  ]
+  // All cells are strings (the parser reads raw:false display strings), so the
+  // .xls round-trip can't coerce a date/number and change the parsed values.
+  const rows: string[][] = [
+    ['5/1/2026'],
+    header,
+    ['5/1/2026 9:37:35', '9:38:20', '00:00:45', 'AAA', 'Long', '2.89', '2.92', '1', '0.03',
+      '0.10', '0', '0', '0', '0.02', '0.01', '0', '0.02', '0', '0', '0', '-0.12'],
+    ['5/1/2026 9:40:01', '9:41:00', '00:00:59', 'BBB', 'Long', '3.00', '3.10', '2', '0.20',
+      '0.10', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0.10'],
+    ['Equities', '', '', '', '', '', '', '', '0.23'],
+    [],
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Trades')
+  return new Uint8Array(XLSX.write(wb, { type: 'array', bookType: 'xls' }) as ArrayBuffer)
+}
+
+describe('Ocean One .xls parser — dedup hash stability (CI, synthetic fixture)', () => {
+  it('re-parsing identical bytes yields identical exec_hash AND content_hash per trip', () => {
+    const buf = syntheticOceanOneBuffer()
+    const a = parseOceanOneXls(buf)
+    const b = parseOceanOneXls(buf)
+    expect(a.roundTrips).toHaveLength(2)
+    expect(a.roundTrips.map((t) => t.exec_hash)).toEqual(b.roundTrips.map((t) => t.exec_hash))
+    expect(a.roundTrips.map((t) => t.content_hash)).toEqual(
+      b.roundTrips.map((t) => t.content_hash),
+    )
+  })
+
+  it('distinct trades produce distinct content_hashes (no accidental collision)', () => {
+    const hashes = parseOceanOneXls(syntheticOceanOneBuffer()).roundTrips.map(
+      (t) => t.content_hash,
+    )
+    expect(new Set(hashes).size).toBe(hashes.length)
   })
 })
