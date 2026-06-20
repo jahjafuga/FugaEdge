@@ -142,6 +142,7 @@ CREATE TABLE IF NOT EXISTS trades (
   fee_htb         REAL    NOT NULL DEFAULT 0,
   fee_cat         REAL    NOT NULL DEFAULT 0,
   total_fees      REAL    NOT NULL DEFAULT 0,                 -- 0 until we estimate fees from execs
+  commission      REAL,                                       -- Ocean One Comm: a display SLICE of total_fees (already folded in, NOT additive). NULL = not separately reported (renders em-dash, never a fabricated $0). Added via migrateAddCommission for upgraded DBs.
   net_pnl         REAL    NOT NULL DEFAULT 0,                 -- gross_pnl - total_fees
   executions_json TEXT    NOT NULL DEFAULT '[]',              -- raw fills, parent→children grouping
   exec_hash       TEXT    NOT NULL UNIQUE,                    -- SHA-1 of sorted TradeID:OrderID

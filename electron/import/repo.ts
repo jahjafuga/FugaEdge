@@ -205,7 +205,7 @@ export function commit(
       fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees,
       net_pnl,
       executions_json, exec_hash, content_hash,
-      source_broker, source_format, source_file, account_name, fees_reported
+      source_broker, source_format, source_file, account_name, fees_reported, commission
     ) VALUES (
       @date, @symbol, @side,
       @open_time, @close_time, @is_open,
@@ -214,7 +214,7 @@ export function commit(
       0, 0, 0, 0, 0, @total_fees,
       @net_pnl,
       @executions_json, @exec_hash, @content_hash,
-      @source_broker, @source_format, @source_file, @account_name, @fees_reported
+      @source_broker, @source_format, @source_file, @account_name, @fees_reported, @commission
     )
   `)
 
@@ -324,6 +324,11 @@ export function commit(
         source_file: sourceFile,
         account_name: accountName,
         fees_reported: t.fees_reported ? 1 : 0,
+        // Ocean One's separate Comm, broken out for display. A SLICE of
+        // total_fees (already folded in), so net_pnl is untouched. NULL for
+        // DAS/Webull (no separately-reported commission) — an honest absence,
+        // not a fabricated 0.
+        commission: t.commission ?? null,
       })
       if (info.changes > 0) {
         insertedTrips++

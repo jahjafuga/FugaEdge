@@ -21,6 +21,11 @@ export interface TradeListRow {
   avg_sell_price: number
   gross_pnl: number
   total_fees: number
+  /** Ocean One's separate Comm — a display slice of total_fees (already folded
+   *  in, NOT additive). Undefined/absent when the broker reported no separate
+   *  commission (DAS/Webull and all pre-3c rows). Stored + typed now; a later
+   *  beat surfaces it in the trade UI. */
+  commission?: number
   net_pnl: number
   executions: RoundTripExecution[]
   note: TradeNote | null

@@ -8,6 +8,7 @@ import { migrateTimestampsToUtc } from './migrate-tz-utc'
 import { migrateContentHash } from './migrate-content-hash'
 import { migrateFloatRename } from './migrate-float-rename'
 import { migrateAddDeletedAt } from './migrate-add-deleted-at'
+import { migrateAddCommission } from './migrate-add-commission'
 import { migrateScratchReclassify } from './migrate-scratch-reclassify'
 import { migrateResetMaeMfe } from './migrate-reset-mae-mfe'
 import { migrateSentimentPolarity } from './migrate-sentiment-polarity'
@@ -742,6 +743,12 @@ function migrateAfterSchema(
   // v0.2.3 soft-delete — add trades.deleted_at + its partial index. Additive
   // and idempotent (own module so it's unit-testable; see migrate-add-deleted-at.ts).
   migrateAddDeletedAt(conn)
+
+  // Ocean One Beat 3c — add trades.commission, a nullable display slice of
+  // total_fees (Ocean One's separate Comm). Additive + idempotent, no version
+  // bump (mirrors migrateAddDeletedAt). NULL on legacy rows = not separately
+  // reported. See migrate-add-commission.ts.
+  migrateAddCommission(conn)
 
   // v0.2.0 universal-import provenance. Defaults pin existing v0.1.6 rows
   // to DAS/execution — every legacy round trip was produced by parsing a

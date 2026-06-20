@@ -95,3 +95,49 @@ describe('commit() insertTrip persists the trip total_fees (EDIT 1)', () => {
     expect(args.total_fees).toBe(0.15)
   })
 })
+
+describe('commit() insertTrip persists commission as a subset of total_fees (Beat 3c)', () => {
+  it('binds the OO trip commission onto the new column', () => {
+    commit([ooTrip({ commission: 0.1, total_fees: 0.15 })], [], 'test')
+    const args = insertCall()!.args[0] as Record<string, unknown>
+    expect(args.commission).toBe(0.1)
+  })
+
+  it('binds NULL commission for a trip that carries none (DAS/Webull)', () => {
+    commit(
+      [
+        ooTrip({
+          symbol: 'AAPL',
+          source_broker: 'DAS',
+          fees_reported: false,
+          commission: undefined,
+          total_fees: 0,
+          net_pnl: 0.03,
+          exec_hash: 'EH-DAS',
+          content_hash: 'CH-DAS',
+        }),
+      ],
+      [],
+      'test',
+    )
+    const args = insertCall()!.args[0] as Record<string, unknown>
+    expect(args.commission).toBeNull()
+  })
+
+  it('the INSERT binds @commission', () => {
+    commit([ooTrip()], [], 'test')
+    expect(insertCall()!.sql).toMatch(/@commission/)
+  })
+
+  it('commission is a SUBSET of total_fees, not additive — net_pnl is unchanged', () => {
+    commit([ooTrip({ gross_pnl: 0.03, total_fees: 0.15, net_pnl: -0.12, commission: 0.1 })], [], 'test')
+    const args = insertCall()!.args[0] as Record<string, unknown>
+    // net is still gross - total_fees; commission did NOT change it (no double-count).
+    expect(args.net_pnl).toBe(-0.12)
+    // For a non-rebate trade, commission is one positive fee among others summed
+    // into total_fees, so it does not exceed the total. (A net ECN rebate can pull
+    // total_fees below the commission component — see the MTEX case in the beat-3c
+    // harness — so this is a property of THIS fixture, not a universal law.)
+    expect(args.commission as number).toBeLessThanOrEqual(args.total_fees as number)
+  })
+})
