@@ -89,11 +89,12 @@ function entryPrice(t: TradeForReport): number {
 }
 
 const PRICE_BUCKETS: { key: string; min: number; max: number }[] = [
-  { key: '$0–5',   min: 0,     max: 5 },
-  { key: '$5–10',  min: 5,     max: 10 },
-  { key: '$10–20', min: 10,    max: 20 },
-  { key: '$20–50', min: 20,    max: 50 },
-  { key: '$50+',   min: 50,    max: Number.POSITIVE_INFINITY },
+  { key: '< $2',   min: 0,  max: 2 },
+  { key: '$2–5',   min: 2,  max: 5 },
+  { key: '$5–10',  min: 5,  max: 10 },
+  { key: '$10–15', min: 10, max: 15 },
+  { key: '$15–20', min: 15, max: 20 },
+  { key: '> $20',  min: 20, max: Number.POSITIVE_INFINITY },
 ]
 
 function priceBucketKey(price: number): { key: string; order: number } | null {
@@ -105,11 +106,13 @@ function priceBucketKey(price: number): { key: string; order: number } | null {
 }
 
 const SHARE_BUCKETS: { key: string; min: number; max: number }[] = [
-  { key: '< 100',     min: 0,     max: 100 },
-  { key: '100–500',   min: 100,   max: 500 },
-  { key: '500–1k',    min: 500,   max: 1000 },
-  { key: '1k–5k',     min: 1000,  max: 5000 },
-  { key: '5k+',       min: 5000,  max: Number.POSITIVE_INFINITY },
+  { key: '0–50',      min: 0,    max: 50 },
+  { key: '50–100',    min: 50,   max: 100 },
+  { key: '100–250',   min: 100,  max: 250 },
+  { key: '250–500',   min: 250,  max: 500 },
+  { key: '500–1000',  min: 500,  max: 1000 },
+  { key: '1000–2500', min: 1000, max: 2500 },
+  { key: '2500+',     min: 2500, max: Number.POSITIVE_INFINITY },
 ]
 
 function shareBucketKey(shares: number): { key: string; order: number } {
@@ -445,10 +448,13 @@ function computeDrawdownInfo(trades: TradeForReport[]): DrawdownInfo | null {
 }
 
 const FLOAT_BUCKETS: { key: string; min: number; max: number }[] = [
-  { key: '< 5M',     min: 0,        max: 5_000_000 },
-  { key: '5–20M',    min: 5_000_000, max: 20_000_000 },
-  { key: '20–100M',  min: 20_000_000, max: 100_000_000 },
-  { key: '100M+',    min: 100_000_000, max: Number.POSITIVE_INFINITY },
+  { key: '< 1M',    min: 0,          max: 1_000_000 },
+  { key: '1–2.5M',  min: 1_000_000,  max: 2_500_000 },
+  { key: '2.5–5M',  min: 2_500_000,  max: 5_000_000 },
+  { key: '5–10M',   min: 5_000_000,  max: 10_000_000 },
+  { key: '10–20M',  min: 10_000_000, max: 20_000_000 },
+  { key: '20–50M',  min: 20_000_000, max: 50_000_000 },
+  { key: '> 50M',   min: 50_000_000, max: Number.POSITIVE_INFINITY },
 ]
 
 function floatBucket(shares: number): { key: string; order: number } | null {
