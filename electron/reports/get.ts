@@ -242,7 +242,7 @@ function computeRandomChance(sqn: number | null): number | null {
   return 1 / (1 + sqn * sqn * 0.1)
 }
 
-function computeFullStats(rows: TradeForReport[]): FullStats {
+export function computeFullStats(rows: TradeForReport[]): FullStats {
   // Sort by open_time so streak counts reflect chronological order.
   const trades = [...rows].sort((a, b) =>
     a.open_time < b.open_time ? -1 : a.open_time > b.open_time ? 1 : 0,
@@ -261,10 +261,17 @@ function computeFullStats(rows: TradeForReport[]): FullStats {
     (s, t) => s + t.shares_bought + t.shares_sold,
     0,
   )
+  // Per-share P&L divides by POSITION size (one leg = max of the two), not the
+  // both-leg sum above. totalShares stays both-leg — it feeds the volume stats
+  // (total_shares_traded, avg_daily_volume), which legitimately count both legs.
+  const totalPositionShares = trades.reduce(
+    (s, t) => s + Math.max(t.shares_bought, t.shares_sold),
+    0,
+  )
 
   const avgTrade = trades.length > 0 ? totalNet / trades.length : null
   const avgDaily = distinctDays > 0 ? totalNet / distinctDays : null
-  const avgPerShare = totalShares > 0 ? totalNet / totalShares : null
+  const avgPerShare = totalPositionShares > 0 ? totalNet / totalPositionShares : null
   const avgDailyVolume = distinctDays > 0 ? totalShares / distinctDays : null
   const sd = sampleStdDev(pnls)
 

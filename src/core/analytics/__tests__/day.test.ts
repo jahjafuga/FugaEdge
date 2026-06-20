@@ -358,7 +358,7 @@ describe('computeDayMetrics', () => {
 
   // ── v0.2.2 Day 2 — Performance tab metrics ──────────────────────────────
 
-  it('computes avgTradePnl (netPnl ÷ tradeCount) and avgPerShareGainLoss (netPnl ÷ totalShares)', () => {
+  it('computes avgTradePnl (netPnl ÷ tradeCount) and avgPerShareGainLoss (netPnl ÷ Σ position size)', () => {
     const trades: TradeListRow[] = [
       tradeRow({ id: 1, net_pnl: 120, shares_bought: 100, shares_sold: 100 }),
       tradeRow({ id: 2, net_pnl: 80,  shares_bought: 100, shares_sold: 100 }),
@@ -366,9 +366,22 @@ describe('computeDayMetrics', () => {
 
     const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
 
-    // Total: netPnl 200, tradeCount 2, totalShares 400 (2 × (100+100))
+    // netPnl 200, tradeCount 2. Position shares 200 = max(100,100) + max(100,100).
+    // (The totalShares volume stat is still the both-leg 400 — asserted separately.)
     expect(result.avgTradePnl).toBeCloseTo(100, 5)     // 200 / 2
-    expect(result.avgPerShareGainLoss).toBeCloseTo(0.5, 5)  // 200 / 400
+    expect(result.avgPerShareGainLoss).toBeCloseTo(1.0, 5)  // 200 / position 200
+  })
+
+  it('avgPerShareGainLoss uses max(legs) while totalShares stays both-leg (separation)', () => {
+    // Partially-covered short, still open: bought 60, sold 100. Position = max = 100;
+    // both-leg volume = 160. The per-share denom and the volume stat diverge here, so
+    // this proves the fix separated them (it did not mutate the shared both-leg sum).
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, side: 'short', is_open: true, shares_bought: 60, shares_sold: 100, net_pnl: 120 }),
+    ]
+    const result = computeDayMetrics({ date: '2026-05-15', trades, exitDeltas: [] })
+    expect(result.avgPerShareGainLoss).toBeCloseTo(1.2, 5)  // 120 / max(60,100)=100
+    expect(result.totalShares).toBe(160)                    // volume stat unchanged: 60 + 100
   })
 
   it('computes profitFactor as Σ positive net_pnl ÷ |Σ negative net_pnl|', () => {

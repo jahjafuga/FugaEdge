@@ -424,13 +424,25 @@ describe('computeWeekMetrics', () => {
     expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).totalDollarVolume).toBeCloseTo(4200, 5)
   })
 
-  it('avgPerShareGainLoss = netPnl / total shares traded', () => {
+  it('avgPerShareGainLoss = netPnl / Σ position size (max of the two legs), not the both-leg sum', () => {
     const trades: TradeListRow[] = [
-      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 200, shares_bought: 100, shares_sold: 100 }), // 200 shares
-      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 100, shares_bought: 50, shares_sold: 50 }), // 100 shares
+      tradeRow({ id: 1, date: '2026-05-11', net_pnl: 200, shares_bought: 100, shares_sold: 100 }), // position 100
+      tradeRow({ id: 2, date: '2026-05-12', net_pnl: 100, shares_bought: 50, shares_sold: 50 }), // position 50
     ]
-    // netPnl 300 / totalShares 300 = 1.0 per share
-    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgPerShareGainLoss).toBeCloseTo(1.0, 5)
+    // netPnl 300 / position shares 150 = 2.0 per share (NOT 300 / both-leg 300 = 1.0)
+    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgPerShareGainLoss).toBeCloseTo(2.0, 5)
+  })
+
+  it('per-share denominator is max(shares_bought, shares_sold) on an unbalanced (partial) trip', () => {
+    // A partially-covered short, still open: sold 100 (entry), bought 60 (partial
+    // cover). Position size = max(60, 100) = 100. The both-leg sum would be 160 and
+    // the entry leg alone (shares_bought) would be 60 — all three distinct, so this
+    // pins the denominator to max().
+    const trades: TradeListRow[] = [
+      tradeRow({ id: 1, date: '2026-05-11', side: 'short', is_open: true, shares_bought: 60, shares_sold: 100, net_pnl: 120 }),
+    ]
+    // 120 / max(60,100)=100 = 1.2  (NOT 120/160=0.75 both-leg, NOT 120/60=2.0 entry leg)
+    expect(computeWeekMetrics({ trades, weekEnd: WEEK_END }).avgPerShareGainLoss).toBeCloseTo(1.2, 5)
   })
 
   // v0.2.2 Day 5a — intraday MAE/MFE display wiring (mean $/share over covered).

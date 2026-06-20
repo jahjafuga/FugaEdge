@@ -34,7 +34,7 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   let loserSum = 0
   let rSum = 0
   let rCount = 0
-  let totalShares = 0
+  let totalPositionShares = 0
   let totalDollarVolume = 0
   // MAE/MFE in $/share — averaged over covered trades only (v0.2.2 Day 5a).
   let mfeSum = 0
@@ -97,7 +97,7 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
       maeSum += t.mae
       maeCount += 1
     }
-    totalShares += t.shares_bought + t.shares_sold
+    totalPositionShares += Math.max(t.shares_bought, t.shares_sold)
     totalDollarVolume += t.shares_bought * t.avg_buy_price + t.shares_sold * t.avg_sell_price
 
     // Hold seconds — only when close_time is present and both timestamps parse.
@@ -151,7 +151,7 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
   const avgWin = winCount > 0 ? winnerSum / winCount : null
   const avgLoss = lossCount > 0 ? loserSum / lossCount : null
   const avgRMultiple = rCount > 0 ? rSum / rCount : null
-  const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
+  const avgPerShareGainLoss = totalPositionShares > 0 ? netPnl / totalPositionShares : null
   const avgMfeDollars = mfeCount > 0 ? mfeSum / mfeCount : null
   const avgMaeDollars = maeCount > 0 ? maeSum / maeCount : null
 

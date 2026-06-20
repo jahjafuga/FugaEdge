@@ -29,6 +29,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   let rSum = 0
   let rCount = 0
   let totalShares = 0
+  let totalPositionShares = 0
   let totalDollarVolume = 0
   // MAE/MFE in $/share — averaged over covered trades only (those with
   // intraday bars; the rest stay null). v0.2.2 Day 5a display wiring.
@@ -91,6 +92,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     }
 
     totalShares += t.shares_bought + t.shares_sold
+    totalPositionShares += Math.max(t.shares_bought, t.shares_sold)
     totalDollarVolume += t.shares_bought * t.avg_buy_price + t.shares_sold * t.avg_sell_price
 
     if (earliestOpen === null || t.open_time < earliestOpen) {
@@ -147,7 +149,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
   const avgLoss = lossCount > 0 ? loserSum / lossCount : null
   const avgRMultiple = rCount > 0 ? rSum / rCount : null
   const avgTradePnl = trades.length > 0 ? netPnl / trades.length : null
-  const avgPerShareGainLoss = totalShares > 0 ? netPnl / totalShares : null
+  const avgPerShareGainLoss = totalPositionShares > 0 ? netPnl / totalPositionShares : null
   const avgMfeDollars = mfeCount > 0 ? mfeSum / mfeCount : null
   const avgMaeDollars = maeCount > 0 ? maeSum / maeCount : null
 
