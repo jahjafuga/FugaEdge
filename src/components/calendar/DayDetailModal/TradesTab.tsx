@@ -50,6 +50,7 @@ export default function TradesTab({ trades, selectedTradeId, onSelectTrade }: Tr
               <Th>Symbol</Th>
               <Th>Side</Th>
               <Th>Playbook</Th>
+              <Th>Timeframe</Th>
               <Th align="right">Shares</Th>
               <Th align="right">Entry</Th>
               <Th align="right">Exit</Th>
@@ -84,6 +85,7 @@ export default function TradesTab({ trades, selectedTradeId, onSelectTrade }: Tr
                     </span>
                   </Td>
                   <Td className="text-fg-secondary">{t.playbook_name ?? '—'}</Td>
+                  <Td className="text-fg-secondary">{t.entry_timeframe ?? '—'}</Td>
                   <Td align="right" className="font-mono tnum text-fg-secondary">{int(t.shares_bought + t.shares_sold)}</Td>
                   <Td align="right" className="font-mono tnum text-fg-secondary">{price(entry)}</Td>
                   <Td align="right" className="font-mono tnum text-fg-secondary">{price(exit)}</Td>
