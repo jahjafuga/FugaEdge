@@ -22,7 +22,14 @@ export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
   const trips = db
     .prepare(`
       SELECT id, (shares_bought + shares_sold) AS total_shares
-      FROM trades WHERE date = ? AND symbol = ? AND deleted_at IS NULL
+      FROM trades
+      WHERE date = ? AND symbol = ? AND deleted_at IS NULL
+        -- Authoritative-fee trips (Ocean One: fees_reported = 1) carry their own
+        -- total_fees from insert and must NEVER enter the day_fees pro-rata pool.
+        -- Excluding them here fixes beat-3a Mode 1 (no day_fees → they were zeroed)
+        -- AND Mode 2 (collision → the DAS pool's share denominator now shrinks back
+        -- to DAS-only, restoring the colliding DAS trade's split).
+        AND fees_reported = 0
     `)
     .all(date, symbol) as TripShare[]
 

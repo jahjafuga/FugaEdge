@@ -211,7 +211,7 @@ export function commit(
       @open_time, @close_time, @is_open,
       @shares_bought, @avg_buy_price, @shares_sold, @avg_sell_price,
       @pnl, @gross_pnl,
-      0, 0, 0, 0, 0, 0,
+      0, 0, 0, 0, 0, @total_fees,
       @net_pnl,
       @executions_json, @exec_hash, @content_hash,
       @source_broker, @source_format, @source_file, @account_name, @fees_reported
@@ -308,6 +308,14 @@ export function commit(
         pnl: t.net_pnl,
         gross_pnl: t.gross_pnl,
         net_pnl: t.net_pnl,
+        // Persist the trip's own fee total. For fees_reported trips (Ocean One)
+        // this is the parser's authoritative 11-fee sum; recomputeFeesForDateSymbol
+        // then SKIPS these trips (apply-fees.ts WHERE fees_reported = 0) so the
+        // value survives. For DAS/Webull (fees_reported = 0) this is 0 and the
+        // day_fees pro-rata recompute fills fee_*/total_fees exactly as before.
+        // The fee_ecn..fee_cat split stays 0 for OO — the RoundTrip carries no
+        // breakdown (confirmed harmless: no reader derives totals from the split).
+        total_fees: t.total_fees,
         executions_json: JSON.stringify(t.executions),
         exec_hash: t.exec_hash,
         content_hash: t.content_hash,
