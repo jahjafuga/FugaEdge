@@ -62,7 +62,7 @@ export default function Import() {
   return (
     <PageShell
       title="Import"
-      subtitle="Drop your broker export file(s) — DAS Trader or Webull. Imports always append; nothing is overwritten."
+      subtitle="Drop your broker export file(s) — DAS Trader, Webull, or Ocean One. Imports always append; nothing is overwritten."
     >
       {phase.kind === 'idle' && (
         <div className="space-y-3">
