@@ -6,19 +6,17 @@ import Skeleton from '@/components/ui/Skeleton'
 import TabBar from '@/components/ui/TabBar'
 import OverviewTab from '@/components/reports/OverviewTab'
 import BreakdownTab from '@/components/reports/BreakdownTab'
-import VolumeTab from '@/components/reports/VolumeTab'
 import QualityTab from '@/components/reports/QualityTab'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import type { ReportsData } from '@shared/reports-types'
 import type { TradeListRow } from '@shared/trades-types'
 
-type TabKey = 'overview' | 'breakdown' | 'volume' | 'quality'
+type TabKey = 'overview' | 'breakdown' | 'quality'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
   { key: 'breakdown', label: 'Breakdown' },
-  { key: 'volume', label: 'Volume' },
   { key: 'quality', label: 'Quality' },
 ]
 
@@ -30,9 +28,9 @@ export default function Reports() {
 
   useEffect(() => {
     let cancelled = false
-    // Aggregate stats (BreakdownTab, VolumeTab, QualityTab still consume
-    // these). The Overview tab also needs the raw trade list to filter +
-    // compare client-side per ARCHITECTURE.md.
+    // Aggregate stats (BreakdownTab, QualityTab still consume these). The
+    // Overview tab also needs the raw trade list to filter + compare
+    // client-side per ARCHITECTURE.md.
     Promise.all([ipc.reportsGet(), ipc.tradesList()])
       .then(([d, t]) => {
         if (cancelled) return
@@ -114,7 +112,6 @@ export default function Reports() {
 
         {tab === 'overview' && <OverviewTab trades={trades} />}
         {tab === 'breakdown' && <BreakdownTab data={data} />}
-        {tab === 'volume' && <VolumeTab data={data} />}
         {tab === 'quality' && <QualityTab data={data} />}
       </div>
     </PageShell>

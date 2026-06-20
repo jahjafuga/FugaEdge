@@ -1,8 +1,12 @@
+import { Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import SymbolPerformance from '@/components/analytics/SymbolPerformance'
 // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
 // import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
+import HorizontalBarChart from '@/components/reports/HorizontalBarChart'
+import BucketSummary from '@/components/reports/BucketSummary'
 import { int, money, percent, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { BucketStats, ReportsData } from '@shared/reports-types'
@@ -40,6 +44,84 @@ export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
           ) : (
             <EmptyMini text="More trades will fill out this distribution." />
           )}
+        </Card>
+      </div>
+
+      {/* Float + RVOL breakdowns + coverage — moved here from the Reports →
+          Volume tab (four-card consolidation, Beat A). Functional move using the
+          existing bar components; the visual/layout polish is Beat B. */}
+      <VolumeBreakdowns reports={reports} />
+    </div>
+  )
+}
+
+// Ported from VolumeTab (Beat A). Renders the volume-analysis coverage stat plus
+// the Float and RVOL bar breakdowns, or the unavailable fallback when no market
+// data is cached. Reads reports.volumeAnalysis — already on the reports prop, so
+// no new data wiring.
+function VolumeBreakdowns({ reports }: { reports: ReportsData | null }) {
+  const va = reports?.volumeAnalysis
+
+  if (!va || va.status === 'unavailable') {
+    return (
+      <Card title="Volume analysis" subtitle="Float and relative volume buckets.">
+        <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-5">
+          <div className="flex items-center gap-2">
+            <Info size={14} strokeWidth={2} aria-hidden="true" className="text-lg text-gold" />
+            <span className="text-[10px] uppercase tracking-wider text-gold">
+              Market data unavailable
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-fg-secondary">
+            {va?.reason ?? 'No market data cached yet. Refresh market data in Settings.'}
+          </p>
+          <Link
+            to="/settings"
+            className="mt-3 inline-block rounded-md bg-gold px-4 py-1.5 text-xs font-medium text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
+          >
+            Open Settings
+          </Link>
+        </div>
+      </Card>
+    )
+  }
+
+  const coverage = va.trades_analyzed + va.trades_missing_data
+  const coveragePct = coverage > 0 ? (va.trades_analyzed / coverage) * 100 : 0
+
+  return (
+    <div className="space-y-5">
+      <Card title="Volume analysis coverage" subtitle="How much of your trade history has market data." hover>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="font-mono text-2xl text-gold">{coveragePct.toFixed(0)}%</div>
+            <div className="mt-1 text-xs text-fg-secondary">
+              <span className="font-mono text-fg-primary">{int(va.trades_analyzed)}</span>{' '}
+              <span className="text-fg-tertiary">of</span>{' '}
+              <span className="font-mono text-fg-primary">{int(coverage)}</span>{' '}
+              <span className="text-fg-tertiary">trades have float & RVOL data</span>
+            </div>
+          </div>
+          {va.trades_missing_data > 0 && (
+            <div className="text-xs text-fg-tertiary">
+              <span className="font-mono text-loss">{int(va.trades_missing_data)}</span> missing —
+              refresh market data in Settings.
+            </div>
+          )}
+        </div>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-sm bg-white/[0.05]">
+          <div className="h-full bg-gold" style={{ width: `${coveragePct}%` }} />
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <Card title="Float" subtitle="Bucketed by tradable float." padded={false} hover>
+          <HorizontalBarChart buckets={va.byFloat} />
+          <BucketSummary buckets={va.byFloat} />
+        </Card>
+        <Card title="P&L by relative volume" subtitle="Trade-day volume / 30-day average." padded={false} hover>
+          <HorizontalBarChart buckets={va.byRvol} />
+          <BucketSummary buckets={va.byRvol} />
         </Card>
       </div>
     </div>
