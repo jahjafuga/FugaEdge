@@ -50,6 +50,47 @@ const FEE_COLUMNS = Object.keys(FEE_TO_FIELD)
 const REQUIRED_COLUMNS = ['Opened', 'Closed', 'Symbol', 'Type', 'Entry', 'Exit', 'Qty']
 const DATE_LINE_RE = /^\d{1,2}\/\d{1,2}\/\d{4}$/
 
+// ── Format detection (beat 2) ───────────────────────────────────────────────
+// The nine leading trade columns in order + the Comm/Net fee bookends uniquely
+// identify an Ocean One TRADES sheet; no DAS/Webull export shares this shape.
+const OO_LEAD_COLUMNS = ['Opened', 'Closed', 'Held', 'Symbol', 'Type', 'Entry', 'Exit', 'Qty', 'Gross']
+
+/** Pure header-row matcher — exported so the signature has a fixture-independent
+ *  CI test. Tolerant of surrounding whitespace on labels. */
+export function matchesOceanOneHeader(labels: readonly unknown[]): boolean {
+  const norm = labels.map((l) => String(l ?? '').trim())
+  return (
+    OO_LEAD_COLUMNS.every((h, i) => norm[i] === h) &&
+    norm.includes('Comm') &&
+    norm.includes('Net')
+  )
+}
+
+/** Sheet sniff: does the first sheet carry an Ocean One header row near the top?
+ *  The .xls import branch calls this to CONFIRM an Ocean One file before parsing,
+ *  so a non-Ocean-One .xls fails as "unrecognized" rather than crashing the
+ *  parser. Returns false on any unreadable / non-spreadsheet input. */
+export function detectOceanOneXls(buffer: Buffer | ArrayBuffer | Uint8Array): boolean {
+  try {
+    const data = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer
+    const wb = XLSX.read(data, { type: 'array' })
+    const sheet = wb.Sheets[wb.SheetNames[0]]
+    if (!sheet) return false
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+      header: 1,
+      raw: false,
+      defval: '',
+    })
+    const limit = Math.min(12, rows.length)
+    for (let i = 0; i < limit; i++) {
+      if (matchesOceanOneHeader(rows[i])) return true
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 // Parenthesized-negative + currency-aware numeric parse: "(0.12)" → -0.12,
 // "$1,234.50" → 1234.5, blank → 0.
 function num(v: unknown): number {

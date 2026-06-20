@@ -34,7 +34,8 @@ export default function ImportSummary({
                   {f.format === 'tradehistory' ||
                   f.format === 'trades_window' ||
                   f.format === 'webull_mobile' ||
-                  f.format === 'xlsx'
+                  f.format === 'xlsx' ||
+                  f.format === 'ocean_one'
                     ? `${int(f.rowCount)} trades`
                     : null}
                 </span>
@@ -100,7 +101,8 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
     format === 'tradehistory' ||
     format === 'trades_window' ||
     format === 'webull_mobile' ||
-    format === 'xlsx'
+    format === 'xlsx' ||
+    format === 'ocean_one'
   ) {
     return (
       <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">

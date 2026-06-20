@@ -40,6 +40,7 @@ const FORMAT_DISPLAY_NAMES: Record<string, string> = {
   trades_window: 'DAS Trader Trades window',
   webull_mobile: 'Webull Mobile',
   xlsx: 'Webull Desktop',
+  ocean_one: 'Ocean One',
   'daily-summary': 'DAS Account Report',
 }
 

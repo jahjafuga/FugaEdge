@@ -22,6 +22,11 @@ function isXlsxName(name: string): boolean {
   return name.toLowerCase().endsWith('.xlsx')
 }
 
+// Ocean One exports a legacy OLE2 .xls (binary, like .xlsx) — read as bytes.
+function isXlsName(name: string): boolean {
+  return name.toLowerCase().endsWith('.xls')
+}
+
 function isCsvName(name: string): boolean {
   return name.toLowerCase().endsWith('.csv')
 }
@@ -36,7 +41,9 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       setIssue(null)
       const files = Array.from(fileList)
       if (files.length === 0) return
-      const bad = files.find((f) => !isCsvName(f.name) && !isXlsxName(f.name))
+      const bad = files.find(
+        (f) => !isCsvName(f.name) && !isXlsxName(f.name) && !isXlsName(f.name),
+      )
       if (bad) {
         setIssue(unsupportedFileType(bad.name))
         return
@@ -44,8 +51,8 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       try {
         const read = await Promise.all(
           files.map(async (f): Promise<DroppedFile> => {
-            if (isXlsxName(f.name)) {
-              // XLSX is binary — read as ArrayBuffer, wrap in Uint8Array
+            if (isXlsxName(f.name) || isXlsName(f.name)) {
+              // XLSX/XLS are binary — read as ArrayBuffer, wrap in Uint8Array
               // so the value survives structured-clone IPC + contextBridge
               // without an encoding step.
               const buf = await f.arrayBuffer()
@@ -95,7 +102,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
             Drop your broker export file(s)
           </div>
           <div className="mt-1 text-xs text-fg-secondary">
-            DAS Trader or Webull files. Drag any combination.
+            DAS Trader, Webull, or Ocean One files. Drag any combination.
           </div>
         </div>
         <div className="mt-3 max-w-md text-[11px] uppercase tracking-wider text-fg-tertiary">
@@ -106,7 +113,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xls,application/vnd.ms-excel"
         multiple
         className="hidden"
         onChange={(e) => {

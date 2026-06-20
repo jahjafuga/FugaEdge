@@ -18,6 +18,7 @@ import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { parseWebullMobileCsv } from './parse-webull-mobile'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
+import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, commit } from './repo'
@@ -97,6 +98,10 @@ export function registerImportIpc(): void {
     async (_e, files: PreviewInputFile[]): Promise<PreviewResult> => {
       const fileInfos: FileInfo[] = []
       const allExecutions = []
+      // Round-trip-native parser output (Ocean One): trips that arrive already
+      // built (with their own dedup hashes + 2 synthetic executions), merged
+      // with the buildRoundTrips output below rather than fed through netting.
+      const directTrips: RoundTrip[] = []
       const allFees: DaySummaryFeeRow[] = []
       let skippedExecutions = 0
       let skippedFeeRows = 0
@@ -177,6 +182,75 @@ export function registerImportIpc(): void {
             } else {
               issues.push(unknownFormat(f.filename))
             }
+          }
+          continue
+        }
+
+        // Ocean One .xls (OLE2) — routed by extension, then sheet-sniffed to
+        // CONFIRM it's Ocean One before parsing, so a non-Ocean-One .xls fails
+        // clean as "unrecognized" instead of crashing the parser. The parser is
+        // round-trip-native: it emits RoundTrips directly into directTrips.
+        if (f.filename.toLowerCase().endsWith('.xls')) {
+          if (!f.bytes) {
+            fileInfos.push({
+              filename: f.filename,
+              format: 'unknown',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
+            issues.push(fileNotDelivered(f.filename))
+            continue
+          }
+          if (!detectOceanOneXls(f.bytes)) {
+            fileInfos.push({
+              filename: f.filename,
+              format: 'unknown',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
+            issues.push(unknownFormat(f.filename))
+            continue
+          }
+          try {
+            const parsed = parseOceanOneXls(f.bytes, f.filename)
+            skippedExecutions += parsed.skipped
+            directTrips.push(...parsed.roundTrips)
+            issues.push(
+              ...csvParseIssues(f.filename, 'ocean_one', {
+                kept: parsed.roundTrips.length,
+                skipped: parsed.skipped,
+                malformedRows: parsed.warnings.length,
+                requiresDate: false,
+              }),
+            )
+            fileInfos.push({
+              filename: f.filename,
+              format: 'ocean_one',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: parsed.roundTrips.length,
+            })
+            for (const t of parsed.trace) {
+              if (t.outcome === 'skipped') {
+                console.info(
+                  `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                    (t.symbol ? ` symbol=${t.symbol}` : ''),
+                )
+              }
+            }
+          } catch (e) {
+            const message = e instanceof Error ? e.message : String(e)
+            fileInfos.push({
+              filename: f.filename,
+              format: 'unknown',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
+            issues.push(unknownFormat(f.filename))
+            console.info(`[FJ import]   ${f.filename} Ocean One parse failed: ${message}`)
           }
           continue
         }
@@ -383,8 +457,10 @@ export function registerImportIpc(): void {
         needsDate = false
       }
 
+      // Merge fill-built trips with round-trip-native parser output (Ocean One).
+      // annotateTripStatus marks new vs duplicate uniformly across both.
       const computedTrips = buildRoundTrips(allExecutions)
-      const trips = annotateTripStatus(computedTrips)
+      const trips = annotateTripStatus([...computedTrips, ...directTrips])
       // Fees status depends on day_fees lookup; only annotate the ones that
       // already have a date.
       const feesWithDate = allFees.filter((f) => f.date)
@@ -416,6 +492,7 @@ export function registerImportIpc(): void {
 
       const allDates = [
         ...allExecutions.map((e) => e.date),
+        ...directTrips.map((t) => t.date),
         ...fees.map((f) => f.date).filter(Boolean),
       ]
       const dateRange = allDates.length

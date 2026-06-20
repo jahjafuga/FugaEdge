@@ -192,6 +192,7 @@ export type CsvFormat =
   | 'trades_window'
   | 'webull_mobile'
   | 'xlsx'
+  | 'ocean_one'
   | 'daily-summary'
   | 'unknown'
 
