@@ -317,9 +317,9 @@ export default function Trades() {
                   ? 'border-gold/50 bg-gold/[0.10] text-gold'
                   : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
               }`}
-              title="Show / hide the Shares Out column"
+              title="Show / hide the Float column"
             >
-              Shares Out col
+              Float col
             </button>
             <button
               type="button"
