@@ -22,10 +22,11 @@ export interface TradeListRow {
   gross_pnl: number
   total_fees: number
   /** Ocean One's separate Comm — a display slice of total_fees (already folded
-   *  in, NOT additive). Undefined/absent when the broker reported no separate
-   *  commission (DAS/Webull and all pre-3c rows). Stored + typed now; a later
-   *  beat surfaces it in the trade UI. */
-  commission?: number
+   *  in, NOT additive). NULL when the broker reported no separate commission
+   *  (DAS/Webull and all pre-3c rows) — the modal renders the breakdown only
+   *  when it's present (`!= null`), never a fabricated $0 split. Optional so the
+   *  many existing TradeListRow test fixtures don't each have to declare it. */
+  commission?: number | null
   net_pnl: number
   executions: RoundTripExecution[]
   note: TradeNote | null

@@ -24,6 +24,7 @@ interface TradeRowDb {
   avg_sell_price: number
   gross_pnl: number
   total_fees: number
+  commission: number | null
   net_pnl: number
   executions_json: string
   entry_timeframe: string | null
@@ -175,7 +176,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       SELECT
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
-        t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
+        t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
@@ -217,6 +218,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       avg_sell_price: r.avg_sell_price,
       gross_pnl: r.gross_pnl,
       total_fees: r.total_fees,
+      commission: r.commission,
       net_pnl: r.net_pnl,
       executions: parseExecutions(r.executions_json),
       entry_timeframe: parseTimeframe(r.entry_timeframe),
@@ -264,7 +266,7 @@ export function getTrade(id: number): TradeListRow | null {
       SELECT
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
-        t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
+        t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
@@ -304,6 +306,7 @@ export function getTrade(id: number): TradeListRow | null {
     avg_sell_price: row.avg_sell_price,
     gross_pnl: row.gross_pnl,
     total_fees: row.total_fees,
+    commission: row.commission,
     net_pnl: row.net_pnl,
     executions: parseExecutions(row.executions_json),
     entry_timeframe: parseTimeframe(row.entry_timeframe),

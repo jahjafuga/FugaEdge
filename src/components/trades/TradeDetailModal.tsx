@@ -487,6 +487,16 @@ function OverviewTab({
         <Stat label="Fees"      value={money(t.total_fees)}  tone="text-loss" />
         <Stat label="Net P&L"   value={signed(t.net_pnl)}    tone={pnlClass(t.net_pnl)} />
       </div>
+      {/* Fee breakdown — shown ONLY when the broker reported a separate
+          commission (Ocean One's Comm). NULL (DAS/Webull) shows no split —
+          mirrors the `shares_outstanding == null ? '—'` honest-absence idiom
+          above; never a fabricated $0. Commission is a SLICE of total_fees, so
+          Other fees = the remainder; both via money(). */}
+      {t.commission != null && (
+        <div className="text-[11px] text-fg-tertiary">
+          Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
+        </div>
+      )}
 
       <ExecutionList trade={t} />
     </div>
