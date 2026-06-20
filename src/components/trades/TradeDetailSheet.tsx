@@ -310,6 +310,16 @@ function OutcomeSection({ trade }: { trade: TradeListRow }) {
       <div className="mt-1 text-xs text-fg-tertiary tnum">
         Gross {signed(trade.gross_pnl)} · Fees {money(trade.total_fees)}
       </div>
+      {/* Fee breakdown — only when the broker reported a separate commission
+          (Ocean One). NULL (DAS/Webull) shows no split — the sheet's native
+          `== null ? '—'` honest-absence idiom; never a fabricated $0. Mirrors
+          TradeDetailModal's breakdown (7eebbb6); same wording + middle-dot.
+          Commission is a SLICE of total_fees, so Other fees = the remainder. */}
+      {trade.commission != null && (
+        <div className="mt-1 text-xs text-fg-tertiary tnum">
+          Commission {money(trade.commission)} · Other fees {money(trade.total_fees - trade.commission)}
+        </div>
+      )}
     </Section>
   )
 }

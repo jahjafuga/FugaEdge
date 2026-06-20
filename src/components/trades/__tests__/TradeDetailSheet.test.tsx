@@ -182,4 +182,22 @@ describe('TradeDetailSheet — read-only Technicals drill-through', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(onClose).toHaveBeenCalledTimes(3)
   })
+
+  // m — commission breakdown (sibling of the modal beat 7eebbb6)
+  it('shows the commission breakdown when the trade carries a separate commission (Ocean One)', async () => {
+    getTradeSpy.mockResolvedValue(makeTrade({ total_fees: 0.15, commission: 0.1 }))
+    renderSheet()
+    await screen.findByText('AAPL')
+    // Commission is a SLICE of total_fees; Other fees = 0.15 - 0.10 = 0.05.
+    // The `.` matches the middle-dot separator without an encoding dependency.
+    expect(screen.getByText(/Commission \$0\.10 . Other fees \$0\.05/)).toBeTruthy()
+  })
+
+  // n — honest absence: NULL commission (DAS/Webull) shows no fabricated split
+  it('shows NO commission breakdown when commission is null (DAS/Webull)', async () => {
+    getTradeSpy.mockResolvedValue(makeTrade({ total_fees: 2, commission: null }))
+    renderSheet()
+    await screen.findByText('AAPL')
+    expect(screen.queryByText(/Commission/)).toBeNull()
+  })
 })
