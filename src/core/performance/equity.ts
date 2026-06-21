@@ -6,6 +6,14 @@
 // from electron/lib/equity.ts (which now re-exports this) without changing any
 // logic.
 
+import { safeRatio } from './ratio'
+
+// A drawdown % is only meaningful when the cumulative-P&L peak it's measured
+// against is a substantial positive base — a $50 peak with a $90 drawdown is a
+// real $90 loss but a nonsense "-180%". Below this floor we report the dollar
+// amount with NO percent.
+const DRAWDOWN_PEAK_FLOOR = 100
+
 export interface EquityPoint {
   date: string                  // YYYY-MM-DD
   daily_pnl: number             // sum of net_pnl on this date
@@ -126,7 +134,7 @@ export function computeDrawdown(points: EquityPoint[]): DrawdownInfo | null {
 
   return {
     amount: maxAmount,
-    percent: ddPeakValue > 0 ? maxAmount / ddPeakValue : null,
+    percent: ddPeakValue > 0 ? safeRatio(maxAmount, ddPeakValue, { baseFloor: DRAWDOWN_PEAK_FLOOR }) : null,
     peak_date: ddPeakDate,
     peak_value: ddPeakValue,
     trough_date: ddTroughDate,

@@ -18,6 +18,7 @@ import {
 } from './metrics'
 import { computeFullStats } from './fullStats'
 import { buildEquityCurve, computeDrawdown } from './equity'
+import { relativeChange } from './ratio'
 import type {
   AlignedRow,
   AlignedSeries,
@@ -155,6 +156,10 @@ function fmtPctPoints(p: number): string {
   return `${p >= 0 ? '+' : ''}${(p * 100).toFixed(0)}%`
 }
 
+// Below this prior-net / avg-winner base ($), a "% change vs it" is noise (see
+// relativeChange). Rule 2's absolute-swing fallback uses the same $ as its floor.
+const INSIGHT_BASE_FLOOR = 50
+
 export function generateComparisonInsights(
   a: PeriodMetrics,
   b: PeriodMetrics,
@@ -174,24 +179,36 @@ export function generateComparisonInsights(
     }
   }
 
-  // 2. Less trades but more P&L (or vice versa)
+  // 2. Less trades but more P&L (or vice versa). The "% more/less" framing is
+  //    only honest when the PRIOR net is a healthy positive base — a "% more"
+  //    against a near-zero or NEGATIVE prior net is nonsense (the old +547%), so
+  //    fall back to the absolute swing there.
   if (a.trades > 0 && b.trades > 0) {
     const tradeDelta = (a.trades - b.trades) / b.trades
-    const pnlDelta = b.netPnL !== 0 ? (a.netPnL - b.netPnL) / Math.abs(b.netPnL) : null
-    if (pnlDelta != null && Math.abs(tradeDelta) >= 0.1 && Math.abs(pnlDelta) >= 0.1) {
-      if (tradeDelta < 0 && pnlDelta > 0) {
+    const pnlDelta = relativeChange(a.netPnL, b.netPnL, { baseFloor: INSIGHT_BASE_FLOOR })
+    const pnlUp = a.netPnL > b.netPnL
+    const pnlNotable =
+      pnlDelta != null && b.netPnL > 0
+        ? Math.abs(pnlDelta) >= 0.1
+        : Math.abs(a.netPnL - b.netPnL) >= INSIGHT_BASE_FLOOR
+    if (Math.abs(tradeDelta) >= 0.1 && pnlNotable) {
+      if (tradeDelta < 0 && pnlUp) {
         out.push({
           id: 'less-trades-more-pnl',
           tone: 'positive',
           text:
-            `You traded ${fmtPctPoints(tradeDelta)} but made ${fmtPctPoints(pnlDelta)} more — efficiency up.`,
+            pnlDelta != null && b.netPnL > 0
+              ? `You traded ${fmtPctPoints(tradeDelta)} but made ${fmtPctPoints(pnlDelta)} more — efficiency up.`
+              : `You traded ${fmtPctPoints(tradeDelta)} and net P&L swung from ${fmtMoney(b.netPnL)} to ${fmtMoney(a.netPnL)} — efficiency up.`,
         })
-      } else if (tradeDelta > 0 && pnlDelta < 0) {
+      } else if (tradeDelta > 0 && !pnlUp) {
         out.push({
           id: 'more-trades-less-pnl',
           tone: 'negative',
           text:
-            `You traded ${fmtPctPoints(tradeDelta)} more but made ${fmtPctPoints(pnlDelta)} less — overtrading.`,
+            pnlDelta != null && b.netPnL > 0
+              ? `You traded ${fmtPctPoints(tradeDelta)} more but made ${fmtPctPoints(pnlDelta)} less — overtrading.`
+              : `You traded ${fmtPctPoints(tradeDelta)} more and net P&L swung from ${fmtMoney(b.netPnL)} to ${fmtMoney(a.netPnL)} — overtrading.`,
         })
       }
     }
@@ -235,10 +252,11 @@ export function generateComparisonInsights(
     })
   }
 
-  // 6. Avg winner / loser regression
+  // 6. Avg winner / loser regression — suppressed when the prior avg winner is
+  //    too small a base for a % to mean anything (the old +95% off a few dollars).
   if (a.avgWinner != null && b.avgWinner != null) {
-    const delta = (a.avgWinner - b.avgWinner) / Math.abs(b.avgWinner || 1)
-    if (Math.abs(delta) >= 0.15) {
+    const delta = relativeChange(a.avgWinner, b.avgWinner, { baseFloor: INSIGHT_BASE_FLOOR })
+    if (delta != null && Math.abs(delta) >= 0.15) {
       out.push({
         id: 'avg-winner-move',
         tone: delta > 0 ? 'positive' : 'negative',
