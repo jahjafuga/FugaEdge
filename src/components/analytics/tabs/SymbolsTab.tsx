@@ -1,27 +1,31 @@
-import { Info } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import SymbolPerformance from '@/components/analytics/SymbolPerformance'
 // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
 // import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
-import HorizontalBarChart from '@/components/reports/HorizontalBarChart'
-import BucketSummary from '@/components/reports/BucketSummary'
-import { int, money, percent, pnlClass, signed } from '@/lib/format'
+import BucketBarCard from '@/components/analytics/BucketBarCard'
+import { int } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
-import type { BucketStats, ReportsData } from '@shared/reports-types'
+import type { ReportsData } from '@shared/reports-types'
 
 interface SymbolsTabProps {
   data: AnalyticsData
   reports: ReportsData | null
 }
 
+// Beat B — the consolidated Symbols tab: best/worst tickers on top, then all
+// four "P&L by trade characteristic" breakdowns (price, share size, float, RVOL)
+// in one unified diverging-bar style (BucketBarCard), with a slim float/RVOL
+// coverage line. Presentation only — the data was wired in Beat A.
 export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
+  const va = reports?.volumeAnalysis
+  const marketReady = va != null && va.status !== 'unavailable'
+
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Symbols"
-        description="Best / worst tickers, plus the price-range and size buckets that drive your P&L."
+        description="Best / worst tickers, plus the price, size, float, and relative-volume buckets that drive your P&L."
       />
 
       <SymbolPerformance best={data.bestSymbols} worst={data.worstSymbols} />
@@ -29,155 +33,78 @@ export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
       {/* DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float. */}
       {/* <FloatBreakdownCard data={data.float} /> */}
 
+      <CoverageLine reports={reports} />
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card title="P&L by price range" subtitle="Bucketed by avg buy price.">
-          {reports && reports.byPriceRange.length > 0 ? (
-            <BucketTable buckets={reports.byPriceRange} firstColLabel="Price" />
-          ) : (
-            <EmptyMini text="Import more trades across different price ranges." />
-          )}
-        </Card>
-
-        <Card title="P&L by share size" subtitle="Bucketed by shares per trade.">
-          {reports && reports.byShareSize.length > 0 ? (
-            <BucketTable buckets={reports.byShareSize} firstColLabel="Size" />
-          ) : (
-            <EmptyMini text="More trades will fill out this distribution." />
-          )}
-        </Card>
+        <BucketBarCard
+          title="P&L by price range"
+          subtitle="Bucketed by avg buy price."
+          buckets={reports?.byPriceRange ?? []}
+          emptyText="Import more trades across different price ranges."
+        />
+        <BucketBarCard
+          title="P&L by share size"
+          subtitle="Bucketed by shares per trade."
+          buckets={reports?.byShareSize ?? []}
+          emptyText="More trades will fill out this distribution."
+        />
+        <BucketBarCard
+          title="Float"
+          subtitle="Bucketed by tradable float."
+          buckets={va?.byFloat ?? []}
+          emptyText={
+            marketReady
+              ? 'No float data for these trades yet.'
+              : 'Refresh market data in Settings to populate float.'
+          }
+        />
+        <BucketBarCard
+          title="P&L by relative volume"
+          subtitle="Trade-day volume vs 30-day average."
+          buckets={va?.byRvol ?? []}
+          emptyText={
+            marketReady
+              ? 'No relative-volume data for these trades yet.'
+              : 'Refresh market data in Settings to populate RVOL.'
+          }
+        />
       </div>
-
-      {/* Float + RVOL breakdowns + coverage — moved here from the Reports →
-          Volume tab (four-card consolidation, Beat A). Functional move using the
-          existing bar components; the visual/layout polish is Beat B. */}
-      <VolumeBreakdowns reports={reports} />
     </div>
   )
 }
 
-// Ported from VolumeTab (Beat A). Renders the volume-analysis coverage stat plus
-// the Float and RVOL bar breakdowns, or the unavailable fallback when no market
-// data is cached. Reads reports.volumeAnalysis — already on the reports prop, so
-// no new data wiring.
-function VolumeBreakdowns({ reports }: { reports: ReportsData | null }) {
+// Slim float/RVOL coverage line — a quiet header, not a competing card. Shows
+// the share of trades backed by market data with a thin progress bar, or a
+// gentle Settings prompt when no market data is cached.
+function CoverageLine({ reports }: { reports: ReportsData | null }) {
   const va = reports?.volumeAnalysis
 
   if (!va || va.status === 'unavailable') {
     return (
-      <Card title="Volume analysis" subtitle="Float and relative volume buckets.">
-        <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-5">
-          <div className="flex items-center gap-2">
-            <Info size={14} strokeWidth={2} aria-hidden="true" className="text-lg text-gold" />
-            <span className="text-[10px] uppercase tracking-wider text-gold">
-              Market data unavailable
-            </span>
-          </div>
-          <p className="mt-2 text-sm text-fg-secondary">
-            {va?.reason ?? 'No market data cached yet. Refresh market data in Settings.'}
-          </p>
-          <Link
-            to="/settings"
-            className="mt-3 inline-block rounded-md bg-gold px-4 py-1.5 text-xs font-medium text-accent-ink transition-colors duration-150 hover:bg-gold-hover"
-          >
-            Open Settings
-          </Link>
-        </div>
-      </Card>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-fg-tertiary">
+        <span>Float &amp; relative-volume breakdowns need cached market data.</span>
+        <Link to="/settings" className="text-gold transition-colors hover:text-gold-hover">
+          Refresh in Settings
+        </Link>
+      </div>
     )
   }
 
   const coverage = va.trades_analyzed + va.trades_missing_data
-  const coveragePct = coverage > 0 ? (va.trades_analyzed / coverage) * 100 : 0
+  const pct = coverage > 0 ? (va.trades_analyzed / coverage) * 100 : 0
 
   return (
-    <div className="space-y-5">
-      <Card title="Volume analysis coverage" subtitle="How much of your trade history has market data." hover>
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="font-mono text-2xl text-gold">{coveragePct.toFixed(0)}%</div>
-            <div className="mt-1 text-xs text-fg-secondary">
-              <span className="font-mono text-fg-primary">{int(va.trades_analyzed)}</span>{' '}
-              <span className="text-fg-tertiary">of</span>{' '}
-              <span className="font-mono text-fg-primary">{int(coverage)}</span>{' '}
-              <span className="text-fg-tertiary">trades have float & RVOL data</span>
-            </div>
-          </div>
-          {va.trades_missing_data > 0 && (
-            <div className="text-xs text-fg-tertiary">
-              <span className="font-mono text-loss">{int(va.trades_missing_data)}</span> missing —
-              refresh market data in Settings.
-            </div>
-          )}
-        </div>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-sm bg-white/[0.05]">
-          <div className="h-full bg-gold" style={{ width: `${coveragePct}%` }} />
-        </div>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <Card title="Float" subtitle="Bucketed by tradable float." padded={false} hover>
-          <HorizontalBarChart buckets={va.byFloat} />
-          <BucketSummary buckets={va.byFloat} />
-        </Card>
-        <Card title="P&L by relative volume" subtitle="Trade-day volume / 30-day average." padded={false} hover>
-          <HorizontalBarChart buckets={va.byRvol} />
-          <BucketSummary buckets={va.byRvol} />
-        </Card>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+      <span className="text-fg-tertiary">
+        <span className="font-mono text-fg-secondary tnum">{pct.toFixed(0)}%</span> of trades have
+        float &amp; RVOL data{' '}
+        <span className="text-fg-muted">
+          ({int(va.trades_analyzed)} of {int(coverage)})
+        </span>
+      </span>
+      <div className="h-1 w-32 overflow-hidden rounded-full bg-bg-1/60">
+        <div className="h-full rounded-full bg-gold/70" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
-}
-
-function BucketTable({
-  buckets,
-  firstColLabel,
-}: {
-  buckets: BucketStats[]
-  firstColLabel: string
-}) {
-  return (
-    <div className="overflow-auto">
-      <table className="w-full text-xs">
-        <thead className="text-[10px] uppercase tracking-wider text-fg-tertiary">
-          <tr className="border-b border-border-subtle/60">
-            <th className="px-3 py-2 text-left font-semibold">{firstColLabel}</th>
-            <th className="px-3 py-2 text-right font-semibold">Trades</th>
-            <th className="px-3 py-2 text-right font-semibold">Net P&L</th>
-            <th className="px-3 py-2 text-right font-semibold">Win rate</th>
-            <th className="px-3 py-2 text-right font-semibold">Avg winner</th>
-            <th className="px-3 py-2 text-right font-semibold">Avg loser</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buckets.map((b) => (
-            <tr
-              key={b.key}
-              className="border-b border-border-subtle/30 last:border-b-0 hover:bg-white/[0.015]"
-            >
-              <td className="px-3 py-2 font-mono text-fg-primary">{b.key}</td>
-              <td className="px-3 py-2 text-right font-mono text-fg-primary">
-                {int(b.trade_count)}
-              </td>
-              <td className={`px-3 py-2 text-right font-mono font-medium ${pnlClass(b.net_pnl)}`}>
-                {signed(b.net_pnl)}
-              </td>
-              <td className="px-3 py-2 text-right font-mono text-gold">
-                {b.win_rate == null ? '—' : percent(b.win_rate, 0)}
-              </td>
-              <td className="px-3 py-2 text-right font-mono text-win">
-                {b.avg_winner == null ? '—' : money(b.avg_winner)}
-              </td>
-              <td className="px-3 py-2 text-right font-mono text-loss">
-                {b.avg_loser == null ? '—' : money(b.avg_loser)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-function EmptyMini({ text }: { text: string }) {
-  return <div className="px-3 py-6 text-center text-xs text-fg-tertiary">{text}</div>
 }
