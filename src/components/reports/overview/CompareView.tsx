@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   LabelList,
   Legend,
@@ -29,7 +30,12 @@ import type { TradeListRow } from '@shared/trades-types'
 import Card from '@/components/ui/Card'
 import { duration, money, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
-import { chartColors } from '@/lib/chartColors'
+import { chartColors, type ChartPalette } from '@/lib/chartColors'
+import {
+  computeHourlyComparison,
+  type HourMetrics,
+  type HourlyComparisonRow,
+} from '@/core/performance/hourly'
 import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 import { FlagSvg } from '@/components/ui/Flag'
 import {
@@ -159,6 +165,11 @@ export default function CompareView({
               will show that period as flat zero.
             </div>
           )}
+
+          {/* Time-of-day quad — when the edge shows up, Period A vs B (Compare
+              v2 beat 2). Full-width below the verdict block; reuses the paired
+              gold/teal bar grammar. */}
+          <TimeOfDayQuad trades={trades} rangeA={rangeA} rangeB={rangeB} />
 
           {/* Cumulative overlay */}
           <Card title="Cumulative P&L — Period A vs Period B">
@@ -939,6 +950,173 @@ function OverlayTooltip({ active, payload, teal }: {
 // Floor below which an R distribution is too thin to read as a real shape — dim
 // + badge that period's bars rather than imply a distribution from a few trades.
 const LOW_R_SAMPLE = 5
+
+// ── Time-of-day quad (Compare v2 beat 2) ───────────────────────────────────
+// Four small paired-bar panels — PnL / Profit Factor / Accuracy / Trades — over
+// the Eastern trading hours, gold = Period A, teal = Period B. Reuses the
+// breakdown card's bar grammar. Thin hours (< LOW_R_SAMPLE trades in a period)
+// dim that period's bar so a 1-trade hour's 100% accuracy / extreme PF reads as
+// low-confidence, not fact. PF / Accuracy bars are ABSENT for an hour with no
+// losers / no decided trade (the metric is null) — an honest gap, never a
+// fabricated value.
+
+type QuadKind = 'money' | 'pf' | 'pct' | 'int'
+
+function QuadPanel({
+  title,
+  rows,
+  pick,
+  kind,
+  palette,
+}: {
+  title: string
+  rows: HourlyComparisonRow[]
+  pick: (m: HourMetrics) => number | null
+  kind: QuadKind
+  palette: ChartPalette
+}) {
+  const data = rows.map((r) => ({
+    label: r.label,
+    A: pick(r.a),
+    B: pick(r.b),
+    aLow: r.a.trade_count > 0 && r.a.trade_count < LOW_R_SAMPLE,
+    bLow: r.b.trade_count > 0 && r.b.trade_count < LOW_R_SAMPLE,
+    aCount: r.a.trade_count,
+    bCount: r.b.trade_count,
+  }))
+  const fmtAxis = (v: number) =>
+    kind === 'money'
+      ? compactMoney(v)
+      : kind === 'pct'
+        ? `${Math.round(v)}%`
+        : kind === 'pf'
+          ? v.toFixed(1)
+          : String(v)
+  const fmtTip = (v: number | null) =>
+    v == null
+      ? '—'
+      : kind === 'money'
+        ? signed(v)
+        : kind === 'pct'
+          ? `${v.toFixed(1)}%`
+          : kind === 'pf'
+            ? v.toFixed(2)
+            : String(Math.round(v))
+  return (
+    <div className="rounded-md border border-border-subtle bg-bg-2 p-2.5 shadow-sm">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+        {title}
+      </div>
+      <div className="h-[150px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 6, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%" barGap={1}>
+            <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
+            <XAxis
+              dataKey="label"
+              stroke={palette.axis}
+              fontSize={8}
+              tickLine={false}
+              axisLine={{ stroke: palette.grid }}
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={34}
+            />
+            <YAxis
+              stroke={palette.axis}
+              fontSize={8}
+              tickLine={false}
+              axisLine={{ stroke: palette.grid }}
+              tickFormatter={fmtAxis}
+              domain={kind === 'pct' ? [0, 100] : undefined}
+              width={kind === 'money' ? 40 : 30}
+            />
+            {kind === 'money' && <ReferenceLine y={0} stroke={palette.grid} strokeDasharray="3 3" />}
+            <RechartsTooltip
+              cursor={{ fill: 'rgba(127,127,127,0.05)' }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const row = payload[0].payload as (typeof data)[number]
+                return (
+                  <div className="rounded-md border border-border bg-bg-4 px-3 py-2 shadow-md">
+                    <div className="font-mono text-[11px] text-fg-tertiary">{row.label}</div>
+                    <div className="mt-1 flex flex-col gap-0.5 text-[11px]">
+                      <span className="font-mono text-gold tnum">
+                        A: {fmtTip(row.A)} · {row.aCount}t{row.aLow ? ' · low' : ''}
+                      </span>
+                      <span className="font-mono tnum" style={{ color: palette.sideB }}>
+                        B: {fmtTip(row.B)} · {row.bCount}t{row.bLow ? ' · low' : ''}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }}
+            />
+            <Bar dataKey="A" name="Period A" fill={palette.sideA} radius={[2, 2, 0, 0]} isAnimationActive={false} maxBarSize={18}>
+              {data.map((d, i) => (
+                <Cell key={i} fillOpacity={d.aLow ? 0.4 : 1} />
+              ))}
+            </Bar>
+            <Bar dataKey="B" name="Period B" fill={palette.sideB} radius={[2, 2, 0, 0]} isAnimationActive={false} maxBarSize={18}>
+              {data.map((d, i) => (
+                <Cell key={i} fillOpacity={d.bLow ? 0.4 : 1} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+function TimeOfDayQuad({
+  trades,
+  rangeA,
+  rangeB,
+}: {
+  trades: TradeListRow[]
+  rangeA: DateRange
+  rangeB: DateRange
+}) {
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
+  const rows = useMemo(
+    () => computeHourlyComparison(trades, rangeA, rangeB),
+    [trades, rangeA, rangeB],
+  )
+  if (rows.length === 0) {
+    return (
+      <Card title="Time of day — Period A vs Period B">
+        <div className="py-3 text-center text-xs text-fg-tertiary">
+          No trades with a timestamp in either period.
+        </div>
+      </Card>
+    )
+  }
+  return (
+    <Card title="Time of day — Period A vs Period B">
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm" style={{ background: palette.sideA }} />
+          Period A
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm" style={{ background: palette.sideB }} />
+          Period B
+        </span>
+        <span className="ml-auto normal-case tracking-normal text-fg-tertiary/70">
+          Dimmed bars = under {LOW_R_SAMPLE} trades that period (low sample)
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <QuadPanel title="Net P&L" rows={rows} pick={(m) => m.net_pnl} kind="money" palette={palette} />
+        <QuadPanel title="Profit Factor" rows={rows} pick={(m) => m.profit_factor} kind="pf" palette={palette} />
+        <QuadPanel title="Accuracy" rows={rows} pick={(m) => (m.win_rate == null ? null : m.win_rate * 100)} kind="pct" palette={palette} />
+        <QuadPanel title="Trades" rows={rows} pick={(m) => m.trade_count} kind="int" palette={palette} />
+      </div>
+    </Card>
+  )
+}
 
 function RDistributionComparisonChart({ comparison }: { comparison: ComparisonResult }) {
   const { resolved } = useThemeMode()
