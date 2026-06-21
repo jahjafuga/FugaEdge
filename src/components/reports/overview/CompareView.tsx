@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
+  ComposedChart,
   LabelList,
   Legend,
   Line,
-  LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -26,7 +27,7 @@ import {
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import Card from '@/components/ui/Card'
-import { duration, shortDate, signed } from '@/lib/format'
+import { duration, money, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
@@ -159,11 +160,6 @@ export default function CompareView({
             </div>
           )}
 
-          {/* Side-by-side daily P&L */}
-          <Card title="Daily P&L — Period A vs Period B">
-            <SideBySideBarChart comparison={comparison} />
-          </Card>
-
           {/* Cumulative overlay */}
           <Card title="Cumulative P&L — Period A vs Period B">
             <CumulativeOverlayChart comparison={comparison} />
@@ -270,6 +266,8 @@ function PickerSection({
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
   onApplyShortcut: (s: Shortcut) => void
 }) {
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
   if (!open) {
     return (
       <button
@@ -284,7 +282,7 @@ function PickerSection({
           <span className="text-gold">Period A</span>{' '}
           <span className="text-fg-primary">{summarizeRange(rangeA)}</span>
           <span className="mx-2 text-fg-tertiary">vs</span>
-          <span className="text-win">Period B</span>{' '}
+          <span style={{ color: palette.sideB }}>Period B</span>{' '}
           <span className="text-fg-primary">{summarizeRange(rangeB)}</span>
         </div>
         <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
@@ -360,15 +358,15 @@ function PeriodPicker({
   range: DateRange
   onChange: (r: DateRange) => void
 }) {
-  const toneCls =
-    tone === 'gold'
-      ? 'border-gold/40 text-gold'
-      : 'border-win/40 text-win'
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
+  const isGold = tone === 'gold'
   return (
     <div className="rounded-md border border-border-subtle bg-bg-2 p-3 shadow-sm">
       <div className="mb-2 flex items-center gap-2">
         <span
-          className={`inline-flex h-5 items-center rounded-sm border px-1.5 text-[10px] font-semibold uppercase tracking-wider ${toneCls}`}
+          className={`inline-flex h-5 items-center rounded-sm border px-1.5 text-[10px] font-semibold uppercase tracking-wider ${isGold ? 'border-gold/40 text-gold' : ''}`}
+          style={isGold ? undefined : { color: palette.sideB, borderColor: palette.sideB }}
         >
           Period {which}
         </span>
@@ -629,6 +627,8 @@ function GaugeRow({
   max: number
   targetLabel: string
 }) {
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
   const fmt = (v: number | null) =>
     v == null
       ? '—'
@@ -644,15 +644,16 @@ function GaugeRow({
   const aW = widthOf(a)
   const bW = widthOf(b)
   const targetPct = Math.min(100, (target / max) * 100)
-  const meets = (v: number | null) => v != null && v >= target
+  // Identity colours only — A gold, B teal, both constant. The target TICK on the
+  // track conveys meets/beats-target; green is reserved for stat-row deltas.
   return (
     <div>
       <div className="flex items-baseline justify-between">
         <span className="text-sm text-fg-secondary">{label}</span>
         <span className="font-mono text-xs tnum">
-          <span className={meets(a) ? 'text-win' : 'text-gold'}>{fmt(a)}</span>
+          <span className="text-gold">{fmt(a)}</span>
           <span className="mx-1 text-fg-tertiary">vs</span>
-          <span className={meets(b) ? 'text-win' : 'text-fg-tertiary'}>{fmt(b)}</span>
+          <span style={{ color: palette.sideB }}>{fmt(b)}</span>
         </span>
       </div>
       <div className="relative mt-2 h-3 overflow-hidden rounded-sm bg-white/[0.04]">
@@ -660,7 +661,7 @@ function GaugeRow({
           <div className="absolute left-0 top-0 h-1/2 bg-gold/70" style={{ width: `${aW}%` }} />
         )}
         {bW != null && (
-          <div className="absolute bottom-0 left-0 h-1/2 bg-win/70" style={{ width: `${bW}%` }} />
+          <div className="absolute bottom-0 left-0 h-1/2" style={{ width: `${bW}%`, backgroundColor: palette.sideB, opacity: 0.7 }} />
         )}
         {/* Target tick */}
         <div
@@ -772,107 +773,18 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
   )
 }
 
-// ── Side-by-side bar chart ───────────────────────────────────────────────
-
-function SideBySideBarChart({ comparison }: { comparison: ComparisonResult }) {
-  const { resolved } = useThemeMode()
-  const palette = useMemo(() => chartColors(resolved), [resolved])
-  const goldHex = palette.sideA
-  const winHex = palette.sideB
-  const data = useMemo(
-    () =>
-      comparison.dailyPnL.rows.map((r) => ({
-        day: `D${r.dayIndex}`,
-        A: r.valueA ?? 0,
-        B: r.valueB ?? 0,
-        dateA: r.dateA,
-        dateB: r.dateB,
-      })),
-    [comparison],
-  )
-
-  return (
-    <div className="h-[260px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-          <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
-          <XAxis
-            dataKey="day"
-            stroke={palette.axis}
-            fontSize={10}
-            tickLine={false}
-            axisLine={{ stroke: palette.grid }}
-            interval="preserveStartEnd"
-            minTickGap={20}
-          />
-          <YAxis
-            stroke={palette.axis}
-            fontSize={10}
-            tickLine={false}
-            axisLine={{ stroke: palette.grid }}
-            tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
-            width={52}
-          />
-          <RechartsTooltip cursor={{ fill: 'rgba(127,127,127,0.05)' }} content={<SideBySideTooltip />} />
-          <Legend
-            verticalAlign="top"
-            height={24}
-            wrapperStyle={{ fontSize: 11, color: palette.axis }}
-          />
-          <Bar
-            dataKey="A"
-            name="Period A"
-            radius={[3, 3, 0, 0]}
-            isAnimationActive={false}
-          >
-            {data.map((d, i) => (
-              <Cell key={`a-${i}`} fill={goldHex} fillOpacity={d.A === 0 ? 0.25 : 1} />
-            ))}
-          </Bar>
-          <Bar
-            dataKey="B"
-            name="Period B"
-            radius={[3, 3, 0, 0]}
-            isAnimationActive={false}
-          >
-            {data.map((d, i) => (
-              <Cell key={`b-${i}`} fill={winHex} fillOpacity={d.B === 0 ? 0.25 : 1} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
-function SideBySideTooltip({ active, payload }: {
-  active?: boolean
-  payload?: { payload: { day: string; A: number; B: number; dateA: string | null; dateB: string | null } }[]
-}) {
-  if (!active || !payload?.length) return null
-  const d = payload[0].payload
-  return (
-    <div className="rounded-md border border-border bg-bg-4 px-3 py-2 shadow-md">
-      <div className="font-mono text-[11px] text-fg-tertiary">Day {d.day.slice(1)}</div>
-      <div className="mt-1 flex flex-col gap-0.5 text-[11px]">
-        <span className="font-mono text-gold tnum">
-          A · {d.dateA ?? '—'}: {signed(d.A)}
-        </span>
-        <span className="font-mono text-win tnum">
-          B · {d.dateB ?? '—'}: {signed(d.B)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
 // ── Cumulative overlay ───────────────────────────────────────────────────
+
+// Local copy of the dashboard axis formatter (kept local per scope; see CumulativePnlChart). Promote to @/lib/format if a 3rd caller appears.
+function compactMoney(n: number): string {
+  if (n === 0) return '$0'
+  if (Math.abs(n) >= 1000) return `${n < 0 ? '−' : ''}$${(Math.abs(n) / 1000).toFixed(1)}k`
+  return money(n).replace('.00', '')
+}
 
 function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
-  const goldHex = palette.sideA
-  const winHex = palette.sideB
   const data = useMemo(
     () =>
       comparison.cumulativePnL.rows.map((r) => ({
@@ -883,10 +795,25 @@ function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }
     [comparison],
   )
 
+  // Clamp the Y domain so $0 is always in range — the dashed zero baseline then
+  // lands on a real gridline (mirrors CumulativePnlChart's domain intent).
+  const { yMin, yMax } = useMemo(() => {
+    const vals = data.flatMap((d) => [d.A, d.B]).filter((v): v is number => v != null)
+    if (vals.length === 0) return { yMin: -1, yMax: 1 }
+    return { yMin: Math.min(0, ...vals), yMax: Math.max(0, ...vals) }
+  }, [data])
+
   return (
     <div className="h-[260px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <defs>
+            {/* Soft GOLD fill under Period A only — period colour, NOT win/loss. */}
+            <linearGradient id="compareCumAFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={palette.sideA} stopOpacity={0.28} />
+              <stop offset="100%" stopColor={palette.sideA} stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
           <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
           <XAxis
             dataKey="day"
@@ -902,44 +829,55 @@ function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }
             fontSize={10}
             tickLine={false}
             axisLine={{ stroke: palette.grid }}
-            tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
-            width={52}
+            tickFormatter={compactMoney}
+            width={56}
+            domain={[yMin, yMax]}
           />
-          <RechartsTooltip content={<OverlayTooltip />} />
+          <ReferenceLine y={0} stroke={palette.grid} strokeDasharray="3 3" />
+          <RechartsTooltip content={<OverlayTooltip teal={palette.sideB} />} />
           <Legend
             verticalAlign="top"
             height={24}
             wrapperStyle={{ fontSize: 11, color: palette.axis }}
+            payload={[
+              { value: 'Period A', type: 'line', id: 'A', color: palette.sideA },
+              { value: 'Period B', type: 'line', id: 'B', color: palette.sideB },
+            ]}
           />
-          <Line
+          {/* Period A — gold line with a soft gold area beneath. */}
+          <Area
             type={CUMULATIVE_LINE_TYPE}
             dataKey="A"
             name="Period A"
-            stroke={goldHex}
-            strokeWidth={2}
+            stroke={palette.sideA}
+            strokeWidth={1.75}
+            fill="url(#compareCumAFill)"
             dot={false}
-            isAnimationActive={false}
             connectNulls={false}
+            isAnimationActive={false}
           />
+          {/* Period B — teal line ON TOP of A's fill (declared after, no fill). */}
           <Line
             type={CUMULATIVE_LINE_TYPE}
             dataKey="B"
             name="Period B"
-            stroke={winHex}
-            strokeWidth={2}
+            stroke={palette.sideB}
+            strokeWidth={1.75}
             dot={false}
-            isAnimationActive={false}
             connectNulls={false}
+            fill="none"
+            isAnimationActive={false}
           />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )
 }
 
-function OverlayTooltip({ active, payload }: {
+function OverlayTooltip({ active, payload, teal }: {
   active?: boolean
   payload?: { payload: { day: string; A: number | null; B: number | null } }[]
+  teal?: string
 }) {
   if (!active || !payload?.length) return null
   const d = payload[0].payload
@@ -951,7 +889,7 @@ function OverlayTooltip({ active, payload }: {
           <span className="font-mono text-gold tnum">A: {signed(d.A)}</span>
         )}
         {d.B != null && (
-          <span className="font-mono text-win tnum">B: {signed(d.B)}</span>
+          <span className="font-mono tnum" style={{ color: teal }}>B: {signed(d.B)}</span>
         )}
       </div>
     </div>
@@ -1071,7 +1009,15 @@ function RDistributionComparisonChart({ comparison }: { comparison: ComparisonRe
                 )
               }}
             />
-            <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 11, color: palette.axis }} />
+            <Legend
+              verticalAlign="top"
+              height={24}
+              wrapperStyle={{ fontSize: 11, color: palette.axis }}
+              payload={[
+                { value: 'Period A', type: 'rect', id: 'A', color: palette.sideA },
+                { value: 'Period B', type: 'rect', id: 'B', color: palette.sideB },
+              ]}
+            />
             <Bar dataKey="A" name="Period A" fill={palette.sideA} fillOpacity={aLow ? 0.4 : 1} radius={[2, 2, 0, 0]} isAnimationActive={false} />
             <Bar dataKey="B" name="Period B" fill={palette.sideB} fillOpacity={bLow ? 0.4 : 1} radius={[2, 2, 0, 0]} isAnimationActive={false} />
           </BarChart>
@@ -1218,6 +1164,7 @@ function BreakdownComparisonCard({
                     tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
                     width={44}
                   />
+                  <ReferenceLine y={0} stroke={palette.grid} strokeDasharray="3 3" />
                   <RechartsTooltip
                     cursor={{ fill: 'rgba(127,127,127,0.05)' }}
                     content={({ active, payload }) => {
@@ -1236,7 +1183,7 @@ function BreakdownComparisonCard({
                             <span className="font-mono text-gold tnum">
                               A: {signed(row.A)} · {row.tradesA}t
                             </span>
-                            <span className="font-mono text-win tnum">
+                            <span className="font-mono tnum" style={{ color: palette.sideB }}>
                               B: {signed(row.B)} · {row.tradesB}t
                             </span>
                           </div>
@@ -1249,6 +1196,10 @@ function BreakdownComparisonCard({
                     height={18}
                     iconSize={8}
                     wrapperStyle={{ fontSize: 10, color: palette.axis }}
+                    payload={[
+                      { value: 'Period A', type: 'rect', id: 'A', color: palette.sideA },
+                      { value: 'Period B', type: 'rect', id: 'B', color: palette.sideB },
+                    ]}
                   />
                   <Bar
                     dataKey="A"
