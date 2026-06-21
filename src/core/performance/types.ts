@@ -106,6 +106,23 @@ export interface PeriodMetrics {
   // Day extremes
   bestDay: DayPnL | null
   worstDay: DayPnL | null
+  // Day consistency (Ross's #1 review metric): a DAY is green/red/breakeven by
+  // its AGGREGATE net P&L (sum of the day's trades), NOT the per-trade scratch
+  // epsilon — a day either made money (>0), lost money (<0), or netted flat (0).
+  greenDays: number
+  redDays: number
+  breakevenDays: number
+  avgGreenDay: number | null
+  avgRedDay: number | null
+  largestGreenDay: number | null
+  largestRedDay: number | null
+  /** greenDays / tradingDays; null when no trading days. */
+  greenDayPct: number | null
+  // Expectancy in R — mean r_multiple over the COVERED subset (trades with a
+  // logged stop/risk). Null when no trade carries an r_multiple; rCoverage
+  // reports how many do, so the UI can label "(of N trades with R)".
+  expectancyR: number | null
+  rCoverage: number
 }
 
 // ── Delta / comparison ────────────────────────────────────────────────────

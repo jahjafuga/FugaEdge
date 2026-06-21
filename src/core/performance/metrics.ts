@@ -166,6 +166,9 @@ export function computePeriodMetrics(
   const holdAll: number[] = []
   const holdWinners: number[] = []
   const holdLosers: number[] = []
+  // Expectancy-R coverage: r_multiple is null without a logged stop/risk, so we
+  // accumulate only the covered trades and report the count separately.
+  const rMultiples: number[] = []
 
   for (const t of scoped) {
     gross += t.gross_pnl
@@ -175,6 +178,7 @@ export function computePeriodMetrics(
     } else if (isLoss(t.net_pnl)) {
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl
     }
+    if (t.r_multiple != null) rMultiples.push(t.r_multiple)
     const hs = holdSeconds(t)
     if (hs != null) {
       holdAll.push(hs)
@@ -192,7 +196,10 @@ export function computePeriodMetrics(
       ? avgWinner / Math.abs(avgLoser)
       : null
 
-  // Day-by-day P&L within the period for best/worst day.
+  // Day-by-day P&L within the period for best/worst day + green/red-day
+  // consistency. A DAY is classified green/red/breakeven by its AGGREGATE net
+  // P&L (sum of that day's trades), NOT the per-trade scratch epsilon: a day
+  // either made money (>0), lost money (<0), or netted exactly flat (===0).
   const byDate = new Map<string, number>()
   const days = new Set<string>()
   for (const t of scoped) {
@@ -201,9 +208,27 @@ export function computePeriodMetrics(
   }
   let best: DayPnL | null = null
   let worst: DayPnL | null = null
+  let greenDays = 0
+  let redDays = 0
+  let breakevenDays = 0
+  const greenDayPnls: number[] = []
+  const redDayPnls: number[] = []
+  let largestGreenDay: number | null = null
+  let largestRedDay: number | null = null
   for (const [date, pnl] of byDate) {
     if (best == null || pnl > best.pnl) best = { date, pnl }
     if (worst == null || pnl < worst.pnl) worst = { date, pnl }
+    if (pnl > 0) {
+      greenDays += 1
+      greenDayPnls.push(pnl)
+      if (largestGreenDay == null || pnl > largestGreenDay) largestGreenDay = pnl
+    } else if (pnl < 0) {
+      redDays += 1
+      redDayPnls.push(pnl)
+      if (largestRedDay == null || pnl < largestRedDay) largestRedDay = pnl
+    } else {
+      breakevenDays += 1
+    }
   }
 
   // Consecutive win/loss streaks — iterate in chronological order by
@@ -235,6 +260,7 @@ export function computePeriodMetrics(
   const tradingDays = days.size
   const avgTradePnL = scoped.length > 0 ? net / scoped.length : null
   const avgDailyPnL = tradingDays > 0 ? net / tradingDays : null
+  const greenDayPct = tradingDays > 0 ? greenDays / tradingDays : null
 
   return {
     range,
@@ -262,6 +288,16 @@ export function computePeriodMetrics(
     winLossRatio,
     bestDay: best,
     worstDay: worst,
+    greenDays,
+    redDays,
+    breakevenDays,
+    avgGreenDay: meanOrNull(greenDayPnls),
+    avgRedDay: meanOrNull(redDayPnls),
+    largestGreenDay,
+    largestRedDay,
+    greenDayPct,
+    expectancyR: meanOrNull(rMultiples),
+    rCoverage: rMultiples.length,
   }
 }
 
