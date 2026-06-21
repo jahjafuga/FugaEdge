@@ -5,6 +5,7 @@ import PageShell from '@/components/layout/PageShell'
 import Skeleton from '@/components/ui/Skeleton'
 import TabBar from '@/components/ui/TabBar'
 import OverviewTab from '@/components/analytics/tabs/OverviewTab'
+import AnalyticsCompareTab from '@/components/analytics/tabs/AnalyticsCompareTab'
 import PerformanceTab from '@/components/analytics/tabs/PerformanceTab'
 import ExecutionTab from '@/components/analytics/tabs/ExecutionTab'
 import MomentumTab from '@/components/analytics/tabs/MomentumTab'
@@ -20,6 +21,7 @@ import type { TradeListRow } from '@shared/trades-types'
 
 type TabKey =
   | 'overview'
+  | 'compare'
   | 'performance'
   | 'execution'
   | 'momentum'
@@ -30,6 +32,7 @@ type TabKey =
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview', label: 'Overview' },
+  { key: 'compare', label: 'Compare' },
   { key: 'performance', label: 'Performance' },
   { key: 'execution', label: 'Execution' },
   { key: 'momentum', label: 'Momentum' },
@@ -159,6 +162,7 @@ export default function Analytics() {
 
         <div key={tab} className="animate-fade-in">
           {tab === 'overview' && <OverviewTab data={data} reports={reports} />}
+          {tab === 'compare' && <AnalyticsCompareTab trades={trades} />}
           {tab === 'performance' && (
             <PerformanceTab data={data} reports={reports} trades={trades} />
           )}
