@@ -26,7 +26,7 @@ import {
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import Card from '@/components/ui/Card'
-import { duration, signed } from '@/lib/format'
+import { duration, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
 import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
@@ -47,6 +47,7 @@ import {
   type ComparisonInsight,
   type ComparisonResult,
   type DateRange,
+  type DayPnL,
   type PeriodMetrics,
   type PeriodPreset,
 } from '@/core/performance'
@@ -145,10 +146,11 @@ export default function CompareView({
         </Card>
       ) : (
         <>
-          {/* Dense multi-section stat table — replaces the wide headline
-              cards. Mirrors the Performance Stats card pattern used
-              elsewhere in the app. */}
-          <HeadlineStatTable a={comparison.periodA} b={comparison.periodB} />
+          {/* Premium "verdict" stat block in Ross Cameron's review order:
+              verdict headline + 70%/2:1 reference gauges, then edge core,
+              consistency, execution quality, behaviour, and activity. Pure
+              presentation over comparison.periodA/periodB. */}
+          <VerdictBlock a={comparison.periodA} b={comparison.periodB} />
 
           {eitherEmpty && (
             <div className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary">
@@ -405,13 +407,15 @@ function PeriodPicker({
   )
 }
 
-// ── Headline stat table ──────────────────────────────────────────────────
+// ── Verdict stat block ─────────────────────────────────────────────────────
 //
-// Dense multi-section table that replaces the four big stretched headline
-// cards. Mirrors the Performance Stats card pattern: small caps section
-// header with a gold accent dot, then ~32px rows of "label | A vs B |
-// delta + arrow". Two sections sit side-by-side on desktop (single column
-// on narrow screens).
+// Premium "verdict" block in Ross Cameron's daily-review order: the verdict
+// headline (net, daily, green-day %, worst day) plus the 70%-accuracy and
+// 2:1-ratio reference gauges, then Edge Core, Consistency, Execution Quality,
+// Behaviour, and Activity & Streaks. Each non-gauge section is a gold-accented
+// card of "label | A vs B | delta + arrow" rows (matching FullStatsTable); the
+// gauges mirror QualityTab's SqnHero (track + target tick + fill-to-actual).
+// Pure presentation over comparison.periodA/periodB — no core change.
 
 type FormatKind = 'money' | 'pct' | 'int' | 'ratio' | 'duration'
 
@@ -424,6 +428,10 @@ interface StatSpec {
    *  false → lower is better (fees, hold-time of losers, max consec losses).
    *  null → not actionable (raw counts like total trades — show grey arrow). */
   higherIsBetter: boolean | null
+  /** Optional muted sub-line under the label. Used for coverage honesty on the
+   *  gated stats ("R logged: A 42 · B 3") so a "—" value reads as "no covered
+   *  data", not a glitch. Additive — rows that omit it render exactly as before. */
+  subLabel?: string
 }
 
 interface StatSection {
@@ -431,65 +439,229 @@ interface StatSection {
   rows: StatSpec[]
 }
 
+// Coverage sub-line for the gated stats — shows BOTH periods so a "—" value
+// (zero coverage) is explained rather than mysterious. e.g. "R logged: A 42 · B 3".
+function cov(noun: string, aN: number, bN: number): string {
+  return `${noun}: A ${aN} · B ${bN}`
+}
+
+// Short "May 12" from a DayPnL (its .date is 'YYYY-MM-DD'); "—" when the period
+// has no such day. Pure string split via the app's shortDate — no date lib.
+function fmtDate(d: DayPnL | null): string {
+  return d ? shortDate(d.date) : '—'
+}
+
+// Date sub-line for the largest-day rows — "on May 12 · May 03" (A · B). Returns
+// undefined (no sub-line) only when NEITHER period has a best/worst day at all
+// (both empty), so a populated period always shows when its extreme day landed.
+function dateSub(a: DayPnL | null, b: DayPnL | null): string | undefined {
+  return a || b ? `on ${fmtDate(a)} · ${fmtDate(b)}` : undefined
+}
+
 function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
   return [
     {
-      title: 'P&L',
+      title: 'Edge Core',
       rows: [
-        { label: 'Net P&L',         a: a.netPnL,       b: b.netPnL,       format: 'money', higherIsBetter: true },
-        { label: 'Gross P&L',       a: a.grossPnL,     b: b.grossPnL,     format: 'money', higherIsBetter: true },
-        { label: 'Avg trade P&L',   a: a.avgTradePnL,  b: b.avgTradePnL,  format: 'money', higherIsBetter: true },
-        { label: 'Avg daily P&L',   a: a.avgDailyPnL,  b: b.avgDailyPnL,  format: 'money', higherIsBetter: true },
-        { label: 'Profit factor',   a: a.profitFactor, b: b.profitFactor, format: 'ratio', higherIsBetter: true },
-        { label: 'Fees',            a: a.fees,         b: b.fees,         format: 'money', higherIsBetter: false },
+        { label: 'Profit factor',  a: a.profitFactor, b: b.profitFactor, format: 'ratio', higherIsBetter: true },
+        { label: 'Expectancy (R)', a: a.expectancyR,  b: b.expectancyR,  format: 'ratio', higherIsBetter: true,
+          subLabel: cov('R logged', a.rCoverage, b.rCoverage) },
+        { label: 'Avg winner',     a: a.avgWinner,    b: b.avgWinner,    format: 'money', higherIsBetter: true },
+        { label: 'Avg loser',      a: a.avgLoser,     b: b.avgLoser,     format: 'money', higherIsBetter: true },
+        { label: 'Largest winner', a: a.largestWinner, b: b.largestWinner, format: 'money', higherIsBetter: true },
+        { label: 'Largest loser',  a: a.largestLoser,  b: b.largestLoser,  format: 'money', higherIsBetter: true },
       ],
     },
     {
-      title: 'Counts',
+      title: 'Consistency',
       rows: [
-        { label: 'Total trades',  a: a.trades,       b: b.trades,       format: 'int', higherIsBetter: null },
-        { label: 'Winners',       a: a.winners,      b: b.winners,      format: 'int', higherIsBetter: true },
-        { label: 'Losers',        a: a.losers,       b: b.losers,       format: 'int', higherIsBetter: false },
-        { label: 'Scratches',     a: a.scratches,    b: b.scratches,    format: 'int', higherIsBetter: null },
-        { label: 'Trading days',  a: a.tradingDays,  b: b.tradingDays,  format: 'int', higherIsBetter: null },
+        { label: 'Green days',        a: a.greenDays,       b: b.greenDays,       format: 'int',   higherIsBetter: true },
+        { label: 'Red days',          a: a.redDays,         b: b.redDays,         format: 'int',   higherIsBetter: false },
+        { label: 'Breakeven days',    a: a.breakevenDays,   b: b.breakevenDays,   format: 'int',   higherIsBetter: null },
+        { label: 'Avg green day',     a: a.avgGreenDay,     b: b.avgGreenDay,     format: 'money', higherIsBetter: true },
+        { label: 'Avg red day',       a: a.avgRedDay,       b: b.avgRedDay,       format: 'money', higherIsBetter: true },
+        { label: 'Largest green day', a: a.largestGreenDay, b: b.largestGreenDay, format: 'money', higherIsBetter: true,
+          // Date only when this side actually HAS a green day — else the date would
+          // contradict the em-dash value (no-fabricated-data law).
+          subLabel: dateSub(
+            a.largestGreenDay != null ? a.bestDay : null,
+            b.largestGreenDay != null ? b.bestDay : null,
+          ) },
       ],
     },
     {
-      title: 'Quality',
+      title: 'Execution Quality',
       rows: [
-        { label: 'Win rate',        a: a.winRate,        b: b.winRate,        format: 'pct',   higherIsBetter: true },
-        { label: 'Avg winner',      a: a.avgWinner,      b: b.avgWinner,      format: 'money', higherIsBetter: true },
-        { label: 'Avg loser',       a: a.avgLoser,       b: b.avgLoser,       format: 'money', higherIsBetter: true },
-        { label: 'Largest winner',  a: a.largestWinner,  b: b.largestWinner,  format: 'money', higherIsBetter: true },
-        { label: 'Largest loser',   a: a.largestLoser,   b: b.largestLoser,   format: 'money', higherIsBetter: true },
-        { label: 'Win/Loss ratio',  a: a.winLossRatio,   b: b.winLossRatio,   format: 'ratio', higherIsBetter: true },
+        { label: 'MFE-capture %', a: a.mfeCapturePct, b: b.mfeCapturePct, format: 'pct',   higherIsBetter: true,
+          subLabel: cov('covered', a.mfeCaptureCoverage, b.mfeCaptureCoverage) },
+        { label: 'MAE-to-stop',   a: a.maeToStop,     b: b.maeToStop,     format: 'ratio', higherIsBetter: false,
+          subLabel: cov('covered', a.maeToStopCoverage, b.maeToStopCoverage) },
       ],
     },
     {
-      title: 'Hold Time',
+      title: 'Behavior',
       rows: [
-        { label: 'All trades', a: a.avgHoldSeconds,         b: b.avgHoldSeconds,         format: 'duration', higherIsBetter: null },
-        { label: 'Winners',    a: a.avgHoldSecondsWinners,  b: b.avgHoldSecondsWinners,  format: 'duration', higherIsBetter: true },
-        { label: 'Losers',     a: a.avgHoldSecondsLosers,   b: b.avgHoldSecondsLosers,   format: 'duration', higherIsBetter: false },
+        { label: 'After big win → next',  a: a.afterBigWinAvgPnl,  b: b.afterBigWinAvgPnl,  format: 'money', higherIsBetter: true,
+          subLabel: cov('big wins', a.afterBigWinCount, b.afterBigWinCount) },
+        { label: 'After big loss → next', a: a.afterBigLossAvgPnl, b: b.afterBigLossAvgPnl, format: 'money', higherIsBetter: true,
+          subLabel: cov('big losses', a.afterBigLossCount, b.afterBigLossCount) },
       ],
     },
     {
-      title: 'Streaks',
+      title: 'Activity & Streaks',
       rows: [
-        { label: 'Max consecutive wins',   a: a.maxConsecutiveWins,    b: b.maxConsecutiveWins,    format: 'int', higherIsBetter: true },
-        { label: 'Max consecutive losses', a: a.maxConsecutiveLosses,  b: b.maxConsecutiveLosses,  format: 'int', higherIsBetter: false },
+        { label: 'Total trades',      a: a.trades,                b: b.trades,                format: 'int',      higherIsBetter: null },
+        { label: 'Winners',           a: a.winners,               b: b.winners,               format: 'int',      higherIsBetter: true },
+        { label: 'Losers',            a: a.losers,                b: b.losers,                format: 'int',      higherIsBetter: false },
+        { label: 'Scratches',         a: a.scratches,             b: b.scratches,             format: 'int',      higherIsBetter: null },
+        { label: 'Trading days',      a: a.tradingDays,           b: b.tradingDays,           format: 'int',      higherIsBetter: null },
+        { label: 'Max consec wins',   a: a.maxConsecutiveWins,    b: b.maxConsecutiveWins,    format: 'int',      higherIsBetter: true },
+        { label: 'Max consec losses', a: a.maxConsecutiveLosses,  b: b.maxConsecutiveLosses,  format: 'int',      higherIsBetter: false },
+        { label: 'Hold (all)',        a: a.avgHoldSeconds,        b: b.avgHoldSeconds,        format: 'duration', higherIsBetter: null },
+        { label: 'Hold (winners)',    a: a.avgHoldSecondsWinners, b: b.avgHoldSecondsWinners, format: 'duration', higherIsBetter: true },
+        { label: 'Hold (losers)',     a: a.avgHoldSecondsLosers,  b: b.avgHoldSecondsLosers,  format: 'duration', higherIsBetter: false },
+        { label: 'Fees',              a: a.fees,                  b: b.fees,                  format: 'money',    higherIsBetter: false },
+        { label: 'Gross P&L',         a: a.grossPnL,              b: b.grossPnL,              format: 'money',    higherIsBetter: true },
+        { label: 'Avg trade P&L',     a: a.avgTradePnL,           b: b.avgTradePnL,           format: 'money',    higherIsBetter: true },
       ],
     },
   ]
 }
 
-function HeadlineStatTable({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
-  const sections = buildSections(a, b)
+function VerdictBlock({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {sections.map((s) => (
-        <StatSectionCard key={s.title} section={s} />
-      ))}
+    <div className="space-y-4">
+      <VerdictCard a={a} b={b} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {buildSections(a, b).map((s) => (
+          <StatSectionCard key={s.title} section={s} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// The headline card — the trader's verdict at a glance: the four numbers Ross
+// reviews first, then the two reference gauges (accuracy vs the 70% target,
+// P/L ratio vs the 2:1 target).
+function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
+  const headline: StatSpec[] = [
+    { label: 'Net P&L',         a: a.netPnL,        b: b.netPnL,        format: 'money', higherIsBetter: true },
+    { label: 'Avg daily P&L',   a: a.avgDailyPnL,   b: b.avgDailyPnL,   format: 'money', higherIsBetter: true },
+    { label: 'Green-day %',     a: a.greenDayPct,   b: b.greenDayPct,   format: 'pct',   higherIsBetter: true,
+      subLabel: cov('trading days', a.tradingDays, b.tradingDays) },
+    { label: 'Largest red day', a: a.largestRedDay, b: b.largestRedDay, format: 'money', higherIsBetter: true,
+      // Date only when this side actually HAS a red day — else the date would
+      // contradict the em-dash value (no-fabricated-data law).
+      subLabel: dateSub(
+        a.largestRedDay != null ? a.worstDay : null,
+        b.largestRedDay != null ? b.worstDay : null,
+      ) },
+  ]
+  return (
+    <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-2 pb-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-gold">
+          Verdict
+        </h3>
+      </div>
+      <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+        {headline.map((r) => (
+          <StatRow key={r.label} spec={r} last />
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-5 border-t border-border-subtle/40 pt-3 sm:grid-cols-2">
+        <GaugeRow
+          label="Win rate"
+          a={a.winRate}
+          b={b.winRate}
+          kind="pct"
+          target={0.7}
+          max={1}
+          targetLabel="70% target"
+        />
+        <GaugeRow
+          label="Profit/Loss ratio"
+          a={a.winLossRatio}
+          b={b.winLossRatio}
+          kind="ratio"
+          target={2}
+          max={4}
+          targetLabel="2.0 target"
+        />
+      </div>
+    </div>
+  )
+}
+
+// Reference gauge mirroring SqnHero: a track with a target TICK and two fills
+// (A gold on top, B win on the bottom) to the actual values. Win-rate uses a
+// 0–100% scale with the tick at 70% (Ross's accuracy target); the P/L-ratio
+// gauge uses a 0–4.0 scale (values >= 4 clamp to the right edge) with the tick
+// at 2.0 (the 2:1 target, which lands at mid-track). A value meeting/beating
+// the target reads green; below target reads gold (A) / muted (B).
+function GaugeRow({
+  label,
+  a,
+  b,
+  kind,
+  target,
+  max,
+  targetLabel,
+}: {
+  label: string
+  a: number | null
+  b: number | null
+  kind: 'pct' | 'ratio'
+  target: number
+  max: number
+  targetLabel: string
+}) {
+  const fmt = (v: number | null) =>
+    v == null
+      ? '—'
+      : kind === 'pct'
+        ? `${(v * 100).toFixed(1)}%`
+        : Number.isFinite(v)
+          ? v.toFixed(2)
+          : '∞'
+  // Fill width as a % of the track. Non-finite ratios (∞ — winners, no losers)
+  // peg to the full track; nulls render no fill.
+  const widthOf = (v: number | null) =>
+    v == null ? null : Number.isFinite(v) ? Math.max(0, Math.min(100, (v / max) * 100)) : 100
+  const aW = widthOf(a)
+  const bW = widthOf(b)
+  const targetPct = Math.min(100, (target / max) * 100)
+  const meets = (v: number | null) => v != null && v >= target
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm text-fg-secondary">{label}</span>
+        <span className="font-mono text-xs tnum">
+          <span className={meets(a) ? 'text-win' : 'text-gold'}>{fmt(a)}</span>
+          <span className="mx-1 text-fg-tertiary">vs</span>
+          <span className={meets(b) ? 'text-win' : 'text-fg-tertiary'}>{fmt(b)}</span>
+        </span>
+      </div>
+      <div className="relative mt-2 h-3 overflow-hidden rounded-sm bg-white/[0.04]">
+        {aW != null && (
+          <div className="absolute left-0 top-0 h-1/2 bg-gold/70" style={{ width: `${aW}%` }} />
+        )}
+        {bW != null && (
+          <div className="absolute bottom-0 left-0 h-1/2 bg-win/70" style={{ width: `${bW}%` }} />
+        )}
+        {/* Target tick */}
+        <div
+          className="absolute top-0 h-full w-px bg-fg-secondary"
+          style={{ left: `${targetPct}%` }}
+        />
+      </div>
+      <div className="mt-1 flex items-center justify-between text-[10px] uppercase tracking-wider text-fg-tertiary">
+        <span>0</span>
+        <span className="text-fg-secondary">{targetLabel}</span>
+        <span>{kind === 'pct' ? '100%' : `${max}+`}</span>
+      </div>
     </div>
   )
 }
@@ -516,7 +688,7 @@ function fmtValue(v: number | null, kind: FormatKind): string {
   if (v == null) return '—'
   switch (kind) {
     case 'money':    return signed(v)
-    case 'pct':      return `${(v * 100).toFixed(0)}%`
+    case 'pct':      return `${(v * 100).toFixed(1)}%`
     case 'int':      return `${Math.round(v)}`
     case 'ratio':    return Number.isFinite(v) ? v.toFixed(2) : '∞'
     case 'duration': return duration(v)
@@ -527,7 +699,7 @@ function fmtDelta(delta: number | null, kind: FormatKind): string {
   if (delta == null) return '—'
   switch (kind) {
     case 'money':    return signed(delta)
-    case 'pct':      return `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(0)}%`
+    case 'pct':      return `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
     case 'int':      return `${delta >= 0 ? '+' : ''}${Math.round(delta)}`
     case 'ratio':    return Number.isFinite(delta)
                        ? `${delta >= 0 ? '+' : ''}${delta.toFixed(2)}`
@@ -566,11 +738,16 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
 
   return (
     <div
-      className={`grid h-8 grid-cols-[1fr_auto_auto] items-center gap-3 ${
+      className={`grid min-h-8 grid-cols-[1fr_auto_auto] items-center gap-3 py-1 ${
         last ? '' : 'border-b border-border-subtle/40'
       }`}
     >
-      <span className="text-sm text-fg-secondary">{spec.label}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="text-sm text-fg-secondary">{spec.label}</span>
+        {spec.subLabel && (
+          <span className="text-[10px] text-fg-tertiary">{spec.subLabel}</span>
+        )}
+      </span>
       <span className="font-mono text-xs tnum">
         <span className="text-fg-primary">{fmtValue(a, format)}</span>
         <span className="mx-1 text-fg-tertiary">vs</span>
