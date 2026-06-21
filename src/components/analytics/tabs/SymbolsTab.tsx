@@ -105,7 +105,11 @@ export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
         />
         <BucketBarCard
           title="P&L by country"
-          subtitle="Bucketed by listing country."
+          subtitle={
+            reports && reports.byCountryNotShown > 0
+              ? `Bucketed by listing country · ${reports.byCountryNotShown} not shown`
+              : 'Bucketed by listing country.'
+          }
           buckets={reports?.byCountry ?? []}
           emptyText="Add country to 3+ trades to see breakdown."
           renderLabel={(b) => (

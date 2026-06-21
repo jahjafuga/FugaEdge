@@ -349,7 +349,7 @@ function buildByRegion(trades: TradeForReport[]): BucketStats[] {
 // exactly (group, 'Unknown' bucketed and sorted last, count-desc otherwise),
 // because sector/industry are a coarse closed-ish set like region — every
 // group is shown, none dropped, no min-trades collapse. Exported for direct
-// unit testing (the only exported builders today; region/country stay internal).
+// unit testing — as is buildByCountry (for its not_shown test); region stays internal.
 export function buildBySector(trades: TradeForReport[]): BucketStats[] {
   const groups = groupBy(trades, (t) => t.sector ?? 'Unknown')
   const out: BucketStats[] = []
@@ -382,7 +382,17 @@ export function buildByIndustry(trades: TradeForReport[]): BucketStats[] {
 
 const COUNTRY_MIN_TRADES = 3
 
-function buildByCountry(trades: TradeForReport[]): BucketStats[] {
+// Unlike region/sector/industry (which show every group), By Country DROPS two
+// kinds of trades: those with no country logged (the `!key` group) and those in
+// a country below COUNTRY_MIN_TRADES (the long-tail collapse that keeps the card
+// from filling with one-off foreign listings). That silently turned e.g. "98
+// trades" into "95 shown". We keep the collapse but also return a `notShown`
+// count so the Symbols-tab card can disclose it — total minus the kept buckets'
+// trades, which is robust to both drop reasons.
+export function buildByCountry(trades: TradeForReport[]): {
+  buckets: BucketStats[]
+  notShown: number
+} {
   const groups = groupBy(trades, (t) => t.country ?? '')
   const out: BucketStats[] = []
   let i = 0
@@ -392,7 +402,8 @@ function buildByCountry(trades: TradeForReport[]): BucketStats[] {
     out.push(computeStats(group, key, i++))
   }
   out.sort((a, b) => b.trade_count - a.trade_count)
-  return out
+  const shown = out.reduce((s, b) => s + b.trade_count, 0)
+  return { buckets: out, notShown: trades.length - shown }
 }
 
 export function getReports(): ReportsData {
@@ -478,6 +489,8 @@ export function getReports(): ReportsData {
     ),
   )
 
+  const byCountry = buildByCountry(trades)
+
   return {
     byPriceRange,
     byDayOfWeek,
@@ -485,7 +498,8 @@ export function getReports(): ReportsData {
     bySymbol,
     byShareSize,
     byRegion: buildByRegion(trades),
-    byCountry: buildByCountry(trades),
+    byCountry: byCountry.buckets,
+    byCountryNotShown: byCountry.notShown,
     bySector: buildBySector(trades),
     byIndustry: buildByIndustry(trades),
     fullStats: computeFullStats(trades),

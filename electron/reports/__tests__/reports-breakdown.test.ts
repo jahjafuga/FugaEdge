@@ -14,7 +14,7 @@ vi.mock('../../db/database', () => ({
   getDbPath: () => ':memory:',
 }))
 
-import { buildBySector, buildByIndustry } from '../get'
+import { buildBySector, buildByIndustry, buildByCountry } from '../get'
 
 // Element type of the builders' parameter — avoids exporting the internal
 // TradeForReport type just for tests.
@@ -137,3 +137,46 @@ for (const { name, fn, field } of builders) {
     })
   })
 }
+
+// Data-honesty #3 — buildByCountry is the ONE breakdown that drops trades (no
+// country logged, or a country below COUNTRY_MIN_TRADES). It returns a notShown
+// count so the Symbols-tab card can disclose "N not shown" instead of silently
+// showing 95 of 98. region/sector/industry never drop, so they have no analogue.
+describe('buildByCountry — not_shown disclosure', () => {
+  it('keeps countries at/above the threshold, drops the rest, counts notShown', () => {
+    const trades = [
+      mk({ country: 'US', net_pnl: 1 }),
+      mk({ country: 'US', net_pnl: 1 }),
+      mk({ country: 'US', net_pnl: 1 }), // US: 3 -> kept (exactly the threshold)
+      mk({ country: 'CA', net_pnl: 1 }),
+      mk({ country: 'CA', net_pnl: 1 }), // CA: 2 -> dropped (below threshold)
+      mk({ country: null, net_pnl: 1 }), // no country -> dropped
+    ]
+    const { buckets, notShown } = buildByCountry(trades)
+    expect(buckets.map((b) => b.key)).toEqual(['US'])
+    expect(buckets[0].trade_count).toBe(3)
+    expect(notShown).toBe(3) // CA:2 + null:1
+  })
+
+  it('every country at/above threshold -> notShown 0', () => {
+    const trades = [
+      mk({ country: 'US' }), mk({ country: 'US' }), mk({ country: 'US' }),
+      mk({ country: 'CN' }), mk({ country: 'CN' }), mk({ country: 'CN' }),
+    ]
+    const { buckets, notShown } = buildByCountry(trades)
+    expect(buckets.map((b) => b.key).sort()).toEqual(['CN', 'US'])
+    expect(notShown).toBe(0)
+  })
+
+  it('all trades sub-threshold or no-country -> empty buckets, notShown = total', () => {
+    const trades = [
+      mk({ country: 'JP' }),
+      mk({ country: 'JP' }), // JP: 2 -> dropped
+      mk({ country: 'GR' }), // GR: 1 -> dropped
+      mk({ country: null }), // dropped
+    ]
+    const { buckets, notShown } = buildByCountry(trades)
+    expect(buckets).toEqual([])
+    expect(notShown).toBe(4)
+  })
+})

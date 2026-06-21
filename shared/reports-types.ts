@@ -126,6 +126,10 @@ export interface ReportsData {
   byShareSize: BucketStats[]
   byRegion: BucketStats[]
   byCountry: BucketStats[]
+  /** Trades the By-Country breakdown drops — no country logged, or in a country
+   *  below the long-tail-collapse threshold. Disclosed on the card so the shown
+   *  total isn't silently short. Computed at read time; not stored. */
+  byCountryNotShown: number
   bySector: BucketStats[]
   byIndustry: BucketStats[]
   fullStats: FullStats
