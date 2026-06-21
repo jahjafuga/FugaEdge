@@ -772,8 +772,8 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
 function SideBySideBarChart({ comparison }: { comparison: ComparisonResult }) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
-  const goldHex = resolved === 'light' ? '#b8962e' : '#d4af37'
-  const winHex = palette.win
+  const goldHex = palette.sideA
+  const winHex = palette.sideB
   const data = useMemo(
     () =>
       comparison.dailyPnL.rows.map((r) => ({
@@ -866,8 +866,8 @@ function SideBySideTooltip({ active, payload }: {
 function CumulativeOverlayChart({ comparison }: { comparison: ComparisonResult }) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
-  const goldHex = resolved === 'light' ? '#b8962e' : '#d4af37'
-  const winHex = palette.win
+  const goldHex = palette.sideA
+  const winHex = palette.sideB
   const data = useMemo(
     () =>
       comparison.cumulativePnL.rows.map((r) => ({
@@ -973,8 +973,8 @@ function BreakdownComparisonCard({
   const [open, setOpen] = useState(false)
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
-  const goldHex = resolved === 'light' ? '#b8962e' : '#d4af37'
-  const winHex = palette.win
+  const goldHex = palette.sideA
+  const winHex = palette.sideB
 
   const breakdown = useMemo(
     () => computeBreakdownComparison(trades, rangeA, rangeB, dimension, sentimentByDate),
