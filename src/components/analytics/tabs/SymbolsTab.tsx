@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom'
 import SectionHeader from '@/components/ui/SectionHeader'
+import Flag from '@/components/ui/Flag'
 import SymbolPerformance from '@/components/analytics/SymbolPerformance'
 // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
 // import FloatBreakdownCard from '@/components/analytics/FloatBreakdownCard'
 import BucketBarCard from '@/components/analytics/BucketBarCard'
 import { int } from '@/lib/format'
+import {
+  COUNTRY_NAMES,
+  REGION_REPRESENTATIVE_COUNTRY,
+  type Region,
+} from '@/core/country/regions'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
 
@@ -67,6 +73,62 @@ export default function SymbolsTab({ data, reports }: SymbolsTabProps) {
               ? 'No relative-volume data for these trades yet.'
               : 'Refresh market data in Settings to populate RVOL.'
           }
+        />
+      </div>
+
+      {/* Markets — by company attribute + geography. Moved here from Reports →
+          Breakdown (migration move 2); same BucketStats[], same bar style.
+          Country/Region keep their flag + full name via renderLabel. */}
+      <SectionHeader
+        title="Markets"
+        description="Where your edge lives — by sector, symbol, and geography."
+      />
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <BucketBarCard
+          title="P&L by sector"
+          subtitle="Bucketed by company sector."
+          buckets={reports?.bySector ?? []}
+          emptyText="No sector data yet — run the sector & industry backfill in Settings."
+        />
+        <BucketBarCard
+          title="P&L by industry"
+          subtitle="Bucketed by company industry."
+          buckets={reports?.byIndustry ?? []}
+          emptyText="No industry data yet — run the sector & industry backfill in Settings."
+        />
+        <BucketBarCard
+          title="P&L by symbol"
+          subtitle="Your most-traded tickers."
+          buckets={reports?.bySymbol ?? []}
+          emptyText="Import trades to see your symbol breakdown."
+        />
+        <BucketBarCard
+          title="P&L by country"
+          subtitle="Bucketed by listing country."
+          buckets={reports?.byCountry ?? []}
+          emptyText="Add country to 3+ trades to see breakdown."
+          renderLabel={(b) => (
+            <span className="inline-flex items-center gap-2 text-sm text-fg-primary">
+              <Flag iso={b.key} size={16} title={COUNTRY_NAMES[b.key] ?? b.key} />
+              <span className="truncate">{COUNTRY_NAMES[b.key] ?? b.key}</span>
+            </span>
+          )}
+        />
+        <BucketBarCard
+          title="P&L by region"
+          subtitle="Bucketed by region."
+          buckets={reports?.byRegion ?? []}
+          emptyText="Add country to trades to see region breakdown."
+          renderLabel={(b) => {
+            const iso = REGION_REPRESENTATIVE_COUNTRY[b.key as Region] ?? null
+            return (
+              <span className="inline-flex items-center gap-2 text-sm text-fg-primary">
+                {iso && <Flag iso={iso} size={16} title={b.key} />}
+                <span className="truncate">{b.key}</span>
+              </span>
+            )
+          }}
         />
       </div>
     </div>
