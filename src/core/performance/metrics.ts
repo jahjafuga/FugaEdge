@@ -13,6 +13,7 @@ import type {
   DateRange,
   DayPnL,
   PeriodMetrics,
+  RBucket,
 } from './types'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import { computeOutcomeStats } from '@/core/stats/outcomeStats'
@@ -144,6 +145,47 @@ function meanOrNull(xs: number[]): number | null {
   return s / xs.length
 }
 
+// Group 2 — R-multiple histogram buckets, in display order. Edge rule:
+// negative buckets are RIGHT-inclusive (lo, hi], non-negative buckets are
+// LEFT-inclusive [lo, hi), and the two tails are closed on their open end.
+// So r = -2 -> '<= -2R', r = -1 -> '-2 to -1', r = 0 -> '0 to 1', r = 1 ->
+// '1 to 2', r = 2 -> '2 to 3', r = 3 -> '>= 3R'. Every covered r lands in
+// exactly one bucket; the if-ladder below IS the documented rule.
+const R_BUCKET_LABELS = [
+  '<= -2R',
+  '-2 to -1',
+  '-1 to 0',
+  '0 to 1',
+  '1 to 2',
+  '2 to 3',
+  '>= 3R',
+] as const
+
+function rBucketLabel(r: number): string {
+  if (r <= -2) return '<= -2R'
+  if (r <= -1) return '-2 to -1'
+  if (r < 0) return '-1 to 0'
+  if (r < 1) return '0 to 1'
+  if (r < 2) return '1 to 2'
+  if (r < 3) return '2 to 3'
+  return '>= 3R'
+}
+
+function buildRDistribution(rMultiples: number[]): RBucket[] {
+  const counts = new Map<string, number>()
+  for (const label of R_BUCKET_LABELS) counts.set(label, 0)
+  for (const r of rMultiples) {
+    const label = rBucketLabel(r)
+    counts.set(label, (counts.get(label) ?? 0) + 1)
+  }
+  return R_BUCKET_LABELS.map((bucket) => ({ bucket, count: counts.get(bucket) ?? 0 }))
+}
+
+// A trade is "big" when it reaches this multiple of the period's OWN average
+// winner / loser — self-calibrating so the after-big-win/loss behavioural read
+// scales with the trader's typical size. Named so it's easy to tune later.
+const BIG_TRADE_MULTIPLE = 2
+
 export function computePeriodMetrics(
   trades: TradeListRow[],
   range: DateRange,
@@ -169,6 +211,9 @@ export function computePeriodMetrics(
   // Expectancy-R coverage: r_multiple is null without a logged stop/risk, so we
   // accumulate only the covered trades and report the count separately.
   const rMultiples: number[] = []
+  // Group 2 per-trade coverage subsets (each gated independently).
+  const mfeCaptures: number[] = []
+  const maeToStops: number[] = []
 
   for (const t of scoped) {
     gross += t.gross_pnl
@@ -179,6 +224,22 @@ export function computePeriodMetrics(
       if (largestLoser == null || t.net_pnl < largestLoser) largestLoser = t.net_pnl
     }
     if (t.r_multiple != null) rMultiples.push(t.r_multiple)
+    // MFE-capture: net P&L kept vs the peak FAVORABLE dollars. mfe is $/share,
+    // so favorable dollars = mfe * positionShares (max of the two legs, mirroring
+    // computeFullStats' per-share-P&L convention). net_pnl is post-fee while
+    // mfe*shares is a gross price move, so this reads as "net captured / gross
+    // favorable" (slightly below a gross-vs-gross ratio). Skip mfe == 0 (no
+    // favorable move -> divide-by-zero) and zero-share rows.
+    if (t.mfe != null && t.mfe > 0) {
+      const positionShares = Math.max(t.shares_bought, t.shares_sold)
+      if (positionShares > 0) mfeCaptures.push(t.net_pnl / (t.mfe * positionShares))
+    }
+    // MAE-to-stop: adverse excursion vs the planned stop distance, both $/share.
+    // Covered only when intraday gave us an mae AND the trader logged a stop
+    // (risk_per_share). Guard risk_per_share > 0 against a degenerate stop==entry.
+    if (t.mae != null && t.risk_per_share != null && t.risk_per_share > 0) {
+      maeToStops.push(t.mae / t.risk_per_share)
+    }
     const hs = holdSeconds(t)
     if (hs != null) {
       holdAll.push(hs)
@@ -262,6 +323,26 @@ export function computePeriodMetrics(
   const avgDailyPnL = tradingDays > 0 ? net / tradingDays : null
   const greenDayPct = tradingDays > 0 ? greenDays / tradingDays : null
 
+  // R-multiple histogram over the covered subset (same rMultiples collected
+  // above; rDistCoverage == rCoverage, not a second count).
+  const rDistribution = buildRDistribution(rMultiples)
+
+  // After a big win / big loss — walk the SAME chronological array used for
+  // streaks; when a big trade has a follower, collect the follower's net P&L.
+  // Thresholds use the period's own avgWinner/avgLoser (null when there are no
+  // winners/losers, which disables that side). Looping to chrono.length - 1
+  // means a big trade that is LAST has no follower and is never counted.
+  const afterBigWin: number[] = []
+  const afterBigLoss: number[] = []
+  const bigWinThreshold = avgWinner != null ? BIG_TRADE_MULTIPLE * avgWinner : null
+  const bigLossThreshold = avgLoser != null ? BIG_TRADE_MULTIPLE * avgLoser : null
+  for (let i = 0; i < chrono.length - 1; i++) {
+    const pnl = chrono[i].net_pnl
+    const nextPnl = chrono[i + 1].net_pnl
+    if (bigWinThreshold != null && pnl >= bigWinThreshold) afterBigWin.push(nextPnl)
+    if (bigLossThreshold != null && pnl <= bigLossThreshold) afterBigLoss.push(nextPnl)
+  }
+
   return {
     range,
     netPnL: net,
@@ -298,6 +379,16 @@ export function computePeriodMetrics(
     greenDayPct,
     expectancyR: meanOrNull(rMultiples),
     rCoverage: rMultiples.length,
+    mfeCapturePct: meanOrNull(mfeCaptures),
+    mfeCaptureCoverage: mfeCaptures.length,
+    maeToStop: meanOrNull(maeToStops),
+    maeToStopCoverage: maeToStops.length,
+    rDistribution,
+    rDistCoverage: rMultiples.length,
+    afterBigWinAvgPnl: meanOrNull(afterBigWin),
+    afterBigWinCount: afterBigWin.length,
+    afterBigLossAvgPnl: meanOrNull(afterBigLoss),
+    afterBigLossCount: afterBigLoss.length,
   }
 }
 

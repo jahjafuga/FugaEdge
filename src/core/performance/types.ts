@@ -123,6 +123,45 @@ export interface PeriodMetrics {
   // reports how many do, so the UI can label "(of N trades with R)".
   expectancyR: number | null
   rCoverage: number
+  // ── Group 2: exit-quality + behavioural ──────────────────────────────────
+  // MFE-capture % — per-trade mean of net_pnl / (mfe$/share * positionShares),
+  // i.e. what fraction of the peak FAVORABLE dollars the trade actually kept.
+  // mfe is $/share, so we multiply by positionShares = max(shares_bought,
+  // shares_sold) to reach favorable dollars (this deliberately diverges from
+  // computeFullStats' avg_mfe_dollars, which is per-share — mirroring it would
+  // be dimensionally wrong). Covered = mfe non-null, mfe > 0, positionShares >
+  // 0. Null when no covered trade; mfeCaptureCoverage reports the count.
+  mfeCapturePct: number | null
+  mfeCaptureCoverage: number
+  // MAE-to-stop — per-trade mean of mae / risk_per_share (both $/share): how
+  // far the trade ran against you relative to the planned stop. > 1 means it
+  // breached the stop distance intratrade. Covered = mae non-null AND a logged
+  // stop (risk_per_share non-null, > 0). Null when no covered trade.
+  maeToStop: number | null
+  maeToStopCoverage: number
+  // R-multiple distribution — fixed 7-bucket histogram over the covered
+  // (non-null r_multiple) trades, buckets always present (count 0 when empty)
+  // in display order. rDistCoverage == rCoverage (the same covered subset).
+  rDistribution: RBucket[]
+  rDistCoverage: number
+  // After a big win / big loss — mean P&L of the trade immediately FOLLOWING a
+  // "big" trade (>= 2x the period's own avgWinner, or <= 2x its avgLoser), in
+  // chronological order. A revenge / overconfidence check. Null when there are
+  // no qualifying big trades with a follower (a big trade that is last in the
+  // period is excluded and uncounted). The *Count fields report how many big
+  // wins / losses had a following trade.
+  afterBigWinAvgPnl: number | null
+  afterBigWinCount: number
+  afterBigLossAvgPnl: number | null
+  afterBigLossCount: number
+}
+
+/** One bar of the R-multiple histogram. `bucket` is the display label; the
+ *  ordered array of these (all buckets present, even at count 0) is the
+ *  distribution. */
+export interface RBucket {
+  bucket: string
+  count: number
 }
 
 // ── Delta / comparison ────────────────────────────────────────────────────
