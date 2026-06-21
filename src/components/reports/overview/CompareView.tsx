@@ -435,6 +435,10 @@ interface StatSpec {
    *  gated stats ("R logged: A 42 · B 3") so a "—" value reads as "no covered
    *  data", not a glitch. Additive — rows that omit it render exactly as before. */
   subLabel?: string
+  /** Effective coverage (min of the two periods' covered counts) for the gated
+   *  stats. When set and below LOW_R_SAMPLE the row dims its value + shows a
+   *  "low sample" marker. Additive — rows that omit it render exactly as before. */
+  coverage?: number
 }
 
 interface StatSection {
@@ -468,7 +472,8 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
       rows: [
         { label: 'Profit factor',  a: a.profitFactor, b: b.profitFactor, format: 'ratio', higherIsBetter: true },
         { label: 'Expectancy (R)', a: a.expectancyR,  b: b.expectancyR,  format: 'ratio', higherIsBetter: true,
-          subLabel: cov('R logged', a.rCoverage, b.rCoverage) },
+          subLabel: cov('R logged', a.rCoverage, b.rCoverage),
+          coverage: Math.min(a.rCoverage, b.rCoverage) },
         { label: 'Avg winner',     a: a.avgWinner,    b: b.avgWinner,    format: 'money', higherIsBetter: true },
         { label: 'Avg loser',      a: a.avgLoser,     b: b.avgLoser,     format: 'money', higherIsBetter: true },
         { label: 'Largest winner', a: a.largestWinner, b: b.largestWinner, format: 'money', higherIsBetter: true },
@@ -496,9 +501,11 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
       title: 'Execution Quality',
       rows: [
         { label: 'MFE-capture %', a: a.mfeCapturePct, b: b.mfeCapturePct, format: 'pct',   higherIsBetter: true,
-          subLabel: cov('covered', a.mfeCaptureCoverage, b.mfeCaptureCoverage) },
+          subLabel: cov('covered', a.mfeCaptureCoverage, b.mfeCaptureCoverage),
+          coverage: Math.min(a.mfeCaptureCoverage, b.mfeCaptureCoverage) },
         { label: 'MAE-to-stop',   a: a.maeToStop,     b: b.maeToStop,     format: 'ratio', higherIsBetter: false,
-          subLabel: cov('covered', a.maeToStopCoverage, b.maeToStopCoverage) },
+          subLabel: cov('covered', a.maeToStopCoverage, b.maeToStopCoverage),
+          coverage: Math.min(a.maeToStopCoverage, b.maeToStopCoverage) },
       ],
     },
     {
@@ -747,6 +754,10 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
     tone === 'win' ? 'text-win' : tone === 'loss' ? 'text-loss' : 'text-fg-tertiary'
 
   const Arrow = direction === 'up' ? ArrowUp : direction === 'down' ? ArrowDown : ArrowRight
+  // Low-confidence cue: when the row's effective coverage is below the histogram's
+  // LOW_R_SAMPLE threshold, dim the value + flag it. The delta/tone is untouched —
+  // a thin row can still show its better/worse direction.
+  const lowSample = spec.coverage != null && spec.coverage < LOW_R_SAMPLE
 
   return (
     <div
@@ -755,12 +766,19 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
       }`}
     >
       <span className="flex min-w-0 flex-col">
-        <span className="text-sm text-fg-secondary">{spec.label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-sm text-fg-secondary">{spec.label}</span>
+          {lowSample && (
+            <span className="shrink-0 rounded-sm border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary">
+              low sample
+            </span>
+          )}
+        </span>
         {spec.subLabel && (
           <span className="text-[10px] text-fg-tertiary">{spec.subLabel}</span>
         )}
       </span>
-      <span className="font-mono text-xs tnum">
+      <span className={`font-mono text-xs tnum ${lowSample ? 'opacity-50' : ''}`}>
         <span className="text-fg-primary">{fmtValue(a, format)}</span>
         <span className="mx-1 text-fg-tertiary">vs</span>
         <span className="text-fg-tertiary">{fmtValue(b, format)}</span>
