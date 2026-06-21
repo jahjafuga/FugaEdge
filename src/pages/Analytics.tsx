@@ -165,7 +165,9 @@ export default function Analytics() {
           {tab === 'execution' && (
             <ExecutionTab data={data} reports={reports} />
           )}
-          {tab === 'momentum' && <MomentumTab data={data} />}
+          {tab === 'momentum' && (
+            <MomentumTab data={data} dayOfWeek={reports?.byDayOfWeek ?? []} />
+          )}
           {tab === 'psychology' && <PsychologyTab data={data} />}
           {tab === 'quality' && reports && <AnalyticsQualityTab reports={reports} />}
           {tab === 'symbols' && <SymbolsTab data={data} reports={reports} />}

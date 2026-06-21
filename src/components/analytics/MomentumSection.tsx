@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   Cell,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
   XAxis,
@@ -17,6 +18,7 @@ import type {
   MomentumBucket,
   VolumeByTimeBucket,
 } from '@shared/analytics-types'
+import type { BucketStats } from '@shared/reports-types'
 import { int, money, percent, pnlClass, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
@@ -24,11 +26,12 @@ import { chartColors } from '@/lib/chartColors'
 interface MomentumSectionProps {
   momentum: MomentumAnalytics
   totalTrades: number
+  dayOfWeek: BucketStats[]
 }
 
 const DASH = '—'
 
-export default function MomentumSection({ momentum, totalTrades }: MomentumSectionProps) {
+export default function MomentumSection({ momentum, totalTrades, dayOfWeek }: MomentumSectionProps) {
   const ema9Coverage = momentum.ema9_coverage
   const ema9CoveragePct =
     totalTrades > 0 ? (ema9Coverage / totalTrades) * 100 : 0
@@ -56,6 +59,14 @@ export default function MomentumSection({ momentum, totalTrades }: MomentumSecti
         hover
       >
         <VolumeByTimeChart buckets={momentum.volumeByHalfHour} />
+      </Card>
+
+      <Card
+        title="Your trading by day of week"
+        subtitle="Net P&L bucketed by weekday (Eastern trading day)."
+        hover
+      >
+        <DayOfWeekPnlChart buckets={dayOfWeek} />
       </Card>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
@@ -204,6 +215,84 @@ function VolumeByTimeChart({ buckets }: { buckets: VolumeByTimeBucket[] }) {
                 key={b.window}
                 fill={b.net_pnl >= 0 ? '#d4af37' : '#a7892c'}
               />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+// ── Day-of-week P&L chart ───────────────────────────────────────────────────
+//
+// Sibling to VolumeByTimeChart, matching its construction but with net P&L as
+// bar HEIGHT — so losing days draw DOWN around a zero baseline (a diverging
+// column chart) — and the weekday key on the X axis. Consumes reports.byDayOfWeek
+// (BucketStats[]), already ordered Mon→Sun by the backend. Color keeps the same
+// gold / gold-dim by-sign treatment as the time-of-day chart.
+function DayOfWeekPnlChart({ buckets }: { buckets: BucketStats[] }) {
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
+
+  if (buckets.length === 0) {
+    return (
+      <div className="px-5 py-12 text-center text-sm text-fg-tertiary">
+        No day-of-week data yet.
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-[200px] w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={buckets} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
+          <XAxis
+            dataKey="key"
+            stroke={palette.axis}
+            fontSize={11}
+            tickLine={false}
+            axisLine={{ stroke: palette.grid }}
+            interval="preserveStartEnd"
+            minTickGap={24}
+          />
+          <YAxis
+            stroke={palette.axis}
+            fontSize={11}
+            tickLine={false}
+            axisLine={{ stroke: palette.grid }}
+            tickFormatter={(v: number) =>
+              v >= 1000
+                ? `${(v / 1000).toFixed(0)}k`
+                : v <= -1000
+                  ? `-${(Math.abs(v) / 1000).toFixed(0)}k`
+                  : String(v)
+            }
+            width={48}
+          />
+          {/* Zero baseline so the profit-up / loss-down split reads clearly. */}
+          <ReferenceLine y={0} stroke={palette.grid} />
+          <RechartsTooltip
+            cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null
+              const p = payload[0].payload as BucketStats
+              return (
+                <div className="rounded-md border border-border-subtle bg-bg-1/95 px-3 py-2 shadow-lg backdrop-blur">
+                  <div className="font-mono text-xs text-fg-primary">{p.key}</div>
+                  <div className="mt-1 font-mono text-[11px] text-fg-secondary">
+                    {int(p.trade_count)} {p.trade_count === 1 ? 'trade' : 'trades'} ·{' '}
+                    {percent(p.win_rate, 0)} win
+                  </div>
+                  <div className={`mt-1 font-mono text-sm ${pnlClass(p.net_pnl)}`}>
+                    {signed(p.net_pnl)}
+                  </div>
+                </div>
+              )
+            }}
+          />
+          <Bar dataKey="net_pnl" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+            {buckets.map((b) => (
+              <Cell key={b.key} fill={b.net_pnl >= 0 ? '#d4af37' : '#a7892c'} />
             ))}
           </Bar>
         </BarChart>

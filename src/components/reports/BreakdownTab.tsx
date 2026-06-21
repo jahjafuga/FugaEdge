@@ -34,20 +34,6 @@ export default function BreakdownTab({ data }: BreakdownTabProps) {
       </CollapsibleCard>
 
       <CollapsibleCard
-        title="By day of week"
-        subtitle="Trade days grouped by weekday."
-      >
-        <ReportBucketTable keyHeader="Day" buckets={data.byDayOfWeek} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title="By hour"
-        subtitle="Grouped by the hour the round trip opened."
-      >
-        <ReportBucketTable keyHeader="Hour" buckets={data.byHour} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
         title="By share size"
         subtitle="Bucketed by peak position size during the round trip."
       >
