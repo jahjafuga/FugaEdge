@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import {
   Area,
   Bar,
@@ -275,13 +275,13 @@ function PickerSection({
         onClick={onToggle}
         aria-expanded={false}
         aria-label="Expand period picker"
-        className="flex w-full cursor-pointer items-center gap-3 rounded-md border border-border-subtle bg-bg-2 px-3 py-2 shadow-sm transition-colors duration-150 hover:bg-bg-3"
+        className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border-subtle bg-bg-2 px-3.5 py-2.5 shadow-md transition-colors duration-150 hover:border-border hover:bg-bg-3"
       >
         <ChevronRight size={14} strokeWidth={2.25} className="shrink-0 text-fg-tertiary" />
         <div className="flex-1 truncate font-mono text-[11px] text-fg-secondary tnum">
           <span className="text-gold">Period A</span>{' '}
           <span className="text-fg-primary">{summarizeRange(rangeA)}</span>
-          <span className="mx-2 text-fg-tertiary">vs</span>
+          <span className="mx-2.5 font-semibold text-fg-secondary">vs</span>
           <span style={{ color: palette.sideB }}>Period B</span>{' '}
           <span className="text-fg-primary">{summarizeRange(rangeB)}</span>
         </div>
@@ -292,9 +292,9 @@ function PickerSection({
     )
   }
   return (
-    <div className="space-y-3">
+    <div className="card-premium space-y-4 p-5">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
           Periods
         </span>
         <button
@@ -309,16 +309,19 @@ function PickerSection({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[1fr_auto_1fr]">
         <PeriodPicker
           which="A"
           tone="gold"
           range={rangeA}
           onChange={(r) => onRangeChange('A', r)}
         />
+        <span className="justify-self-center inline-flex h-8 w-8 items-center justify-center rounded-full border border-border-subtle bg-bg-1 text-[11px] font-semibold uppercase tracking-wider text-fg-secondary shadow-sm">
+          vs
+        </span>
         <PeriodPicker
           which="B"
-          tone="win"
+          tone="teal"
           range={rangeB}
           onChange={(r) => onRangeChange('B', r)}
         />
@@ -354,15 +357,24 @@ function PeriodPicker({
   onChange,
 }: {
   which: 'A' | 'B'
-  tone: 'gold' | 'win'
+  tone: 'gold' | 'teal'
   range: DateRange
   onChange: (r: DateRange) => void
 }) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
   const isGold = tone === 'gold'
+  // A uses the themed `gold` Tailwind tokens. Teal (B) has no theme-aware Tailwind
+  // token, so expose the theme-aware palette.sideB as a CSS var (--accent) and
+  // reference it from Tailwind arbitrary-property hover/focus classes — the only
+  // way to get a theme-correct teal into :hover / :focus the way gold tokens do.
+  const accentVar = isGold ? undefined : ({ '--accent': palette.sideB } as CSSProperties)
+  const presetAccent = isGold
+    ? 'hover:border-gold/40 hover:text-gold'
+    : 'hover:[border-color:var(--accent)] hover:[color:var(--accent)]'
+  const inputAccent = isGold ? 'focus:border-gold' : 'focus:[border-color:var(--accent)]'
   return (
-    <div className="rounded-md border border-border-subtle bg-bg-2 p-3 shadow-sm">
+    <div className="rounded-md border border-border-subtle bg-bg-2 p-3 shadow-sm" style={accentVar}>
       <div className="mb-2 flex items-center gap-2">
         <span
           className={`inline-flex h-5 items-center rounded-sm border px-1.5 text-[10px] font-semibold uppercase tracking-wider ${isGold ? 'border-gold/40 text-gold' : ''}`}
@@ -380,7 +392,7 @@ function PeriodPicker({
             key={p}
             type="button"
             onClick={() => onChange(rangeForPreset(p))}
-            className="cursor-pointer rounded border border-border-strong bg-bg-1 px-2 py-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+            className={`cursor-pointer rounded border border-border-strong bg-bg-1 px-2 py-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 ${presetAccent}`}
           >
             {PERIOD_PRESET_LABEL[p]}
           </button>
@@ -393,7 +405,7 @@ function PeriodPicker({
             type="date"
             value={range.from}
             onChange={(e) => onChange({ ...range, from: e.target.value })}
-            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:border-gold focus:outline-none"
+            className={`rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:outline-none ${inputAccent}`}
           />
         </label>
         <label className="inline-flex items-center gap-1">
@@ -402,7 +414,7 @@ function PeriodPicker({
             type="date"
             value={range.to}
             onChange={(e) => onChange({ ...range, to: e.target.value })}
-            className="rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:border-gold focus:outline-none"
+            className={`rounded border border-border-strong bg-bg-1 px-1.5 py-0.5 text-xs text-fg-primary focus:outline-none ${inputAccent}`}
           />
         </label>
       </div>
