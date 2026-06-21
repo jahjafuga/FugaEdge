@@ -169,6 +169,11 @@ export default function CompareView({
             <CumulativeOverlayChart comparison={comparison} />
           </Card>
 
+          {/* R-multiple distribution — paired A-vs-B histogram (sub-phase B2) */}
+          <Card title="R-multiple distribution — Period A vs Period B">
+            <RDistributionComparisonChart comparison={comparison} />
+          </Card>
+
           {/* Breakdown comparison cards — 2-up grid on desktop so all five
               dimensions are visible in ~3 screens of scroll instead of
               six. Stacks vertically on narrow screens. Grid `items-stretch`
@@ -950,6 +955,129 @@ function OverlayTooltip({ active, payload }: {
         )}
       </div>
     </div>
+  )
+}
+
+// ── R-multiple distribution (paired A vs B) ────────────────────────────────
+//
+// Grouped gold-A / teal-B histogram over the 7 fixed R buckets. periodA and
+// periodB.rDistribution are both buildRDistribution output, so they share the
+// bucket set and order — we zip by bucket label. Coverage-honest: the caption
+// shows the real R denominator (rDistCoverage of trades) per period; a period
+// under LOW_R_SAMPLE covered trades is dimmed + badged (not hidden); a both-zero
+// comparison shows an empty state instead of a flat zero axis. Matches the
+// single-series RDistributionCard's recharts look, adapted to two series.
+
+// Floor below which an R distribution is too thin to read as a real shape — dim
+// + badge that period's bars rather than imply a distribution from a few trades.
+const LOW_R_SAMPLE = 5
+
+function RDistributionComparisonChart({ comparison }: { comparison: ComparisonResult }) {
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
+  const a = comparison.periodA
+  const b = comparison.periodB
+
+  // Zip the two periods' buckets by shared label (find is defensive; both arrays
+  // are the same 7 labels in the same order).
+  const data = useMemo(
+    () =>
+      a.rDistribution.map((bucketA) => ({
+        bucket: bucketA.bucket,
+        A: bucketA.count,
+        B: b.rDistribution.find((x) => x.bucket === bucketA.bucket)?.count ?? 0,
+      })),
+    [a.rDistribution, b.rDistribution],
+  )
+
+  const aLow = a.rDistCoverage > 0 && a.rDistCoverage < LOW_R_SAMPLE
+  const bLow = b.rDistCoverage > 0 && b.rDistCoverage < LOW_R_SAMPLE
+  const bothZero = a.rDistCoverage === 0 && b.rDistCoverage === 0
+
+  // Muted denominator caption — same idiom as the stat-block coverage sub-lines.
+  const caption = (
+    <div className="text-[11px] text-fg-tertiary">
+      R logged: A {a.rDistCoverage} of {a.trades} · B {b.rDistCoverage} of {b.trades}
+    </div>
+  )
+
+  if (bothZero) {
+    return (
+      <>
+        {caption}
+        <div className="mt-3 rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
+          <div className="mb-1 uppercase tracking-wider text-gold">Awaiting data</div>
+          No R-multiples logged in either period — log planned risk on trades to
+          populate this.
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {caption}
+      {(aLow || bLow) && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {aLow && (
+            <span className="rounded-sm border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary">
+              Period A: low sample (n={a.rDistCoverage})
+            </span>
+          )}
+          {bLow && (
+            <span className="rounded-sm border border-warning/40 bg-warning/[0.08] px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary">
+              Period B: low sample (n={b.rDistCoverage})
+            </span>
+          )}
+        </div>
+      )}
+      <div className="mt-3 h-[240px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }} barCategoryGap="20%" barGap={2}>
+            <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
+            <XAxis
+              dataKey="bucket"
+              stroke={palette.axis}
+              fontSize={10}
+              tickLine={false}
+              axisLine={{ stroke: palette.grid }}
+              interval={0}
+            />
+            <YAxis
+              stroke={palette.axis}
+              fontSize={10}
+              tickLine={false}
+              axisLine={{ stroke: palette.grid }}
+              allowDecimals={false}
+              width={32}
+            />
+            <RechartsTooltip
+              cursor={{ fill: 'rgba(127,127,127,0.05)' }}
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null
+                const d = payload[0].payload as { bucket: string; A: number; B: number }
+                return (
+                  <div className="rounded-md border border-border bg-bg-4 px-3 py-2 shadow-md">
+                    <div className="font-mono text-[11px] text-fg-tertiary">{d.bucket}</div>
+                    <div className="mt-1 flex flex-col gap-0.5 text-[11px]">
+                      <span className="font-mono tnum" style={{ color: palette.sideA }}>
+                        A: {d.A} {d.A === 1 ? 'trade' : 'trades'}
+                      </span>
+                      <span className="font-mono tnum" style={{ color: palette.sideB }}>
+                        B: {d.B} {d.B === 1 ? 'trade' : 'trades'}
+                      </span>
+                    </div>
+                  </div>
+                )
+              }}
+            />
+            <Legend verticalAlign="top" height={24} wrapperStyle={{ fontSize: 11, color: palette.axis }} />
+            <Bar dataKey="A" name="Period A" fill={palette.sideA} fillOpacity={aLow ? 0.4 : 1} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="B" name="Period B" fill={palette.sideB} fillOpacity={bLow ? 0.4 : 1} radius={[2, 2, 0, 0]} isAnimationActive={false} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </>
   )
 }
 
