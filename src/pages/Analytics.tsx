@@ -10,6 +10,7 @@ import ExecutionTab from '@/components/analytics/tabs/ExecutionTab'
 import MomentumTab from '@/components/analytics/tabs/MomentumTab'
 import PsychologyTab from '@/components/analytics/tabs/PsychologyTab'
 import SymbolsTab from '@/components/analytics/tabs/SymbolsTab'
+import AnalyticsQualityTab from '@/components/analytics/tabs/AnalyticsQualityTab'
 import TechnicalsTab from '@/components/analytics/tabs/TechnicalsTab'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
@@ -23,6 +24,7 @@ type TabKey =
   | 'execution'
   | 'momentum'
   | 'psychology'
+  | 'quality'
   | 'symbols'
   | 'technicals'
 
@@ -32,6 +34,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'execution', label: 'Execution' },
   { key: 'momentum', label: 'Momentum' },
   { key: 'psychology', label: 'Psychology' },
+  { key: 'quality', label: 'Quality' },
   { key: 'symbols', label: 'Symbols' },
   { key: 'technicals', label: 'Technicals' },
 ]
@@ -133,8 +136,8 @@ export default function Analytics() {
       subtitle={
         <span>
           <span className="font-mono text-text">{int(data.trade_count)}</span>{' '}
-          round trip{data.trade_count === 1 ? '' : 's'} analyzed — six tabs of
-          deep stats.
+          round trip{data.trade_count === 1 ? '' : 's'} analyzed —{' '}
+          {TABS.filter((t) => t.key !== 'overview').length} tabs of deep stats.
         </span>
       }
     >
@@ -164,6 +167,7 @@ export default function Analytics() {
           )}
           {tab === 'momentum' && <MomentumTab data={data} />}
           {tab === 'psychology' && <PsychologyTab data={data} />}
+          {tab === 'quality' && reports && <AnalyticsQualityTab reports={reports} />}
           {tab === 'symbols' && <SymbolsTab data={data} reports={reports} />}
           {tab === 'technicals' && <TechnicalsTab />}
         </div>
