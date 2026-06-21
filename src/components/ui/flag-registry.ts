@@ -75,6 +75,9 @@ import MH from 'country-flag-icons/react/3x2/MH'
 import JE from 'country-flag-icons/react/3x2/JE'
 import GG from 'country-flag-icons/react/3x2/GG'
 import IM from 'country-flag-icons/react/3x2/IM'
+// Outside REGION_MAP (folds into the 'Other' region) but present on real
+// trades — added so it renders a flag, not the code-pill fallback.
+import CI from 'country-flag-icons/react/3x2/CI'
 
 type FlagSvgComponent = (
   props: React.HTMLAttributes<SVGElement>,
@@ -96,4 +99,5 @@ export const FLAG_COMPONENTS: Record<string, FlagSvgComponent> = {
   IN,
   MX, BR, AR, CL, CO, PE,
   KY, BM, VG, MH, JE, GG, IM,
+  CI,
 }

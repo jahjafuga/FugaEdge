@@ -89,7 +89,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
   // Common-but-unmapped codes — fall in 'Other' region, named here so the UI
   // doesn't show a bare ISO code.
   RU: 'Russia', TR: 'Turkey', SA: 'Saudi Arabia', AE: 'United Arab Emirates',
-  ZA: 'South Africa', NG: 'Nigeria', EG: 'Egypt', TH: 'Thailand',
+  ZA: 'South Africa', NG: 'Nigeria', EG: 'Egypt', CI: "Cote d'Ivoire", TH: 'Thailand',
   ID: 'Indonesia', MY: 'Malaysia', PH: 'Philippines', VN: 'Vietnam',
   PK: 'Pakistan', BD: 'Bangladesh', LK: 'Sri Lanka',
   RO: 'Romania', BG: 'Bulgaria', UA: 'Ukraine', HR: 'Croatia', SI: 'Slovenia',

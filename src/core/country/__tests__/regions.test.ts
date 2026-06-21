@@ -52,6 +52,15 @@ describe('regions', () => {
     expect(getCountryName('ZZ')).toBe('Unknown')
   })
 
+  it("names CI (Cote d'Ivoire) but keeps it in the Other region bucket", () => {
+    // CI is real stored data (NCT's domicile) but outside REGION_MAP — named
+    // so the By-Country card shows the country + flag instead of a bare code,
+    // while region stays the 'Other' catch-all (no Africa bucket in this
+    // trading-centric taxonomy — Option A).
+    expect(getCountryName('CI')).toBe("Cote d'Ivoire")
+    expect(getRegionForCountry('CI')).toBe('Other')
+  })
+
   it('REGION_REPRESENTATIVE_COUNTRY has an entry for every REGIONS key', () => {
     for (const r of REGIONS) {
       expect(r in REGION_REPRESENTATIVE_COUNTRY).toBe(true)
