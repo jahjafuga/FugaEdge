@@ -76,3 +76,13 @@ export {
   computePeriodComparison,
   generateComparisonInsights,
 } from './comparison'
+
+export {
+  buildEquityCurve,
+  computeDrawdown,
+  type DrawdownEquityPoint,
+  type DrawdownInfo,
+  type EquityPoint,
+} from './equity'
+
+export { computeFullStats, type TradeForStats } from './fullStats'
