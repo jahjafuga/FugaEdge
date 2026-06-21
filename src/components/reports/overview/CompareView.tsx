@@ -520,9 +520,15 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
         { label: 'Hold (all)',        a: a.avgHoldSeconds,        b: b.avgHoldSeconds,        format: 'duration', higherIsBetter: null },
         { label: 'Hold (winners)',    a: a.avgHoldSecondsWinners, b: b.avgHoldSecondsWinners, format: 'duration', higherIsBetter: true },
         { label: 'Hold (losers)',     a: a.avgHoldSecondsLosers,  b: b.avgHoldSecondsLosers,  format: 'duration', higherIsBetter: false },
+        { label: 'Hold (scratch)',    a: a.avgHoldScratch ?? null, b: b.avgHoldScratch ?? null, format: 'duration', higherIsBetter: null },
         { label: 'Fees',              a: a.fees,                  b: b.fees,                  format: 'money',    higherIsBetter: false },
         { label: 'Gross P&L',         a: a.grossPnL,              b: b.grossPnL,              format: 'money',    higherIsBetter: true },
         { label: 'Avg trade P&L',     a: a.avgTradePnL,           b: b.avgTradePnL,           format: 'money',    higherIsBetter: true },
+        // Wired tier (Beat 2): volume is context (neutral grey delta); max drawdown
+        // is a positive $ magnitude where smaller is better. 'int' on volume renders
+        // raw digits (no compaction) — flagged for a possible compactShares format kind.
+        { label: 'Avg daily volume',  a: a.avgDailyVolume ?? null, b: b.avgDailyVolume ?? null, format: 'int',      higherIsBetter: null },
+        { label: 'Max drawdown',      a: a.maxDrawdown ?? null,    b: b.maxDrawdown ?? null,    format: 'money',    higherIsBetter: false },
       ],
     },
   ]

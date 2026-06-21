@@ -14,7 +14,10 @@ import {
   calendarDayPnLMap,
   computeDailyPnL,
   computePeriodMetrics,
+  tradesInRange,
 } from './metrics'
+import { computeFullStats } from './fullStats'
+import { buildEquityCurve, computeDrawdown } from './equity'
 import type {
   AlignedRow,
   AlignedSeries,
@@ -414,9 +417,34 @@ export function computePeriodComparison(
 ): ComparisonResult {
   const a = computePeriodMetrics(trades, rangeA)
   const b = computePeriodMetrics(trades, rangeB)
+
+  // Wired tier: three stats already produced by the pure full-stats / drawdown
+  // helpers but absent from PeriodMetrics. Slice with the SAME tradesInRange
+  // computePeriodMetrics uses so the numbers can't diverge, then attach. Done
+  // HERE (not inside computePeriodMetrics) so its CalendarCompareStrip caller is
+  // not taxed with the extra full-stats + drawdown pass. No new math.
+  const rowsA = tradesInRange(trades, rangeA)
+  const rowsB = tradesInRange(trades, rangeB)
+  const fsA = computeFullStats(rowsA)
+  const fsB = computeFullStats(rowsB)
+  const ddA = computeDrawdown(buildEquityCurve(rowsA))
+  const ddB = computeDrawdown(buildEquityCurve(rowsB))
+  const periodA: PeriodMetrics = {
+    ...a,
+    avgDailyVolume: fsA.avg_daily_volume,
+    avgHoldScratch: fsA.avg_hold_seconds_scratches,
+    maxDrawdown: ddA?.amount ?? null,
+  }
+  const periodB: PeriodMetrics = {
+    ...b,
+    avgDailyVolume: fsB.avg_daily_volume,
+    avgHoldScratch: fsB.avg_hold_seconds_scratches,
+    maxDrawdown: ddB?.amount ?? null,
+  }
+
   return {
-    periodA: a,
-    periodB: b,
+    periodA,
+    periodB,
     headline: buildHeadlineDeltas(a, b),
     dailyPnL: alignByDayOfPeriod(trades, rangeA, rangeB, 'daily'),
     cumulativePnL: alignByDayOfPeriod(trades, rangeA, rangeB, 'cumulative'),

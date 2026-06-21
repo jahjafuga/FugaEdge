@@ -154,6 +154,17 @@ export interface PeriodMetrics {
   afterBigWinCount: number
   afterBigLossAvgPnl: number | null
   afterBigLossCount: number
+  // ── Wired tier (Beat 2) — already computed by computeFullStats /
+  // computeDrawdown, attached per period in computePeriodComparison (NOT in
+  // computePeriodMetrics, whose CalendarCompareStrip caller must stay cheap).
+  // Optional so bare computePeriodMetrics callers leave them undefined; the
+  // verdict block em-dashes null/undefined alike.
+  /** Avg daily share volume (shares bought + sold per trading day). */
+  avgDailyVolume?: number | null
+  /** Avg hold of scratch trades, in seconds. */
+  avgHoldScratch?: number | null
+  /** Max peak-to-trough drawdown of the cumulative-P&L curve, $ magnitude. */
+  maxDrawdown?: number | null
 }
 
 /** One bar of the R-multiple histogram. `bucket` is the display label; the
