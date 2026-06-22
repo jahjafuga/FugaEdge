@@ -9,6 +9,7 @@ import {
   LabelList,
   Legend,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip as RechartsTooltip,
@@ -181,11 +182,11 @@ export default function CompareView({
             <RDistributionComparisonChart comparison={comparison} />
           </Card>
 
-          {/* Breakdown comparison cards — 2-up grid on desktop so all five
-              dimensions are visible in ~3 screens of scroll instead of
-              six. Stacks vertically on narrow screens. Grid `items-stretch`
-              (the default) keeps each row's two cards the same height. */}
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          {/* Breakdown comparison cards — full-width single column. Each card
+              is a horizontal grouped-bar chart (gold A / teal B per category)
+              so long category names (playbook, catalyst) stay readable on the
+              left and the $ values are legible at the bar tips. */}
+          <div className="grid grid-cols-1 gap-3">
             <BreakdownComparisonCard
               trades={trades}
               rangeA={rangeA}
@@ -1275,10 +1276,9 @@ function BreakdownComparisonCard({
   // otherwise render as a label with two empty placeholders, eating
   // horizontal space for nothing.
   //
-  // For region/country dimensions we attach an `iso` alongside the label
-  // so the custom X-axis tick can render a flag SVG above the text. For
-  // every other dimension `iso` stays null and the tick falls back to
-  // text-only.
+  // For region/country dimensions we attach an `iso` alongside the label so the
+  // category Y-axis tick can render a flag SVG left of the name. For every other
+  // dimension `iso` stays null and the tick is text-only.
   const data = useMemo(() => {
     return breakdown.rows
       .filter((r) => r.tradesA > 0 || r.tradesB > 0)
@@ -1302,8 +1302,18 @@ function BreakdownComparisonCard({
       })
   }, [breakdown, dimension])
 
-  const showFlags = dimension === 'region' || dimension === 'country'
-  const rotate = data.length > 6
+  // Horizontal layout: one band per row, two grouped bars (A gold, B teal).
+  // Height scales with the row count; the value axis is padded so the bar-tip
+  // $ labels have room (positive right of zero, negative left).
+  const yWidth = 210
+  const chartHeight = Math.max(140, data.length * 48 + 48)
+  const values = data.flatMap((d) => [d.A, d.B])
+  // Symmetric, zero-centered domain so x=0 sits DEAD CENTER on every card and
+  // gains/losses read consistently (right = gain, left = loss). Pad ~22% past
+  // the largest |value| so the bar-tip $ labels have room and don't clip.
+  const absMax = Math.max(1, ...values.map((v) => Math.abs(v)))
+  const xMax = absMax * 1.22
+  const xDomain: [number, number] = [-xMax, xMax]
 
   const emptyText =
     dimension === 'country'
@@ -1313,7 +1323,7 @@ function BreakdownComparisonCard({
         : 'No data for this dimension in either period.'
 
   return (
-    <div className="flex h-full flex-col rounded-md border border-border-subtle bg-bg-2 shadow-sm">
+    <div className="flex flex-col rounded-md border border-border-subtle bg-bg-2 shadow-sm">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -1335,52 +1345,64 @@ function BreakdownComparisonCard({
               {emptyText}
             </div>
           ) : (
-            <div className="h-[180px] w-full">
+            <div className="w-full" style={{ height: chartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
+                  layout="vertical"
                   data={data}
-                  margin={{ top: 18, right: 12, left: 0, bottom: 4 }}
-                  barCategoryGap="28%"
-                  barGap={2}
+                  margin={{ top: 6, right: 14, left: 4, bottom: 4 }}
+                  barCategoryGap="20%"
+                  barGap={3}
                 >
-                  <CartesianGrid stroke={palette.grid} strokeDasharray="2 4" vertical={false} />
+                  {/* Clean rounded value scale at the TOP — nice ticks only (no
+                      raw floats), small + muted so it reads as a quiet magnitude
+                      reference. The bar-tip $ labels stay the precise numbers. */}
                   <XAxis
+                    type="number"
+                    domain={xDomain}
+                    ticks={niceTicks(xMax)}
+                    orientation="top"
+                    tickFormatter={fmtScaleTick}
+                    tick={{ fontSize: 9, fill: palette.axis }}
+                    tickLine={false}
+                    axisLine={false}
+                    height={20}
+                  />
+                  <YAxis
+                    type="category"
                     dataKey="key"
                     stroke={palette.axis}
-                    fontSize={9}
                     tickLine={false}
                     axisLine={{ stroke: palette.grid }}
                     interval={0}
-                    // Custom tick when we're drawing flags so a 24×16
-                    // FlagSvg can sit above the text label. Other
-                    // dimensions keep Recharts' default tick handling.
-                    angle={showFlags ? undefined : rotate ? -30 : 0}
-                    textAnchor={showFlags ? undefined : rotate ? 'end' : 'middle'}
-                    tick={
-                      showFlags
-                        ? (props: TickRenderProps) => (
-                            <FlagTick
-                              {...props}
-                              data={data}
-                              rotate={rotate}
-                              axisColor={palette.axis}
-                            />
-                          )
-                        : undefined
-                    }
-                    height={
-                      showFlags ? (rotate ? 60 : 38) : rotate ? 44 : 18
-                    }
+                    width={yWidth}
+                    tick={(props: TickRenderProps) => (
+                      <FlagYTick {...props} data={data} axisColor={palette.axis} gutter={yWidth} />
+                    )}
                   />
-                  <YAxis
-                    stroke={palette.axis}
-                    fontSize={9}
-                    tickLine={false}
-                    axisLine={{ stroke: palette.grid }}
-                    tickFormatter={(v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))}
-                    width={44}
-                  />
-                  <ReferenceLine y={0} stroke={palette.grid} strokeDasharray="3 3" />
+                  {/* Soft gain/loss gradient watermark — left wash red
+                      (intensifying outward to the loss extreme), right wash green
+                      (intensifying outward to the gain extreme), faint at center.
+                      A background tint only (NOT bar color, NOT a delta); rendered
+                      before the bars so they sit opaque on top. Gradient ids are
+                      per-dimension — the card renders 8x and duplicate SVG ids
+                      would collide. */}
+                  <defs>
+                    <linearGradient id={`cmp-grad-loss-${dimension}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={palette.loss} stopOpacity={0.15} />
+                      <stop offset="100%" stopColor={palette.loss} stopOpacity={0.04} />
+                    </linearGradient>
+                    <linearGradient id={`cmp-grad-gain-${dimension}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor={palette.win} stopOpacity={0.04} />
+                      <stop offset="100%" stopColor={palette.win} stopOpacity={0.22} />
+                    </linearGradient>
+                  </defs>
+                  <ReferenceArea x1={-xMax} x2={0} fill={`url(#cmp-grad-loss-${dimension})`} />
+                  <ReferenceArea x1={0} x2={xMax} fill={`url(#cmp-grad-gain-${dimension})`} />
+                  {/* Faint value-axis gridlines at the nice ticks — a quiet
+                      reference, not a cage. Behind the bars; fine over the gradient. */}
+                  <CartesianGrid horizontal={false} stroke={palette.grid} strokeDasharray="2 4" strokeOpacity={0.5} />
+                  <ReferenceLine x={0} stroke={palette.grid} strokeDasharray="3 3" />
                   <RechartsTooltip
                     cursor={{ fill: 'rgba(127,127,127,0.05)' }}
                     content={({ active, payload }) => {
@@ -1408,7 +1430,7 @@ function BreakdownComparisonCard({
                     }}
                   />
                   <Legend
-                    verticalAlign="top"
+                    verticalAlign="bottom"
                     height={18}
                     iconSize={8}
                     wrapperStyle={{ fontSize: 10, color: palette.axis }}
@@ -1421,31 +1443,21 @@ function BreakdownComparisonCard({
                     dataKey="A"
                     name="Period A"
                     fill={goldHex}
-                    radius={[2, 2, 0, 0]}
+                    radius={[0, 2, 2, 0]}
                     isAnimationActive={false}
-                    maxBarSize={32}
+                    maxBarSize={20}
                   >
-                    <LabelList
-                      dataKey="A"
-                      position="top"
-                      formatter={(v: number) => (v === 0 ? '' : compactDeltaMoney(v))}
-                      style={{ fill: goldHex, fontSize: 9, fontFamily: 'JetBrains Mono' }}
-                    />
+                    <LabelList dataKey="A" content={renderBarTip(goldHex)} />
                   </Bar>
                   <Bar
                     dataKey="B"
                     name="Period B"
                     fill={winHex}
-                    radius={[2, 2, 0, 0]}
+                    radius={[0, 2, 2, 0]}
                     isAnimationActive={false}
-                    maxBarSize={32}
+                    maxBarSize={20}
                   >
-                    <LabelList
-                      dataKey="B"
-                      position="top"
-                      formatter={(v: number) => (v === 0 ? '' : compactDeltaMoney(v))}
-                      style={{ fill: winHex, fontSize: 9, fontFamily: 'JetBrains Mono' }}
-                    />
+                    <LabelList dataKey="B" content={renderBarTip(winHex)} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
@@ -1457,6 +1469,29 @@ function BreakdownComparisonCard({
   )
 }
 
+// Symmetric "nice" tick array (including 0) for the breakdown value axis. Picks
+// a step from {1,2,2.5,5}x10^k so each side gets ~3 intervals — clean ROUNDED
+// numbers (e.g. xMax~=51 -> [-50,-25,0,25,50]), NEVER raw decimals. Pure.
+function niceTicks(xMax: number): number[] {
+  const rough = Math.max(1, xMax) / 3
+  const pow = Math.max(1, Math.pow(10, Math.floor(Math.log10(rough))))
+  const mults = pow >= 10 ? [1, 2, 2.5, 5, 10] : [1, 2, 5, 10]
+  const step = mults.map((m) => m * pow).find((c) => c >= rough) ?? 10 * pow
+  const pos: number[] = []
+  for (let v = step; v <= xMax + step * 0.001; v += step) pos.push(Math.round(v))
+  return [...pos.map((v) => -v).reverse(), 0, ...pos]
+}
+
+// Rounded signed-$ for the value-scale ticks — integers only (no "-13.7779..."),
+// compact past 1k. 0 -> "$0". Negatives get a leading minus; positives are bare.
+function fmtScaleTick(v: number): string {
+  if (v === 0) return '$0'
+  const abs = Math.abs(v)
+  const body =
+    abs >= 1000 ? `$${(abs / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}k` : `$${abs}`
+  return v < 0 ? `-${body}` : body
+}
+
 function compactDeltaMoney(v: number): string {
   const sign = v >= 0 ? '+' : '-'
   const abs = Math.abs(v)
@@ -1464,12 +1499,12 @@ function compactDeltaMoney(v: number): string {
   return `${sign}$${abs.toFixed(0)}`
 }
 
-// ── Custom X-axis tick with a flag SVG above the text label ────────────
+// ── Bar-tip value label + flag Y-axis tick (horizontal breakdown bars) ──
 //
-// Recharts custom-tick functions run inside the chart <svg>, so the tick
-// must return SVG elements (not HTML). FlagSvg gives us a raw <svg>
-// pulled from the country-flag-icons registry that can be positioned
-// alongside the <text> label.
+// Recharts custom label/tick renderers run inside the chart <svg>, so they
+// return SVG elements (not HTML). renderBarTip draws the signed $ value just
+// past each bar's tip; FlagYTick draws a flag SVG + the name down the left
+// category axis for the region/country cards.
 
 interface BreakdownRowVisual {
   key: string
@@ -1483,40 +1518,98 @@ interface TickRenderProps {
   index?: number
 }
 
-interface FlagTickProps extends TickRenderProps {
-  data: BreakdownRowVisual[]
-  rotate: boolean
-  axisColor: string
+// Signed-$ label at a horizontal bar's tip — OUTSIDE the bar end so it stays
+// legible (the old vertical bars rendered these too small). Positive bars label
+// to the right of the tip, negative bars to the left, so a loss reads clearly.
+function renderBarTip(fill: string) {
+  return (props: {
+    x?: number | string
+    y?: number | string
+    width?: number | string
+    height?: number | string
+    value?: number | string
+  }) => {
+    const x = Number(props.x ?? 0)
+    const y = Number(props.y ?? 0)
+    const width = Number(props.width ?? 0)
+    const height = Number(props.height ?? 0)
+    const value = typeof props.value === 'number' ? props.value : Number(props.value)
+    if (!Number.isFinite(value) || value === 0) return null
+    const positive = value >= 0
+    const tipX = positive ? x + width + 5 : x - 5
+    return (
+      <text
+        x={tipX}
+        y={y + height / 2}
+        dy={3.5}
+        textAnchor={positive ? 'start' : 'end'}
+        fontSize={10.5}
+        fontWeight={600}
+        fontFamily="JetBrains Mono"
+        fill={fill}
+      >
+        {compactDeltaMoney(value)}
+      </text>
+    )
+  }
 }
 
-const FLAG_TICK_WIDTH = 24
-const FLAG_TICK_HEIGHT = 16
+const FLAG_Y_W = 19
+const FLAG_Y_H = 12
 
-function FlagTick({ x, y, payload, index, data, rotate, axisColor }: FlagTickProps) {
+// Category Y-axis tick for the region/country cards: a flag SVG + the name,
+// left of the bars, within the reserved `gutter` px. iso null (every other
+// dimension) → name only.
+function FlagYTick({
+  x = 0,
+  y = 0,
+  payload,
+  index,
+  data,
+  axisColor,
+  gutter,
+}: TickRenderProps & {
+  data: BreakdownRowVisual[]
+  axisColor: string
+  gutter: number
+}) {
   const row = typeof index === 'number' ? data[index] : undefined
   const iso = row?.iso ?? null
-  const textY = FLAG_TICK_HEIGHT + 14
-  // Recharts passes (x, y) at the top of the tick area just below the
-  // axis line. Translate so we draw relative to that origin.
+  const label = payload?.value ?? ''
+  // 12px left padding so the first character isn't clipped against the card's
+  // left edge; the flag (region/country) shifts in by the same amount.
+  const leftPad = 12
+  const left = -gutter + leftPad
+  const flagSpace = iso ? FLAG_Y_W + 7 : 0
+  const textX = left + flagSpace
+  // Keep the WHOLE name inside the gutter — never spill past x=0 onto the bars.
+  // Short names sit at 13px bold; a long name steps its font DOWN (floor 10) to
+  // fit the available text band; only if it still won't fit at the floor do we
+  // truncate that one with an ellipsis (rare — the 210px gutter + step-down fits
+  // the known long playbook names).
+  const band = Math.max(20, gutter - leftPad - flagSpace)
+  const CHAR_W = 6.8 // ~px per char at 13px semibold
+  const fullWidth = label.length * CHAR_W
+  const fontSize = fullWidth > band ? Math.max(10, Math.floor((band / fullWidth) * 13)) : 13
+  let text = label
+  const widthAtFont = fullWidth * (fontSize / 13)
+  if (widthAtFont > band) {
+    const charW = CHAR_W * (fontSize / 13)
+    text = label.slice(0, Math.max(1, Math.floor(band / charW) - 1)) + '…'
+  }
   return (
     <g transform={`translate(${x}, ${y})`}>
-      {iso && (
-        <FlagSvg
-          iso={iso}
-          x={-FLAG_TICK_WIDTH / 2}
-          y={2}
-          width={FLAG_TICK_WIDTH}
-          height={FLAG_TICK_HEIGHT}
-        />
-      )}
+      {iso && <FlagSvg iso={iso} x={left} y={-FLAG_Y_H / 2} width={FLAG_Y_W} height={FLAG_Y_H} />}
       <text
-        y={textY}
-        textAnchor={rotate ? 'end' : 'middle'}
-        fontSize={9}
+        x={textX}
+        y={0}
+        dy={4}
+        textAnchor="start"
+        fontSize={fontSize}
+        fontWeight={600}
         fill={axisColor}
-        transform={rotate ? `rotate(-30 0 ${textY})` : undefined}
       >
-        {payload.value}
+        {text}
       </text>
     </g>
   )
