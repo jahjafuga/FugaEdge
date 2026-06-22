@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   ListOrdered,
   CalendarDays,
-  BarChart3,
   BookOpen,
   PieChart,
   Crosshair,
@@ -35,7 +34,6 @@ const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/trades',    label: 'Trades',    Icon: ListOrdered },
   { to: '/calendar',  label: 'Calendar',  Icon: CalendarDays },
-  { to: '/reports',   label: 'Reports',   Icon: BarChart3 },
   { to: '/playbook',  label: 'Playbook',  Icon: BookOpen },
   { to: '/analytics', label: 'Analytics', Icon: PieChart },
   // EdgeIQ (v0.2.5 §I) — renders the inline EdgeIqMark in place of the lucide Icon.

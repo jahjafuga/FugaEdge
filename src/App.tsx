@@ -11,7 +11,6 @@ import Dashboard from './pages/Dashboard'
 // visits are warm.
 const Trades    = lazy(() => import('./pages/Trades'))
 const Calendar  = lazy(() => import('./pages/Calendar'))
-const Reports   = lazy(() => import('./pages/Reports'))
 const Analytics = lazy(() => import('./pages/Analytics'))
 const Intelligence = lazy(() => import('./pages/Intelligence'))
 const Playbook  = lazy(() => import('./pages/Playbook'))
@@ -50,7 +49,6 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/trades"    element={<Lazy><Trades /></Lazy>} />
         <Route path="/calendar"  element={<Lazy><Calendar /></Lazy>} />
-        <Route path="/reports"   element={<Lazy><Reports /></Lazy>} />
         <Route path="/analytics" element={<Lazy><Analytics /></Lazy>} />
         <Route path="/intelligence" element={<Lazy><Intelligence /></Lazy>} />
         <Route path="/playbook"  element={<Lazy><Playbook /></Lazy>} />

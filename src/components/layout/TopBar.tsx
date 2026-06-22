@@ -7,7 +7,6 @@ const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/dashboard': { crumb: 'Dashboard',  title: 'Performance Overview' },
   '/trades':    { crumb: 'Trades',     title: 'All Round Trips' },
   '/calendar':  { crumb: 'Calendar',   title: 'Trading Days' },
-  '/reports':   { crumb: 'Reports',    title: 'Performance Reports' },
   '/analytics': { crumb: 'Analytics',  title: 'Deep Analytics' },
   '/intelligence': { crumb: 'EdgeIQ', title: 'Your Trading Edge' },
   '/journal':   { crumb: 'Journal',    title: 'Trading Journal' },
