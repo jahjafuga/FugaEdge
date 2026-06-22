@@ -22,6 +22,10 @@ interface FilterBarProps {
   onQuickChange: (q: QuickRange) => void
   compareOn: boolean
   onToggleCompare: () => void
+  /** Hide the trailing "Compare periods" toggle. Reports leaves this false
+   *  (the toggle drives its compare mode); the Analytics Overview daily
+   *  dashboard passes true since Compare is its own Analytics tab. */
+  hideCompareToggle?: boolean
 }
 
 const SIDES: { value: SideFilter; label: string }[] = [
@@ -57,6 +61,7 @@ export default function FilterBar({
   onQuickChange,
   compareOn,
   onToggleCompare,
+  hideCompareToggle = false,
 }: FilterBarProps) {
   const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
   const catalystOptions = useMemo(() => distinctCatalysts(trades), [trades])
@@ -163,20 +168,23 @@ export default function FilterBar({
           Reset
         </button>
 
-        {/* Compare toggle */}
-        <button
-          type="button"
-          onClick={onToggleCompare}
-          aria-pressed={compareOn}
-          className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-            compareOn
-              ? 'border-gold/60 bg-gold/[0.12] text-gold'
-              : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/40 hover:text-gold'
-          }`}
-        >
-          <GitCompareArrows size={12} strokeWidth={2} />
-          Compare periods
-        </button>
+        {/* Compare toggle — hidden when hideCompareToggle (the Analytics
+            Overview daily dashboard, where Compare is a separate tab). */}
+        {!hideCompareToggle && (
+          <button
+            type="button"
+            onClick={onToggleCompare}
+            aria-pressed={compareOn}
+            className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+              compareOn
+                ? 'border-gold/60 bg-gold/[0.12] text-gold'
+                : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/40 hover:text-gold'
+            }`}
+          >
+            <GitCompareArrows size={12} strokeWidth={2} />
+            Compare periods
+          </button>
+        )}
       </div>
     </div>
   )

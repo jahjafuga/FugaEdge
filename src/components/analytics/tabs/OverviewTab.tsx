@@ -1,15 +1,34 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import EquityChart from '@/components/analytics/EquityChart'
 import KpiCard from '@/components/analytics/KpiCard'
+import FilterBar from '@/components/reports/overview/FilterBar'
+import NormalCharts from '@/components/reports/overview/NormalCharts'
+import {
+  applyFilters,
+  computeCumulativePnL,
+  computeDailyPnL,
+  computeDailyVolume,
+  computeDailyWinRate,
+  emptyFilters,
+  rangeForQuick,
+  type DateRange,
+  type OverviewFilters,
+  type QuickRange,
+} from '@/core/performance'
 import { int, longDate, money, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 interface OverviewTabProps {
   data: AnalyticsData
   reports: ReportsData | null
+  /** Full trade list (already fetched by the Analytics page). Powers the
+   *  re-homed daily dashboard below the snapshot; open positions are dropped
+   *  to match the Reports → Overview source. */
+  trades: TradeListRow[]
 }
 
 interface DayPnl {
@@ -35,9 +54,35 @@ function bestAndWorstDay(equity: AnalyticsData['equity']): {
   return { best, worst }
 }
 
-export default function OverviewTab({ data, reports }: OverviewTabProps) {
+export default function OverviewTab({ data, reports, trades }: OverviewTabProps) {
   const { best, worst } = useMemo(() => bestAndWorstDay(data.equity), [data.equity])
   const netPnl = data.feeImpact.total_net_pnl
+
+  // ── Re-homed daily dashboard (from Reports → Overview) ──────────────────
+  // Open positions are dropped so the per-day series match the Reports
+  // snapshot's source exactly; the equity/KPI snapshot above keeps its own
+  // `data` source untouched.
+  const dashTrades = useMemo(() => trades.filter((t) => !t.is_open), [trades])
+  const [filters, setFilters] = useState<OverviewFilters>(() => ({
+    ...emptyFilters(),
+    range: rangeForQuick('90d'),
+  }))
+  const [quick, setQuick] = useState<QuickRange>('90d')
+  const filtered = useMemo(() => applyFilters(dashTrades, filters), [dashTrades, filters])
+  const daily = useMemo(() => computeDailyPnL(filtered, filters.range), [filtered, filters.range])
+  const cumulative = useMemo(
+    () => computeCumulativePnL(filtered, filters.range),
+    [filtered, filters.range],
+  )
+  const volume = useMemo(
+    () => computeDailyVolume(filtered, filters.range),
+    [filtered, filters.range],
+  )
+  const winRateDaily = useMemo(
+    () => computeDailyWinRate(filtered, filters.range),
+    [filtered, filters.range],
+  )
+  const rangeLabel = labelForQuick(quick, filters.range)
   const profitFactor = reports?.fullStats.profit_factor ?? null
   const winRate = (() => {
     const w = reports?.fullStats.winners ?? 0
@@ -134,6 +179,34 @@ export default function OverviewTab({ data, reports }: OverviewTabProps) {
           )}
         </Card>
       </div>
+
+      {/* ── Daily breakdown — re-homed from Reports → Overview ──────────────
+          A distinct "dig deeper" section below the snapshot: the filterable
+          day-by-day charts. Everything above (equity curve, KPIs, bookends,
+          drawdown) is untouched. */}
+      <div className="pt-2">
+        <SectionHeader
+          title="Daily breakdown"
+          description="Filter by symbol, playbook, side, and more — then read your P&L, cumulative, volume, and win rate day by day."
+        />
+      </div>
+      <FilterBar
+        trades={dashTrades}
+        filters={filters}
+        onFiltersChange={setFilters}
+        quick={quick}
+        onQuickChange={setQuick}
+        compareOn={false}
+        onToggleCompare={noop}
+        hideCompareToggle
+      />
+      <NormalCharts
+        daily={daily}
+        cumulative={cumulative}
+        volume={volume}
+        winRate={winRateDaily}
+        rangeLabel={rangeLabel}
+      />
     </div>
   )
 }
@@ -237,4 +310,21 @@ function DrawdownSummary({
       </div>
     </div>
   )
+}
+
+// ── Daily-dashboard helpers (mirror reports/OverviewTab.tsx) ───────────────
+
+// Stable no-op for FilterBar's onToggleCompare — the toggle is hidden here
+// (hideCompareToggle), so this is never invoked; module-level keeps the prop
+// reference stable across renders.
+const noop = () => {}
+
+function labelForQuick(quick: QuickRange, range: DateRange | null): string {
+  if (quick === '30d') return '30 days'
+  if (quick === '60d') return '60 days'
+  if (quick === '90d') return '90 days'
+  if (quick === 'ytd') return 'YTD'
+  if (quick === 'all') return 'All time'
+  if (range) return 'Custom'
+  return ''
 }
