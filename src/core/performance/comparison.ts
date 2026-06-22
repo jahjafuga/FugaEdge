@@ -404,6 +404,27 @@ function floatBucketLabel(shares: number): string | null {
   return null
 }
 
+// Relative-volume buckets — MIRROR electron/reports/get.ts RVOL_BUCKETS / rvolBucket
+// EXACTLY (same boundaries + en-dash/× labels, RAW multiples) so the single-period
+// (Analytics) and per-period (Compare) RVOL breakdowns agree. rvol is read directly
+// off the trade (a stored column); null = no rvol data = null key = dropped and
+// counted in notShown.
+const RVOL_BUCKETS: { key: string; min: number; max: number }[] = [
+  { key: '0–2×', min: 0, max: 2 },
+  { key: '2–5×', min: 2, max: 5 },
+  { key: '5–10×', min: 5, max: 10 },
+  { key: '10×+', min: 10, max: Number.POSITIVE_INFINITY },
+]
+const RVOL_ORDER: Record<string, number> = Object.fromEntries(
+  RVOL_BUCKETS.map((b, i) => [b.key, i]),
+)
+function rvolBucketLabel(rvol: number): string | null {
+  for (const b of RVOL_BUCKETS) {
+    if (rvol >= b.min && rvol < b.max) return b.key
+  }
+  return null
+}
+
 function dimensionKey(
   t: TradeListRow,
   dim: BreakdownDimension,
@@ -429,6 +450,8 @@ function dimensionKey(
       return priceBucketLabel(entryPrice(t))
     case 'float':
       return t.float_shares == null ? null : floatBucketLabel(t.float_shares)
+    case 'rvol':
+      return t.rvol == null ? null : rvolBucketLabel(t.rvol)
     case 'region':
       return t.region ?? 'Unknown'
     case 'country':
@@ -493,6 +516,8 @@ export function computeBreakdownComparison(
     rows.sort((x, y) => (PRICE_ORDER[x.key] ?? 99) - (PRICE_ORDER[y.key] ?? 99))
   } else if (dim === 'float') {
     rows.sort((x, y) => (FLOAT_ORDER[x.key] ?? 99) - (FLOAT_ORDER[y.key] ?? 99))
+  } else if (dim === 'rvol') {
+    rows.sort((x, y) => (RVOL_ORDER[x.key] ?? 99) - (RVOL_ORDER[y.key] ?? 99))
   } else if (dim === 'dow') {
     rows.sort((x, y) => DOW_NAMES.indexOf(x.key) - DOW_NAMES.indexOf(y.key))
   } else {

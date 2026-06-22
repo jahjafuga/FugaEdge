@@ -252,6 +252,7 @@ export type BreakdownDimension =
   | 'hour'
   | 'price'
   | 'float'
+  | 'rvol'
   | 'region'
   | 'country'
 
