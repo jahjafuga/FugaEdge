@@ -250,6 +250,7 @@ export type BreakdownDimension =
   | 'sentiment'
   | 'dow'
   | 'hour'
+  | 'price'
   | 'region'
   | 'country'
 

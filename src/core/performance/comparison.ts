@@ -347,7 +347,38 @@ function mostMovedPlaybook(
   return worst
 }
 
-// ── Breakdown comparison (catalyst / playbook / sentiment / dow / hour) ──
+// ── Breakdown comparison (catalyst / playbook / sentiment / dow / hour / price) ──
+
+// Price-at-entry buckets — MIRRORS electron/reports/get.ts PRICE_BUCKETS /
+// priceBucketKey / entryPrice EXACTLY (same boundaries + labels) so the
+// single-period (Analytics) and per-period (Compare) price breakdowns agree on
+// which bucket a trade lands in. Replicated, not shared, because get.ts is
+// main-process; a future extract-to-a-shared-pure-module would DRY the two.
+const PRICE_BUCKETS: { key: string; min: number; max: number }[] = [
+  { key: '< $2', min: 0, max: 2 },
+  { key: '$2–5', min: 2, max: 5 },
+  { key: '$5–10', min: 5, max: 10 },
+  { key: '$10–15', min: 10, max: 15 },
+  { key: '$15–20', min: 15, max: 20 },
+  { key: '> $20', min: 20, max: Number.POSITIVE_INFINITY },
+]
+const PRICE_ORDER: Record<string, number> = Object.fromEntries(
+  PRICE_BUCKETS.map((b, i) => [b.key, i]),
+)
+
+// Entry price = the avg of the side opened on (buy for longs, sell for shorts),
+// with a fallback — mirrors get.ts entryPrice.
+function entryPrice(t: TradeListRow): number {
+  if (t.side === 'short') return t.avg_sell_price || t.avg_buy_price
+  return t.avg_buy_price || t.avg_sell_price
+}
+
+function priceBucketLabel(price: number): string | null {
+  for (const b of PRICE_BUCKETS) {
+    if (price >= b.min && price < b.max) return b.key
+  }
+  return null
+}
 
 function dimensionKey(
   t: TradeListRow,
@@ -370,6 +401,8 @@ function dimensionKey(
       const p = utcToEasternParts(t.open_time)
       return p ? `${p.hour}:00` : null
     }
+    case 'price':
+      return priceBucketLabel(entryPrice(t))
     case 'region':
       return t.region ?? 'Unknown'
     case 'country':
@@ -415,9 +448,12 @@ export function computeBreakdownComparison(
       tradesB: bv.n,
     })
   }
-  // Hour rows sort numerically; the rest sort by combined trade count desc.
+  // Hour numerically; price cheap->expensive by bucket order; dow by weekday;
+  // the rest by combined trade count desc.
   if (dim === 'hour') {
     rows.sort((x, y) => parseInt(x.key, 10) - parseInt(y.key, 10))
+  } else if (dim === 'price') {
+    rows.sort((x, y) => (PRICE_ORDER[x.key] ?? 99) - (PRICE_ORDER[y.key] ?? 99))
   } else if (dim === 'dow') {
     rows.sort((x, y) => DOW_NAMES.indexOf(x.key) - DOW_NAMES.indexOf(y.key))
   } else {
