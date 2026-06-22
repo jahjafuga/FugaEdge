@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
+import { computeDrawdown } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
 import type {
@@ -78,56 +79,6 @@ function computeEquity(rows: TradeRow[]): EquityPoint[] {
     cum += daily
     return { date: d, daily_pnl: daily, cumulative_net_pnl: cum }
   })
-}
-
-function computeMaxDrawdown(points: EquityPoint[]): MaxDrawdown | null {
-  if (points.length === 0) return null
-
-  let peakValue = points[0].cumulative_net_pnl
-  let peakDate = points[0].date
-  let maxAmount = 0
-  let ddPeakValue = peakValue
-  let ddPeakDate = peakDate
-  let ddTroughValue = peakValue
-  let ddTroughDate = peakDate
-
-  for (const p of points) {
-    if (p.cumulative_net_pnl > peakValue) {
-      peakValue = p.cumulative_net_pnl
-      peakDate = p.date
-    }
-    const draw = peakValue - p.cumulative_net_pnl
-    if (draw > maxAmount) {
-      maxAmount = draw
-      ddPeakValue = peakValue
-      ddPeakDate = peakDate
-      ddTroughValue = p.cumulative_net_pnl
-      ddTroughDate = p.date
-    }
-  }
-
-  if (maxAmount <= 0) return null
-
-  // Recovery: first date after the trough where cumulative >= the pre-drawdown peak.
-  let recoveryDate: string | null = null
-  for (const p of points) {
-    if (p.date <= ddTroughDate) continue
-    if (p.cumulative_net_pnl >= ddPeakValue) {
-      recoveryDate = p.date
-      break
-    }
-  }
-
-  return {
-    amount: maxAmount,
-    percent: ddPeakValue > 0 ? maxAmount / ddPeakValue : null,
-    peak_date: ddPeakDate,
-    peak_value: ddPeakValue,
-    trough_date: ddTroughDate,
-    trough_value: ddTroughValue,
-    recovered: recoveryDate != null,
-    recovery_date: recoveryDate,
-  }
 }
 
 interface StreakBuild {
@@ -902,7 +853,35 @@ export function getAnalytics(): AnalyticsData {
     .all() as TradeRow[]
 
   const equity = computeEquity(rows)
-  const maxDrawdown = computeMaxDrawdown(equity)
+  // Drawdown comes from the SAME pure, guarded computeDrawdown the Reports
+  // drawdown card uses, so the two can't drift. (An earlier near-zero-base
+  // ratio guard reached only the pure copy; the old local computeMaxDrawdown
+  // divided amount/peak unguarded, so a small peak could read below -100%.)
+  // Map the analytics EquityPoint (cumulative_net_pnl) onto the pure shape
+  // (cumulative), then project DrawdownInfo down to the MaxDrawdown fields the
+  // renderer reads (dropping the pure curve/extra fields so the IPC payload
+  // stays lean). Keep the prior "null when there's no real drawdown" contract
+  // so the card's empty state is unchanged.
+  const ddInfo = computeDrawdown(
+    equity.map((p) => ({
+      date: p.date,
+      daily_pnl: p.daily_pnl,
+      cumulative: p.cumulative_net_pnl,
+    })),
+  )
+  const maxDrawdown: MaxDrawdown | null =
+    ddInfo && ddInfo.amount > 0
+      ? {
+          amount: ddInfo.amount,
+          percent: ddInfo.percent,
+          peak_date: ddInfo.peak_date,
+          peak_value: ddInfo.peak_value,
+          trough_date: ddInfo.trough_date,
+          trough_value: ddInfo.trough_value,
+          recovered: ddInfo.recovered,
+          recovery_date: ddInfo.recovery_date,
+        }
+      : null
   const { longestWin, longestLoss, current } = computeStreaks(rows)
   const feeImpact = computeFeeImpact(rows)
   const { best, worst } = computeSymbols(rows)
