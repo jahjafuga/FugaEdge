@@ -251,10 +251,15 @@ export type BreakdownDimension =
   | 'dow'
   | 'hour'
   | 'price'
+  | 'float'
   | 'region'
   | 'country'
 
 export interface BreakdownComparison {
   dimension: BreakdownDimension
   rows: BreakdownRow[]
+  /** In-scope (rangeA ∪ rangeB) trades whose dimension key was null — dropped
+   *  from `rows` but COUNTED so a coverage-gated card can disclose the gap
+   *  (e.g. "N without float data"). 0 for dimensions that never drop. */
+  notShown: number
 }

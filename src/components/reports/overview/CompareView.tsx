@@ -240,6 +240,15 @@ export default function CompareView({
               rangeA={rangeA}
               rangeB={rangeB}
               sentimentByDate={sentimentByDate}
+              dimension="float"
+              title="P&L by float"
+              coverageNoun="float"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
               dimension="region"
               title="By Region"
             />
@@ -1253,6 +1262,7 @@ function BreakdownComparisonCard({
   sentimentByDate,
   dimension,
   title,
+  coverageNoun,
 }: {
   trades: TradeListRow[]
   rangeA: DateRange
@@ -1260,6 +1270,10 @@ function BreakdownComparisonCard({
   sentimentByDate: Map<string, number | null>
   dimension: BreakdownDimension
   title: string
+  /** When set on a coverage-gated card (float/rvol/gap), an "N trade(s) without
+   *  {coverageNoun} data" line discloses the notShown count. Omitted on the other
+   *  cards — they show no coverage line even if some keys are null. */
+  coverageNoun?: string
 }) {
   const [open, setOpen] = useState(false)
   const { resolved } = useThemeMode()
@@ -1330,9 +1344,17 @@ function BreakdownComparisonCard({
         className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors duration-150 hover:bg-bg-3"
         aria-expanded={open}
       >
-        <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
-          {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          <span>{title}</span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <span>{title}</span>
+          </div>
+          {coverageNoun && breakdown.notShown > 0 && (
+            <span className="pl-[22px] text-[10px] text-fg-tertiary">
+              {breakdown.notShown} {breakdown.notShown === 1 ? 'trade' : 'trades'} without{' '}
+              {coverageNoun} data
+            </span>
+          )}
         </div>
         <span className="text-[10px] text-fg-tertiary tnum">
           {data.length} {data.length === 1 ? 'row' : 'rows'}

@@ -380,6 +380,30 @@ function priceBucketLabel(price: number): string | null {
   return null
 }
 
+// Free-float buckets — MIRROR electron/reports/get.ts FLOAT_BUCKETS / floatBucket
+// EXACTLY (same boundaries + en-dash labels, RAW share counts) so the single-
+// period (Analytics) and per-period (Compare) float breakdowns agree. float_shares
+// is read directly off the trade (a stored column); null = no float data = null
+// key = dropped and counted in notShown.
+const FLOAT_BUCKETS: { key: string; min: number; max: number }[] = [
+  { key: '< 1M', min: 0, max: 1_000_000 },
+  { key: '1–2.5M', min: 1_000_000, max: 2_500_000 },
+  { key: '2.5–5M', min: 2_500_000, max: 5_000_000 },
+  { key: '5–10M', min: 5_000_000, max: 10_000_000 },
+  { key: '10–20M', min: 10_000_000, max: 20_000_000 },
+  { key: '20–50M', min: 20_000_000, max: 50_000_000 },
+  { key: '> 50M', min: 50_000_000, max: Number.POSITIVE_INFINITY },
+]
+const FLOAT_ORDER: Record<string, number> = Object.fromEntries(
+  FLOAT_BUCKETS.map((b, i) => [b.key, i]),
+)
+function floatBucketLabel(shares: number): string | null {
+  for (const b of FLOAT_BUCKETS) {
+    if (shares >= b.min && shares < b.max) return b.key
+  }
+  return null
+}
+
 function dimensionKey(
   t: TradeListRow,
   dim: BreakdownDimension,
@@ -403,6 +427,8 @@ function dimensionKey(
     }
     case 'price':
       return priceBucketLabel(entryPrice(t))
+    case 'float':
+      return t.float_shares == null ? null : floatBucketLabel(t.float_shares)
     case 'region':
       return t.region ?? 'Unknown'
     case 'country':
@@ -419,16 +445,27 @@ export function computeBreakdownComparison(
 ): BreakdownComparison {
   const a = new Map<string, { pnl: number; n: number }>()
   const b = new Map<string, { pnl: number; n: number }>()
+  // In-scope trades (rangeA ∪ rangeB) whose dimension key is null are dropped
+  // from the rows; count them HERE, at the drop site, so a coverage-gated card
+  // can disclose the gap honestly (e.g. "N without float data") instead of
+  // silently showing a short total. Out-of-scope trades are not counted.
+  let notShown = 0
   for (const t of trades) {
+    const inA = t.date >= rangeA.from && t.date <= rangeA.to
+    const inB = t.date >= rangeB.from && t.date <= rangeB.to
+    if (!inA && !inB) continue
     const key = dimensionKey(t, dim, sentimentByDate)
-    if (!key) continue
-    if (t.date >= rangeA.from && t.date <= rangeA.to) {
+    if (!key) {
+      notShown += 1
+      continue
+    }
+    if (inA) {
       const cur = a.get(key) ?? { pnl: 0, n: 0 }
       cur.pnl += t.net_pnl
       cur.n += 1
       a.set(key, cur)
     }
-    if (t.date >= rangeB.from && t.date <= rangeB.to) {
+    if (inB) {
       const cur = b.get(key) ?? { pnl: 0, n: 0 }
       cur.pnl += t.net_pnl
       cur.n += 1
@@ -454,12 +491,14 @@ export function computeBreakdownComparison(
     rows.sort((x, y) => parseInt(x.key, 10) - parseInt(y.key, 10))
   } else if (dim === 'price') {
     rows.sort((x, y) => (PRICE_ORDER[x.key] ?? 99) - (PRICE_ORDER[y.key] ?? 99))
+  } else if (dim === 'float') {
+    rows.sort((x, y) => (FLOAT_ORDER[x.key] ?? 99) - (FLOAT_ORDER[y.key] ?? 99))
   } else if (dim === 'dow') {
     rows.sort((x, y) => DOW_NAMES.indexOf(x.key) - DOW_NAMES.indexOf(y.key))
   } else {
     rows.sort((x, y) => y.tradesA + y.tradesB - (x.tradesA + x.tradesB))
   }
-  return { dimension: dim, rows }
+  return { dimension: dim, rows, notShown }
 }
 
 // ── Full top-level comparison ────────────────────────────────────────────
