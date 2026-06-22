@@ -253,6 +253,7 @@ export type BreakdownDimension =
   | 'price'
   | 'float'
   | 'rvol'
+  | 'gap'
   | 'region'
   | 'country'
 

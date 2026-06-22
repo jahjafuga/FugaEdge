@@ -258,6 +258,15 @@ export default function CompareView({
               rangeA={rangeA}
               rangeB={rangeB}
               sentimentByDate={sentimentByDate}
+              dimension="gap"
+              title="P&L by gap %"
+              coverageNoun="gap %"
+            />
+            <BreakdownComparisonCard
+              trades={trades}
+              rangeA={rangeA}
+              rangeB={rangeB}
+              sentimentByDate={sentimentByDate}
               dimension="region"
               title="By Region"
             />

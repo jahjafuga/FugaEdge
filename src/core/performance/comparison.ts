@@ -425,6 +425,30 @@ function rvolBucketLabel(rvol: number): string | null {
   return null
 }
 
+// At-entry daily % change vs prior close — a SIGNED percentage (+50% stored as
+// 50, gapped-down negative). No get.ts precedent; buckets designed fresh for the
+// real distribution (extreme up-gappers, fat tail past +900%). Exhaustive over
+// all reals via ±Infinity so a value is never left unbucketed — any negative
+// lands in '< 0%'. daily_change_pct is read directly off the trade (a stored
+// column); null = no gap data = null key = dropped and counted in notShown.
+const GAP_BUCKETS: { key: string; min: number; max: number }[] = [
+  { key: '< 0%', min: Number.NEGATIVE_INFINITY, max: 0 },
+  { key: '0–50%', min: 0, max: 50 },
+  { key: '50–100%', min: 50, max: 100 },
+  { key: '100–200%', min: 100, max: 200 },
+  { key: '200–500%', min: 200, max: 500 },
+  { key: '500%+', min: 500, max: Number.POSITIVE_INFINITY },
+]
+const GAP_ORDER: Record<string, number> = Object.fromEntries(
+  GAP_BUCKETS.map((b, i) => [b.key, i]),
+)
+function gapBucketLabel(pct: number): string | null {
+  for (const b of GAP_BUCKETS) {
+    if (pct >= b.min && pct < b.max) return b.key
+  }
+  return null
+}
+
 function dimensionKey(
   t: TradeListRow,
   dim: BreakdownDimension,
@@ -452,6 +476,8 @@ function dimensionKey(
       return t.float_shares == null ? null : floatBucketLabel(t.float_shares)
     case 'rvol':
       return t.rvol == null ? null : rvolBucketLabel(t.rvol)
+    case 'gap':
+      return t.daily_change_pct == null ? null : gapBucketLabel(t.daily_change_pct)
     case 'region':
       return t.region ?? 'Unknown'
     case 'country':
@@ -518,6 +544,8 @@ export function computeBreakdownComparison(
     rows.sort((x, y) => (FLOAT_ORDER[x.key] ?? 99) - (FLOAT_ORDER[y.key] ?? 99))
   } else if (dim === 'rvol') {
     rows.sort((x, y) => (RVOL_ORDER[x.key] ?? 99) - (RVOL_ORDER[y.key] ?? 99))
+  } else if (dim === 'gap') {
+    rows.sort((x, y) => (GAP_ORDER[x.key] ?? 99) - (GAP_ORDER[y.key] ?? 99))
   } else if (dim === 'dow') {
     rows.sort((x, y) => DOW_NAMES.indexOf(x.key) - DOW_NAMES.indexOf(y.key))
   } else {
