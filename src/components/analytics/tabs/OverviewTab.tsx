@@ -3,8 +3,12 @@ import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import EquityChart from '@/components/analytics/EquityChart'
 import KpiCard from '@/components/analytics/KpiCard'
-import FilterBar from '@/components/reports/overview/FilterBar'
 import NormalCharts from '@/components/reports/overview/NormalCharts'
+import AnalyticsFilterBar, {
+  rangeForQuickKey,
+  quickKeyLabel,
+  type QuickKey,
+} from '@/components/analytics/AnalyticsFilterBar'
 import {
   applyFilters,
   computeCumulativePnL,
@@ -12,10 +16,7 @@ import {
   computeDailyVolume,
   computeDailyWinRate,
   emptyFilters,
-  rangeForQuick,
-  type DateRange,
   type OverviewFilters,
-  type QuickRange,
 } from '@/core/performance'
 import { int, longDate, money, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
@@ -65,9 +66,9 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
   const dashTrades = useMemo(() => trades.filter((t) => !t.is_open), [trades])
   const [filters, setFilters] = useState<OverviewFilters>(() => ({
     ...emptyFilters(),
-    range: rangeForQuick('90d'),
+    range: rangeForQuickKey('7d'),
   }))
-  const [quick, setQuick] = useState<QuickRange>('90d')
+  const [quick, setQuick] = useState<QuickKey>('7d')
   const filtered = useMemo(() => applyFilters(dashTrades, filters), [dashTrades, filters])
   const daily = useMemo(() => computeDailyPnL(filtered, filters.range), [filtered, filters.range])
   const cumulative = useMemo(
@@ -82,7 +83,7 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
     () => computeDailyWinRate(filtered, filters.range),
     [filtered, filters.range],
   )
-  const rangeLabel = labelForQuick(quick, filters.range)
+  const rangeLabel = quickKeyLabel(quick)
   const profitFactor = reports?.fullStats.profit_factor ?? null
   const winRate = (() => {
     const w = reports?.fullStats.winners ?? 0
@@ -190,15 +191,12 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
           description="Filter by symbol, playbook, side, and more — then read your P&L, cumulative, volume, and win rate day by day."
         />
       </div>
-      <FilterBar
+      <AnalyticsFilterBar
         trades={dashTrades}
         filters={filters}
         onFiltersChange={setFilters}
         quick={quick}
         onQuickChange={setQuick}
-        compareOn={false}
-        onToggleCompare={noop}
-        hideCompareToggle
       />
       <NormalCharts
         daily={daily}
@@ -310,21 +308,4 @@ function DrawdownSummary({
       </div>
     </div>
   )
-}
-
-// ── Daily-dashboard helpers (mirror reports/OverviewTab.tsx) ───────────────
-
-// Stable no-op for FilterBar's onToggleCompare — the toggle is hidden here
-// (hideCompareToggle), so this is never invoked; module-level keeps the prop
-// reference stable across renders.
-const noop = () => {}
-
-function labelForQuick(quick: QuickRange, range: DateRange | null): string {
-  if (quick === '30d') return '30 days'
-  if (quick === '60d') return '60 days'
-  if (quick === '90d') return '90 days'
-  if (quick === 'ytd') return 'YTD'
-  if (quick === 'all') return 'All time'
-  if (range) return 'Custom'
-  return ''
 }
