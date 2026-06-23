@@ -657,7 +657,7 @@ function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
           targetLabel="70% target"
         />
         <GaugeRow
-          label="Profit/Loss ratio"
+          label="P&L ratio"
           a={a.winLossRatio}
           b={b.winLossRatio}
           kind="ratio"

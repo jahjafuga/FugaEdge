@@ -217,7 +217,7 @@ function Glance({
         <div className="flex flex-col items-center gap-1.5 px-1">
           <MiniDelta label="Net P&L" view={netD} />
           <MiniDelta label="Win rate" view={wrD} />
-          <MiniDelta label="P/L ratio" view={plrD} />
+          <MiniDelta label="P&L ratio" view={plrD} />
         </div>
         <PeriodSide label={labelB} color={sideB} m={b} align="right" />
       </div>
