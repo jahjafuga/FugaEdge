@@ -75,11 +75,11 @@ export default function DetailModalShell<K extends string>({
       className="fixed inset-0 z-[110] flex items-center justify-center p-6"
     >
       <div
-        className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
+        className="absolute inset-0 bg-bg-0/80 backdrop-blur-[5px]"
         onClick={onClose}
       />
       <div
-        className={`relative flex max-h-[92vh] w-full ${maxWidthClass} flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in`}
+        className={`card-premium card-accent relative flex max-h-[92vh] w-full ${maxWidthClass} flex-col overflow-hidden rounded-lg animate-modal-in`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
           <div className="min-w-0">
@@ -94,7 +94,7 @@ export default function DetailModalShell<K extends string>({
               type="button"
               onClick={onClose}
               aria-label="Close"
-              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary"
+              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-fg-primary"
             >
               <X size={16} strokeWidth={2} />
             </button>
@@ -115,7 +115,7 @@ export default function DetailModalShell<K extends string>({
                 title={interactive ? undefined : 'Ships later in the v0.2.2 build sequence'}
                 className={`relative inline-flex h-10 items-center gap-2 px-3 text-sm transition-colors duration-150 ease-out-soft ${
                   active
-                    ? 'text-fg-primary cursor-pointer'
+                    ? 'font-medium text-fg-primary cursor-pointer'
                     : interactive
                       ? 'text-fg-tertiary hover:text-fg-secondary cursor-pointer'
                       : 'text-fg-tertiary/40 cursor-not-allowed'
