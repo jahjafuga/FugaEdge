@@ -34,15 +34,15 @@ export default function CalendarHeader({
   const canNext = !range.latest || currentKey < range.latest.slice(0, 7)
 
   return (
-    <div className="rounded-md border border-border-subtle bg-bg-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-4 px-5 py-3 border-b border-border-subtle/60">
+    <div className="card-premium card-accent overflow-hidden rounded-lg">
+      <div className="flex flex-wrap items-baseline justify-between gap-4 px-5 py-3">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onPrev}
             disabled={!canPrev}
             aria-label="Previous month"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-border-subtle text-fg-primary transition-colors duration-150 hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-30"
           >
             ‹
           </button>
@@ -66,17 +66,17 @@ export default function CalendarHeader({
             onClick={onNext}
             disabled={!canNext}
             aria-label="Next month"
-            className="flex h-8 w-8 items-center justify-center rounded-md border border-border-subtle text-fg-primary transition-colors duration-150 hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-30"
           >
             ›
           </button>
         </div>
 
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 text-xs">
-          <Stat label="Net" value={signed(stats.net_pnl)} className={pnlClass(stats.net_pnl)} bold />
-          <Stat label="Fees" value={money(stats.total_fees)} className="text-loss" />
-          <Stat label="Trading days" value={int(stats.trading_days)} className="text-fg-primary" />
-          <Stat label="Trades" value={int(stats.trade_count)} className="text-fg-primary" />
+          <Stat label="Net" value={signed(stats.net_pnl)} className={pnlClass(stats.net_pnl)} hero />
+          <Stat label="Fees" value={money(stats.total_fees)} className="text-fg-secondary" />
+          <Stat label="Trading days" value={int(stats.trading_days)} className="text-fg-secondary" />
+          <Stat label="Trades" value={int(stats.trade_count)} className="text-fg-secondary" />
           <Stat
             label="W/L"
             value={
@@ -98,17 +98,17 @@ function Stat({
   label,
   value,
   className,
-  bold,
+  hero,
 }: {
   label: string
   value: React.ReactNode
   className?: string
-  bold?: boolean
+  hero?: boolean
 }) {
   return (
     <span>
       <span className="text-fg-tertiary">{label}</span>{' '}
-      <span className={`tnum ${bold ? 'font-medium' : ''} ${className ?? ''}`}>
+      <span className={`tnum ${hero ? 'text-base font-semibold' : ''} ${className ?? ''}`}>
         {value}
       </span>
     </span>
