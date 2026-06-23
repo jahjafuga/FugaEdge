@@ -1,6 +1,7 @@
 import type { CalendarYear, CalendarYearMonth } from '@shared/calendar-types'
 import { signed, int, percent, pnlClass } from '@/lib/format'
 import Skeleton from '@/components/ui/Skeleton'
+import YearCumulativeChart from '@/components/calendar/YearCumulativeChart'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -55,6 +56,7 @@ function YearSkeleton() {
           <Skeleton key={i} className="h-[104px]" />
         ))}
       </div>
+      <Skeleton className="h-[288px]" />
     </div>
   )
 }
@@ -185,6 +187,13 @@ function YearBody({
           />
         ))}
       </div>
+
+      <div className="card-premium rounded-lg p-4">
+        <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          Cumulative P&amp;L
+        </div>
+        <YearCumulativeChart months={data.months} />
+      </div>
     </div>
   )
 }
@@ -218,10 +227,23 @@ function MonthTile({
       type="button"
       onClick={onClick}
       aria-label={`${label} ${month.year} — ${traded ? signed(pnl) : 'no trades'}`}
-      className={`card-premium group flex min-h-[104px] cursor-pointer flex-col rounded-lg p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-gold/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold ${
+      className={`card-premium group relative isolate flex min-h-[104px] cursor-pointer flex-col rounded-lg p-4 text-left transition-all duration-150 hover:-translate-y-0.5 hover:border-gold/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold ${
         isCurrent ? 'card-accent ring-1 ring-gold/40' : ''
       } ${traded ? '' : 'opacity-60'}`}
     >
+      {/* Subtle green/red wash on traded tiles — same language as the day cell
+          (CalendarGrid bg-win/loss), dialed to half opacity (0.08 vs 0.16) for
+          the larger tile, layered UNDER the content so text stays readable and
+          UNDER the gold "now" ring. Scratch months (pnl === 0) and empty months
+          get no wash. */}
+      {traded && pnl !== 0 && (
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 -z-10 rounded-lg ${
+            pnl > 0 ? 'bg-win/[0.08]' : 'bg-loss/[0.08]'
+          }`}
+        />
+      )}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-fg-tertiary">{label}</span>
         <div className="flex items-center gap-1.5">
