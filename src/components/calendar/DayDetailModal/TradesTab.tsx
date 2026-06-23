@@ -42,7 +42,7 @@ export default function TradesTab({ trades, selectedTradeId, onSelectTrade }: Tr
         <SortButton active={sort === 'mistakes'} onClick={() => setSort('mistakes')}>Worst mistakes</SortButton>
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-border-subtle">
+      <div className="overflow-x-auto card-premium">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border-subtle bg-bg-2 text-[10px] uppercase tracking-wider text-fg-tertiary">

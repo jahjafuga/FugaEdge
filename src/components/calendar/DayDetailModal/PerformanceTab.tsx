@@ -221,7 +221,7 @@ export default function PerformanceTab({ detail }: { detail: DayDetail }) {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-x-8 gap-y-3 lg:grid-cols-2">
         {sections.map((section) => (
-          <div key={section.title} className="rounded-md border border-border-subtle/60 bg-bg-2">
+          <div key={section.title} className="card-premium overflow-hidden">
             <div className="border-b border-border-subtle/60 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gold">
               {section.title}
             </div>
