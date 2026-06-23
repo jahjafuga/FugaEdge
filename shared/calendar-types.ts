@@ -6,6 +6,12 @@ export interface CalendarDay {
   trade_count: number
   winners: number
   losers: number
+  /** Per-day average winner / average loser over net P&L (null when the day has
+   *  no winning / no losing trades). Raw honest fields - the cell derives the
+   *  P/L ratio = avg_winner / |avg_loser|, matching winLossRatio in
+   *  src/core/performance/metrics.ts. */
+  avg_winner: number | null
+  avg_loser: number | null
   day_tags: string[]   // FOMC, Earnings, Choppy… per-day labels
   has_journal: boolean // any journal content on this date (premarket, postsession, rules, emotion, OR no-trade-day mark)
   /** True when the trader marked this date as a no-trade / sit-out day.

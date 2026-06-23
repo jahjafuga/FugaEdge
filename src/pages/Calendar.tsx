@@ -115,6 +115,8 @@ export default function Calendar() {
           trade_count: 0,
           winners: 0,
           losers: 0,
+          avg_winner: null,
+          avg_loser: null,
           day_tags: [],
           has_journal: false,
           no_trade_day: false,

@@ -1,6 +1,6 @@
 import { CalendarOff, Pencil } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
-import { int, money, signed } from '@/lib/format'
+import { int, money, percent, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
 import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
 import closedSign from '@/assets/closed-sign.svg'
@@ -179,24 +179,37 @@ function DayCell({
   // (any other tags the user added to the day still show). Non-holiday cells
   // keep their tags unchanged.
   const cornerTags = isHoliday ? tags.filter((t) => t !== 'no-trade-day') : tags
+  // Win % from DECIDED trades only (winners + losers, excluding scratches); null
+  // when there are no decided trades so the cell never shows 0% / NaN.
+  const decided = (stats?.winners ?? 0) + (stats?.losers ?? 0)
+  const winRate = decided > 0 ? stats!.winners / decided : null
+  // Per-day P/L ratio = avg winner / |avg loser|, matching winLossRatio in
+  // src/core/performance/metrics.ts EXACTLY (null when no winners, no losers, or
+  // avg_loser is 0 - the slot then just omits, never a fabricated number).
+  const avgWinner = stats?.avg_winner ?? null
+  const avgLoser = stats?.avg_loser ?? null
+  const plRatio =
+    avgWinner != null && avgLoser != null && avgLoser !== 0
+      ? avgWinner / Math.abs(avgLoser)
+      : null
 
-  // Each cell sits on a bg-1 base (white in light mode, ~black in dark)
-  // with 1px bottom+right borders forming a single 1px grid (the
-  // table-cell pattern avoids the 2px doubling that full borders would
-  // cause between adjacent cells). Border color is --border (stronger
-  // than --border-subtle) so the grid reads cleanly on white in light
-  // mode. Win/loss tints layer on top.
-  // Subtle tints for win/loss days. Light mode uses green-50 / red-50 hexes
-  // per the design spec; dark mode keeps the win/loss soft alpha overlays.
-  const baseTone = !cell.inMonth
-    ? 'bg-bg-1/40 text-fg-tertiary'
+  // Premium day-cell treatment (calendar redesign, chunk 1). The wash + lift
+  // live on the CELL itself (the button), filling it edge-to-edge within the 1px
+  // grid lines - there is no inner floating box. A traded day's whole cell takes
+  // the win/loss tint (pushed past the old /10 so the month's green/red rhythm
+  // scans) plus a faint inset top-highlight for depth; empty / no-trade /
+  // holiday / out-of-month days stay on the quiet recessed base, so filled tiles
+  // read against flat empty slots. Light mode swaps the dark alpha wash for the
+  // green-50 / red-50 fills (the inset highlight is dark-only).
+  const cellTone = !cell.inMonth
+    ? 'bg-bg-1/40'
     : !has
-      ? 'bg-bg-1 text-fg-tertiary hover:bg-bg-2'
+      ? 'bg-bg-1 hover:bg-bg-2/60'
       : pnl > 0
-        ? 'bg-win/10 hover:bg-win/15 [.light_&]:bg-[#f0fdf4] [.light_&]:hover:bg-[#dcfce7]'
+        ? 'bg-win/[0.16] hover:bg-win/[0.22] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [.light_&]:bg-[#f0fdf4] [.light_&]:hover:bg-[#dcfce7] [.light_&]:shadow-none'
         : pnl < 0
-          ? 'bg-loss/10 hover:bg-loss/15 [.light_&]:bg-[#fef2f2] [.light_&]:hover:bg-[#fee2e2]'
-          : 'bg-bg-1 hover:bg-bg-2'
+          ? 'bg-loss/[0.16] hover:bg-loss/[0.22] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] [.light_&]:bg-[#fef2f2] [.light_&]:hover:bg-[#fee2e2] [.light_&]:shadow-none'
+          : 'bg-bg-2 hover:bg-bg-2/80'
 
   const selectedRing = isSelected
     ? 'ring-2 ring-gold ring-offset-2 ring-offset-bg-0 z-10 relative'
@@ -215,14 +228,18 @@ function DayCell({
       onClick={onClick}
       disabled={!cell.inMonth}
       title={title}
-      className={`flex min-h-[110px] flex-col items-stretch justify-between border-b border-r border-border-strong p-2.5 text-left transition-colors duration-150 ${baseTone} ${selectedRing} ${
+      className={`group flex min-h-[110px] flex-col border-b border-r border-border-strong p-2.5 text-left transition-colors duration-150 ${cellTone} ${
         cell.inMonth ? 'cursor-pointer' : 'cursor-default'
-      }`}
+      } ${selectedRing}`}
     >
-      <div className="flex items-baseline justify-between gap-1">
+      <div className="flex w-full items-start justify-between gap-1">
         <span
-          className={`font-mono text-base font-medium leading-none ${
-            isToday ? 'rounded-sm bg-gold px-1.5 py-0.5 text-accent-ink' : ''
+          className={`font-mono text-sm font-medium leading-none ${
+            isToday
+              ? 'rounded-md bg-gold px-1.5 py-0.5 text-accent-ink'
+              : cell.inMonth
+                ? 'text-fg-secondary'
+                : 'text-fg-muted'
           }`}
         >
           {cell.day}
@@ -232,11 +249,10 @@ function DayCell({
             <span
               aria-label="No-trade day"
               title="No-trade day"
-              // Muted gold per the v0.1.3 spec — distinct from the win/loss
-              // tile tints and the active sentiment / tag dots. Renders inline
-              // so cell layout stays unchanged on trading days. Holiday sit-outs
-              // show their closed sign centered in the cell body instead, so
-              // they intentionally have no corner icon here.
+              // Muted gold per the v0.1.3 spec - distinct from the win/loss
+              // tile tints and the active sentiment / tag dots. Holiday
+              // sit-outs show their closed sign centered in the body instead,
+              // so they intentionally have no corner icon here.
               style={{ color: 'rgba(212, 175, 55, 0.6)' }}
               className="inline-flex h-[14px] w-[14px] items-center justify-center"
             >
@@ -254,7 +270,7 @@ function DayCell({
             </span>
           )}
           {has && (
-            <span className="text-[12px] font-medium uppercase tracking-wider text-fg-tertiary">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-fg-tertiary">
               {stats!.trade_count}t
             </span>
           )}
@@ -273,38 +289,68 @@ function DayCell({
         </div>
       </div>
 
-      {isHoliday && !has && cell.inMonth && (
-        <div className="flex flex-1 items-center justify-center">
+      {/* Center hero (shared slot). w-full + flex-col + items-center so this
+          container OWNS the full cell width and centers its children on both
+          axes - a bare items-center on a shrink-wrapped row wrapper was
+          left-hugging because nothing forced full width. Traded -> P&L + one
+          stat line; holiday -> the 65px closed sign; empty -> nothing. The
+          three are mutually exclusive so exactly one renders. */}
+      <div className="flex w-full flex-1 flex-col items-center justify-center text-center">
+        {has ? (
+          <>
+            <span
+              className={`font-mono text-2xl font-bold leading-none tabular-nums ${
+                pnl > 0 ? 'text-win' : pnl < 0 ? 'text-loss' : 'text-fg-primary'
+              }`}
+            >
+              {signed(pnl)}
+            </span>
+            {/* One stat line under the P&L, built from colored SPANS so each
+                piece tints on its own: win% in gold, then W/L with winners
+                green / losers red. winRate is null-guarded (no decided trades
+                -> just the colored W/L, never 0% / NaN). */}
+            <div className="mt-1.5 flex items-center justify-center gap-1 font-mono text-[11px] font-medium leading-none tabular-nums">
+              {winRate != null && (
+                <>
+                  <span className="text-gold">{percent(winRate, 0)}</span>
+                  <span className="text-fg-muted">·</span>
+                </>
+              )}
+              <span>
+                <span className="text-win">{int(stats!.winners)}</span>
+                <span className="text-fg-muted">/</span>
+                <span className="text-loss">{int(stats!.losers)}</span>
+              </span>
+              {/* P/L ratio (gold) - avg winner / |avg loser|, rendered only when
+                  real (plRatio null -> token omitted, line stays win% + W/L).
+                  2 decimals, matching CalendarCompareStrip's fmtRatio. */}
+              {plRatio != null && (
+                <>
+                  <span className="text-fg-muted">·</span>
+                  <span className="text-gold">{plRatio.toFixed(2)}</span>
+                </>
+              )}
+            </div>
+          </>
+        ) : isHoliday && cell.inMonth ? (
           <img
             src={closedSign}
             alt="Market holiday"
             title="Holiday (market closed)"
             className="h-[65px] w-[65px]"
           />
-        </div>
-      )}
+        ) : null}
+      </div>
 
-      {has ? (
-        <div className="flex flex-col items-end justify-end gap-0.5">
-          <span
-            className={`font-mono text-[18px] font-semibold leading-tight ${
-              pnl > 0 ? 'text-win' : pnl < 0 ? 'text-loss' : 'text-fg-primary'
-            }`}
-          >
-            {signed(pnl)}
-          </span>
-          <span className="font-mono text-[10px] text-fg-tertiary">
-            <span className="text-win">{int(stats!.winners)}</span>
-            <span className="text-fg-tertiary">/</span>
-            <span className="text-loss">{int(stats!.losers)}</span>
-          </span>
-        </div>
-      ) : isHoliday && cell.inMonth ? (
-        <div className="flex justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">
+      {/* Bottom label: holiday -> MARKET CLOSED centered under the sign;
+          other no-trade / tagged days -> the day's tag (bottom-right, as
+          before). Traded days leave this empty - the hero is the result. */}
+      {isHoliday && cell.inMonth ? (
+        <div className="flex w-full justify-center text-[9px] uppercase tracking-wider text-fg-tertiary">
           Market closed
         </div>
-      ) : tags.length > 0 && cell.inMonth ? (
-        <div className="flex justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">
+      ) : !has && tags.length > 0 && cell.inMonth ? (
+        <div className="flex w-full justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">
           {tags[0]}
           {tags.length > 1 ? ` +${tags.length - 1}` : ''}
         </div>

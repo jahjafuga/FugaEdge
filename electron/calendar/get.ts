@@ -50,6 +50,8 @@ interface DayRowDb {
   trade_count: number
   winners: number
   losers: number
+  avg_winner: number | null
+  avg_loser: number | null
   day_tags: string | null
   has_journal: number
   no_trade_day: number
@@ -75,7 +77,15 @@ function readMonthDays(
           SUM(total_fees) AS total_fees,
           COUNT(*)        AS trade_count,
           SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END) AS winners,
-          SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers
+          SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers,
+          -- Per-day avg winner / avg loser over net_pnl, split by the SAME
+          -- win/loss predicates as the counts above. AVG ignores the NULLs the
+          -- no-ELSE CASE produces, so each averages ONLY its side; no winners
+          -- (or no losers) -> NULL, surfaced honestly (never 0). The cell
+          -- derives P/L ratio = avg_winner / |avg_loser|, matching winLossRatio
+          -- in src/core/performance/metrics.ts.
+          AVG(CASE WHEN ${sqlIsWin()} THEN net_pnl END)  AS avg_winner,
+          AVG(CASE WHEN ${sqlIsLoss()} THEN net_pnl END) AS avg_loser
         FROM trades
         WHERE date LIKE ? AND deleted_at IS NULL
         GROUP BY date
@@ -125,6 +135,8 @@ function readMonthDays(
         COALESCE(tr.trade_count, 0)              AS trade_count,
         COALESCE(tr.winners, 0)                  AS winners,
         COALESCE(tr.losers, 0)                   AS losers,
+        tr.avg_winner                            AS avg_winner,
+        tr.avg_loser                             AS avg_loser,
         jt.day_tags                              AS day_tags,
         COALESCE(jr.has_content, 0)              AS has_journal,
         -- Unified no-trade flag: either UI path counts. day_tags is a JSON
@@ -150,9 +162,10 @@ function readMonthDays(
       LEFT JOIN sm ON sm.date = d.date
       ORDER BY d.date ASC
     `)
-    // tr CTE's win/loss CASE `?` precede all three `date LIKE ?`, so the
-    // epsilon binds lead (losers binds the negated epsilon: sqlIsLoss is `< ?`).
-    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, like, like, like) as DayRowDb[]
+    // tr CTE's FOUR win/loss CASE `?` (winners + losers counts, then avg_winner
+    // + avg_loser) precede all three `date LIKE ?`, so the epsilons lead in that
+    // order: +eps (win count), -eps (loss count), +eps (avg win), -eps (avg loss).
+    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, SCRATCH_EPSILON, -SCRATCH_EPSILON, like, like, like) as DayRowDb[]
 
   return rows.map((r) => ({
     date: r.date,
@@ -162,6 +175,8 @@ function readMonthDays(
     trade_count: r.trade_count,
     winners: r.winners,
     losers: r.losers,
+    avg_winner: r.avg_winner,
+    avg_loser: r.avg_loser,
     day_tags: parseTags(r.day_tags),
     has_journal: !!r.has_journal,
     no_trade_day: !!r.no_trade_day,
