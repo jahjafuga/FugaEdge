@@ -97,10 +97,10 @@ export default function CalendarGrid({
   for (let r = 0; r < 6; r++) rows.push(cells.slice(r * 7, r * 7 + 7))
 
   return (
-    <div className="overflow-hidden rounded-md border border-border-subtle bg-bg-2">
+    <div className="card-accent overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-[var(--card-elevation)]">
       {/* Header row: weekday labels + (optional) "Week" label */}
-      <div className="flex border-b border-border-subtle/60">
-        <div className="grid flex-1 grid-cols-7 font-sans text-[10px] uppercase tracking-wider text-fg-tertiary">
+      <div className="flex border-b border-border bg-bg-2">
+        <div className="grid flex-1 grid-cols-7 font-sans text-[10px] font-medium uppercase tracking-[0.14em] text-fg-tertiary">
           {WEEKDAYS.map((w) => (
             <div key={w} className="px-2 py-2 text-center">
               {w}
@@ -109,7 +109,7 @@ export default function CalendarGrid({
         </div>
         {showWeekly && (
           <div
-            className="flex items-center justify-center border-l border-border-subtle/60 px-2 py-2 text-[10px] uppercase tracking-wider text-gold"
+            className="flex items-center justify-center border-l border-border px-2 py-2 text-[10px] font-medium uppercase tracking-[0.14em] text-gold"
             style={{ width: PANEL_WIDTH }}
           >
             Week
@@ -228,7 +228,7 @@ function DayCell({
       onClick={onClick}
       disabled={!cell.inMonth}
       title={title}
-      className={`group flex min-h-[110px] flex-col border-b border-r border-border-strong p-2.5 text-left transition-colors duration-150 ${cellTone} ${
+      className={`group flex min-h-[110px] flex-col border-b border-r border-border p-2.5 text-left transition-colors duration-150 ${cellTone} ${
         cell.inMonth ? 'cursor-pointer' : 'cursor-default'
       } ${selectedRing}`}
     >
