@@ -35,12 +35,17 @@ export default function DetailNotesTab({
   valueRef.current = value
   onSaveRef.current = onSave
 
-  // Reset when the editor switches to a different day/week.
+  // Re-seed ONLY when the editor switches to a different day/week (resetKey).
+  // Deliberately NOT keyed on initialValue: a bare initialValue change (e.g. a
+  // parent optimistically refreshing detail.note after a save) must NOT clobber
+  // in-progress typing. On a real tab switch the tab unmounts, so re-mount
+  // re-seeds the fresh initialValue via useState's initializer, not this effect.
   useEffect(() => {
     setValue(initialValue)
     lastSaved.current = initialValue
     setStatus('idle')
-  }, [resetKey, initialValue])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialValue omitted by design (see above)
+  }, [resetKey])
 
   // Flush a pending edit when this tab unmounts.
   useEffect(() => {

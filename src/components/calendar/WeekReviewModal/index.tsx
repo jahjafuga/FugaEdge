@@ -131,7 +131,15 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
         <DetailNotesTab
           resetKey={detail.weekStart}
           initialValue={detail.notes ?? ''}
-          onSave={(body) => weekRepo.saveWeekNotes(detail.weekStart, body)}
+          onSave={(body) =>
+            // After the save resolves, refresh detail.notes so a tab-switch
+            // re-mount of the Notes tab re-seeds the CURRENT value, not the
+            // stale fetch. Matches week/repo.ts: notes is a string ('' empty).
+            // The chain still resolves to the tab, so its "Saved" status fires.
+            weekRepo.saveWeekNotes(detail.weekStart, body).then(() =>
+              setDetail((d) => (d ? { ...d, notes: body } : d))
+            )
+          }
           label="Week notes"
           placeholder="What worked this week? What didn't? What's the plan for next week?"
         />

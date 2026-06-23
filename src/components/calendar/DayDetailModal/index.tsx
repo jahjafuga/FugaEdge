@@ -147,7 +147,15 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
         <DetailNotesTab
           resetKey={date}
           initialValue={detail.note ?? ''}
-          onSave={(body) => dayRepo.saveDayNote(date, body)}
+          onSave={(body) =>
+            // After the save resolves, refresh detail.note so a tab-switch
+            // re-mount of the Notes tab re-seeds the CURRENT value, not the
+            // stale fetch. Matches day/repo.ts: empty -> null. The chain still
+            // resolves to the tab, so its "Saved" status fires unchanged.
+            dayRepo.saveDayNote(date, body).then(() =>
+              setDetail((d) => (d ? { ...d, note: body || null } : d))
+            )
+          }
           label="Day notes"
           placeholder="How did the day go? Plan, execution, what to repeat or fix…"
         />
