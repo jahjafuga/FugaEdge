@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { AlertCircle, PieChart, Upload, Printer } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Skeleton from '@/components/ui/Skeleton'
@@ -15,6 +15,7 @@ import AnalyticsQualityTab from '@/components/analytics/tabs/AnalyticsQualityTab
 import TechnicalsTab from '@/components/analytics/tabs/TechnicalsTab'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
+import type { DateRange } from '@/core/performance'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
 import type { TradeListRow } from '@shared/trades-types'
@@ -42,12 +43,51 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'technicals', label: 'Technicals' },
 ]
 
+// Deep-link param parsing (Calendar compare card -> /analytics?tab=compare&...).
+
+const TAB_KEYS = TABS.map((t) => t.key)
+function isValidTabKey(t: string | null): t is TabKey {
+  return t != null && (TAB_KEYS as string[]).includes(t)
+}
+
+// Strict YYYY-MM-DD: shape + a real calendar date (the round-trip rejects
+// overflow like month 13 / day 32 that the Date ctor silently rolls over).
+function parseISODate(s: string | null): string | null {
+  if (!s || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+  const [y, m, d] = s.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null
+  return s
+}
+
+// A DateRange from a (from, to) param pair ONLY when both are valid ISO and
+// from <= to. Any missing/malformed/inverted pair -> undefined, so Compare
+// falls back to its own thisMonth/lastMonth defaults. Never throws.
+function rangeFromParams(from: string | null, to: string | null): DateRange | undefined {
+  const f = parseISODate(from)
+  const t = parseISODate(to)
+  if (!f || !t || f > t) return undefined
+  return { from: f, to: t }
+}
+
 export default function Analytics() {
+  const [params] = useSearchParams()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [reports, setReports] = useState<ReportsData | null>(null)
   const [trades, setTrades] = useState<TradeListRow[]>([])
   const [err, setErr] = useState<string | null>(null)
-  const [tab, setTab] = useState<TabKey>('overview')
+  // The initial tab can be deep-linked (?tab=compare); only a real TabKey is
+  // honored, anything else falls back to 'overview'. The TabBar still drives
+  // setTab after mount - the param only SEEDS the initial value, never locks it.
+  const [tab, setTab] = useState<TabKey>(() => {
+    const t = params.get('tab')
+    return isValidTabKey(t) ? t : 'overview'
+  })
+  // Optional deep-linked Compare periods (from the Calendar compare card),
+  // parsed from the URL. Absent/invalid -> undefined, so Compare uses its own
+  // defaults. Stable per location, so this is mount-stable.
+  const initialRangeA = useMemo(() => rangeFromParams(params.get('aFrom'), params.get('aTo')), [params])
+  const initialRangeB = useMemo(() => rangeFromParams(params.get('bFrom'), params.get('bTo')), [params])
 
   useEffect(() => {
     let cancelled = false
@@ -162,7 +202,13 @@ export default function Analytics() {
 
         <div key={tab} className="animate-fade-in">
           {tab === 'overview' && <OverviewTab data={data} reports={reports} trades={trades} />}
-          {tab === 'compare' && <AnalyticsCompareTab trades={trades} />}
+          {tab === 'compare' && (
+            <AnalyticsCompareTab
+              trades={trades}
+              initialRangeA={initialRangeA}
+              initialRangeB={initialRangeB}
+            />
+          )}
           {tab === 'performance' && (
             <PerformanceTab data={data} reports={reports} trades={trades} />
           )}

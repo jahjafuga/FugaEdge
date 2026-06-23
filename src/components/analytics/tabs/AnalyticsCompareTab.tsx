@@ -7,6 +7,11 @@ import type { TradeListRow } from '@shared/trades-types'
 
 interface AnalyticsCompareTabProps {
   trades: TradeListRow[]
+  /** Optional pre-loaded periods (e.g. deep-linked from the Calendar compare
+   *  card). Present → SEED the initial A/B ranges; absent → the usual
+   *  thisMonth/lastMonth defaults. The picker can still change them after mount. */
+  initialRangeA?: DateRange
+  initialRangeB?: DateRange
 }
 
 // Beat A of the Compare promotion — the existing Reports → Overview compare
@@ -19,9 +24,13 @@ interface AnalyticsCompareTabProps {
 // Minimal promote: passes ALL trades (the FilterBar symbol/playbook/side cross-
 // filter is dropped here — reconsidered in the flagship redesign arc). The
 // surface is intentionally as-is; the visual redesign is the next arc.
-export default function AnalyticsCompareTab({ trades }: AnalyticsCompareTabProps) {
-  const [rangeA, setRangeA] = useState<DateRange>(() => rangeForPreset('thisMonth'))
-  const [rangeB, setRangeB] = useState<DateRange>(() => rangeForPreset('lastMonth'))
+export default function AnalyticsCompareTab({
+  trades,
+  initialRangeA,
+  initialRangeB,
+}: AnalyticsCompareTabProps) {
+  const [rangeA, setRangeA] = useState<DateRange>(() => initialRangeA ?? rangeForPreset('thisMonth'))
+  const [rangeB, setRangeB] = useState<DateRange>(() => initialRangeB ?? rangeForPreset('lastMonth'))
 
   // Sentiment map keyed by date — needed for the "By Market Sentiment" compare
   // breakdown card. Fetched once; optional (empty map on failure so the card
