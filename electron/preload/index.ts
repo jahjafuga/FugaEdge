@@ -45,6 +45,7 @@ import type {
 } from '@shared/playbook-types'
 import type {
   CalendarMonth,
+  CalendarYear,
   DayTagsResult,
   SaveDayTagsInput,
   SaveWeekNotesInput,
@@ -206,6 +207,8 @@ const api = {
     ipcRenderer.invoke(IPC.ATTACHMENTS_DELETE, id),
   calendarGet: (year: number, month: number): Promise<CalendarMonth> =>
     ipcRenderer.invoke(IPC.CALENDAR_GET, { year, month }),
+  calendarYearGet: (year: number): Promise<CalendarYear> =>
+    ipcRenderer.invoke(IPC.CALENDAR_YEAR_GET, { year }),
   dayTagsSave: (input: SaveDayTagsInput): Promise<DayTagsResult> =>
     ipcRenderer.invoke(IPC.DAY_TAGS_SAVE, input),
   weekNotesSave: (input: SaveWeekNotesInput): Promise<WeekNotesResult> =>

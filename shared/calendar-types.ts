@@ -103,3 +103,28 @@ export interface CalendarMonth {
   range: CalendarRange
   weeks: WeeklySummary[]       // 6 entries, one per calendar grid row (Sun-start)
 }
+
+// ── Yearly view (v0.3.0 Beat 1) ─────────────────────────────────────────────
+
+/** One month's roll-up for the 12-tile yearly overview: the SAME nine fields as
+ *  CalendarMonthStats, plus the per-MONTH avg winner / avg loser so a tile can
+ *  show a P/L ratio (avg_winner / |avg_loser|) consistent with the per-day cells
+ *  (CalendarDay) and the weekly panels. avg_winner / avg_loser are null when the
+ *  month has no winning / no losing trades — honest, never 0 — exactly how
+ *  CalendarDay types its per-day pair. */
+export interface CalendarYearMonth extends CalendarMonthStats {
+  avg_winner: number | null
+  avg_loser: number | null
+}
+
+export interface CalendarYear {
+  year: number
+  /** Always 12 entries, January..December. A month with no trades comes back as
+   *  a zero row (trade_count 0, net_pnl 0, avg_winner/avg_loser null) so the grid
+   *  is always 12 tiles; the renderer treats trade_count === 0 as the empty state
+   *  (em-dash, not $0). */
+  months: CalendarYearMonth[]
+  /** Same range shape getCalendarMonth returns (earliest/latest + the
+   *  "YYYY-MM" monthsWithTrades) — drives prev/next-year boundary logic. */
+  range: CalendarRange
+}

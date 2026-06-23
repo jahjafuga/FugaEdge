@@ -22,6 +22,10 @@ export const IPC = {
   TRADES_HARD_DELETE_BULK: 'trades:hardDeleteBulk',
   TRADE_NOTE_SAVE: 'trade:noteSave',
   CALENDAR_GET: 'calendar:get',
+  // v0.3.0 Yearly View Beat 1 — 12-month rollup for one year (a single
+  // GROUP BY substr(date,1,7) query). Mirrors CALENDAR_GET; read-only,
+  // returns CalendarYear { year, months[12], range }.
+  CALENDAR_YEAR_GET: 'calendar:yearGet',
   REPORTS_GET: 'reports:get',
   ANALYTICS_GET: 'analytics:get',
   JOURNAL_GET: 'journal:get',

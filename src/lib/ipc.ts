@@ -91,6 +91,7 @@ export const ipc = {
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),
   calendarGet: (year: number, month: number) => window.api.calendarGet(year, month),
+  calendarYearGet: (year: number) => window.api.calendarYearGet(year),
   dayTagsSave: (input: SaveDayTagsInput) => window.api.dayTagsSave(input),
   weekNotesSave: (input: SaveWeekNotesInput) => window.api.weekNotesSave(input),
   reportsGet: () => window.api.reportsGet(),

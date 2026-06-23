@@ -6,6 +6,8 @@ import type {
   CalendarMonth,
   CalendarMonthStats,
   CalendarRange,
+  CalendarYear,
+  CalendarYearMonth,
 } from '@shared/calendar-types'
 import { getWeeklySummaries } from './weekly'
 
@@ -227,5 +229,111 @@ export function getCalendarMonth(year: number, month: number): CalendarMonth {
     days,
     range: readRange(db),
     weeks: getWeeklySummaries(year, month),
+  }
+}
+
+// ── Yearly view (v0.3.0 Beat 1) ─────────────────────────────────────────────
+
+interface YearMonthRowDb {
+  ym: string            // 'YYYY-MM'
+  net_pnl: number
+  gross_pnl: number
+  total_fees: number
+  trade_count: number
+  winners: number
+  losers: number
+  trading_days: number
+  avg_winner: number | null
+  avg_loser: number | null
+}
+
+// One-pass monthly roll-up for an entire year: SUM/COUNT grouped by
+// substr(date,1,7), reusing the SAME win/loss predicates + SCRATCH_EPSILON as
+// readMonthDays so the month tiles agree with the day cells at the scratch
+// boundary. avg_winner / avg_loser are computed over TRADES (not by averaging
+// the per-day averages, which would be statistically wrong). Returns ONLY the
+// months that actually have trades, keyed by month (1..12); getCalendarYear
+// fills the untraded months as zero rows.
+function readYearMonths(
+  db: ReturnType<typeof openDatabase>,
+  year: number,
+): Map<number, CalendarYearMonth> {
+  const like = `${year}-%`
+  const rows = db
+    .prepare(`
+      SELECT
+        substr(date, 1, 7)   AS ym,
+        SUM(net_pnl)         AS net_pnl,
+        SUM(gross_pnl)       AS gross_pnl,
+        SUM(total_fees)      AS total_fees,
+        COUNT(*)             AS trade_count,
+        SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END)  AS winners,
+        SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers,
+        COUNT(DISTINCT date) AS trading_days,
+        AVG(CASE WHEN ${sqlIsWin()} THEN net_pnl END)   AS avg_winner,
+        AVG(CASE WHEN ${sqlIsLoss()} THEN net_pnl END)  AS avg_loser
+      FROM trades
+      WHERE date LIKE ? AND deleted_at IS NULL
+      GROUP BY ym
+      ORDER BY ym
+    `)
+    // FOUR win/loss CASE `?` (winners, losers, then avg_winner, avg_loser)
+    // precede the single `date LIKE ?` — same epsilon order as readMonthDays:
+    // +eps (win count), -eps (loss count), +eps (avg win), -eps (avg loss), like.
+    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, SCRATCH_EPSILON, -SCRATCH_EPSILON, like) as YearMonthRowDb[]
+
+  const byMonth = new Map<number, CalendarYearMonth>()
+  for (const r of rows) {
+    const month = Number(r.ym.slice(5, 7))
+    byMonth.set(month, {
+      year,
+      month,
+      net_pnl: r.net_pnl,
+      gross_pnl: r.gross_pnl,
+      total_fees: r.total_fees,
+      trade_count: r.trade_count,
+      winners: r.winners,
+      losers: r.losers,
+      trading_days: r.trading_days,
+      avg_winner: r.avg_winner,
+      avg_loser: r.avg_loser,
+    })
+  }
+  return byMonth
+}
+
+// Zero roll-up for an untraded month. trade_count 0 is the renderer's empty
+// signal (em-dash, not $0); avg_winner/avg_loser null (no winners / no losers).
+function emptyMonth(year: number, month: number): CalendarYearMonth {
+  return {
+    year,
+    month,
+    net_pnl: 0,
+    gross_pnl: 0,
+    total_fees: 0,
+    trade_count: 0,
+    winners: 0,
+    losers: 0,
+    trading_days: 0,
+    avg_winner: null,
+    avg_loser: null,
+  }
+}
+
+// 12-month overview for a year. Mirrors getCalendarMonth's shape (opens the db,
+// runs the roll-up, attaches the shared range). Always returns 12 tiles in
+// calendar order (Jan..Dec) so the grid is stable regardless of which months
+// were traded.
+export function getCalendarYear(year: number): CalendarYear {
+  const db = openDatabase()
+  const byMonth = readYearMonths(db, year)
+  const months: CalendarYearMonth[] = []
+  for (let m = 1; m <= 12; m++) {
+    months.push(byMonth.get(m) ?? emptyMonth(year, m))
+  }
+  return {
+    year,
+    months,
+    range: readRange(db),
   }
 }
