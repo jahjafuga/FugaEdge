@@ -14,11 +14,19 @@ interface NoTradeDayModalProps {
 // `Sat out: <reason>` on the journal row's postsession_notes; the
 // `no-trade-day` chip on day_tags is the cheap lookup signal for "this
 // day was an intentional sit-out".
+// The stored label must stay in sync with the calendar-cell holiday mark:
+// handleSave writes "Sat out: Holiday (Market Closed)" to postsession_notes, and
+// electron/calendar/get.ts LIKE-matches that exact label to flag is_holiday so
+// the day cell renders the closed sign. Keep all three spellings identical.
+const HOLIDAY_REASON = 'Holiday (Market Closed)'
+
 const REASONS = [
   'Market was choppy',
   'No setups',
+  HOLIDAY_REASON,
+  'No plan',
+  'Sick or unwell',
   'Personal time',
-  'Hit max loss',
 ] as const
 
 const NO_TRADE_TAG = 'no-trade-day'

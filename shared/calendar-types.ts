@@ -15,6 +15,12 @@ export interface CalendarDay {
    *  calendar markers should always read this field, never re-check the
    *  underlying stores. */
   no_trade_day: boolean
+  /** True when this sit-out day was specifically a market holiday — derived
+   *  from the sit-out modal storing "Sat out: Holiday (Market Closed)" in the
+   *  journal's postsession_notes (a LIKE on that literal label in the calendar
+   *  query). Only meaningful when no_trade_day is also true; drives the calendar
+   *  cell's closed-sign marker. */
+  is_holiday: boolean
   /** Market sentiment 1..5 (or null) the trader assigned to this session.
    *  Sourced from the session_meta table via the calendar query LEFT JOIN. */
   sentiment: number | null

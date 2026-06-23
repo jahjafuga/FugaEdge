@@ -3,6 +3,7 @@ import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
 import { int, money, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
 import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
+import closedSign from '@/assets/closed-sign.svg'
 import WeeklyPanel from './WeeklyPanel'
 
 interface CalendarGridProps {
@@ -171,7 +172,13 @@ function DayCell({
   const pnl = stats?.net_pnl ?? 0
   const hasJournal = !!stats?.has_journal
   const noTrade = !!stats?.no_trade_day
+  const isHoliday = !!stats?.is_holiday
   const sentiment = stats?.sentiment ?? null
+  // On a holiday cell the centered closed sign + "MARKET CLOSED" already convey
+  // the sit-out, so drop the redundant no-trade-day dot from the corner cluster
+  // (any other tags the user added to the day still show). Non-holiday cells
+  // keep their tags unchanged.
+  const cornerTags = isHoliday ? tags.filter((t) => t !== 'no-trade-day') : tags
 
   // Each cell sits on a bg-1 base (white in light mode, ~black in dark)
   // with 1px bottom+right borders forming a single 1px grid (the
@@ -221,20 +228,22 @@ function DayCell({
           {cell.day}
         </span>
         <div className="flex items-center gap-1">
-          {noTrade && cell.inMonth && (
+          {noTrade && !isHoliday && cell.inMonth && (
             <span
               aria-label="No-trade day"
               title="No-trade day"
               // Muted gold per the v0.1.3 spec — distinct from the win/loss
-              // tile tints and the active sentiment / tag dots. Renders
-              // inline so cell layout stays unchanged on trading days.
+              // tile tints and the active sentiment / tag dots. Renders inline
+              // so cell layout stays unchanged on trading days. Holiday sit-outs
+              // show their closed sign centered in the cell body instead, so
+              // they intentionally have no corner icon here.
               style={{ color: 'rgba(212, 175, 55, 0.6)' }}
               className="inline-flex h-[14px] w-[14px] items-center justify-center"
             >
               <CalendarOff size={12} strokeWidth={2} />
             </span>
           )}
-          {tags.length > 0 && <TagDots tags={tags} />}
+          {cornerTags.length > 0 && <TagDots tags={cornerTags} />}
           {hasJournal && !has && !noTrade && (
             <span
               aria-label="Journal entry"
@@ -264,6 +273,17 @@ function DayCell({
         </div>
       </div>
 
+      {isHoliday && !has && cell.inMonth && (
+        <div className="flex flex-1 items-center justify-center">
+          <img
+            src={closedSign}
+            alt="Market holiday"
+            title="Holiday (market closed)"
+            className="h-[65px] w-[65px]"
+          />
+        </div>
+      )}
+
       {has ? (
         <div className="flex flex-col items-end justify-end gap-0.5">
           <span
@@ -278,6 +298,10 @@ function DayCell({
             <span className="text-fg-tertiary">/</span>
             <span className="text-loss">{int(stats!.losers)}</span>
           </span>
+        </div>
+      ) : isHoliday && cell.inMonth ? (
+        <div className="flex justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">
+          Market closed
         </div>
       ) : tags.length > 0 && cell.inMonth ? (
         <div className="flex justify-end text-[9px] uppercase tracking-wider text-fg-tertiary">

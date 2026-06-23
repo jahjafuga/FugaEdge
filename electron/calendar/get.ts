@@ -53,6 +53,7 @@ interface DayRowDb {
   day_tags: string | null
   has_journal: number
   no_trade_day: number
+  is_holiday: number
   sentiment: number | null
 }
 
@@ -87,6 +88,7 @@ function readMonthDays(
         SELECT
           date,
           day_tags,
+          postsession_notes,
           CASE WHEN
             (premarket_notes IS NOT NULL AND TRIM(premarket_notes) != '')
             OR (postsession_notes IS NOT NULL AND TRIM(postsession_notes) != '')
@@ -132,6 +134,14 @@ function readMonthDays(
           (sm.no_trade_day = 1)
           OR (jt.day_tags IS NOT NULL AND jt.day_tags LIKE '%"no-trade-day"%')
         THEN 1 ELSE 0 END                        AS no_trade_day,
+        -- Holiday sit-out: the sit-out modal stores
+        -- "Sat out: Holiday (Market Closed)" in postsession_notes, so a LIKE on
+        -- that literal label flags the day as a market holiday. The calendar
+        -- cell reads this to render the closed sign (only where no_trade_day is
+        -- already set), so a stray note that merely mentions the phrase never
+        -- shows the marker on a normal trading day.
+        CASE WHEN jr.postsession_notes LIKE '%Holiday (Market Closed)%'
+          THEN 1 ELSE 0 END AS is_holiday,
         sm.sentiment                             AS sentiment
       FROM all_dates d
       LEFT JOIN tr ON tr.date = d.date
@@ -155,6 +165,7 @@ function readMonthDays(
     day_tags: parseTags(r.day_tags),
     has_journal: !!r.has_journal,
     no_trade_day: !!r.no_trade_day,
+    is_holiday: !!r.is_holiday,
     sentiment: r.sentiment,
   }))
 }

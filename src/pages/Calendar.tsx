@@ -118,6 +118,7 @@ export default function Calendar() {
           day_tags: [],
           has_journal: false,
           no_trade_day: false,
+          is_holiday: false,
           sentiment: next,
         }
         return { ...prev, days: [...prev.days, stub] }
