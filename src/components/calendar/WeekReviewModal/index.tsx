@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import type { WeekDetail } from '@shared/week-types'
 import { weekRepo } from '@/data/weekRepo'
-import { longDate, signed, pnlClass, formatProfitFactor } from '@/lib/format'
+import { longDate, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
 import DetailNotesTab from '@/components/calendar/DetailNotesTab'
@@ -163,10 +163,10 @@ function WeekHeaderStats({ detail }: { detail: WeekDetail | null }) {
       </div>
       <div className="text-right">
         <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Profit factor
+          P&amp;L ratio
         </div>
         <div className="font-mono text-sm font-semibold tnum text-gold">
-          {m ? formatProfitFactor(m.profitFactor) : '—'}
+          {m ? formatPnlRatio(m.pnlRatio) : '—'}
         </div>
       </div>
       <div className="text-right">

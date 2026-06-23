@@ -89,7 +89,7 @@ export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border-subtle">
+        <div className="overflow-x-auto card-premium">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle bg-bg-2 text-[10px] uppercase tracking-wider text-fg-tertiary">
@@ -135,7 +135,7 @@ function SymbolGroupBlock({
   const [open, setOpen] = useState(false)
   const Chevron = open ? ChevronDown : ChevronRight
   return (
-    <div className="overflow-hidden rounded-md border border-border-subtle">
+    <div className="overflow-hidden card-premium">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
