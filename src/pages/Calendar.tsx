@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, CalendarDays, Upload } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
@@ -6,11 +6,12 @@ import Skeleton from '@/components/ui/Skeleton'
 import CalendarHeader from '@/components/calendar/CalendarHeader'
 import CalendarGrid from '@/components/calendar/CalendarGrid'
 import CalendarCompareStrip from '@/components/calendar/CalendarCompareStrip'
+import YearGrid from '@/components/calendar/YearGrid'
 import DayDetailModal from '@/components/calendar/DayDetailModal'
 import WeekReviewModal from '@/components/calendar/WeekReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
-import type { CalendarMonth } from '@shared/calendar-types'
+import type { CalendarMonth, CalendarYear } from '@shared/calendar-types'
 
 function todayISO(): string {
   const d = new Date()
@@ -51,6 +52,54 @@ export default function Calendar() {
       window.localStorage.setItem('calendar.showWeekly', showWeekly ? '1' : '0')
     }
   }, [showWeekly])
+
+  // v0.3.0 Yearly View Beat 2 — month-vs-year view mode, persisted exactly like
+  // showWeekly. Default 'month'. The year grid (12 month tiles) is the calendar
+  // zoomed out; flipping to Year zooms to the year of the month being viewed.
+  const [calMode, setCalMode] = useState<'month' | 'year'>(() => {
+    if (typeof window === 'undefined') return 'month'
+    return window.localStorage.getItem('calendar.viewMode') === 'year' ? 'year' : 'month'
+  })
+  const [yearView, setYearView] = useState<number>(() => realNow.y)
+  const [yearData, setYearData] = useState<CalendarYear | null>(null)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('calendar.viewMode', calMode)
+    }
+  }, [calMode])
+
+  // Fetch the year roll-up only while in Year mode; keyed on [yearView, calMode].
+  // Mirrors the month fetch (cancelled guard, setState, errors surface to the
+  // page). Beat 3 adds prev/next-year stepping; for now yearView is set on
+  // toggle and stays put.
+  useEffect(() => {
+    if (calMode !== 'year') return
+    let cancelled = false
+    setYearData(null)
+    ipc
+      .calendarYearGet(yearView)
+      .then((d) => {
+        if (!cancelled) setYearData(d)
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setErr(e.message)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [yearView, calMode])
+
+  // Scoped aurora calm: while the YEAR grid is showing, dim the app-wide aurora
+  // (index.css `body.cal-year-view .app-aurora`) — it would otherwise streak
+  // through the sparse 12-tile grid the way the month grid card never lets it.
+  // The class is removed in month mode AND on unmount, so the month grid and
+  // every other page stay pixel-identical.
+  useEffect(() => {
+    if (calMode !== 'year') return
+    document.body.classList.add('cal-year-view')
+    return () => document.body.classList.remove('cal-year-view')
+  }, [calMode])
 
   // Fetch the month whenever the view changes. On first mount, also use the
   // payload's range to seed the view at the latest trade month if the user
@@ -189,60 +238,97 @@ export default function Calendar() {
   const isCurrentMonth = view.y === realNow.y && view.m === realNow.m
 
   return (
-    <PageShell title="Calendar" subtitle="Click a day to see its trades.">
+    <PageShell
+      title="Calendar"
+      subtitle={calMode === 'year' ? 'Click a month to open it.' : 'Click a day to see its trades.'}
+    >
       <div className="space-y-5">
-        <CalendarHeader
-          stats={data.stats}
-          range={data.range}
-          onPrev={() => setView(stepMonth(view.y, view.m, -1))}
-          onNext={() => setView(stepMonth(view.y, view.m, 1))}
-          onToday={() => setView(realNow)}
-          isCurrentMonth={isCurrentMonth}
-        />
-
-        <div className="flex items-center justify-end">
-          <button
-            type="button"
-            onClick={() => setShowWeekly((v) => !v)}
- className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider shadow-sm transition-colors duration-150 ${
-              showWeekly
-                ? 'border-gold/60 bg-gold/[0.12] text-gold'
-                : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/50 hover:text-gold'
-            }`}
-            aria-pressed={showWeekly}
-            title="Show weekly summary cards on the right edge of each row"
-          >
-            Weekly panels: {showWeekly ? 'on' : 'off'}
-          </button>
+        {/* Month | Year view toggle (always); the weekly-panels toggle is
+            month-only. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-0.5 rounded-md border border-border-subtle bg-bg-2 p-0.5">
+            <ModeButton active={calMode === 'month'} onClick={() => setCalMode('month')}>
+              Month
+            </ModeButton>
+            <ModeButton
+              active={calMode === 'year'}
+              onClick={() => {
+                setYearView(view.y)
+                setCalMode('year')
+              }}
+            >
+              Year
+            </ModeButton>
+          </div>
+          {calMode === 'month' && (
+            <button
+              type="button"
+              onClick={() => setShowWeekly((v) => !v)}
+              className={`inline-flex h-8 cursor-pointer items-center rounded-md border px-3 text-[10px] font-semibold uppercase tracking-wider shadow-sm transition-colors duration-150 ${
+                showWeekly
+                  ? 'border-gold/60 bg-gold/[0.12] text-gold'
+                  : 'border-border-strong bg-bg-1 text-fg-secondary hover:border-gold/50 hover:text-gold'
+              }`}
+              aria-pressed={showWeekly}
+              title="Show weekly summary cards on the right edge of each row"
+            >
+              Weekly panels: {showWeekly ? 'on' : 'off'}
+            </button>
+          )}
         </div>
 
-        <CalendarCompareStrip />
+        {calMode === 'month' ? (
+          <>
+            <CalendarHeader
+              stats={data.stats}
+              range={data.range}
+              onPrev={() => setView(stepMonth(view.y, view.m, -1))}
+              onNext={() => setView(stepMonth(view.y, view.m, 1))}
+              onToday={() => setView(realNow)}
+              isCurrentMonth={isCurrentMonth}
+            />
 
-        <CalendarGrid
-          year={data.stats.year}
-          month={data.stats.month}
-          days={data.days}
-          weeks={data.weeks ?? []}
-          selectedDate={selectedDate}
-          todayDate={today}
-          showWeekly={showWeekly}
-          onSelectDate={(date) => {
-            if (date === null) {
-              setSelectedDate(null)
-              return
-            }
-            // Empty cells (no trades) get the quick sit-out modal. Cells with
-            // trades open the existing day panel.
-            const day = data.days.find((d) => d.date === date)
-            if (!day || day.trade_count === 0) {
-              setNoTradeDayDate(date)
-            } else {
-              setSelectedDate(date)
-            }
-          }}
-          onSelectWeek={(w) => setSelectedWeek(w.week_start)}
-          onCycleSentiment={handleCycleSentiment}
-        />
+            <CalendarCompareStrip />
+
+            <CalendarGrid
+              year={data.stats.year}
+              month={data.stats.month}
+              days={data.days}
+              weeks={data.weeks ?? []}
+              selectedDate={selectedDate}
+              todayDate={today}
+              showWeekly={showWeekly}
+              onSelectDate={(date) => {
+                if (date === null) {
+                  setSelectedDate(null)
+                  return
+                }
+                // Empty cells (no trades) get the quick sit-out modal. Cells with
+                // trades open the existing day panel.
+                const day = data.days.find((d) => d.date === date)
+                if (!day || day.trade_count === 0) {
+                  setNoTradeDayDate(date)
+                } else {
+                  setSelectedDate(date)
+                }
+              }}
+              onSelectWeek={(w) => setSelectedWeek(w.week_start)}
+              onCycleSentiment={handleCycleSentiment}
+            />
+          </>
+        ) : (
+          <YearGrid
+            year={yearView}
+            data={yearData}
+            realNow={realNow}
+            onSelectMonth={(m) => {
+              setView({ y: yearView, m })
+              setCalMode('month')
+            }}
+            onPrevYear={() => setYearView((y) => y - 1)}
+            onNextYear={() => setYearView((y) => y + 1)}
+          />
+        )}
 
         {noTradeDayDate && (
           <NoTradeDayModal
@@ -270,5 +356,30 @@ export default function Calendar() {
         />
       </div>
     </PageShell>
+  )
+}
+
+// Segmented Month | Year control — mirrors the app's gold-tinted active-segment
+// language (cf. WeekTradesTab's view toggle).
+function ModeButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`cursor-pointer rounded-[5px] px-3 py-1 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+        active ? 'bg-gold/[0.14] text-gold' : 'text-fg-tertiary hover:text-fg-secondary'
+      }`}
+    >
+      {children}
+    </button>
   )
 }

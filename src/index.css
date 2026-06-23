@@ -606,4 +606,14 @@
   :root.light .app-aurora::after {
     display: none;
   }
+
+  /* Year-view calm: the Yearly View (Calendar page, year grid) dims the app
+     aurora so its gold diagonal doesn't streak through the sparse 12-tile grid.
+     Toggled via `body.cal-year-view` (added/removed by Calendar.tsx) ONLY while
+     the year grid shows, dropping to the solid --bg-0 body base — so month view
+     and every other page stay pixel-identical. Works in both themes (dims
+     whichever aurora SVG is active). */
+  body.cal-year-view .app-aurora {
+    opacity: 0.08;
+  }
 }
