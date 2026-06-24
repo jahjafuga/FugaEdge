@@ -26,6 +26,7 @@ import { runWarmupBackfill } from '../market/warmup-backfill'
 import { registerChartsIpc } from '../charts/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
+import { registerMistakesIpc } from '../mistakes/ipc'
 import { registerAttachmentsIpc } from '../attachments/ipc'
 import {
   registerAttachmentProtocolHandler,
@@ -177,6 +178,7 @@ app.whenReady().then(() => {
   registerChartsIpc()
   registerCountryIpc()
   registerPlaybookIpc()
+  registerMistakesIpc()
   registerAttachmentsIpc()
   registerAttachmentProtocolHandler()
   registerSessionIpc()

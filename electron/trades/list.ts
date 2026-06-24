@@ -51,6 +51,7 @@ interface TradeRowDb {
   note_text: string | null
   attachment_count: number
   secondary_tag_count: number
+  mistake_link_count: number
   deleted_at: string | null
 }
 
@@ -187,7 +188,8 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.deleted_at,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
-        COALESCE(tp.n, 0) AS secondary_tag_count
+        COALESCE(tp.n, 0) AS secondary_tag_count,
+        COALESCE(tm.n, 0) AS mistake_link_count
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -197,6 +199,9 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_playbooks GROUP BY trade_id
       ) tp ON tp.trade_id = t.id
+      LEFT JOIN (
+        SELECT trade_id, COUNT(*) AS n FROM trade_mistake GROUP BY trade_id
+      ) tm ON tm.trade_id = t.id
       ${where}
       ORDER BY t.open_time DESC
     `)
@@ -248,6 +253,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
       secondary_tag_count: r.secondary_tag_count ?? 0,
+      mistake_link_count: r.mistake_link_count ?? 0,
       deleted_at: r.deleted_at,
     }
   })
@@ -277,7 +283,8 @@ export function getTrade(id: number): TradeListRow | null {
         t.deleted_at,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
-        COALESCE(tp.n, 0) AS secondary_tag_count
+        COALESCE(tp.n, 0) AS secondary_tag_count,
+        COALESCE(tm.n, 0) AS mistake_link_count
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -287,6 +294,9 @@ export function getTrade(id: number): TradeListRow | null {
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_playbooks GROUP BY trade_id
       ) tp ON tp.trade_id = t.id
+      LEFT JOIN (
+        SELECT trade_id, COUNT(*) AS n FROM trade_mistake GROUP BY trade_id
+      ) tm ON tm.trade_id = t.id
       WHERE t.id = ?
     `)
     .get(id) as TradeRowDb | undefined
@@ -336,6 +346,7 @@ export function getTrade(id: number): TradeListRow | null {
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
     secondary_tag_count: row.secondary_tag_count ?? 0,
+    mistake_link_count: row.mistake_link_count ?? 0,
     deleted_at: row.deleted_at,
   }
 }

@@ -57,6 +57,12 @@ export const IPC = {
   TRADE_PLAYBOOK_TAGS_GET: 'trade:playbookTagsGet',
   TRADE_PLAYBOOK_TAG_ADD: 'trade:playbookTagAdd',
   TRADE_PLAYBOOK_TAG_REMOVE: 'trade:playbookTagRemove',
+  // Beat 2a — mistakes API: read the mistake_def vocabulary, and read/add/remove
+  // a trade's mistake tags (the trade_mistake junction). Mirrors TRADE_PLAYBOOK_*.
+  MISTAKE_DEFS_GET: 'mistake:defsGet',
+  TRADE_MISTAKE_TAGS_GET: 'trade:mistakeTagsGet',
+  TRADE_MISTAKE_TAG_ADD: 'trade:mistakeTagAdd',
+  TRADE_MISTAKE_TAG_REMOVE: 'trade:mistakeTagRemove',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_MISTAKES_SAVE: 'trade:mistakesSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',

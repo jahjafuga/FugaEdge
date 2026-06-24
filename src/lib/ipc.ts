@@ -17,6 +17,7 @@ import type {
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
+import type { MistakeTagInput } from '@shared/mistakes-types'
 import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
@@ -129,6 +130,15 @@ export const ipc = {
   playbookTagAdd: (input: PlaybookTagInput) => window.api.playbookTagAdd(input),
   playbookTagRemove: (input: PlaybookTagInput) =>
     window.api.playbookTagRemove(input),
+  // Beat 2a — mistakes API (Electron-IPC adapter; the web port swaps these for
+  // fetch/tRPC). Nothing in the renderer calls them yet.
+  mistakeDefsGet: () => window.api.mistakeDefsGet(),
+  tradeMistakeTagsGet: (tradeId: number) =>
+    window.api.tradeMistakeTagsGet(tradeId),
+  tradeMistakeTagAdd: (input: MistakeTagInput) =>
+    window.api.tradeMistakeTagAdd(input),
+  tradeMistakeTagRemove: (input: MistakeTagInput) =>
+    window.api.tradeMistakeTagRemove(input),
   sessionSentimentSave: (input: import('@shared/session-types').SaveSentimentInput) =>
     window.api.sessionSentimentSave(input),
   sessionListAll: () => window.api.sessionListAll(),

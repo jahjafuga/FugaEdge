@@ -43,6 +43,7 @@ import type {
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
+import type { MistakeDef, MistakeTag, MistakeTagInput } from '@shared/mistakes-types'
 import type {
   CalendarMonth,
   CalendarYear,
@@ -279,6 +280,14 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_ADD, input),
   playbookTagRemove: (input: PlaybookTagInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_REMOVE, input),
+  mistakeDefsGet: (): Promise<MistakeDef[]> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEFS_GET),
+  tradeMistakeTagsGet: (tradeId: number): Promise<MistakeTag[]> =>
+    ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAGS_GET, tradeId),
+  tradeMistakeTagAdd: (input: MistakeTagInput): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_ADD, input),
+  tradeMistakeTagRemove: (input: MistakeTagInput): Promise<TradeListRow | null> =>
+    ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_REMOVE, input),
   sessionSentimentSave: (input: SaveSentimentInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_SENTIMENT_SAVE, input),
   sessionListAll: (): Promise<SessionMeta[]> =>

@@ -119,6 +119,10 @@ export interface TradeListRow {
    *  primary setup lives on playbook_id. Mirrors attachment_count (correlated
    *  COUNT subquery, COALESCE 0). */
   secondary_tag_count: number
+  /** Beat 2a — count of trade_mistake junction rows on this trade (the new
+   *  two-axis mistakes link). OPTIONAL: the list / getTrade reads always populate
+   *  it (COALESCE 0); lightweight fixtures may omit it. Nothing consumes it yet. */
+  mistake_link_count?: number
   /** v0.2.3 soft-delete. NULL = live; ISO-8601 UTC timestamp = in Trash.
    *  List reads exclude deleted rows; getTrade returns them so the modal /
    *  Trash UI can render the deleted state. */
