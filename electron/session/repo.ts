@@ -89,38 +89,6 @@ export function saveDayNote(date: string, body: string): void {
   `).run(date, body.trim())
 }
 
-// Day-level mistake tags (session_meta.day_mistakes_json). Parsed defensively
-// — a malformed value reads as []. Backs the Day Detail Modal's Mistakes tab
-// (day-level tags, distinct from per-trade mistakes on trades.mistakes_json).
-export function getDayMistakes(date: string): string[] {
-  const db = openDatabase()
-  const row = db
-    .prepare('SELECT day_mistakes_json FROM session_meta WHERE date = ?')
-    .get(date) as { day_mistakes_json: string } | undefined
-  if (!row) return []
-  try {
-    const arr = JSON.parse(row.day_mistakes_json)
-    return Array.isArray(arr) ? arr.map((s) => String(s)).filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
-
-// Upsert day-level mistake tags only — sentiment / notes / no_trade_* are
-// preserved (same per-column ON CONFLICT pattern as the other session_meta
-// writers).
-export function saveDayMistakes(date: string, tags: string[]): void {
-  const db = openDatabase()
-  const json = JSON.stringify(tags.map((s) => String(s)).filter(Boolean))
-  db.prepare(`
-    INSERT INTO session_meta (date, day_mistakes_json, updated_at)
-    VALUES (?, ?, datetime('now'))
-    ON CONFLICT(date) DO UPDATE SET
-      day_mistakes_json = excluded.day_mistakes_json,
-      updated_at        = excluded.updated_at
-  `).run(date, json)
-}
-
 // Upsert the no-trade-day flag + reason ONLY — sentiment / notes /
 // day_mistakes_json are preserved (same per-column ON CONFLICT pattern as
 // saveSentiment). This is the sentiment-agnostic write the dashboard's

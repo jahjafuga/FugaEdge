@@ -42,10 +42,6 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
   const [detail, setDetail] = useState<DayDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Day-level mistake tags lifted here (Day 4.2) so the selection survives
-  // tab switches — MistakesTab unmounts on switch. Single source of truth for
-  // the day-level picker; seeded from detail on load.
-  const [dayMistakes, setDayMistakes] = useState<string[]>([])
 
   // Re-fetch the whole day after a trade edit so Overview + Performance +
   // Trades stay consistent (playbook → mostUsedPlaybook; planned_risk →
@@ -69,7 +65,6 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     if (date) {
       setTab('overview')
       stack.reset()
-      setDayMistakes([])
     }
   }, [date, stack.reset])
 
@@ -84,7 +79,6 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
       .then((d) => {
         if (!cancelled) {
           setDetail(d)
-          setDayMistakes(d.dayMistakes)
         }
       })
       .catch((e: unknown) => {
@@ -97,18 +91,6 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
       cancelled = true
     }
   }, [date])
-
-  // Day-level mistake toggle: optimistically update the lifted state and
-  // persist the full set. Self-contained to the Mistakes tab (nothing else
-  // reads dayMistakes), so no reload() — unlike the trade-save handlers.
-  const handleSaveDayMistakes = useCallback(
-    (next: string[]) => {
-      if (!date) return
-      setDayMistakes(next)
-      void dayRepo.saveDayMistakes(date, next)
-    },
-    [date],
-  )
 
   if (!date) return null
 
@@ -161,11 +143,7 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
         />
       )}
       {detail && !loading && tab === 'mistakes' && (
-        <MistakesTab
-          mistakeTagCounts={detail.metrics.mistakeTagCounts}
-          dayMistakes={dayMistakes}
-          onChangeDayMistakes={handleSaveDayMistakes}
-        />
+        <MistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
       )}
     </DetailModalShell>
   )

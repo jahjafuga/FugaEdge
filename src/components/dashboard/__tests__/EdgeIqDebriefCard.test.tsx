@@ -75,7 +75,6 @@ const detail = (metrics: DayMetrics): DayDetail => ({
   metrics,
   trades: [],
   note: null,
-  dayMistakes: [],
 })
 
 const renderCard = () =>

@@ -108,11 +108,10 @@ export const IPC = {
   DATA_HEALTH_GET: 'dataHealth:get',
   DATA_HEALTH_ACKNOWLEDGE_COLLISIONS: 'dataHealth:acknowledgeCollisions',
   // v0.2.2 — Day Detail Modal data source. Returns DayDetail (trades + metrics
-  // + day-level notes/mistakes) for the given date.
+  // + day-level notes) for the given date.
   DAY_GET_DETAIL: 'day:getDetail',
-  // v0.2.2 Day 4 — Day Detail writable fields, both stored on session_meta.
+  // v0.2.2 Day 4 — Day Detail writable field, stored on session_meta.
   DAY_NOTE_SAVE: 'day:noteSave',
-  DAY_MISTAKES_SAVE: 'day:mistakesSave',
   // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
   // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
   WEEK_GET_DETAIL: 'week:getDetail',

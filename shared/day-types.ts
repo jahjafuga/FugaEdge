@@ -80,8 +80,7 @@ export interface DayDetail {
   date: string
   metrics: DayMetrics
   trades: TradeListRow[]
-  // Day-level notes and mistakes ship in Day 4; placeholders here so the
-  // shape is stable across the v0.2.2 build sequence.
+  // Day-level note ships in Day 4; placeholder here so the shape is stable
+  // across the v0.2.2 build sequence.
   note: string | null
-  dayMistakes: string[]
 }

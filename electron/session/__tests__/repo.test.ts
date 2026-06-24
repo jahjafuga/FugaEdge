@@ -13,7 +13,6 @@ interface Row {
   notes: string
   no_trade_day: number
   no_trade_reason: string
-  day_mistakes_json: string
 }
 
 const { store } = vi.hoisted(() => ({
@@ -27,7 +26,6 @@ function blankRow(date: string): Row {
     notes: '',
     no_trade_day: 0,
     no_trade_reason: '',
-    day_mistakes_json: '[]',
   }
 }
 
