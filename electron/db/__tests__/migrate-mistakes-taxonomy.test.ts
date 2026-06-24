@@ -88,6 +88,7 @@ const TECHNICAL = [
   'Stop too wide / risk undefined',
   'Added to a loser / averaged down',
   'Float or RVOL criteria not met',
+  'Entered too early / before trigger',
 ]
 const PSYCHOLOGICAL = [
   'FOMO - chased a runner',
@@ -167,15 +168,15 @@ describe('migrateMistakesTaxonomy — schema 33 → 34', () => {
     )
   })
 
-  it('seeds exactly 20 rows (10 technical + 10 psychological) when mistake_def is empty', () => {
+  it('seeds exactly 21 rows (11 technical + 10 psychological) when mistake_def is empty', () => {
     const db = makeMockDb({ defCount: 0 })
     migrateMistakesTaxonomy(db)
     const inserts = db._state.inserts
-    expect(inserts).toHaveLength(20)
+    expect(inserts).toHaveLength(21)
 
     const technical = inserts.filter((i) => i.args[0] === 'technical')
     const psychological = inserts.filter((i) => i.args[0] === 'psychological')
-    expect(technical).toHaveLength(10)
+    expect(technical).toHaveLength(11)
     expect(psychological).toHaveLength(10)
 
     // Names + sort_positions match the seed list, in order.
@@ -187,12 +188,20 @@ describe('migrateMistakesTaxonomy — schema 33 → 34', () => {
       expect(ins.args[1]).toBe(PSYCHOLOGICAL[i])
       expect(ins.args[2]).toBe(i)
     })
+
+    // The newly appended 11th technical label (axis + sort_position pinned).
+    const added = inserts.find(
+      (i) => i.args[1] === 'Entered too early / before trigger',
+    )
+    expect(added).toBeDefined()
+    expect(added!.args[0]).toBe('technical')
+    expect(added!.args[2]).toBe(10)
   })
 
   it('uses ASCII labels (plain hyphen, no em/en-dash) in the seed', () => {
     const db = makeMockDb({ defCount: 0 })
     migrateMistakesTaxonomy(db)
-    expect(db._state.inserts).toHaveLength(20)
+    expect(db._state.inserts).toHaveLength(21)
     for (const ins of db._state.inserts) {
       const name = String(ins.args[1])
       const allAscii = [...name].every((ch) => ch.charCodeAt(0) <= 0x7f)
@@ -202,13 +211,13 @@ describe('migrateMistakesTaxonomy — schema 33 → 34', () => {
   })
 
   it('seed-if-empty: issues ZERO inserts when mistake_def is already populated', () => {
-    const db = makeMockDb({ defCount: 20 })
+    const db = makeMockDb({ defCount: 21 })
     migrateMistakesTaxonomy(db)
     expect(db._state.inserts).toHaveLength(0)
   })
 
   it('is idempotent on a populated DB: re-issues CREATE/INDEX DDL (IF NOT EXISTS no-ops) but seeds nothing', () => {
-    const db = makeMockDb({ defCount: 20 })
+    const db = makeMockDb({ defCount: 21 })
     migrateMistakesTaxonomy(db)
     migrateMistakesTaxonomy(db)
     // The CREATE TABLE DDL re-issues every run (IF NOT EXISTS keeps it a no-op).

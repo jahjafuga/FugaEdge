@@ -36,9 +36,9 @@
 
 import type Database from 'better-sqlite3'
 
-/** The default vocabulary, 10 labels per axis, seeded only on an empty table.
- *  sort_position is the per-axis display order. ASCII labels (plain hyphen, no
- *  em-dash) so the stored values stay portable. */
+/** The default vocabulary: 11 technical + 10 psychological labels, seeded only
+ *  on an empty table. sort_position is the per-axis display order. ASCII labels
+ *  (plain hyphen, no em-dash) so the stored values stay portable. */
 const SEED: { axis: 'technical' | 'psychological'; name: string; sort_position: number }[] = [
   { axis: 'technical', sort_position: 0, name: 'MACD negative at entry' },
   { axis: 'technical', sort_position: 1, name: 'Entered below VWAP' },
@@ -50,6 +50,7 @@ const SEED: { axis: 'technical' | 'psychological'; name: string; sort_position: 
   { axis: 'technical', sort_position: 7, name: 'Stop too wide / risk undefined' },
   { axis: 'technical', sort_position: 8, name: 'Added to a loser / averaged down' },
   { axis: 'technical', sort_position: 9, name: 'Float or RVOL criteria not met' },
+  { axis: 'technical', sort_position: 10, name: 'Entered too early / before trigger' },
   { axis: 'psychological', sort_position: 0, name: 'FOMO - chased a runner' },
   { axis: 'psychological', sort_position: 1, name: 'Greed - held too long / moved target' },
   { axis: 'psychological', sort_position: 2, name: 'Revenge trade (after a loss)' },
