@@ -32,3 +32,39 @@ export interface MistakeTagInput {
   trade_id: number
   mistake_def_id: number
 }
+
+// ── Beat 2b — vocabulary WRITE inputs (mistake_def CRUD). PURE shapes; the
+//    SQLite write methods live in electron/mistakes/repo.ts behind them.
+
+/** Create a custom vocabulary entry on an axis (lands at the end of that axis). */
+export interface CreateMistakeDefInput {
+  axis: MistakeAxis
+  name: string
+}
+
+/** Rename a vocabulary entry. The id is stable — historical trade links are
+ *  unaffected, which is the rename-safety. */
+export interface RenameMistakeDefInput {
+  id: number
+  name: string
+}
+
+/** Reorder ONE axis: the full ordered list of that axis's ACTIVE ids. Each id's
+ *  array index becomes its new sort_position. */
+export interface ReorderMistakeDefsInput {
+  axis: MistakeAxis
+  ordered_ids: number[]
+}
+
+/** A single mistake_def id — for archive / unarchive / delete. */
+export interface MistakeDefIdInput {
+  id: number
+}
+
+/** Result of a delete attempt. The repo guard hard-deletes only a custom,
+ *  unreferenced row; otherwise it archives instead (never deletes). Mirrors the
+ *  playbook DeletePlaybookResult convention. */
+export interface DeleteMistakeDefResult {
+  deleted: boolean
+  archivedInstead: boolean
+}

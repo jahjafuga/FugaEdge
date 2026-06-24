@@ -43,7 +43,16 @@ import type {
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
-import type { MistakeDef, MistakeTag, MistakeTagInput } from '@shared/mistakes-types'
+import type {
+  CreateMistakeDefInput,
+  DeleteMistakeDefResult,
+  MistakeDef,
+  MistakeDefIdInput,
+  MistakeTag,
+  MistakeTagInput,
+  RenameMistakeDefInput,
+  ReorderMistakeDefsInput,
+} from '@shared/mistakes-types'
 import type {
   CalendarMonth,
   CalendarYear,
@@ -288,6 +297,18 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_ADD, input),
   tradeMistakeTagRemove: (input: MistakeTagInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_REMOVE, input),
+  mistakeDefCreate: (input: CreateMistakeDefInput): Promise<MistakeDef> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEF_CREATE, input),
+  mistakeDefRename: (input: RenameMistakeDefInput): Promise<MistakeDef> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEF_RENAME, input),
+  mistakeDefsReorder: (input: ReorderMistakeDefsInput): Promise<MistakeDef[]> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEFS_REORDER, input),
+  mistakeDefArchive: (input: MistakeDefIdInput): Promise<MistakeDef> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEF_ARCHIVE, input),
+  mistakeDefUnarchive: (input: MistakeDefIdInput): Promise<MistakeDef> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEF_UNARCHIVE, input),
+  mistakeDefDelete: (input: MistakeDefIdInput): Promise<DeleteMistakeDefResult> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEF_DELETE, input),
   sessionSentimentSave: (input: SaveSentimentInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_SENTIMENT_SAVE, input),
   sessionListAll: (): Promise<SessionMeta[]> =>

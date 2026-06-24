@@ -17,7 +17,13 @@ import type {
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
-import type { MistakeTagInput } from '@shared/mistakes-types'
+import type {
+  CreateMistakeDefInput,
+  MistakeDefIdInput,
+  MistakeTagInput,
+  RenameMistakeDefInput,
+  ReorderMistakeDefsInput,
+} from '@shared/mistakes-types'
 import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
@@ -139,6 +145,20 @@ export const ipc = {
     window.api.tradeMistakeTagAdd(input),
   tradeMistakeTagRemove: (input: MistakeTagInput) =>
     window.api.tradeMistakeTagRemove(input),
+  // Beat 2b — mistake_def vocabulary writes (Electron-IPC adapter; web port swaps
+  // for fetch/tRPC). The delete guard is enforced in the repo, not here.
+  mistakeDefCreate: (input: CreateMistakeDefInput) =>
+    window.api.mistakeDefCreate(input),
+  mistakeDefRename: (input: RenameMistakeDefInput) =>
+    window.api.mistakeDefRename(input),
+  mistakeDefsReorder: (input: ReorderMistakeDefsInput) =>
+    window.api.mistakeDefsReorder(input),
+  mistakeDefArchive: (input: MistakeDefIdInput) =>
+    window.api.mistakeDefArchive(input),
+  mistakeDefUnarchive: (input: MistakeDefIdInput) =>
+    window.api.mistakeDefUnarchive(input),
+  mistakeDefDelete: (input: MistakeDefIdInput) =>
+    window.api.mistakeDefDelete(input),
   sessionSentimentSave: (input: import('@shared/session-types').SaveSentimentInput) =>
     window.api.sessionSentimentSave(input),
   sessionListAll: () => window.api.sessionListAll(),

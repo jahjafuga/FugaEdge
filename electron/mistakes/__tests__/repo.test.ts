@@ -33,6 +33,9 @@ const db: any = {
     }
   },
   pragma: () => {},
+  // Beat 2b — db.transaction(fn) returns fn; calling it runs the body inline
+  // (the reorder writes land in `runs` like any other statement).
+  transaction: (fn: (...args: unknown[]) => unknown) => fn,
 }
 
 vi.mock('../../db/database', () => ({ openDatabase: () => db }))
@@ -42,6 +45,12 @@ import {
   getMistakeTagsForTrade,
   addMistakeTag,
   removeMistakeTag,
+  createMistakeDef,
+  renameMistakeDef,
+  reorderMistakeDefs,
+  archiveMistakeDef,
+  unarchiveMistakeDef,
+  deleteMistakeDef,
 } from '../repo'
 
 beforeEach(() => {
@@ -150,5 +159,161 @@ describe('removeMistakeTag', () => {
 
   it('removing an absent pair is a clean no-op (no throw)', () => {
     expect(() => removeMistakeTag(42, 999)).not.toThrow()
+  })
+})
+
+// ── Beat 2b — vocabulary write methods ──────────────────────────────────────
+
+// A full mapped row the getById re-SELECT returns (matches the
+// id, axis, name, sort_position, is_custom, is_archived projection).
+const DEF_ROW = { id: 7, axis: 'technical', name: 'Custom one', sort_position: 10, is_custom: 1, is_archived: 0 }
+const ranSql = (re: RegExp) => runs.find((r) => re.test(r.sql))
+
+describe('createMistakeDef', () => {
+  it('rejects a case-insensitive active duplicate in the same axis; no INSERT', () => {
+    respond = (q) =>
+      /AND lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q) ? { id: 9 } : undefined
+    expect(() => createMistakeDef({ axis: 'technical', name: 'macd negative at entry' })).toThrow(/already exists/i)
+    expect(runs.some((r) => /INSERT INTO mistake_def/i.test(r.sql))).toBe(false)
+  })
+
+  it('INSERTs is_custom=1, is_archived=0, sort_position = MAX(sort_position)+1 for the axis', () => {
+    respond = (q) => {
+      if (/AND lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q)) return undefined
+      if (/SELECT MAX\(sort_position\) AS m FROM mistake_def WHERE axis = \?/i.test(q)) return { m: 9 }
+      if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)) return DEF_ROW
+      return undefined
+    }
+    const out = createMistakeDef({ axis: 'technical', name: '  New One  ' })
+    const ins = ranSql(/INSERT INTO mistake_def/i)
+    expect(ins).toBeTruthy()
+    expect(ins!.sql).toMatch(/\(axis, name, sort_position, is_custom, is_archived\) VALUES \(\?, \?, \?, 1, 0\)/i)
+    expect(ins!.args).toEqual(['technical', 'New One', 10]) // name trimmed, sort = 9 + 1
+    expect(out).toEqual({ id: 7, axis: 'technical', name: 'Custom one', sort_position: 10, is_custom: true, is_archived: false })
+  })
+
+  it('rejects an empty / whitespace-only name; no INSERT', () => {
+    expect(() => createMistakeDef({ axis: 'technical', name: '   ' })).toThrow(/empty/i)
+    expect(runs.some((r) => /INSERT INTO mistake_def/i.test(r.sql))).toBe(false)
+  })
+})
+
+describe('renameMistakeDef', () => {
+  it('rejects a case-insensitive duplicate in the same axis (excluding self); no UPDATE', () => {
+    respond = (q) => {
+      if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
+      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return { id: 9 }
+      return undefined
+    }
+    expect(() => renameMistakeDef({ id: 7, name: 'entered below vwap' })).toThrow(/already exists/i)
+    expect(runs.some((r) => /UPDATE mistake_def SET name/i.test(r.sql))).toBe(false)
+  })
+
+  it('UPDATEs the trimmed name + updated_at where id', () => {
+    respond = (q) => {
+      if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
+      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return undefined
+      if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)) return { ...DEF_ROW, name: 'Renamed' }
+      return undefined
+    }
+    renameMistakeDef({ id: 7, name: '  Renamed  ' })
+    const upd = ranSql(/UPDATE mistake_def SET name = \?, updated_at = datetime\('now'\) WHERE id = \?/i)
+    expect(upd).toBeTruthy()
+    expect(upd!.args).toEqual(['Renamed', 7])
+  })
+})
+
+describe('reorderMistakeDefs', () => {
+  it('throws (no UPDATE) when ordered_ids do not cover exactly the axis active rows', () => {
+    allRows = [{ id: 1 }, { id: 2 }, { id: 3 }]
+    expect(() => reorderMistakeDefs({ axis: 'technical', ordered_ids: [1, 2] })).toThrow(/exactly/i)
+    expect(runs.some((r) => /UPDATE mistake_def SET sort_position/i.test(r.sql))).toBe(false)
+  })
+
+  it('rewrites sort_position = array index for each id, in one pass', () => {
+    allRows = [{ id: 1 }, { id: 2 }, { id: 3 }]
+    reorderMistakeDefs({ axis: 'technical', ordered_ids: [3, 1, 2] })
+    const upds = runs.filter((r) =>
+      /UPDATE mistake_def SET sort_position = \?, updated_at = datetime\('now'\) WHERE id = \? AND axis = \?/i.test(r.sql),
+    )
+    expect(upds.map((u) => u.args)).toEqual([
+      [0, 3, 'technical'],
+      [1, 1, 'technical'],
+      [2, 2, 'technical'],
+    ])
+  })
+})
+
+describe('archiveMistakeDef', () => {
+  it('UPDATEs is_archived = 1 where id', () => {
+    respond = (q) =>
+      /SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)
+        ? { ...DEF_ROW, is_archived: 1 }
+        : undefined
+    archiveMistakeDef({ id: 7 })
+    const upd = ranSql(/UPDATE mistake_def SET is_archived = 1, updated_at = datetime\('now'\) WHERE id = \?/i)
+    expect(upd).toBeTruthy()
+    expect(upd!.args).toEqual([7])
+  })
+})
+
+describe('unarchiveMistakeDef', () => {
+  it('rejects when an active same-axis case-insensitive name already exists; no UPDATE', () => {
+    respond = (q) => {
+      if (/SELECT axis, name FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical', name: 'Entered below VWAP' }
+      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return { id: 2 }
+      return undefined
+    }
+    expect(() => unarchiveMistakeDef({ id: 7 })).toThrow(/un-archive/i)
+    expect(runs.some((r) => /UPDATE mistake_def SET is_archived = 0/i.test(r.sql))).toBe(false)
+  })
+
+  it('UPDATEs is_archived = 0 where id when no active collision', () => {
+    respond = (q) => {
+      if (/SELECT axis, name FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical', name: 'Freed Name' }
+      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return undefined
+      if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)) return DEF_ROW
+      return undefined
+    }
+    unarchiveMistakeDef({ id: 7 })
+    const upd = ranSql(/UPDATE mistake_def SET is_archived = 0, updated_at = datetime\('now'\) WHERE id = \?/i)
+    expect(upd).toBeTruthy()
+    expect(upd!.args).toEqual([7])
+  })
+})
+
+describe('deleteMistakeDef — THE GUARD', () => {
+  function programDelete(opts: { is_custom: number; count: number }) {
+    return (q: string): unknown => {
+      if (/SELECT is_custom FROM mistake_def WHERE id = \?/i.test(q)) return { is_custom: opts.is_custom }
+      if (/SELECT COUNT\(\*\) AS n FROM trade_mistake WHERE mistake_def_id = \?/i.test(q)) return { n: opts.count }
+      return undefined
+    }
+  }
+  const deletedRow = () => runs.some((r) => /DELETE FROM mistake_def WHERE id = \?/i.test(r.sql))
+  const archivedRow = () => runs.some((r) => /UPDATE mistake_def SET is_archived = 1/i.test(r.sql))
+
+  it('(i) custom + zero links -> DELETE, { deleted:true, archivedInstead:false }', () => {
+    respond = programDelete({ is_custom: 1, count: 0 })
+    const r = deleteMistakeDef({ id: 7 })
+    expect(deletedRow()).toBe(true)
+    expect(archivedRow()).toBe(false)
+    expect(r).toEqual({ deleted: true, archivedInstead: false })
+  })
+
+  it('(ii) seeded (is_custom=0) -> ARCHIVE not delete, { deleted:false, archivedInstead:true }', () => {
+    respond = programDelete({ is_custom: 0, count: 0 })
+    const r = deleteMistakeDef({ id: 3 })
+    expect(deletedRow()).toBe(false)
+    expect(archivedRow()).toBe(true)
+    expect(r).toEqual({ deleted: false, archivedInstead: true })
+  })
+
+  it('(iii) custom but referenced (count>0) -> ARCHIVE not delete (FK RESTRICT never reached)', () => {
+    respond = programDelete({ is_custom: 1, count: 3 })
+    const r = deleteMistakeDef({ id: 7 })
+    expect(deletedRow()).toBe(false)
+    expect(archivedRow()).toBe(true)
+    expect(r).toEqual({ deleted: false, archivedInstead: true })
   })
 })

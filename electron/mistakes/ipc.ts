@@ -1,13 +1,25 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
-import type { MistakeTagInput } from '@shared/mistakes-types'
+import type {
+  CreateMistakeDefInput,
+  MistakeDefIdInput,
+  MistakeTagInput,
+  RenameMistakeDefInput,
+  ReorderMistakeDefsInput,
+} from '@shared/mistakes-types'
 import { bumpDataVersion } from '../lib/cache'
 import { getTrade } from '../trades/list'
 import {
   addMistakeTag,
+  archiveMistakeDef,
+  createMistakeDef,
+  deleteMistakeDef,
   getMistakeTagsForTrade,
   listMistakeDefs,
   removeMistakeTag,
+  renameMistakeDef,
+  reorderMistakeDefs,
+  unarchiveMistakeDef,
 } from './repo'
 
 // Beat 2a — the mistakes API: read the mistake_def vocabulary, and read/add/remove
@@ -30,5 +42,40 @@ export function registerMistakesIpc(): void {
     removeMistakeTag(input.trade_id, input.mistake_def_id)
     bumpDataVersion()
     return getTrade(input.trade_id)
+  })
+
+  // Beat 2b — mistake_def vocabulary writes. Each write -> bumpDataVersion() ->
+  // return the repo result (the updated def, the reordered list, or the delete
+  // guard's verdict). A repo throw (dup, coverage, collision) propagates as the
+  // IPC error, same as the playbook handlers.
+  ipcMain.handle(IPC.MISTAKE_DEF_CREATE, (_e, input: CreateMistakeDefInput) => {
+    const def = createMistakeDef(input)
+    bumpDataVersion()
+    return def
+  })
+  ipcMain.handle(IPC.MISTAKE_DEF_RENAME, (_e, input: RenameMistakeDefInput) => {
+    const def = renameMistakeDef(input)
+    bumpDataVersion()
+    return def
+  })
+  ipcMain.handle(IPC.MISTAKE_DEFS_REORDER, (_e, input: ReorderMistakeDefsInput) => {
+    const defs = reorderMistakeDefs(input)
+    bumpDataVersion()
+    return defs
+  })
+  ipcMain.handle(IPC.MISTAKE_DEF_ARCHIVE, (_e, input: MistakeDefIdInput) => {
+    const def = archiveMistakeDef(input)
+    bumpDataVersion()
+    return def
+  })
+  ipcMain.handle(IPC.MISTAKE_DEF_UNARCHIVE, (_e, input: MistakeDefIdInput) => {
+    const def = unarchiveMistakeDef(input)
+    bumpDataVersion()
+    return def
+  })
+  ipcMain.handle(IPC.MISTAKE_DEF_DELETE, (_e, input: MistakeDefIdInput) => {
+    const result = deleteMistakeDef(input)
+    bumpDataVersion()
+    return result
   })
 }

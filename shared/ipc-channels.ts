@@ -63,6 +63,14 @@ export const IPC = {
   TRADE_MISTAKE_TAGS_GET: 'trade:mistakeTagsGet',
   TRADE_MISTAKE_TAG_ADD: 'trade:mistakeTagAdd',
   TRADE_MISTAKE_TAG_REMOVE: 'trade:mistakeTagRemove',
+  // Beat 2b — mistake_def vocabulary writes (CRUD). The repo enforces the delete
+  // guard (custom + unreferenced → delete; else archive).
+  MISTAKE_DEF_CREATE: 'mistake:defCreate',
+  MISTAKE_DEF_RENAME: 'mistake:defRename',
+  MISTAKE_DEFS_REORDER: 'mistake:defsReorder',
+  MISTAKE_DEF_ARCHIVE: 'mistake:defArchive',
+  MISTAKE_DEF_UNARCHIVE: 'mistake:defUnarchive',
+  MISTAKE_DEF_DELETE: 'mistake:defDelete',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_MISTAKES_SAVE: 'trade:mistakesSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',
