@@ -111,7 +111,7 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '33'
+export const SCHEMA_VERSION = '34'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

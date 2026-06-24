@@ -16,6 +16,7 @@ import { migrateAddWarmupBars } from './migrate-add-warmup-bars'
 import { migrateAddWarmupAttemptedAt } from './migrate-add-warmup-attempted-at'
 import { migrateAddWarmupError } from './migrate-add-warmup-error'
 import { migrateConfluenceJunction } from './migrate-confluence-junction'
+import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -880,6 +881,14 @@ function migrateAfterSchema(
   // (NOT version-gated) so fresh installs are covered too. See
   // migrate-confluence-junction.ts.
   migrateConfluenceJunction(conn)
+
+  // Mistakes reshape beat 1a (schema 34) — two-axis mistakes taxonomy
+  // foundation: the mistake_def vocabulary (technical + psychological axes,
+  // seeded 10 each on an empty table) and the trade_mistake junction. Additive
+  // + idempotent; runs every launch (NOT version-gated) so fresh installs are
+  // covered too; seed runs only when mistake_def is empty. NOTHING reads these
+  // yet. See migrate-mistakes-taxonomy.ts.
+  migrateMistakesTaxonomy(conn)
 
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the
