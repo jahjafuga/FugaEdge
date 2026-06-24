@@ -29,7 +29,9 @@ import {
 // the two-axis pickers 2c will). Future: an XP-reconcile hook like the playbook add
 // (if mistakes ever feed XP) — out of scope for 2a.
 export function registerMistakesIpc(): void {
-  ipcMain.handle(IPC.MISTAKE_DEFS_GET, () => listMistakeDefs())
+  ipcMain.handle(IPC.MISTAKE_DEFS_GET, (_e, includeArchived?: boolean) =>
+    listMistakeDefs({ includeArchived }),
+  )
   ipcMain.handle(IPC.TRADE_MISTAKE_TAGS_GET, (_e, tradeId: number) =>
     getMistakeTagsForTrade(tradeId),
   )

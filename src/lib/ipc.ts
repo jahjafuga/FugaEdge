@@ -138,7 +138,8 @@ export const ipc = {
     window.api.playbookTagRemove(input),
   // Beat 2a — mistakes API (Electron-IPC adapter; the web port swaps these for
   // fetch/tRPC). Nothing in the renderer calls them yet.
-  mistakeDefsGet: () => window.api.mistakeDefsGet(),
+  mistakeDefsGet: (includeArchived?: boolean) =>
+    window.api.mistakeDefsGet(includeArchived),
   tradeMistakeTagsGet: (tradeId: number) =>
     window.api.tradeMistakeTagsGet(tradeId),
   tradeMistakeTagAdd: (input: MistakeTagInput) =>

@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
+import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEditor'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
@@ -279,21 +280,7 @@ export default function Settings() {
           />
         </SettingsAccordion>
 
-        <SettingsAccordion
-          storageKey="mistakeList"
-          title="Mistake list"
-          subtitle="Tag any of these on a trade in the expand row. Used by the Mistakes card on Analytics."
-          count={editor.mistake_list.length}
-        >
-          <RuleList
-            rules={editor.mistake_list}
-            onChange={(next) =>
-              setEditor((prev) =>
-                prev ? { ...prev, mistake_list: next } : prev,
-              )
-            }
-          />
-        </SettingsAccordion>
+        <MistakesVocabularyEditor />
 
         <SettingsAccordion
           storageKey="dayTags"

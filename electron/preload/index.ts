@@ -289,8 +289,8 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_ADD, input),
   playbookTagRemove: (input: PlaybookTagInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_TAG_REMOVE, input),
-  mistakeDefsGet: (): Promise<MistakeDef[]> =>
-    ipcRenderer.invoke(IPC.MISTAKE_DEFS_GET),
+  mistakeDefsGet: (includeArchived?: boolean): Promise<MistakeDef[]> =>
+    ipcRenderer.invoke(IPC.MISTAKE_DEFS_GET, includeArchived),
   tradeMistakeTagsGet: (tradeId: number): Promise<MistakeTag[]> =>
     ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAGS_GET, tradeId),
   tradeMistakeTagAdd: (input: MistakeTagInput): Promise<TradeListRow | null> =>
