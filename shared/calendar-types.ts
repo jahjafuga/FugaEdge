@@ -61,7 +61,6 @@ export interface WeeklySummary {
   best_symbol: { symbol: string; net_pnl: number } | null
   days_traded: number
   days_journaled: number
-  top_mistake: { name: string; count: number } | null
   emotion_avg: number | null
   // Streak going into the next week — counts consecutive winning/losing days
   // walking back from the last traded day on or before week_end.

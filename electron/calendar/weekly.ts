@@ -37,7 +37,6 @@ interface TradeForWeek {
   net_pnl: number
   gross_pnl: number
   total_fees: number
-  mistakes_json: string | null
 }
 
 interface JournalForWeek {
@@ -47,17 +46,6 @@ interface JournalForWeek {
   emotion_rating: number | null
   rules_followed: string
   rule_violations: string
-}
-
-function parseMistakes(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try {
-    const arr = JSON.parse(raw)
-    if (Array.isArray(arr)) return arr.map((s) => String(s)).filter(Boolean)
-  } catch {
-    // ignore
-  }
-  return []
 }
 
 function hasListContent(raw: string | null | undefined): boolean {
@@ -162,19 +150,6 @@ function computeOne(
   )
   const daysJournaled = journalInWeek.filter(isNonEmptyJournal).length
 
-  // Top mistake by occurrence count across trades in this week.
-  const mistakeCount = new Map<string, number>()
-  for (const t of inWeek) {
-    const list = parseMistakes(t.mistakes_json)
-    for (const m of list) {
-      mistakeCount.set(m, (mistakeCount.get(m) ?? 0) + 1)
-    }
-  }
-  let topMistake: { name: string; count: number } | null = null
-  for (const [name, c] of mistakeCount) {
-    if (!topMistake || c > topMistake.count) topMistake = { name, count: c }
-  }
-
   // Emotion average over journals in this week that recorded one.
   const rated = journalInWeek.filter((j) => j.emotion_rating != null)
   const emotionAvg =
@@ -203,7 +178,6 @@ function computeOne(
     best_symbol: bestSymbol,
     days_traded: daysTraded,
     days_journaled: daysJournaled,
-    top_mistake: topMistake,
     emotion_avg: emotionAvg,
     streak,
     notes,
@@ -224,7 +198,7 @@ export function getWeeklySummaries(year: number, month: number): WeeklySummary[]
 
   const trades = db
     .prepare(`
-      SELECT date, symbol, net_pnl, gross_pnl, total_fees, mistakes_json
+      SELECT date, symbol, net_pnl, gross_pnl, total_fees
       FROM trades
       WHERE date >= ? AND date <= ? AND deleted_at IS NULL
     `)

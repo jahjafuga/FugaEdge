@@ -4,7 +4,6 @@ import {
   BarChart3,
   ListChecks,
   NotebookPen,
-  AlertTriangle,
 } from 'lucide-react'
 import type { DayDetail } from '@shared/day-types'
 import { dayRepo } from '@/data/dayRepo'
@@ -15,21 +14,19 @@ import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
-import MistakesTab from './MistakesTab'
 
 interface DayDetailModalProps {
   date: string | null
   onClose: () => void
 }
 
-type TabKey = 'overview' | 'performance' | 'trades' | 'notes' | 'mistakes'
+type TabKey = 'overview' | 'performance' | 'trades' | 'notes'
 
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
-  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
 ]
 
 // v0.2.2 Day Detail Modal. The chrome (portal/backdrop/header/tab-strip/content
@@ -141,9 +138,6 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           label="Day notes"
           placeholder="How did the day go? Plan, execution, what to repeat or fix…"
         />
-      )}
-      {detail && !loading && tab === 'mistakes' && (
-        <MistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
       )}
     </DetailModalShell>
   )
