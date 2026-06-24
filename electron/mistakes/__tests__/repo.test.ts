@@ -162,6 +162,45 @@ describe('removeMistakeTag', () => {
   })
 })
 
+// ── Beat 2c — dual-write: the trade_mistake junction is the SOURCE OF TRUTH and
+//    trades.mistakes_json is kept in sync after every junction write (so the existing
+//    mistakes_json readers stay correct until the 2c-display cutover). Cleaning mirrors
+//    saveMistakes (trim, dedupe, drop blanks). ─────────────────────────────────────
+describe('addMistakeTag — dual-write mistakes_json (2c)', () => {
+  it('after the junction INSERT, rewrites trades.mistakes_json from the junction names', () => {
+    respond = program({ defExists: true, tradeExists: true })
+    // The junction state AFTER the add (what getMistakeTagsForTrade returns via .all()).
+    allRows = [{ id: 5, axis: 'psychological', name: 'FOMO - chased a runner' }]
+    addMistakeTag(42, 5)
+    // (i) the junction write still happens
+    const ins = runs.find((r) => /INSERT OR IGNORE INTO trade_mistake/i.test(r.sql))
+    expect(ins).toBeTruthy()
+    expect(ins!.args).toEqual([42, 5])
+    // (ii) the dual-write rewrites mistakes_json from the junction's current names
+    const upd = runs.find((r) => /UPDATE trades SET mistakes_json = \?/i.test(r.sql))
+    expect(upd).toBeTruthy()
+    expect(upd!.args).toEqual([JSON.stringify(['FOMO - chased a runner']), 42])
+  })
+})
+
+describe('removeMistakeTag — dual-write mistakes_json (2c)', () => {
+  it('after the junction DELETE, rewrites trades.mistakes_json from the (now-empty) junction', () => {
+    // The trade has no junction rows left after the remove.
+    allRows = []
+    removeMistakeTag(42, 5)
+    // (i) the junction delete still happens
+    const del = runs.find((r) =>
+      /DELETE FROM trade_mistake WHERE trade_id = \? AND mistake_def_id = \?/i.test(r.sql),
+    )
+    expect(del).toBeTruthy()
+    expect(del!.args).toEqual([42, 5])
+    // (ii) the dual-write rewrites mistakes_json to an empty array
+    const upd = runs.find((r) => /UPDATE trades SET mistakes_json = \?/i.test(r.sql))
+    expect(upd).toBeTruthy()
+    expect(upd!.args).toEqual([JSON.stringify([]), 42])
+  })
+})
+
 // ── Beat 2b — vocabulary write methods ──────────────────────────────────────
 
 // A full mapped row the getById re-SELECT returns (matches the

@@ -26,7 +26,7 @@ import CountryEditor from './CountryEditor'
 import CatalystEditor from './CatalystEditor'
 import NoteEditor from './NoteEditor'
 import AttachmentManager from './AttachmentManager'
-import MistakesChecklist from './MistakesChecklist'
+import TradeMistakePicker from './TradeMistakePicker'
 import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 
@@ -591,80 +591,17 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
   )
 }
 
-// ── Mistakes tab — local state + save button ──
-
+// ── Mistakes tab — two-axis junction picker (self-persisting per tag) ──
+// onSaveMistakes stays threaded for the mistakes_json write path + the later
+// 2c-display cutover, but the picker no longer consumes it (the junction
+// add/remove dual-writes mistakes_json server-side), so it isn't destructured here.
 function MistakesTab({
   trade,
-  onSaveMistakes,
 }: {
   trade: TradeListRow
   onSaveMistakes: (input: UpdateMistakesInput) => Promise<void>
 }) {
-  const [selected, setSelected] = useState<string[]>(trade.mistakes)
-  const [saving, setSaving] = useState(false)
-  // Transient "saved" confirmation — mirrors the Playbook editor's savedAt
-  // pill so the user gets visible feedback that the save landed.
-  const [savedAt, setSavedAt] = useState<number | null>(null)
-  const dirty = !sameArray(selected, trade.mistakes)
-
-  useEffect(() => {
-    setSelected(trade.mistakes)
-    setSavedAt(null)
-  }, [trade.id])
-
-  // Auto-clear the confirmation after 1.5s so it reads as a transient pill.
-  useEffect(() => {
-    if (savedAt == null) return
-    const t = setTimeout(() => setSavedAt(null), 1500)
-    return () => clearTimeout(t)
-  }, [savedAt])
-
-  const save = async () => {
-    if (saving) return
-    setSaving(true)
-    try {
-      await onSaveMistakes({ trade_id: trade.id, mistakes: selected })
-      setSavedAt(Date.now())
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Mistakes
-        </div>
-        <p className="mt-1 text-sm text-fg-secondary">
-          Tag what went wrong — these roll up in Analytics → Psychology.
-        </p>
-      </div>
-      <MistakesChecklist selected={selected} onChange={setSelected} />
-      <div className="flex items-center justify-end gap-3">
-        {savedAt && (
-          <span className="text-[10px] uppercase tracking-wider text-win">
-            saved
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          style={dirty && !saving ? { color: '#92400e' } : undefined}
-          className="inline-flex h-8 cursor-pointer items-center rounded-md bg-gold px-4 text-xs font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {saving ? 'Saving…' : 'Save mistakes'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function sameArray(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false
-  const setB = new Set(b)
-  return a.every((x) => setB.has(x))
+  return <TradeMistakePicker trade={trade} />
 }
 
 // Suspense fallback while the chart bundle (~110 KB) downloads on first
