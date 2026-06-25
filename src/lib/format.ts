@@ -68,6 +68,16 @@ export function signedPct(n: number, dec = 1): string {
   return `${n > 0 ? '+' : ''}${n.toFixed(dec)}%`
 }
 
+// Relative volume → "N.NNx" (e.g. "2.45x"). RVOL is the trade-day volume ÷ the
+// symbol's ~30-day average — a multiple, so the "x" suffix. 2-decimal like the
+// compactShares M bucket. Returns "—" for null / non-finite, per the no-
+// fabricated-data law (mirrors compactShares / percent). First consumer: the
+// Trader DNA block on the trade-detail Overview pane (beat A2a).
+export function rvolLabel(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—'
+  return `${n.toFixed(2)}x`
+}
+
 // Renders profit factor (Σ wins / |Σ losses|). Promoted in v0.2.2 Day 2 from
 // the inline pf() helper in FullStatsTable.tsx so the new day-scoped
 // Performance tab and the existing whole-account stats table render the

@@ -28,6 +28,7 @@ import {
   localEasternToUtc,
   mmss,
   percent,
+  rvolLabel,
   signedPct,
   utcToEasternParts,
   wordCount,
@@ -143,6 +144,21 @@ describe('signedPct — signed raw-percentage string (+2.3% / -1.1% / 0.0%)', ()
 
   it('rounds a very small magnitude up into the first decimal', () => {
     expect(signedPct(0.05)).toBe('+0.1%')
+  })
+})
+
+describe('rvolLabel — relative volume as "N.NNx"', () => {
+  it('formats a finite RVOL to 2 decimals with the "x" suffix', () => {
+    expect(rvolLabel(2.45)).toBe('2.45x')
+    expect(rvolLabel(1)).toBe('1.00x')
+    expect(rvolLabel(12.3)).toBe('12.30x')
+  })
+
+  it('returns the em-dash sentinel for null and invalid input', () => {
+    expect(rvolLabel(null)).toBe('—')
+    expect(rvolLabel(undefined)).toBe('—')
+    expect(rvolLabel(Number.NaN)).toBe('—')
+    expect(rvolLabel(Number.POSITIVE_INFINITY)).toBe('—')
   })
 })
 

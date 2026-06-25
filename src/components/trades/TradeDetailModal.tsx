@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2 } from 'lucide-react'
+import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, type LucideIcon } from 'lucide-react'
 import type {
   EntryTimeframe,
   TradeListRow,
@@ -15,7 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, signed, pnlClass, longDate, formatEastern } from '@/lib/format'
+import { money, price, int, signed, pnlClass, signedPct, rvolLabel, longDate, formatEastern } from '@/lib/format'
 import PlaybookPicker from '@/components/playbook/PlaybookPicker'
 import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
@@ -29,6 +29,7 @@ import TradeMistakePicker from './TradeMistakePicker'
 import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 import RChip from './RChip'
+import Card from '@/components/ui/Card'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -406,76 +407,95 @@ function OverviewTab({
             }
           />
         </FieldRow>
-        {/* v0.2.2 Commit B — Float (real tradable supply from FMP) is the
-            momentum-relevant primary number. User-editable so a trader can
-            override with a better data source. Honest "Unavailable" hint
-            when null — NEVER silently falls back to shares_outstanding;
-            that was the bug being fixed. NOTE: this is CURRENT float, not
-            point-in-time-of-trade (v0.3.0 tentpole separately). */}
-        <FieldRow label="Float">
-          <div>
+      </div>
+
+      {/* Trader DNA — the stock-character + entry-context block (beat A2a). A
+          premium <Card> of six tiles: Float / Daily% / RVOL (the setup's
+          character), Country / Catalyst (the why), Entry-vs-9EMA (the entry
+          quality). Float + Catalyst render their existing editors inline for now
+          so editing keeps working — A2b makes them display-first with a
+          click-to-edit reveal. */}
+      <Card title="Trader DNA">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <DnaTile icon={Layers} label="Float">
             <FloatEditor
               value={t.float_shares}
-              onChange={(next) =>
-                onSaveFloat({ trade_id: t.id, float_shares: next })
-              }
+              onChange={(next) => onSaveFloat({ trade_id: t.id, float_shares: next })}
             />
             {t.float_shares == null && (
               <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
-                Unavailable — FMP returned no float for this symbol
+                Unavailable — FMP returned no float
               </div>
             )}
-          </div>
-        </FieldRow>
-        {/* Issued share count. Display-only — a fact about the company,
-            not a momentum-quality choice, so no override path. Read from
-            the schema-21 shares_outstanding column (preserved migration
-            data + populated alongside float by the FMP enrichment). */}
-        <FieldRow label="Shares Out">
-          <div className="font-mono text-sm text-fg-secondary tnum">
-            {t.shares_outstanding == null ? '—' : int(t.shares_outstanding)}
-          </div>
-        </FieldRow>
-        <FieldRow label="Country">
-          <CountryEditor
-            country={t.country}
-            countryName={t.country_name}
-            region={t.region}
-            source={t.country_source}
-            onChange={(next) =>
-              onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
-            }
-            symbol={t.symbol}
-            onApplyToSymbol={
-              onSaveCountrySymbol
-                ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
-                : undefined
-            }
-          />
-        </FieldRow>
-        <FieldRow label="Entry vs 9EMA (1m)">
-          <Ema9Readout pct={t.entry_ema9_distance_pct} />
-        </FieldRow>
-      </div>
+          </DnaTile>
 
-      {/* Catalyst — separate card per the spec. Both fields save atomically
-          via TRADE_CATALYST_SAVE so type + days_since stay coherent. */}
-      <div className="rounded-lg border border-border-subtle bg-bg-2 p-4">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Catalyst
+          <DnaTile
+            icon={t.daily_change_pct != null && t.daily_change_pct < 0 ? TrendingDown : TrendingUp}
+            label="Daily %"
+            tone={
+              t.daily_change_pct == null
+                ? 'muted'
+                : t.daily_change_pct < 0
+                  ? 'loss'
+                  : 'win'
+            }
+          >
+            <span
+              className={`font-mono text-lg font-semibold tnum ${
+                t.daily_change_pct == null ? 'text-fg-tertiary' : pnlClass(t.daily_change_pct)
+              }`}
+            >
+              {t.daily_change_pct == null ? '—' : signedPct(t.daily_change_pct, 2)}
+            </span>
+          </DnaTile>
+
+          <DnaTile icon={Activity} label="RVOL" tone="violet">
+            <span
+              className={`font-mono text-lg font-semibold tnum ${
+                t.rvol == null ? 'text-fg-tertiary' : 'text-violet'
+              }`}
+            >
+              {rvolLabel(t.rvol)}
+            </span>
+          </DnaTile>
+
+          <DnaTile icon={Globe} label="Country">
+            <CountryEditor
+              country={t.country}
+              countryName={t.country_name}
+              region={t.region}
+              source={t.country_source}
+              onChange={(next) =>
+                onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
+              }
+              symbol={t.symbol}
+              onApplyToSymbol={
+                onSaveCountrySymbol
+                  ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
+                  : undefined
+              }
+            />
+          </DnaTile>
+
+          <DnaTile icon={Zap} label="Catalyst">
+            <CatalystEditor
+              catalystType={t.catalyst_type}
+              daysSince={t.days_since_catalyst}
+              onChange={(catalystType, daysSince) =>
+                onSaveCatalyst({
+                  trade_id: t.id,
+                  catalyst_type: catalystType,
+                  days_since_catalyst: daysSince,
+                })
+              }
+            />
+          </DnaTile>
+
+          <DnaTile icon={LineChart} label="Entry vs 9EMA">
+            <Ema9Readout pct={t.entry_ema9_distance_pct} />
+          </DnaTile>
         </div>
-        <CatalystEditor
-          catalystType={t.catalyst_type}
-          daysSince={t.days_since_catalyst}
-          onChange={(catalystType, daysSince) =>
-            onSaveCatalyst({
-              trade_id: t.id,
-              catalyst_type: catalystType,
-              days_since_catalyst: daysSince,
-            })
-          }
-        />
-      </div>
+      </Card>
 
       {/* Beat 3 — secondary confluence tags. Hidden when the primary is
           "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid. */}
@@ -521,6 +541,49 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: stri
         {label}
       </div>
       <div className={`mt-1 font-mono text-lg font-semibold tnum ${tone}`}>{value}</div>
+    </div>
+  )
+}
+
+// Beat A2a — a premium Trader-DNA tile: a tinted icon square + uppercase label
+// over the value (or, for Float / Catalyst, the existing editor rendered inline
+// so editing keeps working until A2b's display-first reveal). The tone drives
+// the icon square only — values carry their own tone. Quiet gold by default;
+// RVOL is the lone violet accent, Daily% is sign-toned.
+const DNA_TONE = {
+  gold: 'bg-gold/[0.10] text-gold',
+  violet: 'bg-accent-violet/[0.12] text-accent-violet',
+  win: 'bg-win/[0.10] text-win',
+  loss: 'bg-loss/[0.10] text-loss',
+  muted: 'bg-bg-1 text-fg-tertiary',
+} as const
+
+function DnaTile({
+  icon: Icon,
+  label,
+  tone = 'gold',
+  className = '',
+  children,
+}: {
+  icon: LucideIcon
+  label: string
+  tone?: keyof typeof DNA_TONE
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className={`rounded-lg border border-border-subtle bg-bg-1/40 p-3 ${className}`}>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${DNA_TONE[tone]}`}
+        >
+          <Icon size={14} strokeWidth={2} aria-hidden="true" />
+        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          {label}
+        </span>
+      </div>
+      <div className="mt-2.5">{children}</div>
     </div>
   )
 }
