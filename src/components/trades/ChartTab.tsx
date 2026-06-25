@@ -513,24 +513,13 @@ function ChartCanvas({
     }
   }, [savingShot])
 
-  // Recompute the Entry vs EMA9 % from the current bars at entry time.
-  // Replaces the static `trade.entry_ema9_distance_pct` value (which was
-  // baked-in at 1m at import time and never changed). When the user flips
-  // to 5m this now reflects the 5m EMA9 instead.
-  const dynamicEma9Pct = useMemo(
-    () => computeEntryEma9Pct(trade, indicators.ema9),
-    [trade, indicators.ema9],
-  )
-
   return (
     <div className="flex flex-col gap-3">
-      <ContextBar
-        trade={trade}
-        stats={dayStats}
-        ema9Pct={dynamicEma9Pct}
-        tfLabel={tfLabel}
-      />
-
+      {/* Beat B3 — the OHLC ContextBar row is gone; OHLC + Volume and the latest
+          EMA / VWAP values now float as a TradingView-style overlay on the chart
+          itself (ChartOverlay, in LightweightChartHost), so the chart reclaims
+          this height. Entry-vs-9EMA is dropped from the chart entirely — it stays
+          in the Trader DNA block. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <TimeframeToggle value={tf} onChange={onChangeTf} />
         <div className="flex items-center gap-2">
@@ -594,6 +583,8 @@ function ChartCanvas({
         fitRef={fitRef}
         screenshotRef={screenshotRef}
         isFullscreen={isFullscreen}
+        stats={dayStats}
+        tfLabel={tfLabel}
         ema9={showEma9 ? indicators.ema9 : null}
         ema20={showEma20 ? indicators.ema20 : null}
         vwap={showVwap ? indicators.vwap : null}
@@ -623,6 +614,10 @@ interface ChartHostProps {
   /** Fullscreen flag (modal-owned, prop-drilled). Drives the chart's pixel
    *  height via chartHeightFor — applied to the chart API in the height effect. */
   isFullscreen: boolean
+  /** B3 floating overlay data — whole-day OHLC + volume (from raw 1m bars) and
+   *  the active-timeframe label, for the TradingView-style legend. */
+  stats: DayStats
+  tfLabel: string
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
@@ -685,7 +680,7 @@ function makeBandProvider(band: PriceRange | null) {
   }
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, ema9, ema20, vwap, indicators, macd }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, stats, tfLabel, ema9, ema20, vwap, indicators, macd }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Flag-driven chart height (see chartHeightFor). Recomputed each render; the
   // height effect applies it to the chart API whenever it changes. createChart
@@ -1407,6 +1402,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         className="w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm"
         style={{ height: chartHeight }}
       />
+      {/* B3 — TradingView-style floating legend: OHLC + Vol always, then the
+          latest 9EMA / 20EMA / VWAP values (each only when toggled on). It is a
+          SIBLING of the canvas (NOT inside the overflow-hidden div, which would
+          clip it and sit under the paint), pointer-events-none so pan/zoom passes
+          through. Inside this relative wrapper, so it shows in fullscreen too. */}
+      <ChartOverlay stats={stats} tfLabel={tfLabel} ema9={ema9} ema20={ema20} vwap={vwap} />
     </div>
   )
 }
@@ -1647,62 +1648,76 @@ interface DayStats {
   volume: number
 }
 
-function ContextBar({
-  trade,
+// Beat B3 — the TradingView-style floating chart legend (replaces the old
+// ContextBar row). One compact line of whole-day OHLC, then the latest value of
+// each of 9EMA / 20EMA / VWAP, shown ONLY when that indicator is toggled on (its
+// gated prop is non-null). Values are STATIC (the latest bar), not crosshair-
+// following. Rendered as a sibling of the canvas inside the host's relative
+// wrapper: bare text top-left (no backing — it floats directly on the candles),
+// pointer-events-none so the chart still pans/zooms through it.
+function ChartOverlay({
   stats,
-  ema9Pct,
   tfLabel,
+  ema9,
+  ema20,
+  vwap,
 }: {
-  trade: TradeListRow
   stats: DayStats
-  /** Live EMA9-distance value for the current timeframe. Pass null when no
-   *  EMA can be computed (entry before period seed, or no fills). */
-  ema9Pct: number | null
-  /** Timeframe suffix shown in the stat label ("(1m)", "(5m)", "(D)"). */
   tfLabel: string
+  ema9: { time: number; value: number }[] | null
+  ema20: { time: number; value: number }[] | null
+  vwap: { time: number; value: number }[] | null
 }) {
-  // Reference to `trade` retained for future per-side / per-symbol context
-  // hooks (currently the stat block draws solely from ema9Pct + stats).
-  void trade
-  const ema9Tone =
-    ema9Pct == null
-      ? 'text-fg-muted'
-      : Math.abs(ema9Pct) > 5
-        ? 'text-loss'
-        : Math.abs(ema9Pct) > 3
-          ? 'text-gold'
-          : 'text-win'
+  const anyIndicator = ema9 != null || ema20 != null || vwap != null
   return (
-    <div className="grid grid-cols-2 gap-3 rounded-lg border border-border-subtle bg-bg-2 p-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
-      <Pair label="Open" value={stats.open == null ? '—' : `$${price(stats.open)}`} />
-      <Pair label="High" value={stats.high == null ? '—' : `$${price(stats.high)}`} tone="text-win" />
-      <Pair label="Low"  value={stats.low  == null ? '—' : `$${price(stats.low)}`}  tone="text-loss" />
-      <Pair label="Close" value={stats.close == null ? '—' : `$${price(stats.close)}`} />
-      <Pair label="Day volume" value={int(stats.volume)} />
-      <Pair
-        label={`Entry vs 9EMA (${tfLabel})`}
-        value={
-          ema9Pct == null
-            ? '—'
-            : `${ema9Pct >= 0 ? '+' : ''}${ema9Pct.toFixed(2)}%`
-        }
-        tone={ema9Tone}
-      />
+    <div className="pointer-events-none absolute left-2 top-2 z-10 select-none font-mono text-xs leading-tight">
+      {/* OHLC — always shown. O/C neutral, H green, L red. Whole-day stats from
+          the raw 1m bars. (Day Volume was dropped — the volume bars already sit
+          on the chart, so the number was redundant.) */}
+      <div className="flex flex-wrap items-baseline gap-x-2.5">
+        <span><span className="text-fg-tertiary">O</span> <span className="tnum text-fg-secondary">{stats.open == null ? '—' : price(stats.open)}</span></span>
+        <span><span className="text-fg-tertiary">H</span> <span className="tnum text-win">{stats.high == null ? '—' : price(stats.high)}</span></span>
+        <span><span className="text-fg-tertiary">L</span> <span className="tnum text-loss">{stats.low == null ? '—' : price(stats.low)}</span></span>
+        <span><span className="text-fg-tertiary">C</span> <span className="tnum text-fg-secondary">{stats.close == null ? '—' : price(stats.close)}</span></span>
+      </div>
+      {/* Indicator legend — one line per indicator, only when toggled on. The
+          swatch reuses the exact chart-line color so the legend matches the line. */}
+      {anyIndicator && (
+        <div className="mt-1 flex flex-col gap-y-0.5">
+          {ema9 != null && (
+            <ChartLegendRow color={COLOR_EMA9} label={`EMA 9 (${tfLabel})`} value={lastValue(ema9)} />
+          )}
+          {ema20 != null && (
+            <ChartLegendRow color={COLOR_EMA20} label={`EMA 20 (${tfLabel})`} value={lastValue(ema20)} />
+          )}
+          {vwap != null && (
+            <ChartLegendRow color={COLOR_VWAP} label="VWAP" value={lastValue(vwap)} />
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-function Pair({ label, value, tone = 'text-fg-primary' }: { label: string; value: string; tone?: string }) {
+function ChartLegendRow({ color, label, value }: { color: string; label: string; value: number | null }) {
   return (
-    <div className="min-w-0">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        {label}
-      </div>
-      <div className={`mt-0.5 truncate font-mono text-sm font-semibold tnum ${tone}`}>
-        {value}
-      </div>
+    <div className="flex items-center gap-1.5">
+      <span
+        className="inline-block h-[3px] w-3 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+        aria-hidden="true"
+      />
+      <span className="text-fg-tertiary">{label}</span>
+      <span className="tnum text-fg-secondary">{value == null ? '—' : price(value)}</span>
     </div>
   )
+}
+
+// Latest value of an indicator series (its last point) for the static legend —
+// null when the indicator is off (series null) or too short to have computed.
+function lastValue(series: { time: number; value: number }[] | null): number | null {
+  if (!series || series.length === 0) return null
+  return series[series.length - 1].value
 }
 
 // ── Pure utilities (no DOM) ───────────────────────────────────────────────
@@ -1791,43 +1806,6 @@ function ema(bars: IntradayBar[], period: number): { time: number; value: number
     out.push({ time: bars[i].t, value: prev })
   }
   return out
-}
-
-// Entry vs EMA9 distance, computed dynamically from the CURRENTLY DISPLAYED
-// timeframe's EMA9 series rather than the static per-trade column that was
-// baked in at 1m at import time. Flipping the timeframe toggle replays this
-// against the new EMA9 array so the stat agrees with the visible overlay.
-//
-// Algorithm: pick the trade's first entry fill (buy for long, sell for
-// short); find the latest EMA9 point at-or-before that fill's timestamp;
-// return % distance. Null when no EMA point covers entry (early-day entry
-// before period seed) or when fills are missing.
-function computeEntryEma9Pct(
-  trade: import('@shared/trades-types').TradeListRow,
-  ema9Series: { time: number; value: number }[],
-): number | null {
-  if (ema9Series.length === 0) return null
-  const entrySide = trade.side === 'short' ? 'S' : 'B'
-  const entryFill = trade.executions.find((e) => e.side === entrySide)
-  if (!entryFill) return null
-  // entryFill.time is true UTC with a Z suffix (Day 8.5 Commit B). The
-  // includes('Z') guard is kept deliberately — it tolerates either form, so
-  // this stays correct even if a caller ever passes a legacy bare-local
-  // string. Do NOT simplify to a hard `${...}Z` append: that would double
-  // the Z on the normal already-UTC path and yield NaN.
-  const entryEpoch = Date.parse(
-    entryFill.time.includes('Z') ? entryFill.time : `${entryFill.time}Z`,
-  )
-  if (!Number.isFinite(entryEpoch)) return null
-  // ema9Series is sorted ascending by time. Walk forward; remember the last
-  // point still <= entryEpoch and bail when we cross past it.
-  let chosen: { time: number; value: number } | null = null
-  for (const p of ema9Series) {
-    if (p.time <= entryEpoch) chosen = p
-    else break
-  }
-  if (!chosen || chosen.value === 0) return null
-  return ((entryFill.price - chosen.value) / chosen.value) * 100
 }
 
 // Session VWAP — typical price = (h+l+c)/3, weighted by volume, cumulative.
