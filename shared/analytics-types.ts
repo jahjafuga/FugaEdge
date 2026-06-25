@@ -1,3 +1,5 @@
+import type { MistakeAxis } from './mistakes-types'
+
 export interface EquityPoint {
   date: string                   // YYYY-MM-DD
   daily_pnl: number              // sum of net_pnl on this date
@@ -95,6 +97,9 @@ export interface ExtendedEntryCompare {
 
 export interface MistakeImpact {
   label: string
+  /** Beat 2c-display-β.1 — the axis this mistake belongs to, for the per-axis
+   *  PER MISTAKE table split (β.2 groups byMistake into Technical / Psychological). */
+  axis: MistakeAxis
   trade_count: number
   net_pnl: number
   avg_pnl: number | null

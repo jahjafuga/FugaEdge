@@ -31,6 +31,7 @@ import type {
   VolumeByTimeBucket,
 } from '@shared/analytics-types'
 import type { RoundTripExecution } from '@shared/import-types'
+import type { MistakeAxis } from '@shared/mistakes-types'
 
 interface TradeRow {
   id: number
@@ -49,10 +50,11 @@ interface TradeRow {
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
   confidence: number | null
-  // Beat 2c-display-α — junction names (a json_group_array(md.name) string from
-  // trade_mistake → mistake_def), replacing the legacy trades.mistakes_json source.
-  // NULL when the trade has no junction rows. computeMistakes reads THIS.
-  mistake_names_json: string | null
+  // Beat 2c-display-β.1 — junction tags (a json_group_array(json_object('name',
+  // md.name, 'axis', md.axis)) string from trade_mistake → mistake_def, the same
+  // shape list.ts ships as mistake_tags_json). NULL when the trade has no junction
+  // rows. computeMistakes reads THIS (parses {name, axis}, keys by (axis, name)).
+  mistake_tags_json: string | null
   planned_risk: number | null
   planned_stop_loss_price: number | null
   float_shares: number | null
@@ -405,21 +407,46 @@ function computeMomentum(rows: TradeRow[]): MomentumAnalytics {
   }
 }
 
-function parseMistakesJson(raw: string | null | undefined): string[] {
+// Beat 2c-display-β.1 — clamp a stored axis string to the two-value union;
+// defensive (the mistake_def CHECK keeps it to these). Mirrors list.ts:toAxis.
+function toAxis(raw: unknown): MistakeAxis {
+  return raw === 'psychological' ? 'psychological' : 'technical'
+}
+
+// Beat 2c-display-β.1 — parse the batched junction read: a json_group_array(
+// json_object('name', md.name, 'axis', md.axis)) string, already ORDER BY axis,
+// sort_position from SQL. Returns the ordered {name, axis} tags; blank names are
+// dropped (junction names are never blank — belt-and-suspenders). Mirrors
+// list.ts:parseMistakeTags exactly.
+function parseMistakeTags(
+  raw: string | null | undefined,
+): { name: string; axis: MistakeAxis }[] {
   if (!raw) return []
   try {
     const arr = JSON.parse(raw)
-    if (Array.isArray(arr)) return arr.map((s) => String(s)).filter(Boolean)
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((e) => ({
+        name: String((e as { name?: unknown }).name ?? ''),
+        axis: toAxis((e as { axis?: unknown }).axis),
+      }))
+      .filter((t) => t.name)
   } catch {
-    // ignore
+    return []
   }
-  return []
 }
 
 function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
   // Aggregate per mistake label. A trade with multiple mistakes contributes to
   // each label's bucket — so the same trade can show up under several rows.
-  const perLabel = new Map<string, { count: number; net: number; winners: number; losers: number }>()
+  // Keyed by a composite (axis, name) — JSON.stringify([axis, name]) is a canonical,
+  // collision-free key, so the SAME name on two axes stays two distinct buckets (the
+  // unique index is per-(axis, name)). The value carries axis + name so each
+  // MistakeImpact reads them back.
+  const perLabel = new Map<
+    string,
+    { axis: MistakeAxis; name: string; count: number; net: number; winners: number; losers: number }
+  >()
   let withAny = 0
   let withoutAny = 0
   let flawedNet = 0
@@ -430,7 +457,7 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
   let cleanLosers = 0
 
   for (const t of rows) {
-    const mistakes = parseMistakesJson(t.mistake_names_json)
+    const mistakes = parseMistakeTags(t.mistake_tags_json)
     const hasAny = mistakes.length > 0
     if (hasAny) {
       withAny++
@@ -438,10 +465,11 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
       if (isWin(t.net_pnl)) flawedWinners++
       else if (isLoss(t.net_pnl)) flawedLosers++
       for (const m of mistakes) {
-        let entry = perLabel.get(m)
+        const key = JSON.stringify([m.axis, m.name])
+        let entry = perLabel.get(key)
         if (!entry) {
-          entry = { count: 0, net: 0, winners: 0, losers: 0 }
-          perLabel.set(m, entry)
+          entry = { axis: m.axis, name: m.name, count: 0, net: 0, winners: 0, losers: 0 }
+          perLabel.set(key, entry)
         }
         entry.count += 1
         entry.net += t.net_pnl
@@ -456,10 +484,11 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
     }
   }
 
-  const byMistake: MistakeImpact[] = Array.from(perLabel.entries()).map(([label, agg]) => {
+  const byMistake: MistakeImpact[] = Array.from(perLabel.values()).map((agg) => {
     const decided = agg.winners + agg.losers
     return {
-      label,
+      label: agg.name,
+      axis: agg.axis,
       trade_count: agg.count,
       net_pnl: agg.net,
       avg_pnl: agg.count > 0 ? agg.net / agg.count : null,
@@ -846,7 +875,7 @@ export function getAnalytics(): AnalyticsData {
              t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
              t.entry_timeframe, t.entry_ema9_distance_pct,
              t.confidence,
-             mn.names AS mistake_names_json,
+             mn.tags AS mistake_tags_json,
              t.planned_risk, t.planned_stop_loss_price, t.float_shares,
              t.catalyst_type,
              sm.sentiment AS sentiment
@@ -854,7 +883,10 @@ export function getAnalytics(): AnalyticsData {
       LEFT JOIN session_meta sm ON sm.date = t.date
       LEFT JOIN (
         SELECT jm.trade_id AS trade_id,
-               json_group_array(md.name ORDER BY md.axis, md.sort_position) AS names
+               json_group_array(
+                 json_object('name', md.name, 'axis', md.axis)
+                 ORDER BY md.axis, md.sort_position
+               ) AS tags
         FROM trade_mistake jm
         JOIN mistake_def md ON md.id = jm.mistake_def_id
         GROUP BY jm.trade_id
