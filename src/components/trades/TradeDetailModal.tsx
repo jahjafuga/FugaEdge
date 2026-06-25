@@ -377,8 +377,8 @@ function OverviewTab({
 }: OverviewTabProps) {
   const t = trade
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className={isFullscreen ? '' : 'space-y-5'}>
+      <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${isFullscreen ? 'hidden' : ''}`}>
         <FieldRow label="Playbook">
           <PlaybookPicker
             value={t.playbook_id}
@@ -423,7 +423,7 @@ function OverviewTab({
           character), Country / Catalyst (the why), Entry-vs-9EMA (the entry
           quality). Float + Catalyst are display-first (beat A2b): a clean value
           at rest that reveals the existing editor on click / pencil. */}
-      <Card title="Trader DNA">
+      <Card title="Trader DNA" className={isFullscreen ? 'hidden' : ''}>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <DnaTile icon={Layers} label="Float">
             <FloatField
@@ -504,10 +504,16 @@ function OverviewTab({
           the Overview. The chart is mount-on-visible (LazyVisible + Suspense) so
           a trade opens INSTANTLY with no chart-library load — the ~110 KB
           lightweight-charts bundle + intraday fetch fire only once the chart
-          scrolls into view. ChartTab keeps its existing fullscreen wiring for
-          now; A3b re-scopes fullscreen to the chart region. Fills move up from
-          the bottom into the right column beside the chart. */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start">
+          scrolls into view. Fills move up from the bottom into the right column
+          beside the chart.
+
+          Beat A3b — fullscreen shows ONLY the chart: in fullscreen this row drops
+          its two-column grid (the chart fills the width) and every non-chart
+          section below hides via isFullscreen, while the chart's LazyVisible /
+          Suspense / ChartTab subtree stays mounted in its EXACT tree position —
+          so toggling fullscreen never remounts the chart (no re-fetch of bars, no
+          lost zoom/visible-range). Only sibling and wrapper classNames branch. */}
+      <div className={isFullscreen ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start'}>
         <LazyVisible className="min-h-[440px]" placeholder={<ChartTabSkeleton />}>
           <Suspense fallback={<ChartTabSkeleton />}>
             {/* key={t.id} → full remount on trade swap (no stale chart instance).
@@ -520,15 +526,22 @@ function OverviewTab({
             />
           </Suspense>
         </LazyVisible>
-        <ExecutionList trade={t} />
+        {/* Fills — hidden (not unmounted) in chart-only fullscreen. */}
+        <div className={isFullscreen ? 'hidden' : ''}>
+          <ExecutionList trade={t} />
+        </div>
       </div>
 
       {/* Beat 3 — secondary confluence tags. Hidden when the primary is
-          "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid. */}
-      <ConfluenceTags trade={t} />
+          "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid.
+          Wrapped so A3b can hide it (with the rest of the non-chart pane) in
+          chart-only fullscreen. */}
+      <div className={isFullscreen ? 'hidden' : ''}>
+        <ConfluenceTags trade={t} />
+      </div>
 
       {/* P&L mini-grid — gross, fees, net at a glance */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className={`grid grid-cols-3 gap-3 ${isFullscreen ? 'hidden' : ''}`}>
         <Stat label="Gross P&L" value={signed(t.gross_pnl)} tone={pnlClass(t.gross_pnl)} />
         <Stat label="Fees"      value={money(t.total_fees)}  tone="text-loss" />
         <Stat label="Net P&L"   value={signed(t.net_pnl)}    tone={pnlClass(t.net_pnl)} />
@@ -539,7 +552,7 @@ function OverviewTab({
           above; never a fabricated $0. Commission is a SLICE of total_fees, so
           Other fees = the remainder; both via money(). */}
       {t.commission != null && (
-        <div className="text-[11px] text-fg-tertiary">
+        <div className={`text-[11px] text-fg-tertiary ${isFullscreen ? 'hidden' : ''}`}>
           Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
         </div>
       )}
