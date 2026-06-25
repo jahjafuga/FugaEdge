@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, Pencil, type LucideIcon } from 'lucide-react'
 import type {
   EntryTimeframe,
   TradeListRow,
@@ -15,7 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, signed, pnlClass, signedPct, rvolLabel, longDate, formatEastern } from '@/lib/format'
+import { money, price, int, signed, pnlClass, signedPct, rvolLabel, compactShares, catalystLabel, longDate, formatEastern } from '@/lib/format'
 import PlaybookPicker from '@/components/playbook/PlaybookPicker'
 import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
@@ -409,24 +409,18 @@ function OverviewTab({
         </FieldRow>
       </div>
 
-      {/* Trader DNA — the stock-character + entry-context block (beat A2a). A
-          premium <Card> of six tiles: Float / Daily% / RVOL (the setup's
+      {/* Trader DNA — the stock-character + entry-context block (beats A2a/A2b).
+          A premium <Card> of six tiles: Float / Daily% / RVOL (the setup's
           character), Country / Catalyst (the why), Entry-vs-9EMA (the entry
-          quality). Float + Catalyst render their existing editors inline for now
-          so editing keeps working — A2b makes them display-first with a
-          click-to-edit reveal. */}
+          quality). Float + Catalyst are display-first (beat A2b): a clean value
+          at rest that reveals the existing editor on click / pencil. */}
       <Card title="Trader DNA">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
           <DnaTile icon={Layers} label="Float">
-            <FloatEditor
+            <FloatField
               value={t.float_shares}
               onChange={(next) => onSaveFloat({ trade_id: t.id, float_shares: next })}
             />
-            {t.float_shares == null && (
-              <div className="mt-1 text-[10px] uppercase tracking-wider text-fg-tertiary">
-                Unavailable — FMP returned no float
-              </div>
-            )}
           </DnaTile>
 
           <DnaTile
@@ -478,7 +472,7 @@ function OverviewTab({
           </DnaTile>
 
           <DnaTile icon={Zap} label="Catalyst">
-            <CatalystEditor
+            <CatalystField
               catalystType={t.catalyst_type}
               daysSince={t.days_since_catalyst}
               onChange={(catalystType, daysSince) =>
@@ -546,10 +540,10 @@ function Stat({ label, value, tone }: { label: string; value: string; tone: stri
 }
 
 // Beat A2a — a premium Trader-DNA tile: a tinted icon square + uppercase label
-// over the value (or, for Float / Catalyst, the existing editor rendered inline
-// so editing keeps working until A2b's display-first reveal). The tone drives
-// the icon square only — values carry their own tone. Quiet gold by default;
-// RVOL is the lone violet accent, Daily% is sign-toned.
+// over the value (Float and Catalyst became display-first in A2b — a clean
+// value at rest that reveals the existing editor). The tone drives the icon
+// square only — values carry their own tone. Quiet gold by default; RVOL is
+// the lone violet accent, Daily% is sign-toned.
 const DNA_TONE = {
   gold: 'bg-gold/[0.10] text-gold',
   violet: 'bg-accent-violet/[0.12] text-accent-violet',
@@ -584,6 +578,135 @@ function DnaTile({
         </span>
       </div>
       <div className="mt-2.5">{children}</div>
+    </div>
+  )
+}
+
+// Beat A2b — Float as display-first: the compact share count at rest (e.g.
+// "1.90M"), click to reveal the existing FloatEditor focused; blur or Enter
+// saves via FloatEditor's own commit path, Escape reverts — all three resolve
+// to a blur, which collapses back to display. A null float shows the
+// "unavailable" note but stays clickable so the user can still set one. The
+// wrapper only toggles visibility and drives focus; FloatEditor's save logic is
+// untouched.
+function FloatField({
+  value,
+  onChange,
+}: {
+  value: number | null
+  onChange: (next: number | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  // FloatEditor has no autoFocus of its own, so the wrapper focuses (and
+  // selects) the freshly-revealed input for immediate typing.
+  useEffect(() => {
+    if (!editing) return
+    const input = wrapRef.current?.querySelector<HTMLInputElement>('input')
+    input?.focus()
+    input?.select()
+  }, [editing])
+
+  if (editing) {
+    // A bubbled blur (focusout) collapses back to display. FloatEditor's own
+    // onBlur (commit) runs first in the target phase, so the save fires before
+    // this collapse; Enter and Escape both resolve to a blur.
+    return (
+      <div ref={wrapRef} onBlur={() => setEditing(false)}>
+        <FloatEditor value={value} onChange={onChange} />
+      </div>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      aria-label="Edit float"
+      className="group inline-flex cursor-pointer items-center text-left"
+    >
+      {value == null ? (
+        <span className="text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 group-hover:text-gold">
+          Unavailable — FMP returned no float
+        </span>
+      ) : (
+        <span className="font-mono text-lg font-semibold tnum text-fg-primary transition-colors duration-150 group-hover:text-gold">
+          {compactShares(value)}
+        </span>
+      )}
+    </button>
+  )
+}
+
+// Beat A2b — Catalyst as display-first: the formatted phrase at rest (e.g.
+// "Offering / 3 days old"), a pencil (CountryEditor's idiom) reveals the
+// existing CatalystEditor. Collapse on click-away or "Done" — NOT on blur,
+// because the native <select> doesn't blur cleanly (recon-flagged). The
+// click-away listener binds 'click' (not 'mousedown') so the days field's
+// onBlur -> commitDays save lands before the editor unmounts. CatalystEditor's
+// save logic — including its render-phase draft-resync guard — is untouched:
+// the reveal mounts a fresh editor seeded from the current props, so the guard
+// idles (draft already matches) instead of fighting the toggle.
+function CatalystField({
+  catalystType,
+  daysSince,
+  onChange,
+}: {
+  catalystType: string | null
+  daysSince: number | null
+  onChange: (catalystType: string | null, daysSince: number | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!editing) return
+    const onDocClick = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setEditing(false)
+      }
+    }
+    document.addEventListener('click', onDocClick)
+    return () => document.removeEventListener('click', onDocClick)
+  }, [editing])
+
+  if (editing) {
+    return (
+      <div ref={wrapRef}>
+        <CatalystEditor
+          catalystType={catalystType}
+          daysSince={daysSince}
+          onChange={onChange}
+        />
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="mt-2 cursor-pointer text-xs text-fg-tertiary transition-colors duration-150 hover:text-gold"
+        >
+          Done
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <span
+        className={`text-sm font-semibold ${
+          catalystType ? 'text-fg-primary' : 'text-fg-muted'
+        }`}
+      >
+        {catalystLabel(catalystType, daysSince)}
+      </span>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        aria-label="Edit catalyst"
+        className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-gold/60 hover:text-gold"
+      >
+        <Pencil size={11} strokeWidth={2} />
+      </button>
     </div>
   )
 }

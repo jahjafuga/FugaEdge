@@ -17,6 +17,7 @@
 
 import { describe, expect, it } from 'vitest'
 import {
+  catalystLabel,
   compactShares,
   deletedAgo,
   easternToUtc,
@@ -159,6 +160,37 @@ describe('rvolLabel — relative volume as "N.NNx"', () => {
     expect(rvolLabel(undefined)).toBe('—')
     expect(rvolLabel(Number.NaN)).toBe('—')
     expect(rvolLabel(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
+
+describe('catalystLabel — "<Type> / <N> days old" rest-state label', () => {
+  // A2b shows the catalyst at rest as a clean phrase; the editor is revealed
+  // behind a pencil. The day clause appears only for a positive, finite count
+  // (with singular/plural agreement); a typeless catalyst renders the em-dash
+  // sentinel — display only, the editor owns the canonical values.
+  it('joins the type and a positive day count with " / " and "days old"', () => {
+    expect(catalystLabel('Offering', 3)).toBe('Offering / 3 days old')
+    expect(catalystLabel('Earnings', 12)).toBe('Earnings / 12 days old')
+  })
+
+  it('uses the singular "day" for exactly one day', () => {
+    expect(catalystLabel('Offering', 1)).toBe('Offering / 1 day old')
+  })
+
+  it('shows the type alone when days is null or zero', () => {
+    expect(catalystLabel('Offering', null)).toBe('Offering')
+    expect(catalystLabel('Offering', 0)).toBe('Offering')
+  })
+
+  it('returns the em-dash sentinel when there is no catalyst type', () => {
+    expect(catalystLabel(null, 3)).toBe('—')
+    expect(catalystLabel('', 3)).toBe('—')
+    expect(catalystLabel(null, null)).toBe('—')
+  })
+
+  it('ignores a non-finite or negative day count (shows the type alone)', () => {
+    expect(catalystLabel('Offering', Number.NaN)).toBe('Offering')
+    expect(catalystLabel('Offering', -2)).toBe('Offering')
   })
 })
 

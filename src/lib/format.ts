@@ -158,6 +158,17 @@ export function compactShares(n: number | null | undefined): string {
   return intFmt.format(n)
 }
 
+// Catalyst metadata → "Offering / 3 days old" rest-state label for the Trader
+// DNA tile. The day clause shows only for a positive, finite count (with
+// singular/plural agreement); a typeless catalyst renders the em-dash sentinel
+// (no-fabricated-data law). Display only — the editor behind the tile owns the
+// canonical type / days values.
+export function catalystLabel(type: string | null, days: number | null): string {
+  if (!type) return '—'
+  if (days == null || !Number.isFinite(days) || days <= 0) return type
+  return `${type} / ${days} ${days === 1 ? 'day' : 'days'} old`
+}
+
 // Seconds → "12s" / "3m 12s" / "1h 4m". Returns "—" for null.
 export function duration(seconds: number | null | undefined): string {
   if (seconds == null || !Number.isFinite(seconds)) return '—'
