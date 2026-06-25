@@ -81,3 +81,74 @@ describe('commission threads through the trades read path', () => {
     expect(out!.commission).toBeNull()
   })
 })
+
+// Beat 2c-display-α — the batched junction read. listTrades/getTrade now hydrate
+// BOTH `mistakes` (string[] of names, byte-identical SHAPE) AND the new axis-aware
+// `mistakeTags` ({name,axis}[]) from a single json_group_array(json_object('name',
+// md.name,'axis',md.axis) ORDER BY md.axis, md.sort_position) join on
+// trade_mistake → mistake_def — NOT from mistakes_json. The mock provides the
+// pre-aggregated/ordered JSON string (the SQL ORDER BY is sandbox-verified); these
+// tests pin the SQL shape + the mapper parse + order preservation.
+describe('batched junction read → mistakes (names) + mistakeTags ({name,axis})', () => {
+  const TAGS_JSON = JSON.stringify([
+    { name: 'Entered too early / before trigger', axis: 'technical' },
+    { name: 'FOMO - chased a runner', axis: 'psychological' },
+  ])
+
+  it('listTrades SELECTs the json_group_array(json_object name+axis) join from trade_mistake → mistake_def, ordered axis,sort_position', () => {
+    nextRows = [fakeRow()]
+    listTrades()
+    const sql = captured.find((s) => /json_group_array/i.test(s))
+    expect(sql).toBeTruthy()
+    expect(sql!).toMatch(/json_object\(\s*'name',\s*md\.name,\s*'axis',\s*md\.axis\s*\)/i)
+    expect(sql!).toMatch(/ORDER BY md\.axis, md\.sort_position/i)
+    expect(sql!).toMatch(/FROM trade_mistake/i)
+    expect(sql!).toMatch(/JOIN mistake_def md/i)
+    expect(sql!).toMatch(/AS mistake_tags_json/i)
+  })
+
+  it('getTrade issues the same batched name+axis join (aliased mistake_tags_json)', () => {
+    nextRows = [fakeRow()]
+    getTrade(1)
+    const sql = captured.find(
+      (s) => /json_group_array/i.test(s) && /AS mistake_tags_json/i.test(s),
+    )
+    expect(sql).toBeTruthy()
+    expect(sql!).toMatch(/json_object\(\s*'name',\s*md\.name,\s*'axis',\s*md\.axis\s*\)/i)
+    expect(sql!).toMatch(/ORDER BY md\.axis, md\.sort_position/i)
+  })
+
+  it('listTrades maps mistake_tags_json → mistakeTags ({name,axis}[]) and mistakes (names[]), preserving order', () => {
+    nextRows = [fakeRow({ mistake_tags_json: TAGS_JSON })]
+    const out = listTrades()
+    expect(out[0].mistakeTags).toEqual([
+      { name: 'Entered too early / before trigger', axis: 'technical' },
+      { name: 'FOMO - chased a runner', axis: 'psychological' },
+    ])
+    expect(out[0].mistakes).toEqual([
+      'Entered too early / before trigger',
+      'FOMO - chased a runner',
+    ])
+  })
+
+  it('getTrade maps mistake_tags_json → mistakeTags + mistakes', () => {
+    nextRows = [fakeRow({ mistake_tags_json: TAGS_JSON })]
+    const out = getTrade(1)
+    expect(out).not.toBeNull()
+    expect(out!.mistakeTags).toEqual([
+      { name: 'Entered too early / before trigger', axis: 'technical' },
+      { name: 'FOMO - chased a runner', axis: 'psychological' },
+    ])
+    expect(out!.mistakes).toEqual([
+      'Entered too early / before trigger',
+      'FOMO - chased a runner',
+    ])
+  })
+
+  it('absent / NULL mistake_tags_json → empty mistakes and mistakeTags (no throw)', () => {
+    nextRows = [fakeRow({ mistake_tags_json: null })]
+    const out = listTrades()
+    expect(out[0].mistakes).toEqual([])
+    expect(out[0].mistakeTags).toEqual([])
+  })
+})

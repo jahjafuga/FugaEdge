@@ -1,5 +1,6 @@
 import type { RoundTripExecution } from './import-types'
 import type { PlaybookTier } from './playbook-types'
+import type { MistakeAxis } from './mistakes-types'
 
 export interface TradeNote {
   text: string
@@ -44,6 +45,15 @@ export interface TradeListRow {
   playbook_tier: PlaybookTier | null
   confidence: number | null
   mistakes: string[]
+  /** Beat 2c-display-α — the axis-aware rail. The same junction tags as
+   *  `mistakes`, but carrying the two-axis grouping (`axis`) the string[] can't.
+   *  Ordered axis-then-sort_position, populated by the list / getTrade reads from
+   *  the trade_mistake junction. The β per-axis split consumes THIS; `mistakes`
+   *  (string[]) stays for legacy readers + byte-identical analytics compute.
+   *  OPTIONAL only so the many existing lightweight TradeListRow fixtures don't
+   *  each have to declare it (mirrors `mistake_link_count?` / `commission?`); the
+   *  reads always populate it. Consumed by NOTHING in α. */
+  mistakeTags?: { name: string; axis: MistakeAxis }[]
   /** Legacy: $ amount the trader was willing to lose on the trade. Kept for
    *  back-compat. R-multiple falls back to net_pnl / planned_risk when
    *  planned_stop_loss_price is unset. */

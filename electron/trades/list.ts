@@ -2,6 +2,7 @@ import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { orderByIds } from '@/lib/orderByIds'
 import type { EntryTimeframe, TradeListRow, TradeNote } from '@shared/trades-types'
+import type { MistakeAxis } from '@shared/mistakes-types'
 import type { RoundTripExecution } from '@shared/import-types'
 import { PLAYBOOK_TIERS, type PlaybookTier } from '@shared/playbook-types'
 
@@ -52,6 +53,10 @@ interface TradeRowDb {
   attachment_count: number
   secondary_tag_count: number
   mistake_link_count: number
+  // Beat 2c-display-α — the batched junction read: a json_group_array(json_object(
+  // 'name', md.name, 'axis', md.axis)) string from trade_mistake → mistake_def,
+  // already ORDER BY axis, sort_position. NULL when the trade has no junction rows.
+  mistake_tags_json: string | null
   deleted_at: string | null
 }
 
@@ -67,15 +72,34 @@ function rowRisk(row: TradeRowDb) {
   })
 }
 
-function parseMistakes(raw: string | null | undefined): string[] {
+// Clamp a stored axis string to the two-value union — defensive; the mistake_def
+// CHECK constraint keeps it to these (mirrors electron/mistakes/repo.ts:toAxis).
+function toAxis(raw: unknown): MistakeAxis {
+  return raw === 'psychological' ? 'psychological' : 'technical'
+}
+
+// Beat 2c-display-α — parse the batched junction read: a json_group_array(
+// json_object('name', md.name, 'axis', md.axis)) string, already ORDER BY axis,
+// sort_position from SQL. Returns the ordered {name, axis} tags; the legacy
+// `mistakes` string[] is just these .name values (same order). Blank names are
+// dropped (mirrors the old parseMistakes filter(Boolean)) — junction names are
+// never blank, so this is belt-and-suspenders.
+function parseMistakeTags(
+  raw: string | null | undefined,
+): { name: string; axis: MistakeAxis }[] {
   if (!raw) return []
   try {
     const arr = JSON.parse(raw)
-    if (Array.isArray(arr)) return arr.map((s) => String(s)).filter(Boolean)
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((e) => ({
+        name: String((e as { name?: unknown }).name ?? ''),
+        axis: toAxis((e as { axis?: unknown }).axis),
+      }))
+      .filter((t) => t.name)
   } catch {
-    // ignore — return empty
+    return []
   }
-  return []
 }
 
 function parseTimeframe(raw: string | null | undefined): EntryTimeframe | null {
@@ -189,7 +213,8 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
         COALESCE(tp.n, 0) AS secondary_tag_count,
-        COALESCE(tm.n, 0) AS mistake_link_count
+        COALESCE(tm.n, 0) AS mistake_link_count,
+        mt.tags AS mistake_tags_json
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -202,6 +227,16 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_mistake GROUP BY trade_id
       ) tm ON tm.trade_id = t.id
+      LEFT JOIN (
+        SELECT jm.trade_id AS trade_id,
+               json_group_array(
+                 json_object('name', md.name, 'axis', md.axis)
+                 ORDER BY md.axis, md.sort_position
+               ) AS tags
+        FROM trade_mistake jm
+        JOIN mistake_def md ON md.id = jm.mistake_def_id
+        GROUP BY jm.trade_id
+      ) mt ON mt.trade_id = t.id
       ${where}
       ORDER BY t.open_time DESC
     `)
@@ -209,6 +244,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
 
   return rows.map((r) => {
     const risk = rowRisk(r)
+    const mistakeTags = parseMistakeTags(r.mistake_tags_json)
     return {
       id: r.id,
       date: r.date,
@@ -236,7 +272,8 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       playbook_name: r.playbook_name,
       playbook_tier: parsePlaybookTier(r.playbook_tier),
       confidence: r.confidence,
-      mistakes: parseMistakes(r.mistakes_json),
+      mistakes: mistakeTags.map((t) => t.name),
+      mistakeTags,
       planned_risk: r.planned_risk,
       planned_stop_loss_price: r.planned_stop_loss_price,
       risk_per_share: risk.risk_per_share,
@@ -284,7 +321,8 @@ export function getTrade(id: number): TradeListRow | null {
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
         COALESCE(tp.n, 0) AS secondary_tag_count,
-        COALESCE(tm.n, 0) AS mistake_link_count
+        COALESCE(tm.n, 0) AS mistake_link_count,
+        mt.tags AS mistake_tags_json
       FROM trades t
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -297,11 +335,22 @@ export function getTrade(id: number): TradeListRow | null {
       LEFT JOIN (
         SELECT trade_id, COUNT(*) AS n FROM trade_mistake GROUP BY trade_id
       ) tm ON tm.trade_id = t.id
+      LEFT JOIN (
+        SELECT jm.trade_id AS trade_id,
+               json_group_array(
+                 json_object('name', md.name, 'axis', md.axis)
+                 ORDER BY md.axis, md.sort_position
+               ) AS tags
+        FROM trade_mistake jm
+        JOIN mistake_def md ON md.id = jm.mistake_def_id
+        GROUP BY jm.trade_id
+      ) mt ON mt.trade_id = t.id
       WHERE t.id = ?
     `)
     .get(id) as TradeRowDb | undefined
   if (!row) return null
   const risk = rowRisk(row)
+  const mistakeTags = parseMistakeTags(row.mistake_tags_json)
   return {
     id: row.id,
     date: row.date,
@@ -329,7 +378,8 @@ export function getTrade(id: number): TradeListRow | null {
     playbook_name: row.playbook_name,
     playbook_tier: parsePlaybookTier(row.playbook_tier),
     confidence: row.confidence,
-    mistakes: parseMistakes(row.mistakes_json),
+    mistakes: mistakeTags.map((t) => t.name),
+    mistakeTags,
     planned_risk: row.planned_risk,
     planned_stop_loss_price: row.planned_stop_loss_price,
     risk_per_share: risk.risk_per_share,

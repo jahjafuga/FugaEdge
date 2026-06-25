@@ -49,7 +49,10 @@ interface TradeRow {
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
   confidence: number | null
-  mistakes_json: string | null
+  // Beat 2c-display-α — junction names (a json_group_array(md.name) string from
+  // trade_mistake → mistake_def), replacing the legacy trades.mistakes_json source.
+  // NULL when the trade has no junction rows. computeMistakes reads THIS.
+  mistake_names_json: string | null
   planned_risk: number | null
   planned_stop_loss_price: number | null
   float_shares: number | null
@@ -427,7 +430,7 @@ function computeMistakes(rows: TradeRow[]): MistakesAnalytics {
   let cleanLosers = 0
 
   for (const t of rows) {
-    const mistakes = parseMistakesJson(t.mistakes_json)
+    const mistakes = parseMistakesJson(t.mistake_names_json)
     const hasAny = mistakes.length > 0
     if (hasAny) {
       withAny++
@@ -842,12 +845,20 @@ export function getAnalytics(): AnalyticsData {
              t.avg_buy_price, t.avg_sell_price,
              t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
              t.entry_timeframe, t.entry_ema9_distance_pct,
-             t.confidence, t.mistakes_json,
+             t.confidence,
+             mn.names AS mistake_names_json,
              t.planned_risk, t.planned_stop_loss_price, t.float_shares,
              t.catalyst_type,
              sm.sentiment AS sentiment
       FROM trades t
       LEFT JOIN session_meta sm ON sm.date = t.date
+      LEFT JOIN (
+        SELECT jm.trade_id AS trade_id,
+               json_group_array(md.name ORDER BY md.axis, md.sort_position) AS names
+        FROM trade_mistake jm
+        JOIN mistake_def md ON md.id = jm.mistake_def_id
+        GROUP BY jm.trade_id
+      ) mn ON mn.trade_id = t.id
       WHERE t.deleted_at IS NULL
     `)
     .all() as TradeRow[]
