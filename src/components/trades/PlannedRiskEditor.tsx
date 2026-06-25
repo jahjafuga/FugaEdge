@@ -12,13 +12,12 @@ interface PlannedRiskEditorProps {
   riskPerShare: number | null
   /** Server-derived total $ risk. */
   totalRisk: number | null
-  rMultiple: number | null
   onChange: (next: number | null) => void
 }
 
 // Inline editor for the pre-trade STOP LOSS PRICE. The trader enters the
 // price (e.g. 10.20); we derive the per-share risk (|entry - stop|), total
-// $ risk (risk × shares), and R-multiple live next to it.
+// $ risk (risk × shares) live next to it. (R-multiple moved to the header.)
 //
 // Saves on blur (or Enter) — typing should not fire an IPC per keystroke.
 export default function PlannedRiskEditor({
@@ -27,7 +26,6 @@ export default function PlannedRiskEditor({
   shares,
   riskPerShare,
   totalRisk,
-  rMultiple,
   onChange,
 }: PlannedRiskEditorProps) {
   const [text, setText] = useState<string>(
@@ -96,34 +94,6 @@ export default function PlannedRiskEditor({
           · {money(displayTotalRisk)} total
         </span>
       )}
-
-      <RChip r={rMultiple} />
     </div>
-  )
-}
-
-function RChip({ r }: { r: number | null }) {
-  if (r == null) {
-    return (
-      <span className="rounded bg-bg-3 px-2 py-0.5 font-mono text-[10px] text-fg-tertiary">
-        — R
-      </span>
-    )
-  }
-  const tone =
-    r >= 1
-      ? 'border-win/40 bg-win/[0.10] text-win'
-      : r >= 0
-        ? 'border-gold/40 bg-gold/[0.08] text-gold'
-        : r >= -1
-          ? 'border-red/30 bg-red/[0.06] text-red/80'
-          : 'border-red/50 bg-red/[0.12] text-red'
-  return (
-    <span
-      className={`rounded border px-2 py-0.5 font-mono text-[11px] font-medium ${tone}`}
-    >
-      {r >= 0 ? '+' : ''}
-      {r.toFixed(2)}R
-    </span>
   )
 }

@@ -28,6 +28,7 @@ import AttachmentManager from './AttachmentManager'
 import TradeMistakePicker from './TradeMistakePicker'
 import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
+import RChip from './RChip'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -134,7 +135,7 @@ export default function TradeDetailModal({
         className={`relative flex w-full flex-col bg-bg-3 animate-modal-in ${
           isFullscreen
             ? 'h-full'
-            : 'max-h-[92vh] max-w-[880px] rounded-lg border border-border shadow-lg'
+            : 'max-h-[92vh] max-w-[1200px] rounded-lg border border-border shadow-lg'
         }`}
       >
         {!isFullscreen && <ModalHeader trade={trade} onClose={onClose} />}
@@ -307,6 +308,9 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
           <div className={`font-mono text-2xl font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
             {signed(trade.net_pnl)}
           </div>
+          <div className="mt-1 flex justify-end">
+            <RChip r={trade.r_multiple} />
+          </div>
         </div>
         <button
           type="button"
@@ -364,7 +368,7 @@ function OverviewTab({
   const t = trade
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <FieldRow label="Playbook">
           <PlaybookPicker
             value={t.playbook_id}
@@ -397,7 +401,6 @@ function OverviewTab({
             shares={Math.max(t.shares_bought, t.shares_sold)}
             riskPerShare={t.risk_per_share}
             totalRisk={t.total_risk}
-            rMultiple={t.r_multiple}
             onChange={(next) =>
               onSavePlannedStopLoss({ trade_id: t.id, planned_stop_loss_price: next })
             }
