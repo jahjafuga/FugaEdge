@@ -136,7 +136,7 @@ export default function TradeDetailModal({
         className={`relative flex w-full flex-col bg-bg-3 animate-modal-in ${
           isFullscreen
             ? 'h-full'
-            : 'max-h-[92vh] max-w-[1200px] rounded-lg border border-border shadow-lg'
+            : 'max-h-[92vh] max-w-[1400px] rounded-lg border border-border shadow-lg'
         }`}
       >
         {!isFullscreen && <ModalHeader trade={trade} onClose={onClose} />}
@@ -211,6 +211,8 @@ export default function TradeDetailModal({
               onSaveCatalyst={onSaveCatalyst}
               onSaveCountry={onSaveCountry}
               onSaveCountrySymbol={onSaveCountrySymbol}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={() => setIsFullscreen((v) => !v)}
             />
           )}
           {tab === 'notes' && (
@@ -353,6 +355,11 @@ interface OverviewTabProps {
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** Fullscreen flag + toggle, owned by the modal. A3a drills them through to
+   *  the embedded chart so its toolbar fullscreen button keeps working as today
+   *  (A3b re-scopes fullscreen to just the chart region). */
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
 }
 
 function OverviewTab({
@@ -365,6 +372,8 @@ function OverviewTab({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  isFullscreen,
+  onToggleFullscreen,
 }: OverviewTabProps) {
   const t = trade
   return (
@@ -491,6 +500,29 @@ function OverviewTab({
         </div>
       </Card>
 
+      {/* Beat A3a — Trade Chart (left) + Fills (right): the two-column heart of
+          the Overview. The chart is mount-on-visible (LazyVisible + Suspense) so
+          a trade opens INSTANTLY with no chart-library load — the ~110 KB
+          lightweight-charts bundle + intraday fetch fire only once the chart
+          scrolls into view. ChartTab keeps its existing fullscreen wiring for
+          now; A3b re-scopes fullscreen to the chart region. Fills move up from
+          the bottom into the right column beside the chart. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start">
+        <LazyVisible className="min-h-[440px]" placeholder={<ChartTabSkeleton />}>
+          <Suspense fallback={<ChartTabSkeleton />}>
+            {/* key={t.id} → full remount on trade swap (no stale chart instance).
+                Same fullscreen props as the Chart tab — A3b re-scopes them. */}
+            <ChartTab
+              key={t.id}
+              trade={t}
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={onToggleFullscreen}
+            />
+          </Suspense>
+        </LazyVisible>
+        <ExecutionList trade={t} />
+      </div>
+
       {/* Beat 3 — secondary confluence tags. Hidden when the primary is
           "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid. */}
       <ConfluenceTags trade={t} />
@@ -511,8 +543,6 @@ function OverviewTab({
           Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
         </div>
       )}
-
-      <ExecutionList trade={t} />
     </div>
   )
 }
@@ -798,6 +828,51 @@ function ChartTabSkeleton() {
       <div className="mt-1 text-sm text-fg-tertiary">
         Fetching the chart library and intraday bars.
       </div>
+    </div>
+  )
+}
+
+// Mount-on-visible gate (beat A3a). Renders `placeholder` until its slot
+// scrolls into view, then mounts `children` and KEEPS them mounted (no unmount
+// on scroll-away — the chart must not tear down mid-review). This is what keeps
+// opening a trade instant: the heavy ChartTab (~110 KB lib + intraday fetch) is
+// never in the initial render; the observer fires AFTER first paint, so even an
+// above-the-fold chart mounts a tick later and never blocks the open. The
+// IntersectionObserver intersects against the viewport THROUGH the modal body's
+// overflow-auto clip, so a chart scrolled out of the body reads as not-visible.
+// When IntersectionObserver is unavailable (jsdom tests / SSR) we stay on the
+// placeholder rather than eager-mounting — Electron and every modern browser
+// provide it, so the chart still loads in production.
+function LazyVisible({
+  children,
+  placeholder,
+  rootMargin = '0px',
+  className,
+}: {
+  children: React.ReactNode
+  placeholder: React.ReactNode
+  rootMargin?: string
+  className?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    if (visible) return
+    if (typeof IntersectionObserver === 'undefined') return
+    const el = ref.current
+    if (!el) return
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisible(true)
+      },
+      { rootMargin },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [visible, rootMargin])
+  return (
+    <div ref={ref} className={className}>
+      {visible ? children : placeholder}
     </div>
   )
 }
