@@ -706,6 +706,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // silently on first run while the import is still in flight — this race
   // was the cause of the "blank chart until you click Refresh" bug.
   const [chartReady, setChartReady] = useState(false)
+  // Crosshair-following legend (this beat): the hovered bar's O/H/L/C + indicator
+  // values, set by the subscribeCrosshairMove handler below; null when the mouse
+  // is off a bar (ChartOverlay falls back to whole-day stats + latest values).
+  // NOT a dependency of any chart effect — a hover re-renders only ChartOverlay,
+  // never the chart.
+  const [hovered, setHovered] = useState<HoveredBar | null>(null)
 
   // Fill markers + share-weighted avg entry/exit, from the pure, unit-tested
   // module (src/core/charts/buildTradeMarkers). Computed once and consumed by
@@ -1380,6 +1386,57 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     if (savedRange) ts.setVisibleLogicalRange(savedRange)
   }, [chartHeight, chartReady])
 
+  // Crosshair-following legend — subscribe ONCE when the chart is ready (mirrors
+  // the other chartReady-gated effects). On a hover the handler reads the bar
+  // under the crosshair straight from the event's series-data map and stores it
+  // in `hovered`; off a bar it clears `hovered` so ChartOverlay falls back to the
+  // whole-day stats. The subscription persists across a fullscreen toggle
+  // (chartReady stays true, so this effect does not re-run) and is dropped on
+  // teardown (chart.remove() also drops it — the unsubscribe is belt-and-braces).
+  useEffect(() => {
+    if (!chartReady) return
+    const r = refs.current
+    if (!r) return
+    const onCrosshairMove = (param: import('lightweight-charts').MouseEventParams) => {
+      const rr = refs.current
+      if (!rr) return
+      // Hovered candle: present only when the crosshair is over a data bar.
+      // param.time is undefined off-data (incl. the edge whitespace), and a gap
+      // can leave time set but the candle a whitespace datum with no numeric open
+      // — guard both via the typeof check. Off a bar we clear `hovered` (React
+      // bails the re-render when it is already null). The cast is honest: candle
+      // is a Candlestick series, so its hovered datum is BarData.
+      const cd = (param.time != null
+        ? param.seriesData.get(rr.candle)
+        : undefined) as import('lightweight-charts').BarData | undefined
+      if (!cd || typeof cd.open !== 'number') {
+        setHovered(null)
+        return
+      }
+      // Indicator value at the hovered bar — GUARD the series ref (a toggled-off
+      // indicator has a null ref; never .get() on it) and narrow the line datum
+      // (`value` is on LineData, not the candle's BarData).
+      const valueAt = (s: import('lightweight-charts').ISeriesApi<'Line'> | null): number | null => {
+        if (!s) return null
+        const d = param.seriesData.get(s)
+        return d && 'value' in d ? d.value : null
+      }
+      setHovered({
+        open: cd.open,
+        high: cd.high,
+        low: cd.low,
+        close: cd.close,
+        ema9: valueAt(rr.ema9),
+        ema20: valueAt(rr.ema20),
+        vwap: valueAt(rr.vwap),
+      })
+    }
+    r.api.subscribeCrosshairMove(onCrosshairMove)
+    return () => {
+      refs.current?.api.unsubscribeCrosshairMove(onCrosshairMove)
+    }
+  }, [chartReady])
+
   if (libError) {
     return (
       <div className="rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
@@ -1402,12 +1459,13 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         className="w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm"
         style={{ height: chartHeight }}
       />
-      {/* B3 — TradingView-style floating legend: OHLC + Vol always, then the
-          latest 9EMA / 20EMA / VWAP values (each only when toggled on). It is a
-          SIBLING of the canvas (NOT inside the overflow-hidden div, which would
-          clip it and sit under the paint), pointer-events-none so pan/zoom passes
-          through. Inside this relative wrapper, so it shows in fullscreen too. */}
-      <ChartOverlay stats={stats} tfLabel={tfLabel} ema9={ema9} ema20={ema20} vwap={vwap} />
+      {/* TradingView-style floating legend: O/H/L/C + the on-toggle 9EMA / 20EMA
+          / VWAP values, following the crosshair (hovered bar) and falling back to
+          whole-day / latest when the mouse is off. A SIBLING of the canvas (NOT
+          inside the overflow-hidden div, which would clip it and sit under the
+          paint), pointer-events-none so pan/zoom passes through. Inside this
+          relative wrapper, so it shows in fullscreen too. */}
+      <ChartOverlay stats={stats} tfLabel={tfLabel} hovered={hovered} ema9={ema9} ema20={ema20} vwap={vwap} />
     </div>
   )
 }
@@ -1648,50 +1706,79 @@ interface DayStats {
   volume: number
 }
 
-// Beat B3 — the TradingView-style floating chart legend (replaces the old
-// ContextBar row). One compact line of whole-day OHLC, then the latest value of
-// each of 9EMA / 20EMA / VWAP, shown ONLY when that indicator is toggled on (its
-// gated prop is non-null). Values are STATIC (the latest bar), not crosshair-
-// following. Rendered as a sibling of the canvas inside the host's relative
-// wrapper: bare text top-left (no backing — it floats directly on the candles),
-// pointer-events-none so the chart still pans/zooms through it.
+// The hovered bar's values, set by the crosshair-move subscription in
+// LightweightChartHost and threaded to ChartOverlay. null when the mouse is off
+// a data bar — the overlay then falls back to the whole-day stats + latest
+// indicator values. open/high/low/close come from the candle series; the three
+// indicator values are null when that indicator is toggled off.
+interface HoveredBar {
+  open: number
+  high: number
+  low: number
+  close: number
+  ema9: number | null
+  ema20: number | null
+  vwap: number | null
+}
+
+// The TradingView-style floating chart legend (replaces the old ContextBar row).
+// One compact line of O/H/L/C, then the latest value of each of 9EMA / 20EMA /
+// VWAP, shown ONLY when that indicator is toggled on (its gated prop is non-
+// null). DYNAMIC: when the crosshair hovers a bar (`hovered` set) it shows THAT
+// bar's O/H/L/C and that bar's indicator values; off a bar (`hovered` null) it
+// falls back to the whole-day stats + the latest indicator values. Rendered as a
+// sibling of the canvas inside the host's relative wrapper: bare text top-left
+// (no backing — it floats directly on the candles), pointer-events-none so the
+// chart still pans/zooms through it.
 function ChartOverlay({
   stats,
   tfLabel,
+  hovered,
   ema9,
   ema20,
   vwap,
 }: {
   stats: DayStats
   tfLabel: string
+  hovered: HoveredBar | null
   ema9: { time: number; value: number }[] | null
   ema20: { time: number; value: number }[] | null
   vwap: { time: number; value: number }[] | null
 }) {
   const anyIndicator = ema9 != null || ema20 != null || vwap != null
+  // Display values: the hovered bar when the crosshair is on a candle, else the
+  // whole-day fallback (OHLC from `stats`, indicator values from the latest bar
+  // via lastValue). The on/off ROW gate stays the series prop (ema9 != null ...).
+  const o = hovered ? hovered.open : stats.open
+  const h = hovered ? hovered.high : stats.high
+  const l = hovered ? hovered.low : stats.low
+  const c = hovered ? hovered.close : stats.close
+  const ema9Val = hovered ? hovered.ema9 : lastValue(ema9)
+  const ema20Val = hovered ? hovered.ema20 : lastValue(ema20)
+  const vwapVal = hovered ? hovered.vwap : lastValue(vwap)
   return (
     <div className="pointer-events-none absolute left-2 top-2 z-10 select-none font-mono text-xs leading-tight">
-      {/* OHLC — always shown. O/C neutral, H green, L red. Whole-day stats from
-          the raw 1m bars. (Day Volume was dropped — the volume bars already sit
-          on the chart, so the number was redundant.) */}
+      {/* OHLC — always shown. O/C neutral, H green, L red. The hovered bar's
+          values when the crosshair is on a candle, else the whole-day stats. */}
       <div className="flex flex-wrap items-baseline gap-x-2.5">
-        <span><span className="text-fg-tertiary">O</span> <span className="tnum text-fg-secondary">{stats.open == null ? '—' : price(stats.open)}</span></span>
-        <span><span className="text-fg-tertiary">H</span> <span className="tnum text-win">{stats.high == null ? '—' : price(stats.high)}</span></span>
-        <span><span className="text-fg-tertiary">L</span> <span className="tnum text-loss">{stats.low == null ? '—' : price(stats.low)}</span></span>
-        <span><span className="text-fg-tertiary">C</span> <span className="tnum text-fg-secondary">{stats.close == null ? '—' : price(stats.close)}</span></span>
+        <span><span className="text-fg-tertiary">O</span> <span className="tnum text-fg-secondary">{o == null ? '—' : price(o)}</span></span>
+        <span><span className="text-fg-tertiary">H</span> <span className="tnum text-win">{h == null ? '—' : price(h)}</span></span>
+        <span><span className="text-fg-tertiary">L</span> <span className="tnum text-loss">{l == null ? '—' : price(l)}</span></span>
+        <span><span className="text-fg-tertiary">C</span> <span className="tnum text-fg-secondary">{c == null ? '—' : price(c)}</span></span>
       </div>
-      {/* Indicator legend — one line per indicator, only when toggled on. The
-          swatch reuses the exact chart-line color so the legend matches the line. */}
+      {/* Indicator legend — one line per indicator, only when toggled on (gated on
+          the series prop). The VALUE is the hovered bar's when hovering, else the
+          latest. The swatch reuses the exact chart-line color. */}
       {anyIndicator && (
         <div className="mt-1 flex flex-col gap-y-0.5">
           {ema9 != null && (
-            <ChartLegendRow color={COLOR_EMA9} label={`EMA 9 (${tfLabel})`} value={lastValue(ema9)} />
+            <ChartLegendRow color={COLOR_EMA9} label={`EMA 9 (${tfLabel})`} value={ema9Val} />
           )}
           {ema20 != null && (
-            <ChartLegendRow color={COLOR_EMA20} label={`EMA 20 (${tfLabel})`} value={lastValue(ema20)} />
+            <ChartLegendRow color={COLOR_EMA20} label={`EMA 20 (${tfLabel})`} value={ema20Val} />
           )}
           {vwap != null && (
-            <ChartLegendRow color={COLOR_VWAP} label="VWAP" value={lastValue(vwap)} />
+            <ChartLegendRow color={COLOR_VWAP} label="VWAP" value={vwapVal} />
           )}
         </div>
       )}
