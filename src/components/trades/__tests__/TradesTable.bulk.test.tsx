@@ -93,7 +93,6 @@ const DEFAULT_PROPS = {
   onSaveTimeframe: noop,
   onSavePlaybook: noop,
   onSaveConfidence: noop,
-  onSaveMistakes: noop,
   onSavePlannedRisk: noop,
   onSavePlannedStopLoss: noop,
   onSaveFloat: noop,

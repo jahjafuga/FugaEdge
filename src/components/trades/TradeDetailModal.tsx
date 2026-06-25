@@ -9,7 +9,6 @@ import type {
   UpdateCountryInput,
   UpdateCountryForSymbolInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -41,7 +40,6 @@ interface TradeDetailModalProps {
   onSaveTimeframe: (input: UpdateTimeframeInput) => Promise<void>
   onSavePlaybook: (input: SetPlaybookOnTradeInput) => Promise<void>
   onSaveConfidence: (input: UpdateConfidenceInput) => Promise<void>
-  onSaveMistakes: (input: UpdateMistakesInput) => Promise<void>
   onSavePlannedRisk: (input: UpdatePlannedRiskInput) => Promise<void>
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
@@ -80,7 +78,6 @@ export default function TradeDetailModal({
   onSaveTimeframe,
   onSavePlaybook,
   onSaveConfidence,
-  onSaveMistakes,
   onSavePlannedRisk,
   onSavePlannedStopLoss,
   onSaveFloat,
@@ -223,7 +220,7 @@ export default function TradeDetailModal({
           )}
           {tab === 'attachments' && <AttachmentManager tradeId={trade.id} />}
           {tab === 'mistakes' && (
-            <MistakesTab trade={trade} onSaveMistakes={onSaveMistakes} />
+            <MistakesTab trade={trade} />
           )}
           {tab === 'chart' && (
             <Suspense fallback={<ChartTabSkeleton />}>
@@ -592,14 +589,10 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
 }
 
 // ── Mistakes tab — two-axis junction picker (self-persisting per tag) ──
-// onSaveMistakes stays threaded for the mistakes_json write path + the later
-// 2c-display cutover, but the picker no longer consumes it (the junction
-// add/remove dual-writes mistakes_json server-side), so it isn't destructured here.
 function MistakesTab({
   trade,
 }: {
   trade: TradeListRow
-  onSaveMistakes: (input: UpdateMistakesInput) => Promise<void>
 }) {
   return <TradeMistakePicker trade={trade} />
 }

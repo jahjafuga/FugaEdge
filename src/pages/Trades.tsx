@@ -28,7 +28,6 @@ import type {
   UpdateCountryInput,
   UpdateCountryForSymbolInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -117,14 +116,6 @@ export default function Trades() {
 
   const handleSaveConfidence = useCallback(async (input: UpdateConfidenceInput) => {
     const updated = await ipc.tradeConfidenceSave(input)
-    if (!updated) return
-    setTrades((prev) =>
-      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
-    )
-  }, [])
-
-  const handleSaveMistakes = useCallback(async (input: UpdateMistakesInput) => {
-    const updated = await ipc.tradeMistakesSave(input)
     if (!updated) return
     setTrades((prev) =>
       prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
@@ -347,7 +338,6 @@ export default function Trades() {
             onSaveTimeframe={handleSaveTimeframe}
             onSavePlaybook={handleSavePlaybook}
             onSaveConfidence={handleSaveConfidence}
-            onSaveMistakes={handleSaveMistakes}
             onSavePlannedRisk={handleSavePlannedRisk}
             onSavePlannedStopLoss={handleSavePlannedStopLoss}
             onSaveFloat={handleSaveFloat}

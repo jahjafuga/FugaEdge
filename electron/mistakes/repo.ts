@@ -75,21 +75,6 @@ export function getMistakeTagsForTrade(tradeId: number): MistakeTag[] {
   return rows.map((r) => ({ id: r.id, axis: toAxis(r.axis), name: r.name }))
 }
 
-// 2c dual-write: the trade_mistake junction is the SOURCE OF TRUTH; trades.mistakes_json
-// is now a DERIVED MIRROR, rewritten from the junction's current names after every
-// junction write so the existing mistakes_json readers (tab badge, calendar, filters,
-// analytics, insights) stay correct until the 2c-display reader cutover. Cleaning matches
-// saveMistakes (trim, dedupe, drop blanks). Non-transactional, matching the add/remove
-// methods' existing style — better-sqlite3 is synchronous within one IPC handler, so the
-// junction write + this sync never interleave; a crash between them self-heals on the
-// next add/remove (the junction stays authoritative).
-function syncMistakesJsonFromJunction(tradeId: number): void {
-  const db = openDatabase()
-  const names = getMistakeTagsForTrade(tradeId).map((t) => t.name)
-  const clean = Array.from(new Set(names.map((n) => String(n).trim()).filter(Boolean)))
-  db.prepare('UPDATE trades SET mistakes_json = ? WHERE id = ?').run(JSON.stringify(clean), tradeId)
-}
-
 // Add a mistake tag (trade_mistake). Existence checks mirror addPlaybookTag's
 // validation (the mistake_def must exist; the trade must exist), then
 // INSERT OR IGNORE so re-adding the same (trade, mistake) pair is a benign,
@@ -108,7 +93,6 @@ export function addMistakeTag(tradeId: number, mistakeDefId: number): void {
   db.prepare(
     'INSERT OR IGNORE INTO trade_mistake (trade_id, mistake_def_id) VALUES (?, ?)',
   ).run(tradeId, mistakeDefId)
-  syncMistakesJsonFromJunction(tradeId)
 }
 
 // Remove a mistake tag. Removing an absent (trade, mistake) pair deletes zero
@@ -118,7 +102,6 @@ export function removeMistakeTag(tradeId: number, mistakeDefId: number): void {
   db.prepare(
     'DELETE FROM trade_mistake WHERE trade_id = ? AND mistake_def_id = ?',
   ).run(tradeId, mistakeDefId)
-  syncMistakesJsonFromJunction(tradeId)
 }
 
 // ── Beat 2b — vocabulary writes (mistake_def CRUD) ──────────────────────────

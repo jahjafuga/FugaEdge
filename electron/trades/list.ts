@@ -38,7 +38,6 @@ interface TradeRowDb {
   playbook_name: string | null
   playbook_tier: string | null
   confidence: number | null
-  mistakes_json: string | null
   planned_risk: number | null
   planned_stop_loss_price: number | null
   float_shares: number | null
@@ -205,7 +204,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
-        t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
+        t.confidence, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
@@ -313,7 +312,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
-        t.confidence, t.mistakes_json, t.planned_risk, t.planned_stop_loss_price,
+        t.confidence, t.planned_risk, t.planned_stop_loss_price,
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,

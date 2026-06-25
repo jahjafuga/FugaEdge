@@ -149,11 +149,6 @@ export interface UpdateConfidenceInput {
   confidence: number | null  // 1..5 or null
 }
 
-export interface UpdateMistakesInput {
-  trade_id: number
-  mistakes: string[]
-}
-
 export interface UpdatePlannedRiskInput {
   trade_id: number
   planned_risk: number | null

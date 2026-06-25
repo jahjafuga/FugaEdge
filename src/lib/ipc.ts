@@ -5,7 +5,6 @@ import type {
   UpdateConfidenceInput,
   UpdateCountryInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -61,8 +60,6 @@ export const ipc = {
     window.api.tradeTimeframeSave(input),
   tradeConfidenceSave: (input: UpdateConfidenceInput) =>
     window.api.tradeConfidenceSave(input),
-  tradeMistakesSave: (input: UpdateMistakesInput) =>
-    window.api.tradeMistakesSave(input),
   tradePlannedRiskSave: (input: UpdatePlannedRiskInput) =>
     window.api.tradePlannedRiskSave(input),
   tradePlannedStopLossSave: (input: UpdatePlannedStopLossInput) =>

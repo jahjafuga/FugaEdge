@@ -9,7 +9,6 @@ import type {
   UpdateConfidenceInput,
   UpdateCountryInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -28,7 +27,6 @@ interface DayTradesPanelProps {
   onSaveTimeframe: (input: UpdateTimeframeInput) => Promise<void>
   onSavePlaybook: (input: SetPlaybookOnTradeInput) => Promise<void>
   onSaveConfidence: (input: UpdateConfidenceInput) => Promise<void>
-  onSaveMistakes: (input: UpdateMistakesInput) => Promise<void>
   onSavePlannedRisk: (input: UpdatePlannedRiskInput) => Promise<void>
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
@@ -46,7 +44,6 @@ export default function DayTradesPanel({
   onSaveTimeframe,
   onSavePlaybook,
   onSaveConfidence,
-  onSaveMistakes,
   onSavePlannedRisk,
   onSavePlannedStopLoss,
   onSaveFloat,
@@ -108,7 +105,6 @@ export default function DayTradesPanel({
               onSaveTimeframe={onSaveTimeframe}
               onSavePlaybook={onSavePlaybook}
               onSaveConfidence={onSaveConfidence}
-              onSaveMistakes={onSaveMistakes}
               onSavePlannedRisk={onSavePlannedRisk}
               onSavePlannedStopLoss={onSavePlannedStopLoss}
               onSaveFloat={onSaveFloat}

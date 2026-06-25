@@ -8,7 +8,6 @@ import type {
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -21,7 +20,6 @@ import { listTrades, getTrade, type ListTradesOptions } from './list'
 import { saveNote } from './notes'
 import { saveTimeframe } from './timeframe'
 import { saveConfidence } from './confidence'
-import { saveMistakes } from './mistakes'
 import { savePlannedRisk, savePlannedStopLossPrice } from './planned-risk'
 import { saveFloat } from './float-shares'
 import { saveCatalyst } from './catalyst'
@@ -101,9 +99,6 @@ export function registerTradesIpc(): void {
   )
   ipcMain.handle(IPC.TRADE_CONFIDENCE_SAVE, (_e, input: UpdateConfidenceInput) =>
     withVersionBump(() => saveConfidence(input)),
-  )
-  ipcMain.handle(IPC.TRADE_MISTAKES_SAVE, (_e, input: UpdateMistakesInput) =>
-    withVersionBump(() => saveMistakes(input)),
   )
   ipcMain.handle(IPC.TRADE_PLANNED_RISK_SAVE, (_e, input: UpdatePlannedRiskInput) =>
     withVersionBump(() => savePlannedRisk(input)),

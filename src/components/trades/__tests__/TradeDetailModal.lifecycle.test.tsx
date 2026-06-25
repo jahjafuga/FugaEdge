@@ -30,7 +30,6 @@ function renderModal(props: Partial<ComponentProps<typeof TradeDetailModal>> = {
       onSaveTimeframe={noop}
       onSavePlaybook={noop}
       onSaveConfidence={noop}
-      onSaveMistakes={noop}
       onSavePlannedRisk={noop}
       onSavePlannedStopLoss={noop}
       onSaveFloat={noop}

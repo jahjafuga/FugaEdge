@@ -17,7 +17,6 @@ import type {
   UpdateCountryInput,
   UpdateCountryForSymbolInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -38,7 +37,6 @@ interface TradesTableProps {
   onSaveTimeframe: (input: UpdateTimeframeInput) => Promise<void>
   onSavePlaybook: (input: SetPlaybookOnTradeInput) => Promise<void>
   onSaveConfidence: (input: UpdateConfidenceInput) => Promise<void>
-  onSaveMistakes: (input: UpdateMistakesInput) => Promise<void>
   onSavePlannedRisk: (input: UpdatePlannedRiskInput) => Promise<void>
   onSavePlannedStopLoss: (input: UpdatePlannedStopLossInput) => Promise<void>
   onSaveFloat: (input: UpdateFloatInput) => Promise<void>
@@ -100,7 +98,6 @@ export default function TradesTable({
   onSaveTimeframe,
   onSavePlaybook,
   onSaveConfidence,
-  onSaveMistakes,
   onSavePlannedRisk,
   onSavePlannedStopLoss,
   onSaveFloat,
@@ -704,7 +701,6 @@ export default function TradesTable({
         onSaveTimeframe={onSaveTimeframe}
         onSavePlaybook={onSavePlaybook}
         onSaveConfidence={onSaveConfidence}
-        onSaveMistakes={onSaveMistakes}
         onSavePlannedRisk={onSavePlannedRisk}
         onSavePlannedStopLoss={onSavePlannedStopLoss}
         onSaveFloat={onSaveFloat}

@@ -28,7 +28,6 @@ import type {
   UpdateCountryInput,
   UpdateCountryForSymbolInput,
   UpdateFloatInput,
-  UpdateMistakesInput,
   UpdateNoteInput,
   UpdatePlannedRiskInput,
   UpdatePlannedStopLossInput,
@@ -142,8 +141,6 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_TIMEFRAME_SAVE, input),
   tradeConfidenceSave: (input: UpdateConfidenceInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_CONFIDENCE_SAVE, input),
-  tradeMistakesSave: (input: UpdateMistakesInput): Promise<TradeListRow | null> =>
-    ipcRenderer.invoke(IPC.TRADE_MISTAKES_SAVE, input),
   tradePlannedRiskSave: (input: UpdatePlannedRiskInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_PLANNED_RISK_SAVE, input),
   tradePlannedStopLossSave: (

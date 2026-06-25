@@ -72,7 +72,6 @@ export const IPC = {
   MISTAKE_DEF_UNARCHIVE: 'mistake:defUnarchive',
   MISTAKE_DEF_DELETE: 'mistake:defDelete',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
-  TRADE_MISTAKES_SAVE: 'trade:mistakesSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',
   TRADE_PLANNED_STOP_LOSS_SAVE: 'trade:plannedStopLossSave',
   TRADE_FLOAT_SAVE: 'trade:floatSave',

@@ -56,7 +56,6 @@ export function useTradeStack({ trades, reload }: UseTradeStackOptions): UseTrad
       onSaveTimeframe={(i) => persist(ipc.tradeTimeframeSave, i)}
       onSavePlaybook={(i) => persist(ipc.tradePlaybookSave, i)}
       onSaveConfidence={(i) => persist(ipc.tradeConfidenceSave, i)}
-      onSaveMistakes={(i) => persist(ipc.tradeMistakesSave, i)}
       onSavePlannedRisk={(i) => persist(ipc.tradePlannedRiskSave, i)}
       onSavePlannedStopLoss={(i) => persist(ipc.tradePlannedStopLossSave, i)}
       onSaveFloat={(i) => persist(ipc.tradeFloatSave, i)}
