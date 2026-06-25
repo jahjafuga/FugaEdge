@@ -27,8 +27,15 @@ export interface ComputeZoomWindowOptions {
   barIntervalMs?: number
 }
 
-const DEFAULT_PAD_FRACTION = 0.55
-const DEFAULT_MIN_PAD_MS = 360_000 // 6 min (flat floor — was contributed by the 6-bar term at 1M)
+// Per-side padding defaults (B2-calibrated for "open with context"). The window
+// is the fills' span padded each side by max(duration * padFraction, minPadMs).
+// B2 roughly doubled both from their original 0.55 / 360_000 (6 min) so the chart
+// opens showing the run-up into the trade and the action after, not cropped tight
+// to the entry/exit fills. Both the initial open framing and the Fit-to-fills
+// button read these defaults, so they frame identically. Starting values for
+// live-look tuning.
+const DEFAULT_PAD_FRACTION = 1.1
+const DEFAULT_MIN_PAD_MS = 720_000 // 12 min (flat floor)
 
 // Parse a fill timestamp to epoch ms. Mirrors buildTradeMarkers.fillEpochMs:
 // e.time is true UTC with a Z suffix (Day 8.5 Commit B); the includes('Z')

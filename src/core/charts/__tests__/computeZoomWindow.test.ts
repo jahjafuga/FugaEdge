@@ -198,10 +198,11 @@ describe('computeZoomWindow — time-based pad floor (interval-independent)', ()
     expect(win.toMs).toBe(maxF + 150_000)
   })
 
-  // (d) the 6-min floor now lives in minPadMs's DEFAULT (was the 6-bar term).
-  // Omit minPadMs entirely → a short trade is padded by the 360_000 default,
-  // still independent of barIntervalMs.
-  it('minPadMs defaults to 6 min (360_000) when omitted', () => {
+  // (d) the floor lives in minPadMs's DEFAULT (was the 6-bar term). B2 widened
+  // that default from 6 min (360_000) to 12 min (720_000) so the chart opens
+  // with more context around the trade. Omit minPadMs entirely → a short trade
+  // is padded by the 720_000 default, still independent of barIntervalMs.
+  it('minPadMs defaults to 12 min (720_000) when omitted', () => {
     const bars = bars5(-15, 60)
     const minF = minute(20)
     const maxF = minF + SHORT_MS // dur*0.55 = 96_800 < default floor
@@ -211,8 +212,8 @@ describe('computeZoomWindow — time-based pad floor (interval-independent)', ()
       padFraction: 0.55, barIntervalMs: 300_000, // minPadMs omitted → default
     })!
 
-    expect(minF - win.fromMs).toBe(360_000) // the default floor, exactly
-    expect(win.toMs - maxF).toBe(360_000)
+    expect(minF - win.fromMs).toBe(720_000) // the default floor (B2: 360_000 -> 720_000)
+    expect(win.toMs - maxF).toBe(720_000)
   })
 
   // (e) invariant guard: proportional pad still wins when it exceeds the floor.
@@ -266,8 +267,8 @@ describe('computeZoomWindow — time-based pad floor (interval-independent)', ()
 //
 // Real trade-61 fills from the live [ZOOM-DIAG] log (UTC+Z): entry 08:22:21 ET,
 // exit 08:25:17 ET (≈2.93 min). 1-min bars span 11:30:00Z→13:30:00Z (121 bars,
-// inclusive) so NEITHER the 1M (6-min pad) nor the 5M (30-min pad) window clamps
-// to a bar edge — isolating the pad math from the data-range clamp.
+// inclusive) so the time-based pad (B2: a 12-min floor) does not clamp to a bar
+// edge on either interval — isolating the pad math from the data-range clamp.
 describe('computeZoomWindow — depends on fills, not bar interval (trade 61)', () => {
   const fills = [{ time: '2026-06-02T12:22:21Z' }, { time: '2026-06-02T12:25:17Z' }]
 
@@ -277,17 +278,17 @@ describe('computeZoomWindow — depends on fills, not bar interval (trade 61)', 
   for (let m = 0; m <= 120; m++) bars61.push(bar(dayStart + m * 60_000))
 
   it('frames the same time slice on 5M as on 1M', () => {
-    // Control (assertion 2) — checked FIRST so it provably executes in this RED
-    // run: the 1M window pins to entry−6min / exit+6min (pad = 6 candles ×
-    // 60_000 = 6 min). Correct today; must survive the fix.
+    // Absolute window: the 1M frame pins to entry-12min / exit+12min — the pad is
+    // the minPadMs floor (B2: 12 min / 720_000), since dur * 1.1 (~3.2 min) is
+    // below it. (Was entry-6min / exit+6min under the old 6-min / 0.55 default.)
     expect(computeZoomWindow(fills, bars61, { barIntervalMs: 60_000 })).toEqual({
-      fromMs: Date.parse('2026-06-02T12:16:21Z'),
-      toMs: Date.parse('2026-06-02T12:31:17Z'),
+      fromMs: Date.parse('2026-06-02T12:10:21Z'),
+      toMs: Date.parse('2026-06-02T12:37:17Z'),
     })
 
-    // Bug property (assertion 1) — FAILS today: the 5M pad floor (6 candles ×
-    // 300_000 = 30 min) widens the window, so 5M frames a wider slice than 1M.
-    // Same fills, same bars, only the interval differs ⇒ windows must be equal.
+    // Interval-independence (the trade-61 regression lock): same fills, same bars,
+    // only the interval differs, so the 5M and 1M windows must be IDENTICAL. The
+    // pad is time-based, not interval-scaled, so this holds at any default.
     expect(computeZoomWindow(fills, bars61, { barIntervalMs: 300_000 })).toEqual(
       computeZoomWindow(fills, bars61, { barIntervalMs: 60_000 }),
     )
