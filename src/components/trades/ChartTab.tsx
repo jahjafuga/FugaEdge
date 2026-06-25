@@ -92,17 +92,24 @@ export default function ChartTab({ trade, isFullscreen, onToggleFullscreen }: Ch
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [tf, setTf] = useState<Timeframe>('1m')
-  const [showEma9, setShowEma9] = useState(true)
-  const [showEma20, setShowEma20] = useState(true)
-  const [showVwap, setShowVwap] = useState(true)
-  // §H: the MACD sub-pane toggle — a persisted global preference (unlike the
-  // ephemeral EMA/VWAP toggles above). Default-on; hydrated from settings on
-  // mount and written back on every toggle, so it survives a modal close/reopen.
-  const [showMacd, setShowMacd] = useState(true)
+  // All four indicator toggles are persisted global preferences (B1), default
+  // OFF. Seed each useState to false so the pre-hydration first render matches
+  // the common default — no flash of an indicator that is not actually on — then
+  // the settingsGet effect below corrects to the saved value on mount. Every
+  // onToggle* writes back (ipc.settingsSave), so a turned-off indicator stays off
+  // across a modal close/reopen — the core B1 bug fix.
+  const [showEma9, setShowEma9] = useState(false)
+  const [showEma20, setShowEma20] = useState(false)
+  const [showVwap, setShowVwap] = useState(false)
+  const [showMacd, setShowMacd] = useState(false)
   useEffect(() => {
     let cancelled = false
     void ipc.settingsGet().then((s) => {
-      if (!cancelled) setShowMacd(s.values.show_macd_pane)
+      if (cancelled) return
+      setShowEma9(s.values.show_ema9)
+      setShowEma20(s.values.show_ema20)
+      setShowVwap(s.values.show_vwap)
+      setShowMacd(s.values.show_macd_pane)
     })
     return () => {
       cancelled = true
@@ -229,11 +236,23 @@ export default function ChartTab({ trade, isFullscreen, onToggleFullscreen }: Ch
       showEma20={showEma20}
       showVwap={showVwap}
       showMacd={showMacd}
-      onToggleEma9={() => setShowEma9((v) => !v)}
-      onToggleEma20={() => setShowEma20((v) => !v)}
-      onToggleVwap={() => setShowVwap((v) => !v)}
+      onToggleEma9={() => {
+        const next = !showEma9
+        setShowEma9(next)
+        void ipc.settingsSave({ show_ema9: next })
+      }}
+      onToggleEma20={() => {
+        const next = !showEma20
+        setShowEma20(next)
+        void ipc.settingsSave({ show_ema20: next })
+      }}
+      onToggleVwap={() => {
+        const next = !showVwap
+        setShowVwap(next)
+        void ipc.settingsSave({ show_vwap: next })
+      }}
       onToggleMacd={() => {
-        // Flip + persist the global §H preference so it sticks across modals.
+        // Flip + persist so the preference sticks across modal reopen.
         const next = !showMacd
         setShowMacd(next)
         void ipc.settingsSave({ show_macd_pane: next })
@@ -806,23 +825,15 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         const fillLadder = new FillLadderPrimitive()
         candle.attachPrimitive(fillLadder)
 
-        // Pane geometry for the MACD sub-pane (Part 2): give the price pane
-        // (pane 0) a stretchFactor of 3 so it keeps ~75% of the height. Pane 0
-        // exists as soon as the candle series was added above, so panes()[0]
-        // resolves here.
-        chart.panes()[0].setStretchFactor(3)
-
-        // Create pane 1 explicitly at mount so the MACD effect's later
-        // addSeries(..., 1) attaches to an existing pane instead of
-        // triggering getOrCreatePane → _addPane → full-chart invalidation
-        // mid-RAF-loop (the race that broke candle/volume/MACD rendering
-        // in the original Part 2 wiring).
-        chart.addPane()
-        // chart.addPane() returns the new IPaneApi; default
-        // stretchFactor is 1, which is the 25% we want against pane 0's
-        // stretchFactor 3 (the 75/25 split). Set explicitly for clarity
-        // and resilience to future API changes.
-        chart.panes()[1].setStretchFactor(1)
+        // MACD sub-pane (pane 1) is deliberately NOT created here (B1). With
+        // every indicator now default-OFF, pre-creating pane 1 at mount left an
+        // empty 25% "ghost" band on every default-off open. Instead the MACD
+        // effect lazily creates the pane (explicit chart.addPane() before
+        // addSeries(..., 1)) the first time MACD is ON, and removePane()s it when
+        // toggled off so pane 0 reclaims the full height. A default-off chart thus
+        // creates NO MACD pane at all — no ghost, and no addSeries(..., 1) against
+        // a missing pane on the common path, so the documented mid-RAF _addPane
+        // race cannot fire there. See the MACD effect below.
 
         refs.current = {
           api: chart,
@@ -1030,21 +1041,25 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     })()
   }, [ema9, ema20, vwap, chartReady, framedBand])
 
-  // MACD sub-pane (Part 2) — ALWAYS-ON on pane 1: line, signal, the per-bar
-  // shaded histogram, and a faint zero rule. Created lazily as a UNIT on the
-  // first non-empty MACD (mirrors the EMA/VWAP effect above) and removed as a
-  // unit when a trade has too few bars to compute. The pane itself materializes
-  // on the first addSeries(..., 1). MACD series deliberately do NOT take the
-  // price band's autoscale provider — pane 1 autoscales to MACD's own (tiny)
-  // value range, independent of the price pane.
+  // MACD sub-pane (pane 1) — line, signal, the per-bar shaded histogram, and a
+  // faint zero rule. Created lazily as a UNIT (pane + four series) on the first
+  // non-empty MACD, and removed as a unit (series + pane) when MACD turns off or
+  // a trade has too few bars to compute (B1 — see the two branches below). MACD
+  // series deliberately do NOT take the price band's autoscale provider — pane 1
+  // autoscales to MACD's own (tiny) value range, independent of the price pane.
   useEffect(() => {
     const r = refs.current
     if (!r || !chartReady) return
     void (async () => {
       const lc = await import('lightweight-charts')
 
-      // Degenerate / early-trade case: no MACD data (bars < slow + signal). Tear
-      // the four series down as a unit so the pane empties cleanly.
+      // No MACD data — either MACD is toggled OFF (the host passes EMPTY_MACD) or
+      // the trade has too few bars to compute. Tear the four series down AND
+      // remove the sub-pane (B1) so the price pane reclaims the full height;
+      // leaving the empty pane behind was the "ghost" band. This branch only runs
+      // once the series already exist (r.macd set) — an interactive toggle-off or
+      // a data-poor timeframe, on an already-settled chart — so the removePane
+      // never lands during the initial mount/zoom RAF.
       if (macd.macd.length === 0) {
         if (r.macd) {
           r.api.removeSeries(r.macd.line)
@@ -1052,15 +1067,24 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           r.api.removeSeries(r.macd.histogram)
           r.api.removeSeries(r.macd.zero)
           r.macd = null
+          if (r.api.panes().length > 1) r.api.removePane(1)
         }
         return
       }
 
-      // Lazy-create all four series on pane 1. Pane 1 was created
-      // explicitly in the mount effect, so addSeries(..., 1) here
-      // attaches to the existing pane (no _addPane invalidation,
-      // no race with the candle/volume RAF loop).
+      // MACD is ON. Lazily create pane 1 the first time (B1 — it is no longer
+      // pre-created at mount, so a default-off chart never makes an empty pane).
+      // Create it with an EXPLICIT chart.addPane() BEFORE addSeries(..., 1) so the
+      // series attach to an existing pane and never trigger the implicit
+      // getOrCreatePane → _addPane invalidation the original wiring hit. This runs
+      // on an interactive toggle-on (idle chart) or when a persisted-ON pref
+      // hydrates; the price pane keeps 75% (stretch 3) vs the MACD pane's 25%.
       if (!r.macd) {
+        if (r.api.panes().length < 2) {
+          r.api.addPane()
+          r.api.panes()[0].setStretchFactor(3)
+          r.api.panes()[1].setStretchFactor(1)
+        }
         // Pane-1 paint order matters: lightweight-charts v5 paints
         // last-added on top, so series are created back-to-front to
         // place the histogram field at the back, the faint zero rule

@@ -39,17 +39,17 @@ beforeEach(() => {
 })
 
 describe('settings repo — show_macd_pane (§H)', () => {
-  it('(R1) default-on: a fresh KV map yields show_macd_pane true', () => {
-    expect(getSettings().values.show_macd_pane).toBe(true)
+  it('(R1) default-off (B1): a fresh KV map yields show_macd_pane false', () => {
+    expect(getSettings().values.show_macd_pane).toBe(false)
   })
 
-  it('(R2) parseBoolean: "0" → false, "1" → true, garbage → default', () => {
+  it('(R2) parseBoolean: "0" → false, "1" → true, garbage → default (now false)', () => {
     store.current = { show_macd_pane: '0' }
     expect(getSettings().values.show_macd_pane).toBe(false)
     store.current = { show_macd_pane: '1' }
     expect(getSettings().values.show_macd_pane).toBe(true)
     store.current = { show_macd_pane: 'wat' }
-    expect(getSettings().values.show_macd_pane).toBe(true) // falls back to default
+    expect(getSettings().values.show_macd_pane).toBe(false) // falls back to the new default-off
   })
 
   it('(R3) write/read roundtrip: saveSettings persists false, then true', () => {
@@ -74,5 +74,36 @@ describe('settings repo — show_macd_pane (§H)', () => {
     expect(getSettings().stored_keys).toEqual([])
     saveSettings({ account_size: 50000 })
     expect(getSettings().stored_keys).toContain('account_size')
+  })
+})
+
+describe('settings repo — indicator toggles (B1: EMA9 / EMA20 / VWAP persistence)', () => {
+  it('all three default OFF on a fresh KV map', () => {
+    const { values } = getSettings()
+    expect(values.show_ema9).toBe(false)
+    expect(values.show_ema20).toBe(false)
+    expect(values.show_vwap).toBe(false)
+  })
+
+  it('parseBoolean per key: "1" → true, "0" → false, garbage → default-off', () => {
+    store.current = { show_ema9: '1', show_ema20: '0', show_vwap: 'wat' }
+    const { values } = getSettings()
+    expect(values.show_ema9).toBe(true)
+    expect(values.show_ema20).toBe(false)
+    expect(values.show_vwap).toBe(false) // garbage → default-off
+  })
+
+  it('write/read roundtrip: each persists independently as "1" / "0"', () => {
+    saveSettings({ show_ema9: true, show_vwap: true })
+    expect(store.current.show_ema9).toBe('1')
+    expect(store.current.show_vwap).toBe('1')
+    const afterOn = getSettings().values
+    expect(afterOn.show_ema9).toBe(true)
+    expect(afterOn.show_ema20).toBe(false) // never written → default-off
+    expect(afterOn.show_vwap).toBe(true)
+
+    saveSettings({ show_ema9: false })
+    expect(store.current.show_ema9).toBe('0')
+    expect(getSettings().values.show_ema9).toBe(false)
   })
 })

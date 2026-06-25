@@ -16,6 +16,9 @@ const KEYS = {
   fmpApiKey: 'fmp_api_key',
   lastCountryBackfill: 'last_country_backfill',
   showMacdPane: 'show_macd_pane',
+  showEma9: 'show_ema9',
+  showEma20: 'show_ema20',
+  showVwap: 'show_vwap',
   activationKey: 'activation_key',
   activationPayload: 'activation_payload',
   activationGraceStartedAt: 'activation_grace_started_at',
@@ -39,7 +42,10 @@ const DEFAULTS: SettingsValues = {
   polygon_api_key: '',
   fmp_api_key: '',
   last_country_backfill: null,
-  show_macd_pane: true,
+  show_macd_pane: false,
+  show_ema9: false,
+  show_ema20: false,
+  show_vwap: false,
   activation_key: '',
   activation_payload: '',
   activation_grace_started_at: null,
@@ -112,6 +118,9 @@ export function getSettings(): SettingsPayload {
     fmp_api_key: (map[KEYS.fmpApiKey] ?? '').trim(),
     last_country_backfill: (map[KEYS.lastCountryBackfill] ?? '').trim() || null,
     show_macd_pane: parseBoolean(map[KEYS.showMacdPane], DEFAULTS.show_macd_pane),
+    show_ema9: parseBoolean(map[KEYS.showEma9], DEFAULTS.show_ema9),
+    show_ema20: parseBoolean(map[KEYS.showEma20], DEFAULTS.show_ema20),
+    show_vwap: parseBoolean(map[KEYS.showVwap], DEFAULTS.show_vwap),
     // v0.2.5 §C — activation trio. Key/payload mirror the api-key precedent
     // (trimmed strings, '' = unset); the grace stamp mirrors
     // last_country_backfill (ISO string or null).
@@ -197,6 +206,15 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
     }
     if (input.show_macd_pane != null) {
       upsert.run(KEYS.showMacdPane, input.show_macd_pane ? '1' : '0')
+    }
+    if (input.show_ema9 != null) {
+      upsert.run(KEYS.showEma9, input.show_ema9 ? '1' : '0')
+    }
+    if (input.show_ema20 != null) {
+      upsert.run(KEYS.showEma20, input.show_ema20 ? '1' : '0')
+    }
+    if (input.show_vwap != null) {
+      upsert.run(KEYS.showVwap, input.show_vwap ? '1' : '0')
     }
     if (input.activation_key != null) {
       upsert.run(KEYS.activationKey, String(input.activation_key).trim())

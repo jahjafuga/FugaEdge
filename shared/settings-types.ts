@@ -14,10 +14,15 @@ export interface SettingsValues {
    *  wired up in Commit A; enrichment consumption ships in Commit B. */
   fmp_api_key: string
   last_country_backfill: string | null   // ISO timestamp; null when never run
-  /** §H on-chart MACD sub-pane toggle — a global per-user preference, default-on.
-   *  The one persisted indicator toggle: EMA9 / EMA20 / VWAP stay ephemeral chart
-   *  state, but MACD is v0.2.4's hero indicator, so its pane survives modal reopen. */
+  /** On-chart indicator toggles — global per-user preferences, ALL default-OFF
+   *  (B1): the chart opens clean and the trader adds only the overlays they want,
+   *  and a turned-off indicator stays off across modal reopen. show_macd_pane was
+   *  the original (default-on) persisted toggle; B1 makes EMA9 / EMA20 / VWAP
+   *  persist the same way and flips every default to off. */
   show_macd_pane: boolean
+  show_ema9: boolean
+  show_ema20: boolean
+  show_vwap: boolean
   /** v0.2.5 §C — the verified activation key, exactly as pasted (trimmed).
    *  Empty until the user activates; re-verified at every boot so a
    *  tampered value degrades to "no key". */
