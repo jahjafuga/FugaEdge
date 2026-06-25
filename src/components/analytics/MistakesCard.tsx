@@ -2,6 +2,7 @@ import Card from '@/components/ui/Card'
 import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { MistakesAnalytics } from '@shared/analytics-types'
+import type { MistakeAxis } from '@shared/mistakes-types'
 import { int, money, percent, pnlClass, signed } from '@/lib/format'
 
 interface MistakesCardProps {
@@ -9,6 +10,14 @@ interface MistakesCardProps {
 }
 
 const DASH = '—'
+
+// Beat 2c-display-β.2 — the PER MISTAKE table splits by axis: Technical first,
+// then Psychological. Labelled headers only, no per-axis colour-coding (mirrors
+// TradeMistakePicker / MistakesVocabularyEditor's restraint).
+const AXES: { axis: MistakeAxis; label: string }[] = [
+  { axis: 'technical', label: 'Technical' },
+  { axis: 'psychological', label: 'Psychological' },
+]
 
 export default function MistakesCard({ data }: MistakesCardProps) {
   const totalTagged = data.trades_with_any_mistake + data.trades_without_mistakes
@@ -58,7 +67,7 @@ export default function MistakesCard({ data }: MistakesCardProps) {
             Awaiting data
           </div>
           Tag mistakes on individual trades via the Trades page expand row. Edit
-          the list itself in Settings → Mistake list.
+          the list itself in Settings → Mistakes.
         </div>
       ) : data.byMistake.length === 0 ? (
         <div className="mt-5 text-center text-sm text-fg-tertiary">
@@ -79,46 +88,67 @@ export default function MistakesCard({ data }: MistakesCardProps) {
                 <Th align="right">Win rate</Th>
               </tr>
             </thead>
-            <tbody>
-              {data.byMistake.map((m) => (
-                <tr
-                  key={m.label}
-                  className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.015]"
-                >
-                  <Td>
-                    <span className="rounded-sm bg-loss/[0.10] px-1.5 py-0.5 text-[10px] text-loss">
-                      {m.label}
-                    </span>
-                  </Td>
-                  <Td align="right">
-                    <span className="font-mono text-fg-primary">{int(m.trade_count)}</span>
-                  </Td>
-                  <Td align="right">
-                    <span className={`font-mono font-medium ${pnlClass(m.net_pnl)}`}>
-                      {signed(m.net_pnl)}
-                    </span>
-                  </Td>
-                  <Td align="right">
-                    {m.avg_pnl == null ? (
-                      <span className="font-mono text-fg-tertiary">{DASH}</span>
-                    ) : (
-                      <span className={`font-mono ${pnlClass(m.avg_pnl)}`}>
-                        {money(m.avg_pnl)}
-                      </span>
-                    )}
-                  </Td>
-                  <Td align="right">
-                    {m.win_rate == null ? (
-                      <span className="font-mono text-fg-tertiary">{DASH}</span>
-                    ) : (
-                      <span className="font-mono text-gold">
-                        {percent(m.win_rate, 0)}
-                      </span>
-                    )}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
+            {AXES.map(({ axis, label }) => {
+              const axisRows = data.byMistake.filter((m) => m.axis === axis)
+              return (
+                <tbody key={axis}>
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-3 pt-6 pb-1.5 text-sm font-semibold uppercase tracking-wider text-fg-primary"
+                    >
+                      {label}
+                    </td>
+                  </tr>
+                  {axisRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-2 text-xs text-fg-tertiary">
+                        No {axis} mistakes tagged
+                      </td>
+                    </tr>
+                  ) : (
+                    axisRows.map((m) => (
+                      <tr
+                        key={`${m.axis}-${m.label}`}
+                        className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.015]"
+                      >
+                        <Td>
+                          <span className="rounded-sm bg-loss/[0.10] px-1.5 py-0.5 text-[10px] text-loss">
+                            {m.label}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          <span className="font-mono text-fg-primary">{int(m.trade_count)}</span>
+                        </Td>
+                        <Td align="right">
+                          <span className={`font-mono font-medium ${pnlClass(m.net_pnl)}`}>
+                            {signed(m.net_pnl)}
+                          </span>
+                        </Td>
+                        <Td align="right">
+                          {m.avg_pnl == null ? (
+                            <span className="font-mono text-fg-tertiary">{DASH}</span>
+                          ) : (
+                            <span className={`font-mono ${pnlClass(m.avg_pnl)}`}>
+                              {money(m.avg_pnl)}
+                            </span>
+                          )}
+                        </Td>
+                        <Td align="right">
+                          {m.win_rate == null ? (
+                            <span className="font-mono text-fg-tertiary">{DASH}</span>
+                          ) : (
+                            <span className="font-mono text-gold">
+                              {percent(m.win_rate, 0)}
+                            </span>
+                          )}
+                        </Td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              )
+            })}
           </table>
         </div>
       )}
