@@ -100,3 +100,21 @@ export function computeExecutionStats(trade: ExecutionStatsInput): ExecutionStat
 
   return { firstEntry, lastExit, priceMovePct, avgEntry, avgExit }
 }
+
+/**
+ * Volume-weighted average price across ALL fills, regardless of side
+ * (sum(qty·price) / sum(qty)) — the Fills timeline's OWN blended summary,
+ * distinct from computeExecutionStats' per-side avgEntry / avgExit. Null when
+ * there are no fills or the total quantity is 0 (divide-by-zero guard).
+ */
+export function blendedFillAvg(
+  executions: readonly { qty: number; price: number }[],
+): number | null {
+  let notional = 0
+  let qty = 0
+  for (const f of executions) {
+    notional += f.qty * f.price
+    qty += f.qty
+  }
+  return qty > 0 ? notional / qty : null
+}

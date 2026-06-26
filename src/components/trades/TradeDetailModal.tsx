@@ -30,7 +30,7 @@ import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 import RChip from './RChip'
 import Card from '@/components/ui/Card'
-import { computeExecutionStats } from '@/core/trades/executionStats'
+import { blendedFillAvg, computeExecutionStats } from '@/core/trades/executionStats'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -852,36 +852,76 @@ function Ema9Readout({ pct }: { pct: number | null }) {
 
 function ExecutionList({ trade }: { trade: TradeListRow }) {
   if (trade.executions.length === 0) return null
+  const avg = blendedFillAvg(trade.executions)
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
-      <div className="grid grid-cols-[90px_50px_80px_90px_1fr] gap-x-4 gap-y-1.5 font-mono text-xs">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Time
+      {/* Beat 6 — vertical timeline of fills (earliest first, top-to-bottom). Each
+          fill: a colored dot (buy → win green, sell → loss red) on a COLOR-SEGMENTED
+          spine — the connector below a dot is colored by the NEXT (lower) dot's side,
+          so the segment leading into a sell reads red and buy→buy reads green; dots
+          sit on top (z-10). Two-line detail beside it. Only the ROWS scroll (bounded
+          max-h); the "{n} fills" title above and the AVG PRICE footer below stay fixed. */}
+      <div className="max-h-96 overflow-y-auto pr-1">
+        <div className="flex flex-col">
+          {trade.executions.map((e, i) => {
+            const isBuy = e.side === 'B'
+            const next = trade.executions[i + 1]
+            return (
+              <div key={`${e.trade_id}-${e.order_id}-${i}`} className="flex gap-3">
+                {/* segmented spine: dot (on top) + connector colored by the NEXT dot */}
+                <div className="flex w-2.5 shrink-0 flex-col items-center">
+                  <span
+                    className={`z-10 h-2 w-2 shrink-0 rounded-full ${isBuy ? 'bg-win' : 'bg-loss'}`}
+                    aria-hidden="true"
+                  />
+                  {next && (
+                    <span
+                      className={`w-0.5 grow ${next.side === 'B' ? 'bg-win' : 'bg-loss'}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                </div>
+                {/* fill detail — two lines, gross value centered against the block */}
+                <div
+                  className={`flex min-w-0 flex-1 items-center justify-between gap-3 ${next ? 'pb-3' : ''}`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-sm text-fg-primary tnum">
+                        {formatEastern(e.time)}
+                      </span>
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none ${isBuy ? 'bg-win/15 text-win' : 'bg-loss/15 text-loss'}`}
+                      >
+                        {e.side}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 font-mono text-xs text-fg-tertiary tnum">
+                      {int(e.qty)} shares @ {price(e.price)}
+                    </div>
+                  </div>
+                  <span className="shrink-0 font-mono text-sm text-fg-secondary tnum">
+                    {money(e.qty * e.price)}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Side
-        </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Shares
-        </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Price
-        </div>
-        <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Gross value
-        </div>
-        {trade.executions.map((e, i) => (
-          <div key={`${e.trade_id}-${e.order_id}-${i}`} className="contents">
-            <div className="text-fg-tertiary tnum">{formatEastern(e.time)}</div>
-            <div className={e.side === 'B' ? 'text-win' : 'text-loss'}>{e.side}</div>
-            <div className="text-right text-fg-primary tnum">{int(e.qty)}</div>
-            <div className="text-right text-fg-secondary tnum">{price(e.price)}</div>
-            <div className="text-right text-fg-tertiary tnum">{money(e.qty * e.price)}</div>
-          </div>
-        ))}
+      </div>
+      {/* AVG PRICE — the fills' OWN blended VWAP across ALL fills
+          (sum(qty·price) / sum(qty)); a single number, distinct from the
+          Execution panel's per-side Avg Entry / Avg Exit. */}
+      <div className="mt-2 flex items-center justify-between border-t border-border-subtle pt-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          Avg Price
+        </span>
+        <span className="font-mono text-xs font-semibold text-fg-primary tnum">
+          {avg == null ? '—' : price(avg)}
+        </span>
       </div>
     </div>
   )

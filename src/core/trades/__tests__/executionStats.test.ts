@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeExecutionStats } from '../executionStats'
+import { blendedFillAvg, computeExecutionStats } from '../executionStats'
 
 type Fill = { side: 'B' | 'S'; price: number; time: string }
 const fill = (side: 'B' | 'S', price: number, time: string): Fill => ({ side, price, time })
@@ -104,5 +104,25 @@ describe('computeExecutionStats', () => {
   it('no entry-side fills → firstEntry null', () => {
     const t = trade({ side: 'long', executions: [fill('S', 10.0, '2026-05-11T13:40:00Z')] })
     expect(computeExecutionStats(t).firstEntry).toBeNull()
+  })
+})
+
+describe('blendedFillAvg', () => {
+  it('volume-weights price across ALL fills regardless of side', () => {
+    const fills = [
+      { qty: 25, price: 7.13 }, // buy
+      { qty: 6, price: 7.05 }, // sell
+      { qty: 19, price: 6.84 }, // sell
+    ]
+    // (25*7.13 + 6*7.05 + 19*6.84) / (25 + 6 + 19) = 350.51 / 50 = 7.0102
+    expect(blendedFillAvg(fills)).toBeCloseTo(7.0102, 4)
+  })
+
+  it('empty fills → null', () => {
+    expect(blendedFillAvg([])).toBeNull()
+  })
+
+  it('total qty 0 → null, does not throw', () => {
+    expect(blendedFillAvg([{ qty: 0, price: 7.13 }])).toBeNull()
   })
 })
