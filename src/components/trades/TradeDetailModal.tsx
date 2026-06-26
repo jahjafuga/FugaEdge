@@ -369,16 +369,30 @@ function OverviewTab({
       <div className={isFullscreen ? '' : 'grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start'}>
         {/* LEFT column — setup fields + Trader DNA */}
         <div className={isFullscreen ? '' : 'space-y-5'}>
-          <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${isFullscreen ? 'hidden' : ''}`}>
-            <FieldRow label="Playbook">
-              <PlaybookPicker
-                value={t.playbook_id}
-                valueLabel={t.playbook_name}
-                onChange={(next) =>
-                  onSavePlaybook({ trade_id: t.id, playbook_id: next })
-                }
-              />
-            </FieldRow>
+          {/* Setup tile (Beat 3) — its own full-width row so it can grow with long
+              playbook names + many confluence tags without squeezing the params.
+              Same FieldRow chrome (rounded-lg border border-border-subtle bg-bg-2
+              p-3); holds the "Setup" label, the Playbook picker, and the embedded
+              (null-gated) Confluence beneath. */}
+          <div className={`rounded-lg border border-border-subtle bg-bg-2 p-3 ${isFullscreen ? 'hidden' : ''}`}>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+              Setup
+            </div>
+            <PlaybookPicker
+              value={t.playbook_id}
+              valueLabel={t.playbook_name}
+              onChange={(next) =>
+                onSavePlaybook({ trade_id: t.id, playbook_id: next })
+              }
+            />
+            <ConfluenceTags trade={t} embedded />
+          </div>
+
+          {/* Param row — Timeframe / Confidence / Stop price. Three FieldRow tiles,
+              three-across at sm+ (each ~290px at full left-column width — comfortable
+              per the param recon: control floors ~132/144/130px), stacked
+              single-column on narrow. Own fullscreen-hidden gate. */}
+          <div className={`grid grid-cols-1 gap-3 sm:grid-cols-3 ${isFullscreen ? 'hidden' : ''}`}>
             <FieldRow label="Timeframe">
               <TimeframePicker
                 value={t.entry_timeframe}
@@ -395,7 +409,7 @@ function OverviewTab({
                 }
               />
             </FieldRow>
-            <FieldRow label="Planned stop loss price">
+            <FieldRow label="Stop price">
               <PlannedRiskEditor
                 plannedStopLossPrice={t.planned_stop_loss_price}
                 entryPrice={t.side === 'short' ? t.avg_sell_price : t.avg_buy_price}
@@ -492,16 +506,9 @@ function OverviewTab({
           </Card>
         </div>
 
-        {/* RIGHT column — confluence / P&L / fee / mistakes analysis */}
+        {/* RIGHT column — P&L / fee / mistakes analysis. (Confluence moved into
+            the Setup card in the left column, Beat 3.) */}
         <div className={isFullscreen ? '' : 'space-y-5'}>
-          {/* Beat 3 — secondary confluence tags. Hidden when the primary is
-              "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid.
-              Wrapped so A3b can hide it (with the rest of the non-chart pane) in
-              chart-only fullscreen. */}
-          <div className={isFullscreen ? 'hidden' : ''}>
-            <ConfluenceTags trade={t} />
-          </div>
-
           {/* P&L mini-grid — gross, fees, net at a glance */}
           <div className={`grid grid-cols-3 gap-3 ${isFullscreen ? 'hidden' : ''}`}>
             <Stat label="Gross P&L" value={signed(t.gross_pnl)} tone={pnlClass(t.gross_pnl)} />
