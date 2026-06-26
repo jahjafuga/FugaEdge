@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, Image, NotebookPen, AlertTriangle, BarChart3, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, Pencil, type LucideIcon } from 'lucide-react'
+import { X, BookOpen, Image, NotebookPen, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, Pencil, type LucideIcon } from 'lucide-react'
 import type {
   EntryTimeframe,
   TradeListRow,
@@ -60,14 +60,12 @@ interface TradeDetailModalProps {
   stacked?: boolean
 }
 
-type TabKey = 'overview' | 'notes' | 'attachments' | 'mistakes' | 'chart'
+type TabKey = 'overview' | 'journal' | 'attachments'
 
 const TABS: { key: TabKey; label: string; Icon: typeof BookOpen }[] = [
   { key: 'overview',    label: 'Overview',    Icon: BookOpen },
-  { key: 'notes',       label: 'Notes',       Icon: NotebookPen },
+  { key: 'journal',     label: 'Journal',     Icon: NotebookPen },
   { key: 'attachments', label: 'Attachments', Icon: Image },
-  { key: 'mistakes',    label: 'Mistakes',    Icon: AlertTriangle },
-  { key: 'chart',       label: 'Chart',       Icon: BarChart3 },
 ]
 
 // MASTER §5.4 + §7.2 — portal modal for trade expand (replaces the previous
@@ -215,7 +213,7 @@ export default function TradeDetailModal({
               onToggleFullscreen={() => setIsFullscreen((v) => !v)}
             />
           )}
-          {tab === 'notes' && (
+          {tab === 'journal' && (
             <NoteEditor
               tradeId={trade.id}
               note={trade.note}
@@ -223,22 +221,6 @@ export default function TradeDetailModal({
             />
           )}
           {tab === 'attachments' && <AttachmentManager tradeId={trade.id} />}
-          {tab === 'mistakes' && (
-            <MistakesTab trade={trade} />
-          )}
-          {tab === 'chart' && (
-            <Suspense fallback={<ChartTabSkeleton />}>
-              {/* key={trade.id} guarantees a full remount when the user
-                  switches to a different trade — no stale chart instance,
-                  no stale markers, no leftover refs. */}
-              <ChartTab
-                key={trade.id}
-                trade={trade}
-                isFullscreen={isFullscreen}
-                onToggleFullscreen={() => setIsFullscreen((v) => !v)}
-              />
-            </Suspense>
-          )}
         </div>
         {(onSoftDelete || onRestore) && !isFullscreen && (
           <TradeLifecycleFooter
@@ -330,9 +312,8 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
 
 function TabBadge({ tabKey, trade }: { tabKey: TabKey; trade: TradeListRow }) {
   let n = 0
-  if (tabKey === 'notes') n = trade.note?.text?.trim() ? 1 : 0
+  if (tabKey === 'journal') n = trade.note?.text?.trim() ? 1 : 0
   else if (tabKey === 'attachments') n = trade.attachment_count
-  else if (tabKey === 'mistakes') n = trade.mistakes.length
   if (n <= 0) return null
   return (
     <span className="rounded-full bg-gold/15 px-1.5 font-mono text-[10px] font-semibold text-gold tnum">
@@ -556,6 +537,17 @@ function OverviewTab({
           Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
         </div>
       )}
+
+      {/* Mistakes — folded in from the former Mistakes tab (Beat 1 / A5). The
+          self-contained two-axis picker (Technical / Psychological), placed as a
+          "what went wrong" review section at the bottom of the single-column
+          Overview. Matches the Confluence band's bare-section treatment (the
+          picker carries its own header). Hidden in chart-only fullscreen like the
+          other non-chart sections; Beat 2's two-column shell relocates it to the
+          right column. */}
+      <div className={isFullscreen ? 'hidden' : ''}>
+        <TradeMistakePicker trade={t} />
+      </div>
     </div>
   )
 }
@@ -820,17 +812,8 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
   )
 }
 
-// ── Mistakes tab — two-axis junction picker (self-persisting per tag) ──
-function MistakesTab({
-  trade,
-}: {
-  trade: TradeListRow
-}) {
-  return <TradeMistakePicker trade={trade} />
-}
-
-// Suspense fallback while the chart bundle (~110 KB) downloads on first
-// Chart-tab open. After first open the chunk is cached by the browser.
+// Suspense fallback while the chart bundle (~110 KB) downloads on first reveal
+// of the Overview's embedded chart. After first load the chunk is browser-cached.
 function ChartTabSkeleton() {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-subtle bg-bg-2 py-12 text-center">
