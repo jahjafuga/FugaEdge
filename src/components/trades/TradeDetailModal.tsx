@@ -372,13 +372,11 @@ function OverviewTab({
         <div className={isFullscreen ? '' : 'space-y-5'}>
           {/* Setup tile (Beat 3) — its own full-width row so it can grow with long
               playbook names + many confluence tags without squeezing the params.
-              Same FieldRow chrome (rounded-lg border border-border-subtle bg-bg-2
-              p-3); holds the "Setup" label, the Playbook picker, and the embedded
+              Premium <Card> chrome (card-premium + a subtle card-glow-gold), matching
+              the param tiles / Execution / Trader DNA; the Card title band supplies
+              the "Setup" label, and it holds the Playbook picker + the embedded
               (null-gated) Confluence beneath. */}
-          <div className={`rounded-lg border border-border-subtle bg-bg-2 p-3 ${isFullscreen ? 'hidden' : ''}`}>
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-              Setup
-            </div>
+          <Card title="Setup" className={`card-glow-gold ${isFullscreen ? 'hidden' : ''}`}>
             <PlaybookPicker
               value={t.playbook_id}
               valueLabel={t.playbook_name}
@@ -387,7 +385,7 @@ function OverviewTab({
               }
             />
             <ConfluenceTags trade={t} embedded />
-          </div>
+          </Card>
 
           {/* Param row — Timeframe / Confidence / Stop price. Three FieldRow tiles,
               three-across at sm+ (each ~290px at full left-column width — comfortable

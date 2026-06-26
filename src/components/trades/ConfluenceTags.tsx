@@ -176,6 +176,7 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
           aria-label={`Add ${p.name} confluence`}
           className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-subtle transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-40"
         >
+          <TierBadge tier={p.tier} />
           <span>{p.name}</span>
           <Plus size={11} strokeWidth={2.5} />
         </button>
