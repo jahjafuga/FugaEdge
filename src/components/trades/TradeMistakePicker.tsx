@@ -8,12 +8,14 @@ interface TradeMistakePickerProps {
   trade: TradeListRow
 }
 
-// The two axes render top-to-bottom in this fixed order (the modal is narrow —
-// stacked, never side-by-side). Labelled headers only, no per-axis colour-coding
-// (mirrors MistakesVocabularyEditor's restraint).
-const AXES: { axis: MistakeAxis; label: string }[] = [
-  { axis: 'technical', label: 'Technical' },
-  { axis: 'psychological', label: 'Psychological' },
+// Beat 5 — the two axes render SIDE-BY-SIDE as two bordered premium panels in a
+// 2-column grid (Technical left, Psychological right; stacks to 1 column on
+// narrow viewports). `align` steers each panel's Add-dropdown to open INWARD
+// (left panel rightward, right panel leftward) so neither clips the modal edge.
+// Labelled headers only, no per-axis colour-coding (mirrors MistakesVocabularyEditor).
+const AXES: { axis: MistakeAxis; label: string; align: 'left' | 'right' }[] = [
+  { axis: 'technical', label: 'Technical', align: 'left' },
+  { axis: 'psychological', label: 'Psychological', align: 'right' },
 ]
 
 // Beat 2c — the per-trade two-axis mistake picker (the trade_mistake junction).
@@ -109,18 +111,21 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
         </p>
       </div>
 
-      {AXES.map(({ axis, label }) => (
-        <AxisBlock
-          key={axis}
-          axis={axis}
-          label={label}
-          tags={tags}
-          defs={defs}
-          busy={busy}
-          onAdd={addTag}
-          onRemove={removeTag}
-        />
-      ))}
+      <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
+        {AXES.map(({ axis, label, align }) => (
+          <AxisBlock
+            key={axis}
+            axis={axis}
+            label={label}
+            align={align}
+            tags={tags}
+            defs={defs}
+            busy={busy}
+            onAdd={addTag}
+            onRemove={removeTag}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -132,6 +137,7 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
 function AxisBlock({
   axis,
   label,
+  align,
   tags,
   defs,
   busy,
@@ -140,6 +146,7 @@ function AxisBlock({
 }: {
   axis: MistakeAxis
   label: string
+  align: 'left' | 'right'
   tags: MistakeTag[] | null
   defs: MistakeDef[] | null
   busy: boolean
@@ -172,30 +179,38 @@ function AxisBlock({
   const available = (defs ?? []).filter((d) => d.axis === axis && !taggedIds.has(d.id))
 
   return (
-    <div>
+    <div className="rounded-lg border border-loss/20 bg-bg-2 p-3">
       <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        {label}
+        {label} Mistakes
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        {axisTags.map((tag) => (
-          <span
-            key={tag.id}
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[11px] text-fg-secondary"
-          >
-            <span>{tag.name}</span>
-            <button
-              type="button"
-              onClick={() => onRemove(tag.id)}
-              disabled={busy}
-              aria-label={`Remove ${tag.name}`}
-              className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-fg-tertiary transition-colors hover:text-red disabled:opacity-40"
-            >
-              <X size={11} strokeWidth={2.5} />
-            </button>
-          </span>
-        ))}
+      <div className="space-y-1.5">
+        {/* Tagged mistakes — full-width loss-red rows, stacked (label left, ×
+            right). Red flags at a glance, matching the mockup. */}
+        {axisTags.length > 0 && (
+          <div className="flex flex-col gap-1.5">
+            {axisTags.map((tag) => (
+              <span
+                key={tag.id}
+                className="flex items-center justify-between gap-2 rounded-md border border-loss/30 bg-loss/10 px-2.5 py-1.5 text-[11px] text-loss"
+              >
+                <span>{tag.name}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(tag.id)}
+                  disabled={busy}
+                  aria-label={`Remove ${tag.name}`}
+                  className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-loss/70 transition-colors hover:text-loss disabled:opacity-40"
+                >
+                  <X size={11} strokeWidth={2.5} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
-        {/* + Add — dropdown mirroring ConfluenceTags' mechanics, scoped to this axis. */}
+        {/* + Add — sits below the rows; a quiet neutral/gold-hover action (NOT
+            red — it's an action, not a mistake). Dropdown scoped to this axis,
+            anchored inward via `align`. */}
         <div ref={wrapRef} className="relative inline-flex">
           <button
             type="button"
@@ -213,7 +228,9 @@ function AxisBlock({
             )}
           </button>
           {open && (
-            <div className="absolute left-0 top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
+            <div
+              className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur`}
+            >
               {!defs && <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>}
               {defs && available.length === 0 && (
                 <div className="px-2 py-2 text-[10px] text-muted">
