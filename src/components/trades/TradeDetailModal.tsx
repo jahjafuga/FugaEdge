@@ -359,127 +359,178 @@ function OverviewTab({
   const t = trade
   return (
     <div className={isFullscreen ? '' : 'space-y-5'}>
-      <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${isFullscreen ? 'hidden' : ''}`}>
-        <FieldRow label="Playbook">
-          <PlaybookPicker
-            value={t.playbook_id}
-            valueLabel={t.playbook_name}
-            onChange={(next) =>
-              onSavePlaybook({ trade_id: t.id, playbook_id: next })
-            }
-          />
-        </FieldRow>
-        <FieldRow label="Timeframe">
-          <TimeframePicker
-            value={t.entry_timeframe}
-            onChange={(next: EntryTimeframe | null) =>
-              onSaveTimeframe({ trade_id: t.id, timeframe: next })
-            }
-          />
-        </FieldRow>
-        <FieldRow label="Confidence">
-          <ConfidencePicker
-            value={t.confidence}
-            onChange={(next) =>
-              onSaveConfidence({ trade_id: t.id, confidence: next })
-            }
-          />
-        </FieldRow>
-        <FieldRow label="Planned stop loss price">
-          <PlannedRiskEditor
-            plannedStopLossPrice={t.planned_stop_loss_price}
-            entryPrice={t.side === 'short' ? t.avg_sell_price : t.avg_buy_price}
-            shares={Math.max(t.shares_bought, t.shares_sold)}
-            riskPerShare={t.risk_per_share}
-            totalRisk={t.total_risk}
-            onChange={(next) =>
-              onSavePlannedStopLoss({ trade_id: t.id, planned_stop_loss_price: next })
-            }
-          />
-        </FieldRow>
-      </div>
+      {/* Beat 2 — two-column shell. The Overview body splits into a LEFT column
+          (setup fields + Trader DNA) and a RIGHT analysis column (confluence /
+          P&L / fee / mistakes); the chart+fills row drops below it, full-width.
+          Fullscreen-gated exactly like that chart row — the grid classes collapse
+          to '' so nothing two-columns, and each child still hides via its own
+          isFullscreen gate, so fullscreen stays chart-only. Mirrors the chart
+          row's xl: breakpoint and 460px right column so the columns line up. */}
+      <div className={isFullscreen ? '' : 'grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start'}>
+        {/* LEFT column — setup fields + Trader DNA */}
+        <div className={isFullscreen ? '' : 'space-y-5'}>
+          <div className={`grid grid-cols-2 gap-3 lg:grid-cols-4 ${isFullscreen ? 'hidden' : ''}`}>
+            <FieldRow label="Playbook">
+              <PlaybookPicker
+                value={t.playbook_id}
+                valueLabel={t.playbook_name}
+                onChange={(next) =>
+                  onSavePlaybook({ trade_id: t.id, playbook_id: next })
+                }
+              />
+            </FieldRow>
+            <FieldRow label="Timeframe">
+              <TimeframePicker
+                value={t.entry_timeframe}
+                onChange={(next: EntryTimeframe | null) =>
+                  onSaveTimeframe({ trade_id: t.id, timeframe: next })
+                }
+              />
+            </FieldRow>
+            <FieldRow label="Confidence">
+              <ConfidencePicker
+                value={t.confidence}
+                onChange={(next) =>
+                  onSaveConfidence({ trade_id: t.id, confidence: next })
+                }
+              />
+            </FieldRow>
+            <FieldRow label="Planned stop loss price">
+              <PlannedRiskEditor
+                plannedStopLossPrice={t.planned_stop_loss_price}
+                entryPrice={t.side === 'short' ? t.avg_sell_price : t.avg_buy_price}
+                shares={Math.max(t.shares_bought, t.shares_sold)}
+                riskPerShare={t.risk_per_share}
+                totalRisk={t.total_risk}
+                onChange={(next) =>
+                  onSavePlannedStopLoss({ trade_id: t.id, planned_stop_loss_price: next })
+                }
+              />
+            </FieldRow>
+          </div>
 
-      {/* Trader DNA — the stock-character + entry-context block (beats A2a/A2b).
-          A premium <Card> of six tiles: Float / Daily% / RVOL (the setup's
-          character), Country / Catalyst (the why), Entry-vs-9EMA (the entry
-          quality). Float + Catalyst are display-first (beat A2b): a clean value
-          at rest that reveals the existing editor on click / pencil. */}
-      <Card title="Trader DNA" className={isFullscreen ? 'hidden' : ''}>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          <DnaTile icon={Layers} label="Float">
-            <FloatField
-              value={t.float_shares}
-              onChange={(next) => onSaveFloat({ trade_id: t.id, float_shares: next })}
-            />
-          </DnaTile>
+          {/* Trader DNA — the stock-character + entry-context block (beats A2a/A2b).
+              A premium <Card> of six tiles: Float / Daily% / RVOL (the setup's
+              character), Country / Catalyst (the why), Entry-vs-9EMA (the entry
+              quality). Float + Catalyst are display-first (beat A2b): a clean value
+              at rest that reveals the existing editor on click / pencil. */}
+          <Card title="Trader DNA" className={isFullscreen ? 'hidden' : ''}>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+              <DnaTile icon={Layers} label="Float">
+                <FloatField
+                  value={t.float_shares}
+                  onChange={(next) => onSaveFloat({ trade_id: t.id, float_shares: next })}
+                />
+              </DnaTile>
 
-          <DnaTile
-            icon={t.daily_change_pct != null && t.daily_change_pct < 0 ? TrendingDown : TrendingUp}
-            label="Daily %"
-            tone={
-              t.daily_change_pct == null
-                ? 'muted'
-                : t.daily_change_pct < 0
-                  ? 'loss'
-                  : 'win'
-            }
-          >
-            <span
-              className={`font-mono text-lg font-semibold tnum ${
-                t.daily_change_pct == null ? 'text-fg-tertiary' : pnlClass(t.daily_change_pct)
-              }`}
-            >
-              {t.daily_change_pct == null ? '—' : signedPct(t.daily_change_pct, 2)}
-            </span>
-          </DnaTile>
+              <DnaTile
+                icon={t.daily_change_pct != null && t.daily_change_pct < 0 ? TrendingDown : TrendingUp}
+                label="Daily %"
+                tone={
+                  t.daily_change_pct == null
+                    ? 'muted'
+                    : t.daily_change_pct < 0
+                      ? 'loss'
+                      : 'win'
+                }
+              >
+                <span
+                  className={`font-mono text-lg font-semibold tnum ${
+                    t.daily_change_pct == null ? 'text-fg-tertiary' : pnlClass(t.daily_change_pct)
+                  }`}
+                >
+                  {t.daily_change_pct == null ? '—' : signedPct(t.daily_change_pct, 2)}
+                </span>
+              </DnaTile>
 
-          <DnaTile icon={Activity} label="RVOL" tone="violet">
-            <span
-              className={`font-mono text-lg font-semibold tnum ${
-                t.rvol == null ? 'text-fg-tertiary' : 'text-violet'
-              }`}
-            >
-              {rvolLabel(t.rvol)}
-            </span>
-          </DnaTile>
+              <DnaTile icon={Activity} label="RVOL" tone="violet">
+                <span
+                  className={`font-mono text-lg font-semibold tnum ${
+                    t.rvol == null ? 'text-fg-tertiary' : 'text-violet'
+                  }`}
+                >
+                  {rvolLabel(t.rvol)}
+                </span>
+              </DnaTile>
 
-          <DnaTile icon={Globe} label="Country">
-            <CountryEditor
-              country={t.country}
-              countryName={t.country_name}
-              region={t.region}
-              source={t.country_source}
-              onChange={(next) =>
-                onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
-              }
-              symbol={t.symbol}
-              onApplyToSymbol={
-                onSaveCountrySymbol
-                  ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
-                  : undefined
-              }
-            />
-          </DnaTile>
+              <DnaTile icon={Globe} label="Country">
+                <CountryEditor
+                  country={t.country}
+                  countryName={t.country_name}
+                  region={t.region}
+                  source={t.country_source}
+                  onChange={(next) =>
+                    onSaveCountry({ trade_id: t.id, country: next, source: 'manual' })
+                  }
+                  symbol={t.symbol}
+                  onApplyToSymbol={
+                    onSaveCountrySymbol
+                      ? (next) => onSaveCountrySymbol({ symbol: t.symbol, country: next })
+                      : undefined
+                  }
+                />
+              </DnaTile>
 
-          <DnaTile icon={Zap} label="Catalyst">
-            <CatalystField
-              catalystType={t.catalyst_type}
-              daysSince={t.days_since_catalyst}
-              onChange={(catalystType, daysSince) =>
-                onSaveCatalyst({
-                  trade_id: t.id,
-                  catalyst_type: catalystType,
-                  days_since_catalyst: daysSince,
-                })
-              }
-            />
-          </DnaTile>
+              <DnaTile icon={Zap} label="Catalyst">
+                <CatalystField
+                  catalystType={t.catalyst_type}
+                  daysSince={t.days_since_catalyst}
+                  onChange={(catalystType, daysSince) =>
+                    onSaveCatalyst({
+                      trade_id: t.id,
+                      catalyst_type: catalystType,
+                      days_since_catalyst: daysSince,
+                    })
+                  }
+                />
+              </DnaTile>
 
-          <DnaTile icon={LineChart} label="Entry vs 9EMA">
-            <Ema9Readout pct={t.entry_ema9_distance_pct} />
-          </DnaTile>
+              <DnaTile icon={LineChart} label="Entry vs 9EMA">
+                <Ema9Readout pct={t.entry_ema9_distance_pct} />
+              </DnaTile>
+            </div>
+          </Card>
         </div>
-      </Card>
+
+        {/* RIGHT column — confluence / P&L / fee / mistakes analysis */}
+        <div className={isFullscreen ? '' : 'space-y-5'}>
+          {/* Beat 3 — secondary confluence tags. Hidden when the primary is
+              "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid.
+              Wrapped so A3b can hide it (with the rest of the non-chart pane) in
+              chart-only fullscreen. */}
+          <div className={isFullscreen ? 'hidden' : ''}>
+            <ConfluenceTags trade={t} />
+          </div>
+
+          {/* P&L mini-grid — gross, fees, net at a glance */}
+          <div className={`grid grid-cols-3 gap-3 ${isFullscreen ? 'hidden' : ''}`}>
+            <Stat label="Gross P&L" value={signed(t.gross_pnl)} tone={pnlClass(t.gross_pnl)} />
+            <Stat label="Fees"      value={money(t.total_fees)}  tone="text-loss" />
+            <Stat label="Net P&L"   value={signed(t.net_pnl)}    tone={pnlClass(t.net_pnl)} />
+          </div>
+          {/* Fee breakdown — shown ONLY when the broker reported a separate
+              commission (Ocean One's Comm). NULL (DAS/Webull) shows no split —
+              mirrors the `shares_outstanding == null ? '—'` honest-absence idiom
+              above; never a fabricated $0. Commission is a SLICE of total_fees, so
+              Other fees = the remainder; both via money(). */}
+          {t.commission != null && (
+            <div className={`text-[11px] text-fg-tertiary ${isFullscreen ? 'hidden' : ''}`}>
+              Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
+            </div>
+          )}
+
+          {/* Mistakes — folded in from the former Mistakes tab (Beat 1 / A5). The
+              self-contained two-axis picker (Technical / Psychological), placed as a
+              "what went wrong" review section at the bottom of the single-column
+              Overview. Matches the Confluence band's bare-section treatment (the
+              picker carries its own header). Hidden in chart-only fullscreen like the
+              other non-chart sections; Beat 2's two-column shell relocates it to the
+              right column. */}
+          <div className={isFullscreen ? 'hidden' : ''}>
+            <TradeMistakePicker trade={t} />
+          </div>
+        </div>
+      </div>
 
       {/* Beat A3a — Trade Chart (left) + Fills (right): the two-column heart of
           the Overview. The chart is mount-on-visible (LazyVisible + Suspense) so
@@ -511,42 +562,6 @@ function OverviewTab({
         <div className={isFullscreen ? 'hidden' : ''}>
           <ExecutionList trade={t} />
         </div>
-      </div>
-
-      {/* Beat 3 — secondary confluence tags. Hidden when the primary is
-          "No Setup" (Invariant 2). Sits below Catalyst, above the P&L grid.
-          Wrapped so A3b can hide it (with the rest of the non-chart pane) in
-          chart-only fullscreen. */}
-      <div className={isFullscreen ? 'hidden' : ''}>
-        <ConfluenceTags trade={t} />
-      </div>
-
-      {/* P&L mini-grid — gross, fees, net at a glance */}
-      <div className={`grid grid-cols-3 gap-3 ${isFullscreen ? 'hidden' : ''}`}>
-        <Stat label="Gross P&L" value={signed(t.gross_pnl)} tone={pnlClass(t.gross_pnl)} />
-        <Stat label="Fees"      value={money(t.total_fees)}  tone="text-loss" />
-        <Stat label="Net P&L"   value={signed(t.net_pnl)}    tone={pnlClass(t.net_pnl)} />
-      </div>
-      {/* Fee breakdown — shown ONLY when the broker reported a separate
-          commission (Ocean One's Comm). NULL (DAS/Webull) shows no split —
-          mirrors the `shares_outstanding == null ? '—'` honest-absence idiom
-          above; never a fabricated $0. Commission is a SLICE of total_fees, so
-          Other fees = the remainder; both via money(). */}
-      {t.commission != null && (
-        <div className={`text-[11px] text-fg-tertiary ${isFullscreen ? 'hidden' : ''}`}>
-          Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
-        </div>
-      )}
-
-      {/* Mistakes — folded in from the former Mistakes tab (Beat 1 / A5). The
-          self-contained two-axis picker (Technical / Psychological), placed as a
-          "what went wrong" review section at the bottom of the single-column
-          Overview. Matches the Confluence band's bare-section treatment (the
-          picker carries its own header). Hidden in chart-only fullscreen like the
-          other non-chart sections; Beat 2's two-column shell relocates it to the
-          right column. */}
-      <div className={isFullscreen ? 'hidden' : ''}>
-        <TradeMistakePicker trade={t} />
       </div>
     </div>
   )
