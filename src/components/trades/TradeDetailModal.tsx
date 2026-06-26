@@ -15,7 +15,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, signed, pnlClass, signedPct, rvolLabel, compactShares, catalystLabel, longDate, formatEastern } from '@/lib/format'
+import { money, price, int, signed, pnlClass, signedPct, rvolLabel, compactShares, catalystLabel, longDate, formatEastern, duration } from '@/lib/format'
 import PlaybookPicker from '@/components/playbook/PlaybookPicker'
 import TimeframePicker from './TimeframePicker'
 import ConfidencePicker from './ConfidencePicker'
@@ -30,6 +30,7 @@ import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 import RChip from './RChip'
 import Card from '@/components/ui/Card'
+import { computeExecutionStats } from '@/core/trades/executionStats'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -509,22 +510,12 @@ function OverviewTab({
         {/* RIGHT column — P&L / fee / mistakes analysis. (Confluence moved into
             the Setup card in the left column, Beat 3.) */}
         <div className={isFullscreen ? '' : 'space-y-5'}>
-          {/* P&L mini-grid — gross, fees, net at a glance */}
-          <div className={`grid grid-cols-3 gap-3 ${isFullscreen ? 'hidden' : ''}`}>
-            <Stat label="Gross P&L" value={signed(t.gross_pnl)} tone={pnlClass(t.gross_pnl)} />
-            <Stat label="Fees"      value={money(t.total_fees)}  tone="text-loss" />
-            <Stat label="Net P&L"   value={signed(t.net_pnl)}    tone={pnlClass(t.net_pnl)} />
-          </div>
-          {/* Fee breakdown — shown ONLY when the broker reported a separate
-              commission (Ocean One's Comm). NULL (DAS/Webull) shows no split —
-              mirrors the `shares_outstanding == null ? '—'` honest-absence idiom
-              above; never a fabricated $0. Commission is a SLICE of total_fees, so
-              Other fees = the remainder; both via money(). */}
-          {t.commission != null && (
-            <div className={`text-[11px] text-fg-tertiary ${isFullscreen ? 'hidden' : ''}`}>
-              Commission {money(t.commission)} · Other fees {money(t.total_fees - t.commission)}
-            </div>
-          )}
+          {/* Beat 4 — Execution panel: the NEW execution-quality readouts (hold,
+              bookend fills, avg prices, price move). Replaces the old
+              P&L mini-grid + commission line, which only duplicated the header's
+              Gross / Fees / Net / R. Hidden in chart-only fullscreen like the
+              rest of the right column. */}
+          <ExecutionPanel trade={t} isFullscreen={isFullscreen} />
 
           {/* Mistakes — folded in from the former Mistakes tab (Beat 1 / A5). The
               self-contained two-axis picker (Technical / Psychological), placed as a
@@ -585,14 +576,76 @@ function FieldRow({ label, children }: { label: string; children: React.ReactNod
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone: string }) {
+// Beat 4 — one Execution-panel readout cell: label over a mono value, with an
+// optional muted sub-line (the bookend fills' timestamp under their price). Tile
+// chrome matches DnaTile so the Execution card reads as a sibling of the Trader
+// DNA card. tone defaults to neutral; Price Move passes pnlClass.
+function ExecStat({
+  label,
+  value,
+  sub,
+  tone = 'text-fg-primary',
+}: {
+  label: string
+  value: string
+  sub?: string
+  tone?: string
+}) {
   return (
-    <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
+    <div className="rounded-lg border border-border-subtle bg-bg-1/40 p-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label}
       </div>
-      <div className={`mt-1 font-mono text-lg font-semibold tnum ${tone}`}>{value}</div>
+      <div className={`mt-1 font-mono text-sm font-semibold tnum ${tone}`}>{value}</div>
+      {sub != null && (
+        <div className="mt-0.5 font-mono text-[11px] text-fg-tertiary tnum">{sub}</div>
+      )}
     </div>
+  )
+}
+
+// Beat 4 — the Execution panel: execution-quality readouts that do NOT duplicate
+// the header (Gross/Fees/Net/R). Hold time is the trivial inline (close-open);
+// the bookend fills + direction-aware price move come from the pure
+// computeExecutionStats helper. Every absent value renders as an em-dash
+// (no-fabricated-data law): duration() em-dashes a null hold, and the helper
+// nulls the bookends / price move on open trades.
+function ExecutionPanel({
+  trade: t,
+  isFullscreen,
+}: {
+  trade: TradeListRow
+  isFullscreen: boolean
+}) {
+  const exec = computeExecutionStats(t)
+  const holdSec =
+    !t.is_open && t.close_time
+      ? (Date.parse(t.close_time) - Date.parse(t.open_time)) / 1000
+      : null
+
+  return (
+    <Card title="Execution" className={isFullscreen ? 'hidden' : ''}>
+      <div className="grid grid-cols-3 gap-3">
+        <ExecStat label="Hold Time" value={duration(holdSec)} />
+        <ExecStat
+          label="First Entry"
+          value={exec.firstEntry ? price(exec.firstEntry.price) : '—'}
+          sub={exec.firstEntry ? formatEastern(exec.firstEntry.time) : undefined}
+        />
+        <ExecStat
+          label="Last Exit"
+          value={exec.lastExit ? price(exec.lastExit.price) : '—'}
+          sub={exec.lastExit ? formatEastern(exec.lastExit.time) : undefined}
+        />
+        <ExecStat label="Avg Entry" value={exec.avgEntry == null ? '—' : price(exec.avgEntry)} />
+        <ExecStat label="Avg Exit" value={exec.avgExit == null ? '—' : price(exec.avgExit)} />
+        <ExecStat
+          label="Price Move"
+          value={exec.priceMovePct == null ? '—' : signedPct(exec.priceMovePct)}
+          tone={exec.priceMovePct == null ? 'text-fg-tertiary' : pnlClass(exec.priceMovePct)}
+        />
+      </div>
+    </Card>
   )
 }
 
