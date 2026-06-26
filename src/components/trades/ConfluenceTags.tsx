@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import TierBadge from '@/components/playbook/TierBadge'
 import { filterAvailableSecondaries } from '@/core/playbook/availableSecondaries'
+import { topUsedSecondaries } from '@/core/playbook/topUsedSecondaries'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookTag, PlaybookWithStats } from '@shared/playbook-types'
 
@@ -130,6 +131,15 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
     ? filterAvailableSecondaries(playbooks, trade.playbook_id, selectedIds)
     : []
 
+  // Embedded Setup card: surface the most-used addable confluences as one-tap
+  // quick chips, demoting the dropdown to a "More" overflow for whatever's left.
+  // Standalone keeps its single "Add confluence" dropdown over the full list, so
+  // all three derived values collapse to the original behavior when !embedded.
+  const QUICK_ADD_COUNT = 3
+  const quickAdds = embedded ? topUsedSecondaries(available, QUICK_ADD_COUNT) : []
+  const showMore = !embedded || available.length > QUICK_ADD_COUNT
+  const moreLabel = embedded ? 'More' : 'Add confluence'
+
   // Shared body — the chip row + Add-confluence dropdown, identical in the
   // standalone card and the embedded (Setup-card) host.
   const body = (
@@ -153,49 +163,72 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
         </span>
       ))}
 
-      {/* + Add confluence — dropdown mirroring PlaybookPicker's mechanics. */}
-      <div ref={wrapRef} className="relative inline-flex">
+      {/* Quick-add chips — embedded Setup card only. The top-N most-used
+          addable confluences as one-tap chips: a new VIEW over the same
+          `available` set, firing the same addTag. quickAdds is [] when not
+          embedded, so the standalone render is unchanged. */}
+      {quickAdds.map((p) => (
         <button
+          key={p.id}
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => addTag(p.id)}
           disabled={busy}
+          aria-label={`Add ${p.name} confluence`}
           className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-subtle transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-40"
         >
+          <span>{p.name}</span>
           <Plus size={11} strokeWidth={2.5} />
-          <span>Add confluence</span>
-          {open ? (
-            <ChevronUp size={11} strokeWidth={2} />
-          ) : (
-            <ChevronDown size={11} strokeWidth={2} />
-          )}
         </button>
-        {open && (
-          <div className="absolute left-0 top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
-            {!playbooks && (
-              <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
+      ))}
+
+      {/* + Add confluence / More — dropdown mirroring PlaybookPicker's mechanics.
+          In the embedded Setup card it is demoted to a "More" overflow, shown
+          only when confluences remain beyond the quick chips; the standalone
+          card always shows it over the full available list (showMore === true). */}
+      {showMore && (
+        <div ref={wrapRef} className="relative inline-flex">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            disabled={busy}
+            className="inline-flex items-center gap-1 rounded-full border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-[11px] text-subtle transition-colors duration-150 hover:border-gold/40 hover:text-gold disabled:opacity-40"
+          >
+            <Plus size={11} strokeWidth={2.5} />
+            <span>{moreLabel}</span>
+            {open ? (
+              <ChevronUp size={11} strokeWidth={2} />
+            ) : (
+              <ChevronDown size={11} strokeWidth={2} />
             )}
-            {playbooks && available.length === 0 && (
-              <div className="px-2 py-2 text-[10px] text-muted">
-                No other playbooks to add.
-              </div>
-            )}
-            {available.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => addTag(p.id)}
-                className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-150 hover:bg-white/[0.04]"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <TierBadge tier={p.tier} />
-                  <span>{p.name}</span>
-                </span>
-                <Plus size={11} strokeWidth={2.5} className="text-fg-tertiary" />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          </button>
+          {open && (
+            <div className="absolute left-0 top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
+              {!playbooks && (
+                <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
+              )}
+              {playbooks && available.length === 0 && (
+                <div className="px-2 py-2 text-[10px] text-muted">
+                  No other playbooks to add.
+                </div>
+              )}
+              {available.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => addTag(p.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-150 hover:bg-white/[0.04]"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <TierBadge tier={p.tier} />
+                    <span>{p.name}</span>
+                  </span>
+                  <Plus size={11} strokeWidth={2.5} className="text-fg-tertiary" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 
