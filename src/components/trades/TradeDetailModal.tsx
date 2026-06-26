@@ -394,23 +394,23 @@ function OverviewTab({
               per the param recon: control floors ~132/144/130px), stacked
               single-column on narrow. Own fullscreen-hidden gate. */}
           <div className={`grid grid-cols-1 gap-3 sm:grid-cols-3 ${isFullscreen ? 'hidden' : ''}`}>
-            <FieldRow label="Timeframe">
+            <Card title="Timeframe" className="card-glow-gold">
               <TimeframePicker
                 value={t.entry_timeframe}
                 onChange={(next: EntryTimeframe | null) =>
                   onSaveTimeframe({ trade_id: t.id, timeframe: next })
                 }
               />
-            </FieldRow>
-            <FieldRow label="Confidence">
+            </Card>
+            <Card title="Confidence" className="card-glow-gold">
               <ConfidencePicker
                 value={t.confidence}
                 onChange={(next) =>
                   onSaveConfidence({ trade_id: t.id, confidence: next })
                 }
               />
-            </FieldRow>
-            <FieldRow label="Stop price">
+            </Card>
+            <Card title="Stop price" className="card-glow-gold">
               <PlannedRiskEditor
                 plannedStopLossPrice={t.planned_stop_loss_price}
                 entryPrice={t.side === 'short' ? t.avg_sell_price : t.avg_buy_price}
@@ -421,7 +421,7 @@ function OverviewTab({
                   onSavePlannedStopLoss({ trade_id: t.id, planned_stop_loss_price: next })
                 }
               />
-            </FieldRow>
+            </Card>
           </div>
 
           {/* Trader DNA — the stock-character + entry-context block (beats A2a/A2b).
@@ -561,17 +561,6 @@ function OverviewTab({
           <ExecutionList trade={t} />
         </div>
       </div>
-    </div>
-  )
-}
-
-function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        {label}
-      </div>
-      {children}
     </div>
   )
 }

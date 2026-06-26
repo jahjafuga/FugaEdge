@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { money } from '@/lib/format'
+import { money, signedPct } from '@/lib/format'
 
 interface PlannedRiskEditorProps {
   /** Pre-trade stop loss PRICE. */
@@ -63,10 +63,21 @@ export default function PlannedRiskEditor({
   const displayRiskPerShare = previewRiskPerShare ?? riskPerShare
   const displayTotalRisk = previewTotalRisk ?? totalRisk
 
+  // Stop distance % — the new display metric. Uses the SAME typed-or-saved stop
+  // the risk preview uses (typed while editing, else the saved prop), signed by
+  // direction: a stop BELOW entry (long) reads negative, ABOVE (short) positive.
+  // Display-only inline arithmetic — no new prop, no helper, no P&L / R.
+  const effectiveStop = hasTypedStop ? typedStop : plannedStopLossPrice
+  const hasStop = effectiveStop != null && effectiveStop > 0
+  const displayStopDistancePct =
+    effectiveStop != null && effectiveStop > 0 && entryPrice > 0
+      ? ((effectiveStop - entryPrice) / entryPrice) * 100
+      : null
+
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-1.5 rounded border border-border-strong bg-bg-1 px-2.5 py-1 focus-within:border-gold">
-        <span className="font-mono text-xs text-fg-tertiary">$</span>
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 py-2 focus-within:border-gold">
+        <span className="font-mono text-sm text-fg-tertiary">$</span>
         <input
           type="text"
           inputMode="decimal"
@@ -80,19 +91,18 @@ export default function PlannedRiskEditor({
             }
           }}
           placeholder="stop price"
-          className="w-24 bg-transparent font-mono text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none"
+          className="w-full bg-transparent font-mono text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none"
         />
       </div>
 
-      {displayRiskPerShare != null && (
-        <span className="font-mono text-[11px] text-fg-tertiary">
-          {money(displayRiskPerShare)}/sh
-        </span>
-      )}
-      {displayTotalRisk != null && (
-        <span className="font-mono text-[11px] text-fg-tertiary">
-          · {money(displayTotalRisk)} total
-        </span>
+      {hasStop && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] tnum text-fg-secondary">
+          <span>{displayRiskPerShare == null ? '—' : `${money(displayRiskPerShare)}/sh`}</span>
+          <span className="text-fg-tertiary">·</span>
+          <span>{displayTotalRisk == null ? '—' : `${money(displayTotalRisk)} total`}</span>
+          <span className="text-fg-tertiary">·</span>
+          <span>{displayStopDistancePct == null ? '—' : signedPct(displayStopDistancePct)}</span>
+        </div>
       )}
     </div>
   )
