@@ -3,7 +3,9 @@
 // it, returning a new canvas ready for toBlob(). No React, no Electron, no IPC —
 // just canvas drawing + the bundled icon asset. ChartTab orchestrates (capture →
 // format strings via @/lib/format → call this → blob → save).
-import iconUrl from '@/assets/fugaedge-icon.png'
+import iconUrl from '@/assets/fugaedge-icon-light.png'
+import { chartColors } from '@/lib/chartColors'
+import type { ResolvedTheme } from '@/lib/theme'
 
 export interface BrandedScreenshotData {
   symbol: string
@@ -21,15 +23,9 @@ export interface BrandedScreenshotData {
   holdText: string
 }
 
-// Palette — mirrors the chart's own COLOR_* tokens so the frame is seamless with
-// the captured chart.
-const BG = '#0a0c11'       // chart canvas bg — fill so the frame is seamless
-const GOLD = '#d4af37'     // brand gold (wordmark, setup chip)
-const WHITE = '#f3f5fa'    // fg-primary (symbol, footer values)
-const WIN = '#3fb389'      // long pill + positive net P&L
-const LOSS = '#e06b6b'     // short pill + negative net P&L
-const MUTED = '#8a94a8'    // fg-tertiary (labels, date)
-const DIVIDER = '#1e2330'  // border-subtle (cell dividers, borders)
+// Strip colors are THEME-AWARE — derived per call from chartColors(theme) inside
+// composeBrandedScreenshot (below) so the frame is seamless with the captured
+// chart in both light and dark. Only the font is theme-independent here.
 const FONT = 'JetBrains Mono, ui-monospace, monospace'
 
 // Icon decode is cached across calls — the asset never changes, so resolve the
@@ -67,6 +63,7 @@ function roundRect(
 export async function composeBrandedScreenshot(
   chartCanvas: HTMLCanvasElement,
   data: BrandedScreenshotData,
+  theme: ResolvedTheme,
 ): Promise<HTMLCanvasElement> {
   // SCALE: the captured canvas is ALREADY device-pixel sized — lightweight-
   // charts renders at devicePixelRatio, so chartCanvas.width/height are physical
@@ -78,6 +75,17 @@ export async function composeBrandedScreenshot(
   const W = chartCanvas.width
   const unit = W / 1000
   const px = (n: number): number => Math.round(n * unit)
+
+  // Strip palette, themed to the captured chart (seamless in light + dark). Local
+  // names mirror the former module consts so the drawing code below is unchanged.
+  const palette = chartColors(theme)
+  const BG = palette.background      // strip + seam bg (matches the chart pane)
+  const GOLD = palette.sideA         // wordmark + setup chip (the themed gold pair)
+  const WHITE = palette.fgPrimary    // symbol + footer values (primary text)
+  const WIN = palette.win            // long pill + positive net P&L
+  const LOSS = palette.loss          // short pill + negative net P&L
+  const MUTED = palette.axis         // labels + date
+  const DIVIDER = palette.grid       // dividers + borders
 
   const headerH = px(64)
   const footerH = px(96)

@@ -26,6 +26,9 @@ export interface ChartPalette {
   /** Chart pane background — the opaque equivalent of the premium card surface
    *  (--card-surface), so the chart blends into the modal's cards per theme. */
   background: string
+  /** Primary text on chart-framed surfaces (the branded-export strips) - near-
+   *  white on dark, near-black on light. */
+  fgPrimary: string
   /** MACD histogram 4-state momentum palette. Dark uses pale shades for the
    *  "weakening" states (they read on the near-black pane); light needs DARKER
    *  shades for those (pale would vanish on near-white) - so this MUST be themed,
@@ -53,6 +56,7 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
       sideA: '#b8962e',  // the light-gold the Compare charts already used
       sideB: '#0d9488',  // teal-700 — darker for contrast on the light surface
       background: '#FCFDFF',  // --card-surface light, opaque
+      fgPrimary: '#0d0f14',   // --fg-primary light (near-black) - export strip text
       macdHist: {
         posRising:  '#16a34a',  // strengthening bull - green-600 (darker = strong on white)
         posFalling: '#22c55e',  // weakening bull - green-500 (lighter = weak, still readable)
@@ -69,6 +73,7 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
     sideA: '#d4af37',    // existing gold (Compare Period A)
     sideB: '#2dd4bf',    // teal-400 — cool against gold, distinct from win-green
     background: '#0A0F1C',  // --card-surface dark, opaque
+    fgPrimary: '#f3f5fa',   // --fg-primary dark (near-white) - export strip text
     macdHist: {
       posRising:  '#26a69a',  // strengthening bull - bright green (unchanged from dark)
       posFalling: '#a3d4cb',  // weakening bull - pale green (reads on the dark pane)

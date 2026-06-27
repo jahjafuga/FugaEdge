@@ -1375,7 +1375,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       sharesText: int(Math.max(trade.shares_bought, trade.shares_sold)),
       holdText: formatHoldTime(trade.open_time, trade.close_time),
     }
-    const out = await composeBrandedScreenshot(chartCanvas, data)
+    const out = await composeBrandedScreenshot(chartCanvas, data, resolved)
     const blob = await new Promise<Blob | null>((resolve) =>
       out.toBlob(resolve, 'image/png'),
     )
@@ -1385,7 +1385,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       bytes,
       suggestedName: `fugaedge-${trade.symbol}-${trade.date}.png`,
     })
-  }, [trade, tradeMarkers, chartHeight])
+  }, [trade, tradeMarkers, chartHeight, resolved])
   useEffect(() => {
     screenshotRef.current = captureAndSave
     return () => {
