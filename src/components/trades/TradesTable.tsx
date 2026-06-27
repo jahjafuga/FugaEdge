@@ -116,6 +116,14 @@ const TradesTableRow = memo(function TradesTableRow({
   index: number
   onSelect: (id: number) => void
   onToggle: (id: number, index: number, shiftKey: boolean) => void
+  // Memo-busting signal ONLY (intentionally not destructured/rendered): React.memo
+  // shallow-compares the whole props object, so a change here re-renders the row.
+  // A column toggle (Float / Country / Sparkline) changes columns.length but NONE
+  // of the other props (the row model is memoized on data/sorting, not columns), so
+  // without this the memoized row would render stale cells one column behind the
+  // header (the 201aa2b misalignment). Stable on scroll — columns.length is
+  // unchanged while scrolling — so Beat 2's skip-rows-on-scroll win is preserved.
+  columnCount: number
 }) {
   const t = row.original
   return (
@@ -667,6 +675,7 @@ export default function TradesTable({
                   index={vi.index}
                   onSelect={setSelectedId}
                   onToggle={toggleRow}
+                  columnCount={columns.length}
                 />
               )
             })}
