@@ -542,7 +542,7 @@ function OverviewTab({
           Suspense / ChartTab subtree stays mounted in its EXACT tree position —
           so toggling fullscreen never remounts the chart (no re-fetch of bars, no
           lost zoom/visible-range). Only sibling and wrapper classNames branch. */}
-      <div className={isFullscreen ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-start'}>
+      <div className={isFullscreen ? '' : 'grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_460px] xl:items-stretch'}>
         <LazyVisible className="min-h-[440px]" placeholder={<ChartTabSkeleton />}>
           <Suspense fallback={<ChartTabSkeleton />}>
             {/* key={t.id} → full remount on trade swap (no stale chart instance).
@@ -556,7 +556,7 @@ function OverviewTab({
           </Suspense>
         </LazyVisible>
         {/* Fills — hidden (not unmounted) in chart-only fullscreen. */}
-        <div className={isFullscreen ? 'hidden' : ''}>
+        <div className={isFullscreen ? 'hidden' : 'h-full'}>
           <ExecutionList trade={t} />
         </div>
       </div>
@@ -841,12 +841,12 @@ function Ema9Readout({ pct }: { pct: number | null }) {
 function ExecutionList({ trade }: { trade: TradeListRow }) {
   if (trade.executions.length === 0) return null
   const avg = blendedFillAvg(trade.executions)
-  // xl:h-[440px] pins the card to the chart's height so it stretches up on short
-  // trades and caps + scrolls on tall ones (the rows region is flex-1 below). 440 =
-  // ChartTab chartHeight (400px canvas) + ~40px toolbar/gap = the chart column's
-  // LazyVisible min-h-[440px] (grid sibling at the chart+fills row). Keep in sync.
+  // h-full + the chart+fills row's xl:items-stretch make this card track the chart
+  // card's height automatically: the taller column (the chart, with its header band)
+  // sets the row height and the fills card fills its cell. No hardcoded height to keep
+  // in sync, and it survives the chart header changing (e.g. the toolbar wrapping).
   return (
-    <div className="card-premium flex flex-col p-3 xl:h-[440px]">
+    <div className="card-premium flex flex-col p-3 h-full">
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
@@ -855,7 +855,7 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
           spine — the connector below a dot is colored by the NEXT (lower) dot's side,
           so the segment leading into a sell reads red and buy→buy reads green; dots
           sit on top (z-10). Two-line detail beside it. The rows region is flex-1 within
-          the card's xl:h-[440px] bound, so it grows to fill (short trades) and scrolls
+          the card's height, so it grows to fill (short trades) and scrolls
           (tall trades); the "{n} fills" title above and AVG PRICE footer below stay fixed. */}
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         <div className="flex flex-col">
