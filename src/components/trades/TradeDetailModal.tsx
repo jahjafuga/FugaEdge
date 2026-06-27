@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, BookOpen, Image, NotebookPen, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, Pencil, type LucideIcon } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, BookOpen, Image, NotebookPen, Loader2, Minimize2, Layers, TrendingUp, TrendingDown, Activity, Globe, Zap, LineChart, Pencil, type LucideIcon } from 'lucide-react'
 import type {
   EntryTimeframe,
   TradeListRow,
@@ -31,6 +31,7 @@ import TradeLifecycleFooter from './TradeLifecycleFooter'
 import RChip from './RChip'
 import Card from '@/components/ui/Card'
 import { blendedFillAvg, computeExecutionStats } from '@/core/trades/executionStats'
+import { type TradeNavPosition } from '@/core/trades/tradeNavigation'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -55,6 +56,11 @@ interface TradeDetailModalProps {
    *  Hosts that omit both render no footer (e.g. the calendar/review hosts). */
   onSoftDelete?: (trade_id: number) => Promise<void>
   onRestore?: (trade_id: number) => Promise<void>
+  /** Trade navigation (prev/next + N-of-M). OPTIONAL — only TradesTable passes
+   *  these (computed from the displayed sorted order). useTradeStack omits them,
+   *  so the modal renders no nav UI and ignores arrow keys (today's behavior). */
+  onNavigate?: (id: number) => void
+  navPosition?: TradeNavPosition
   /** When opened on top of another modal (e.g. stacked inside DayDetailModal),
    *  raises the overlay above it. Default false → standalone z-[60]; true →
    *  z-[210], above DayDetailModal's z-[110]. */
@@ -87,6 +93,8 @@ export default function TradeDetailModal({
   onSaveCountrySymbol,
   onSoftDelete,
   onRestore,
+  onNavigate,
+  navPosition,
   stacked = false,
 }: TradeDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
@@ -113,10 +121,27 @@ export default function TradeDetailModal({
         if (isFullscreen) setIsFullscreen(false)
         else onClose()
       }
+      // Arrow keys = prev/next trade — ONLY when nav is wired (TradesTable passes
+      // navPosition + onNavigate; useTradeStack does not). Inert otherwise, so the
+      // modal's behavior is byte-for-byte today's when nav props are absent.
+      if (!navPosition || !onNavigate) return
+      // Never hijack arrows while the user is typing/selecting in a field — let
+      // them move the text cursor (Journal <textarea>, Stop/Float/Country <input>,
+      // any contenteditable). Escape above is intentionally NOT gated this way.
+      const el = document.activeElement as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      if (e.key === 'ArrowLeft' && navPosition.prevId != null) {
+        e.preventDefault()
+        onNavigate(navPosition.prevId)
+      } else if (e.key === 'ArrowRight' && navPosition.nextId != null) {
+        e.preventDefault()
+        onNavigate(navPosition.nextId)
+      }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [trade, onClose, isFullscreen])
+  }, [trade, onClose, isFullscreen, navPosition, onNavigate])
 
   if (!trade) return null
 
@@ -138,7 +163,7 @@ export default function TradeDetailModal({
             : 'max-h-[92vh] max-w-[1400px] rounded-lg border border-border shadow-lg'
         }`}
       >
-        {!isFullscreen && <ModalHeader trade={trade} onClose={onClose} />}
+        {!isFullscreen && <ModalHeader trade={trade} onClose={onClose} navPosition={navPosition} onNavigate={onNavigate} />}
         <div className={`flex items-center gap-0 border-b border-border-subtle px-3 ${isFullscreen ? 'hidden' : ''}`}>
           {TABS.map((t) => {
             const active = t.key === tab
@@ -236,31 +261,65 @@ export default function TradeDetailModal({
   )
 }
 
-function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => void }) {
+function ModalHeader({ trade, onClose, navPosition, onNavigate }: { trade: TradeListRow; onClose: () => void; navPosition?: TradeNavPosition; onNavigate?: (id: number) => void }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-3">
-          <h2 id="trade-detail-title" className="font-mono text-2xl font-semibold tracking-tight text-fg-primary">
-            {trade.symbol}
-          </h2>
-          <span
-            className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
-              trade.side === 'short' ? 'bg-loss-soft text-loss' : 'bg-win-soft text-win'
-            }`}
-          >
-            {trade.side}
-          </span>
-          {trade.playbook_name && (
-            <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
-              {trade.playbook_name}
+      {/* Left zone: prev/next nav (TradesTable only) + the trade identity, wrapped
+          together so the nav sits beside the symbol on the left while the right
+          P&L group keeps hugging the right via the outer justify-between. */}
+      <div className="flex min-w-0 items-start gap-3">
+        {navPosition && onNavigate && (
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              type="button"
+              onClick={() => navPosition.prevId != null && onNavigate(navPosition.prevId)}
+              disabled={navPosition.prevId == null}
+              aria-label="Previous trade"
+              title="Previous trade"
+              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={16} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={() => navPosition.nextId != null && onNavigate(navPosition.nextId)}
+              disabled={navPosition.nextId == null}
+              aria-label="Next trade"
+              title="Next trade"
+              className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronRight size={16} strokeWidth={2} />
+            </button>
+            {navPosition.index >= 0 && navPosition.total > 0 && (
+              <span className="ml-1 text-xs text-fg-tertiary tnum">
+                {navPosition.index + 1} of {navPosition.total}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="min-w-0">
+          <div className="flex items-baseline gap-3">
+            <h2 id="trade-detail-title" className="font-mono text-2xl font-semibold tracking-tight text-fg-primary">
+              {trade.symbol}
+            </h2>
+            <span
+              className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                trade.side === 'short' ? 'bg-loss-soft text-loss' : 'bg-win-soft text-win'
+              }`}
+            >
+              {trade.side}
             </span>
-          )}
-        </div>
-        <div className="mt-1 text-xs text-fg-tertiary tnum">
-          {longDate(trade.date)} · {trade.executions.length} fill
-          {trade.executions.length === 1 ? '' : 's'} ·{' '}
-          {int(trade.shares_bought)} sh bought · {int(trade.shares_sold)} sh sold
+            {trade.playbook_name && (
+              <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
+                {trade.playbook_name}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 text-xs text-fg-tertiary tnum">
+            {longDate(trade.date)} · {trade.executions.length} fill
+            {trade.executions.length === 1 ? '' : 's'} ·{' '}
+            {int(trade.shares_bought)} sh bought · {int(trade.shares_sold)} sh sold
+          </div>
         </div>
       </div>
       <div className="flex shrink-0 items-baseline gap-4">

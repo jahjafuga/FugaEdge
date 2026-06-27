@@ -24,6 +24,7 @@ import type {
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares, formatEastern } from '@/lib/format'
+import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
 import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -383,6 +384,16 @@ export default function TradesTable({
   const selectedTrade =
     selectedId === null ? null : trades.find((t) => t.id === selectedId) ?? null
 
+  // Trade navigation (prev/next + N-of-M) over the DISPLAYED sorted order, so it
+  // matches what the user sees. orderedIds re-derives on a sort/data change; the
+  // pure helper (src/core) does the indexOf math. onNavigate = setSelectedId: the
+  // neighbor id becomes the open trade, selectedTrade re-derives, the modal swaps.
+  const orderedIds = useMemo(() => sortedRows.map((r) => r.original.id), [sortedRows])
+  const navPosition = useMemo(
+    () => getTradeNavPosition(orderedIds, selectedId),
+    [orderedIds, selectedId],
+  )
+
   // --- v0.2.3 Phase 4 bulk selection ------------------------------------
   // Effective selection = the chosen ids intersected with what's currently
   // visible. Everything user-facing (count, total, action payload) reads this.
@@ -697,6 +708,8 @@ export default function TradesTable({
       <TradeDetailModal
         trade={selectedTrade}
         onClose={() => setSelectedId(null)}
+        navPosition={navPosition}
+        onNavigate={setSelectedId}
         onSaveNote={onSaveNote}
         onSaveTimeframe={onSaveTimeframe}
         onSavePlaybook={onSavePlaybook}
