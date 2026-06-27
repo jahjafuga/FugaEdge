@@ -4,12 +4,13 @@ import { AlertCircle, Upload, FilterX, ListOrdered } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Skeleton from '@/components/ui/Skeleton'
 import TradesTable from '@/components/trades/TradesTable'
-import TradesFilters, {
+import TradesFilters from '@/components/trades/TradesFilters'
+import {
   applyTradesFilters,
   emptyFilters,
   isFiltering,
   type TradesFilterState,
-} from '@/components/trades/TradesFilters'
+} from '@/core/trades/tradesFilter'
 import QuickFilters from '@/components/trades/QuickFilters'
 import TradesViewToggle, { type TradesView } from '@/components/trades/TradesViewToggle'
 import TradeChartCard from '@/components/trades/TradeChartCard'

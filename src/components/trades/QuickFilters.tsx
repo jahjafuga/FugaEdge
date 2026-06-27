@@ -1,4 +1,4 @@
-import type { TradesFilterState } from './TradesFilters'
+import type { TradesFilterState } from '@/core/trades/tradesFilter'
 
 interface QuickFiltersProps {
   filters: TradesFilterState
@@ -63,7 +63,7 @@ export default function QuickFilters({ filters, onChange }: QuickFiltersProps) {
       <Divider />
 
       <Chip
-        label="A+ Setups"
+        label="A+ Only"
         active={filters.aPlus}
         onClick={() => onChange({ ...filters, aPlus: !filters.aPlus })}
       />
