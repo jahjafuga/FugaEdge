@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -6,6 +6,7 @@ import {
   getSortedRowModel,
   useReactTable,
   type ColumnDef,
+  type Row,
   type SortingState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -92,6 +93,70 @@ const COLUMN_WIDTHS = {
   float: 70,
   spark: 1,
 } as const
+
+// Memoized table row (PERF Beat 2). The table is virtualized and re-renders on
+// every scroll; without memo, each visible row's standard cells re-rendered every
+// frame. All props are shallow-stable ON SCROLL: `row` (TanStack's memoized row
+// model), `isSelected` (a boolean, NOT the Set), `bulkEnabled`/`index` (stable),
+// `onSelect` (a stable setter), `onToggle` (a useCallback'd handler that does not
+// change while scrolling) — so memo skips untouched rows during scroll. (Scope:
+// the scroll win only. Selection-time still re-renders all rows this beat, since
+// onToggle's ref changes when lastClickedIndex updates — a separate optimization.)
+const TradesTableRow = memo(function TradesTableRow({
+  row,
+  isSelected,
+  bulkEnabled,
+  index,
+  onSelect,
+  onToggle,
+}: {
+  row: Row<TradeListRow>
+  isSelected: boolean
+  bulkEnabled: boolean
+  index: number
+  onSelect: (id: number) => void
+  onToggle: (id: number, index: number, shiftKey: boolean) => void
+}) {
+  const t = row.original
+  return (
+    <tr
+      onClick={() => onSelect(t.id)}
+      style={{ height: ROW_HEIGHT }}
+      className="cursor-pointer border-b border-border-subtle/60 transition-colors duration-150 ease-out-soft hover:bg-bg-3"
+    >
+      {bulkEnabled && (
+        <td
+          style={{ width: 36 }}
+          className="group cursor-pointer px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            aria-label={`Select ${t.symbol} ${longDate(t.date)}`}
+            checked={isSelected}
+            onChange={() => {}}
+            onClick={(e) => {
+              // stop the row's onClick (which opens the modal) and
+              // read shiftKey for range select.
+              e.stopPropagation()
+              onToggle(t.id, index, e.shiftKey)
+            }}
+            className="h-3.5 w-3.5 cursor-pointer rounded-[3px] accent-gold transition-shadow group-hover:ring-2 group-hover:ring-gold/50"
+          />
+        </td>
+      )}
+      {row.getVisibleCells().map((cell) => (
+        <td
+          key={cell.id}
+          style={{ width: cell.column.getSize() }}
+          className="px-3 align-middle"
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </td>
+      ))}
+    </tr>
+  )
+})
 
 export default function TradesTable({
   trades,
@@ -457,7 +522,7 @@ export default function TradesTable({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [bulkEnabled, bulkConfirmOpen, selectedId])
 
-  const toggleRow = (id: number, index: number, shiftKey: boolean) => {
+  const toggleRow = useCallback((id: number, index: number, shiftKey: boolean) => {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (shiftKey && lastClickedIndex !== null) {
@@ -478,7 +543,7 @@ export default function TradesTable({
       return next
     })
     setLastClickedIndex(index)
-  }
+  }, [lastClickedIndex, sortedRows])
 
   const toggleAll = () => {
     setSelectedIds((prev) => {
@@ -593,51 +658,16 @@ export default function TradesTable({
             {items.map((vi) => {
               const row = sortedRows[vi.index]
               if (!row) return null
-              const t = row.original
-              const tint =
-                t.net_pnl > 0
-                  ? 'hover:bg-bg-3'
-                  : t.net_pnl < 0
-                    ? 'hover:bg-bg-3'
-                    : 'hover:bg-bg-3'
               return (
-                <tr
-                  key={t.id}
-                  onClick={() => setSelectedId(t.id)}
-                  style={{ height: ROW_HEIGHT }}
-                  className={`cursor-pointer border-b border-border-subtle/60 transition-colors duration-150 ease-out-soft ${tint}`}
-                >
-                  {bulkEnabled && (
-                    <td
-                      style={{ width: 36 }}
-                      className="group cursor-pointer px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${t.symbol} ${longDate(t.date)}`}
-                        checked={selectedIds.has(t.id)}
-                        onChange={() => {}}
-                        onClick={(e) => {
-                          // stop the row's onClick (which opens the modal) and
-                          // read shiftKey for range select.
-                          e.stopPropagation()
-                          toggleRow(t.id, vi.index, e.shiftKey)
-                        }}
-                        className="h-3.5 w-3.5 cursor-pointer rounded-[3px] accent-gold transition-shadow group-hover:ring-2 group-hover:ring-gold/50"
-                      />
-                    </td>
-                  )}
-                  {row.getVisibleCells().map((cell) => (
-                    <td
-                      key={cell.id}
-                      style={{ width: cell.column.getSize() }}
-                      className="px-3 align-middle"
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  ))}
-                </tr>
+                <TradesTableRow
+                  key={row.original.id}
+                  row={row}
+                  isSelected={selectedIds.has(row.original.id)}
+                  bulkEnabled={bulkEnabled}
+                  index={vi.index}
+                  onSelect={setSelectedId}
+                  onToggle={toggleRow}
+                />
               )
             })}
             {paddingBottom > 0 && (
