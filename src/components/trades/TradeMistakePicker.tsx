@@ -231,9 +231,9 @@ function AxisBlock({
             <div
               className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur`}
             >
-              {!defs && <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>}
+              {!defs && <div className="px-2 py-2 text-[10px] text-fg-muted">Loading…</div>}
               {defs && available.length === 0 && (
-                <div className="px-2 py-2 text-[10px] text-muted">
+                <div className="px-2 py-2 text-[10px] text-fg-muted">
                   {axisTags.length > 0 ? 'All tagged.' : 'Nothing to add.'}
                 </div>
               )}
@@ -245,7 +245,7 @@ function AxisBlock({
                     setOpen(false)
                     onAdd(d.id)
                   }}
-                  className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-150 hover:bg-white/[0.04]"
+                  className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-fg-primary transition-colors duration-150 hover:bg-white/[0.04]"
                 >
                   <span>{d.name}</span>
                   <Plus size={11} strokeWidth={2.5} className="text-fg-tertiary" />

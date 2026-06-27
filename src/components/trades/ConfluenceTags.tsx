@@ -252,10 +252,10 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
           {open && (
             <div className="absolute left-0 top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
               {!playbooks && (
-                <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
+                <div className="px-2 py-2 text-[10px] text-fg-muted">Loading…</div>
               )}
               {playbooks && available.length === 0 && (
-                <div className="px-2 py-2 text-[10px] text-muted">
+                <div className="px-2 py-2 text-[10px] text-fg-muted">
                   No other playbooks to add.
                 </div>
               )}
@@ -264,7 +264,7 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
                   key={p.id}
                   type="button"
                   onClick={() => addTag(p.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-text transition-colors duration-150 hover:bg-white/[0.04]"
+                  className="flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs text-fg-primary transition-colors duration-150 hover:bg-white/[0.04]"
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <TierBadge tier={p.tier} />

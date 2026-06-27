@@ -81,7 +81,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
           setOpen(false)
         }}
         className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
-          isActive ? 'bg-white/[0.04] text-text' : 'text-text hover:bg-white/[0.04]'
+          isActive ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
         }`}
       >
         <span className="inline-flex items-center gap-1.5">
@@ -99,7 +99,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={`inline-flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-gold/40 hover:text-gold ${
-          active ? 'text-text' : 'text-subtle'
+          active ? 'text-fg-primary' : 'text-fg-tertiary'
         }`}
       >
         <span className="inline-flex items-center gap-1.5">
@@ -119,7 +119,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
             e.stopPropagation()
             onChange(null)
           }}
-          className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/[0.06] text-subtle transition-colors duration-150 hover:border-red/40 hover:text-red"
+          className="ml-1 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/[0.06] text-fg-tertiary transition-colors duration-150 hover:border-red/40 hover:text-red"
           aria-label="Unlink playbook from this trade"
           title="Unlink playbook from this trade"
         >
@@ -135,7 +135,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
               setOpen(false)
             }}
             className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
-              !active ? 'bg-white/[0.04] text-text' : 'text-text hover:bg-white/[0.04]'
+              !active ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
             }`}
           >
             <span>No playbook</span>
@@ -143,7 +143,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
           </button>
           <div className="my-1 h-px bg-white/[0.04]" />
           {!playbooks && (
-            <div className="px-2 py-2 text-[10px] text-muted">Loading…</div>
+            <div className="px-2 py-2 text-[10px] text-fg-muted">Loading…</div>
           )}
           {playbooks &&
             (() => {
