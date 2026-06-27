@@ -24,51 +24,50 @@ import { aggregate } from '@/core/charts/aggregate'
 import { computeMacdWithWarmup } from '@/core/charts/macdWithWarmup'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
 import { FillLadderPrimitive } from './fillLadderPrimitive'
+import { useThemeMode } from '@/lib/theme'
+import { chartColors, type ChartPalette } from '@/lib/chartColors'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
 // rest of the modal.
-const COLOR_INSET       = '#0a0c11'  // bg-inset (chart canvas)
-const COLOR_GRID        = '#1e2330'  // border-subtle — reused as the flat axis border (gridlines now off)
+// Background, axis text, axis border, and candle up/down are THEME-AWARE via
+// chartColors(resolved) (palette.background / axis / grid / win / loss) — see the
+// palette wiring + the live re-theme effect below. The remaining brand accents
+// (gold, EMA/VWAP, MACD, avg-lines) read on both themes and stay hardcoded here.
 const COLOR_BORDER      = '#2a3142'  // border
-const COLOR_TEXT_DIM    = '#8a94a8'  // fg-tertiary
 const COLOR_GOLD        = '#d4af37'  // brand gold
-const COLOR_WIN         = '#3fb389'  // win (muted)
-const COLOR_LOSS        = '#e06b6b'  // loss (muted)
 const COLOR_AVG_LINE_BUY  = 'rgba(99, 153, 34, 0.85)'  // muted #639922 — avg entry/exit dashed line, buy side
 const COLOR_AVG_LINE_SELL = 'rgba(163, 45, 45, 0.85)'  // muted #A32D2D — avg entry/exit dashed line, sell side
 
 // Indicator-series palette — the three overlay lines and their matching
-// dropdown swatches read from these. Standard TradingView EMA palette:
-// 9EMA white, EMA20 cyan; VWAP carries the brand gold. Distinct named
-// consts (even where a value repeats a master token) so each series option
-// and its IndicatorToggle swatch stay on one source of truth.
-const COLOR_EMA9        = '#f3f5fa'  // 9EMA  — white (fg-primary white)
-const COLOR_EMA20       = '#5cc8e8'  // EMA20 — cyan / light blue
-const COLOR_VWAP        = '#d4af37'  // VWAP  — brand gold (= COLOR_GOLD)
+// dropdown swatches read from these. All three are FIXED both-themes-safe values
+// (one color that reads on the dark #0A0F1C AND the light #FCFDFF pane): 9EMA
+// mid-grey, EMA20 deep cyan, VWAP deep gold. Distinct named consts so each series
+// option and its IndicatorToggle swatch stay on one source of truth.
+const COLOR_EMA9        = '#9ca3af'  // 9EMA - fixed mid-grey, reads on BOTH dark (#0A0F1C) and light (#FCFDFF) chart backgrounds; was #f3f5fa (near-white, invisible on the light chart)
+const COLOR_EMA20       = '#0891b2'  // EMA20 - cyan-600, reads on both (was #5cc8e8, too light on the light chart)
+const COLOR_VWAP        = '#b8962e'  // VWAP - deeper gold (--gold-text), reads on both; recognizably gold (was #d4af37, ~1.9:1 on the light chart)
 
 // MACD sub-pane palette (v0.2.4 Part 2) — pane 1 below the price pane. The MACD
-// line is a deeper blue, kept distinct from EMA20's lighter cyan (#5cc8e8); the
-// signal line introduces orange. The histogram carries four shades keyed to the
-// computeMacd momentum tag: bright = momentum strengthening in the bar's sign
-// direction, muted = weakening toward zero. Zero is a faint white rule at 0.
-const COLOR_MACD_LINE             = '#2196f3'  // MACD line — deeper blue
-const COLOR_MACD_SIGNAL           = '#ff9800'  // signal line — orange
-const COLOR_MACD_HIST_POS_RISING  = '#26a69a'  // strengthening bull — bright green
-const COLOR_MACD_HIST_POS_FALLING = '#a3d4cb'  // weakening bull — muted green
-const COLOR_MACD_HIST_NEG_RISING  = '#f5b3b0'  // weakening bear — muted red
-const COLOR_MACD_HIST_NEG_FALLING = '#ef5350'  // strengthening bear — bright red
-const COLOR_MACD_ZERO             = 'rgba(255,255,255,0.15)'  // faint zero rule
+// line is a deeper blue, kept distinct from EMA20's cyan; the signal line is a
+// deeper orange. The histogram's 4 momentum shades are THEME-AWARE
+// (chartColors.macdHist, via histColor) - the "weakening" pales read on the dark
+// pane but vanish on the light one, so light needs darker values. Zero is a faint
+// neutral rule (slate at low alpha) that reads on both. MACD line / signal are
+// fixed both-themes-safe values.
+const COLOR_MACD_LINE             = '#2196f3'  // MACD line - deeper blue, reads on both
+const COLOR_MACD_SIGNAL           = '#ea580c'  // signal line - orange-600, reads on both (was #ff9800, ~2:1 on the light chart)
+const COLOR_MACD_ZERO             = 'rgba(148,163,184,0.4)'  // faint zero rule - neutral slate at low alpha, reads on both (was rgba white 0.15, invisible on the light chart)
 
 // Map a histogram momentum tag to its bar color. Pure; mirrors the 4-state
 // union from core/charts/macd. Bright shades = strengthening in the histogram's
 // sign direction, muted = weakening toward the zero line.
-function histColor(m: HistogramMomentum): string {
+function histColor(hist: ChartPalette['macdHist'], m: HistogramMomentum): string {
   switch (m) {
-    case 'pos_rising':  return COLOR_MACD_HIST_POS_RISING
-    case 'pos_falling': return COLOR_MACD_HIST_POS_FALLING
-    case 'neg_rising':  return COLOR_MACD_HIST_NEG_RISING
-    case 'neg_falling': return COLOR_MACD_HIST_NEG_FALLING
+    case 'pos_rising':  return hist.posRising
+    case 'pos_falling': return hist.posFalling
+    case 'neg_rising':  return hist.negRising
+    case 'neg_falling': return hist.negFalling
   }
 }
 
@@ -689,6 +688,14 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // exists while mounted), so the mount effect references nothing reactive and
   // its []-deps stays genuinely clean (no eslint-disable needed).
   const chartHeight = chartHeightFor(isFullscreen)
+  // Beat 2 — theme-aware chart colors. `resolved` drives the palette; the mount
+  // effect reads paletteRef.current (a ref, so its []-deps stays clean like
+  // chartHeight), and a SEPARATE effect below re-applies on theme change without
+  // remounting (which would lose zoom/data).
+  const { resolved } = useThemeMode()
+  const palette = useMemo(() => chartColors(resolved), [resolved])
+  const paletteRef = useRef(palette)
+  paletteRef.current = palette
   const refs = useRef<ChartRefs | null>(null)
   // Active avg entry/exit LineSeries handles. Held in a ref so we can
   // remove them before re-creating on trade change — belt-and-suspenders
@@ -756,8 +763,8 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           width: containerRef.current.clientWidth,
           height: 400,
           layout: {
-            background: { type: lc.ColorType.Solid, color: COLOR_INSET },
-            textColor: COLOR_TEXT_DIM,
+            background: { type: lc.ColorType.Solid, color: paletteRef.current.background },
+            textColor: paletteRef.current.axis,
             fontFamily: 'JetBrains Mono, ui-monospace, monospace',
             fontSize: 11,
           },
@@ -778,7 +785,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
               easternAxisLabel(t as number, true),
           },
           timeScale: {
-            borderColor: COLOR_GRID, // flattened axis border (#1e2330, was COLOR_BORDER #2a3142)
+            borderColor: paletteRef.current.grid, // themed axis border (palette.grid: #1e2330 dark / #e2e6ed light)
             timeVisible: true,
             secondsVisible: false,
             tickMarkFormatter: (t: import('lightweight-charts').Time) =>
@@ -792,12 +799,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         })
 
         const candle = chart.addSeries(lc.CandlestickSeries, {
-          upColor: COLOR_WIN,
-          downColor: COLOR_LOSS,
-          borderUpColor: COLOR_WIN,
-          borderDownColor: COLOR_LOSS,
-          wickUpColor: COLOR_WIN,
-          wickDownColor: COLOR_LOSS,
+          upColor: paletteRef.current.win,
+          downColor: paletteRef.current.loss,
+          borderUpColor: paletteRef.current.win,
+          borderDownColor: paletteRef.current.loss,
+          wickUpColor: paletteRef.current.win,
+          wickDownColor: paletteRef.current.loss,
           // Suppress the default "last value" horizontal dashed line that
           // lightweight-charts draws at the day's close — for trade review
           // the actionable lines are the user's avg entry / exit, which we
@@ -892,6 +899,29 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     }
   }, [])
 
+  // Beat 2 — live re-theme. SEPARATE from the mount-once effect so a light/dark
+  // toggle re-applies colors via applyOptions on the existing chart WITHOUT
+  // remounting (no re-fetch / lost zoom). No-ops until the chart exists. Covers
+  // the background, axis text, axis border, and candle up/down. Per-bar volume
+  // colors are baked into the volume data at data-build time, so they re-theme on
+  // the next data rebuild / reopen, not on a bare toggle (known minor).
+  useEffect(() => {
+    const r = refs.current
+    if (!r) return
+    r.api.applyOptions({
+      layout: { background: { color: palette.background }, textColor: palette.axis },
+      timeScale: { borderColor: palette.grid },
+    })
+    r.candle.applyOptions({
+      upColor: palette.win,
+      downColor: palette.loss,
+      borderUpColor: palette.win,
+      borderDownColor: palette.loss,
+      wickUpColor: palette.win,
+      wickDownColor: palette.loss,
+    })
+  }, [palette])
+
   // Data + indicator + marker updates. setData replaces whole series; setMarkers
   // replaces all markers atomically — both are O(n) but fine for 1-day worth
   // of 1m bars (~390 points).
@@ -932,7 +962,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const volumeData = bars.map((b) => ({
       time: secondsTime(b.t),
       value: b.v,
-      color: b.c >= b.o ? COLOR_WIN + '55' : COLOR_LOSS + '55',
+      color: b.c >= b.o ? paletteRef.current.win + '55' : paletteRef.current.loss + '55',
     }))
 
     r.candle.setData(candleData)
@@ -1135,7 +1165,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         const macdHistData = macd.histogram.map((p) => ({
           time: secondsTime(p.time),
           value: p.value,
-          color: histColor(p.momentum),
+          color: histColor(paletteRef.current.macdHist, p.momentum),
         }))
 
         r.macd.line.setData(macdLineData)

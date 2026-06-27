@@ -23,6 +23,19 @@ export interface ChartPalette {
   sideA: string
   /** Compare Period B series colour (teal — green/red are reserved for deltas). */
   sideB: string
+  /** Chart pane background — the opaque equivalent of the premium card surface
+   *  (--card-surface), so the chart blends into the modal's cards per theme. */
+  background: string
+  /** MACD histogram 4-state momentum palette. Dark uses pale shades for the
+   *  "weakening" states (they read on the near-black pane); light needs DARKER
+   *  shades for those (pale would vanish on near-white) - so this MUST be themed,
+   *  unlike the other chart accents which are fixed both-themes-safe values. */
+  macdHist: {
+    posRising: string
+    posFalling: string
+    negRising: string
+    negFalling: string
+  }
 }
 
 export function chartColors(theme: ResolvedTheme): ChartPalette {
@@ -39,6 +52,13 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
       // reserved for delta direction, so Period B must NOT reuse win-green.
       sideA: '#b8962e',  // the light-gold the Compare charts already used
       sideB: '#0d9488',  // teal-700 — darker for contrast on the light surface
+      background: '#FCFDFF',  // --card-surface light, opaque
+      macdHist: {
+        posRising:  '#16a34a',  // strengthening bull - green-600 (darker = strong on white)
+        posFalling: '#22c55e',  // weakening bull - green-500 (lighter = weak, still readable)
+        negRising:  '#f87171',  // weakening bear - red-400 (lighter = weak, still readable)
+        negFalling: '#dc2626',  // strengthening bear - red-600 (darker = strong on white)
+      },
     }
   }
   return {
@@ -48,5 +68,12 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
     axis: '#8a94a8',     // --fg-tertiary in dark
     sideA: '#d4af37',    // existing gold (Compare Period A)
     sideB: '#2dd4bf',    // teal-400 — cool against gold, distinct from win-green
+    background: '#0A0F1C',  // --card-surface dark, opaque
+    macdHist: {
+      posRising:  '#26a69a',  // strengthening bull - bright green (unchanged from dark)
+      posFalling: '#a3d4cb',  // weakening bull - pale green (reads on the dark pane)
+      negRising:  '#f5b3b0',  // weakening bear - pale red (reads on the dark pane)
+      negFalling: '#ef5350',  // strengthening bear - bright red (unchanged from dark)
+    },
   }
 }
