@@ -556,7 +556,7 @@ function OverviewTab({
           </Suspense>
         </LazyVisible>
         {/* Fills — hidden (not unmounted) in chart-only fullscreen. */}
-        <div className={isFullscreen ? 'hidden' : 'h-full'}>
+        <div className={isFullscreen ? 'hidden' : 'h-full xl:relative'}>
           <ExecutionList trade={t} />
         </div>
       </div>
@@ -841,12 +841,17 @@ function Ema9Readout({ pct }: { pct: number | null }) {
 function ExecutionList({ trade }: { trade: TradeListRow }) {
   if (trade.executions.length === 0) return null
   const avg = blendedFillAvg(trade.executions)
-  // h-full + the chart+fills row's xl:items-stretch make this card track the chart
-  // card's height automatically: the taller column (the chart, with its header band)
-  // sets the row height and the fills card fills its cell. No hardcoded height to keep
-  // in sync, and it survives the chart header changing (e.g. the toolbar wrapping).
+  // At xl the card is absolute (inset-0) inside its relative cell, so it does NOT
+  // feed the grid row's intrinsic height. An in-flow fills card on a TALL trade would
+  // inflate the auto grid row past the chart (nothing caps an auto row without a
+  // container height to distribute). Out of flow, the row is chart-driven, the card
+  // fills its cell, and the rows region scrolls internally on tall trades; on short
+  // trades it stretches to the chart height (bottom-aligned). Stays relative (no
+  // hardcoded height) and survives the chart header changing. The xl:items-stretch on
+  // the row stretches this cell to the chart height for inset-0 to fill. Below xl
+  // (stacked, no chart beside it) the card is in-flow at natural height.
   return (
-    <div className="card-premium flex flex-col p-3 h-full">
+    <div className="card-premium flex flex-col p-3 h-full xl:absolute xl:inset-0">
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
