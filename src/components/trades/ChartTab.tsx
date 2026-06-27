@@ -4,13 +4,16 @@ import {
   Camera,
   ChevronDown,
   ChevronRight,
+  CircleDot,
   Crosshair,
   ExternalLink,
   Loader2,
   Lock,
   Maximize2,
   Minimize2,
+  MousePointer2,
   RefreshCw,
+  Tags,
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import type { IntradayBar, IntradayBarsPayload } from '@shared/market-types'
@@ -23,7 +26,8 @@ import type { MacdResult, HistogramMomentum } from '@/core/charts/macd'
 import { aggregate } from '@/core/charts/aggregate'
 import { computeMacdWithWarmup } from '@/core/charts/macdWithWarmup'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
-import { FillLadderPrimitive } from './fillLadderPrimitive'
+import { FillLadderPrimitive, type FillLabelMode } from './fillLadderPrimitive'
+import { fillLabelsHoverGated } from '@/lib/fillLadderLayout'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors, type ChartPalette } from '@/lib/chartColors'
 import Card from '@/components/ui/Card'
@@ -421,6 +425,18 @@ interface ChartCanvasProps {
   onToggleFullscreen: () => void
 }
 
+// The 3 fill-label modes' toolbar presentation — distinct icon + tone + title per
+// mode so the state reads at a glance (it is flipped live on stream): 'dots' muted
+// (minimal), 'hover' neutral-bright (mid), 'all' gold (loudest = all pills on).
+const FILL_LABEL_BUTTON: Record<
+  FillLabelMode,
+  { icon: React.ReactNode; tone: ChartIconTone; title: string }
+> = {
+  dots: { icon: <CircleDot size={13} strokeWidth={2} />, tone: 'default', title: 'Fill labels: dots only' },
+  hover: { icon: <MousePointer2 size={13} strokeWidth={2} />, tone: 'neutral', title: 'Fill labels: hover to reveal' },
+  all: { icon: <Tags size={13} strokeWidth={2} />, tone: 'gold', title: 'Fill labels: show all' },
+}
+
 function ChartCanvas({
   trade,
   payload,
@@ -484,6 +500,21 @@ function ChartCanvas({
     tf === '1m' ? 60_000 :
     tf === '10s' ? 10_000 :
     0
+
+  // Fill-label display mode (3-state: dots / hover / all) — PER-TRADE EPHEMERAL,
+  // NOT persisted. Initialized from the fill-count threshold: high-fill trades open
+  // in 'hover' (clean candles + dots, reveal on hover); low-fill in 'all' (their
+  // pills never crowd). buildTradeMarkers gives the SAME count the primitive
+  // thresholds on (no off-by-one at exactly the threshold). The lazy initializer
+  // runs once on mount; the modal keys ChartTab by trade.id, so a new trade
+  // remounts this and re-initializes to that trade's default (the per-trade reset).
+  const [fillLabelMode, setFillLabelMode] = useState<FillLabelMode>(() =>
+    fillLabelsHoverGated(buildTradeMarkers(trade, bars).markers.length) ? 'hover' : 'all',
+  )
+  const cycleFillLabelMode = () => {
+    const order: FillLabelMode[] = ['dots', 'hover', 'all']
+    setFillLabelMode((m) => order[(order.indexOf(m) + 1) % order.length])
+  }
 
   // Fit-to-fills lives in the toolbar (here) but needs the chart API (in the
   // host). The host writes its fit handler into this ref; the toolbar icon
@@ -570,6 +601,13 @@ function ChartCanvas({
               <ChartIconButton title="Fit to fills" onClick={() => fitRef.current?.()}>
                 <Crosshair size={13} strokeWidth={2} />
               </ChartIconButton>
+              <ChartIconButton
+                title={FILL_LABEL_BUTTON[fillLabelMode].title}
+                onClick={cycleFillLabelMode}
+                tone={FILL_LABEL_BUTTON[fillLabelMode].tone}
+              >
+                {FILL_LABEL_BUTTON[fillLabelMode].icon}
+              </ChartIconButton>
             </div>
           </div>
         </div>
@@ -592,6 +630,7 @@ function ChartCanvas({
         vwap={showVwap ? indicators.vwap : null}
         indicators={indicators}
         macd={showMacd ? macd : EMPTY_MACD}
+        fillLabelMode={fillLabelMode}
       />
     </Card>
   )
@@ -632,6 +671,9 @@ interface ChartHostProps {
    *  2). Empty arrays for short/early trades; the host removes the pane series
    *  in that case. The INDICATORS toggle that will gate this lands in Part 3. */
   macd: MacdResult
+  /** Fill-label display mode (dots / hover / all) — drives the fill-ladder
+   *  primitive's pill rendering. Owned + threshold-initialized by ChartCanvas. */
+  fillLabelMode: FillLabelMode
 }
 
 // Series state held in refs so re-renders never re-create the chart instance.
@@ -682,7 +724,7 @@ function makeBandProvider(band: PriceRange | null) {
   }
 }
 
-function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, stats, tfLabel, ema9, ema20, vwap, indicators, macd }: ChartHostProps) {
+function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRef, isFullscreen, stats, tfLabel, ema9, ema20, vwap, indicators, macd, fillLabelMode }: ChartHostProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   // Flag-driven chart height (see chartHeightFor). Recomputed each render; the
   // height effect applies it to the chart API whenever it changes. createChart
@@ -1200,6 +1242,15 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     if (!r || !chartReady) return
     r.fillLadder.setData(tradeMarkers.markers, bars, tradeMarkers.avgEntry, tradeMarkers.avgExit)
   }, [tradeMarkers, bars, chartReady])
+
+  // Fill-label mode -> primitive. Separate from setData so cycling the toolbar
+  // button repaints without rebuilding the frame data; setMode no-ops when
+  // unchanged and requests a single redraw on change.
+  useEffect(() => {
+    const r = refs.current
+    if (!r || !chartReady) return
+    r.fillLadder.setMode(fillLabelMode)
+  }, [fillLabelMode, chartReady])
 
   // Avg Entry / Avg Exit dashed segments — share-weighted avg over the entry/
   // exit fills, rendered as a contained LineSeries spanning first-fill time to
@@ -1725,16 +1776,30 @@ function DrawButton() {
   )
 }
 
+// Toolbar icon-button tone. 'default' is the muted momentary-action look (used by
+// fullscreen / screenshot / refresh / fit — unchanged); 'neutral' and 'gold' are
+// the toggle-ON tints (the 3-state Fill Labels button cycles default/neutral/gold).
+type ChartIconTone = 'default' | 'neutral' | 'gold'
+const CHART_ICON_TONE: Record<ChartIconTone, string> = {
+  default: 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-border hover:text-fg-primary',
+  neutral: 'border-border bg-bg-3 text-fg-primary',
+  gold: 'border-gold/50 bg-gold/15 text-gold hover:bg-gold/20',
+}
+
 // Square icon button — matches the former refresh button's chrome exactly.
 function ChartIconButton({
   title,
   onClick,
   disabled,
+  tone = 'default',
   children,
 }: {
   title: string
   onClick: () => void
   disabled?: boolean
+  /** Visual tone. Momentary buttons omit it (-> 'default', the muted look,
+   *  unchanged); the Fill Labels toggle passes 'neutral' / 'gold' per mode. */
+  tone?: ChartIconTone
   children: React.ReactNode
 }) {
   return (
@@ -1743,7 +1808,7 @@ function ChartIconButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+      className={`inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40 ${CHART_ICON_TONE[tone]}`}
     >
       {children}
     </button>

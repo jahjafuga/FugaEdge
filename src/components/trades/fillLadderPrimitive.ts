@@ -28,7 +28,13 @@ import type {
 import type { TradeMarker } from '@/core/charts/buildTradeMarkers'
 import type { IntradayBarLike } from '@/lib/buildOccupancy'
 import { assembleLadderFrame } from '@/lib/assembleLadderFrame'
-import { fillLabelsHoverGated, pillIsVisible } from '@/lib/fillLadderLayout'
+import { pillIsVisible } from '@/lib/fillLadderLayout'
+
+/** The three fill-label display modes, cycled by the chart toolbar button.
+ *  'dots' = dots only (no pills); 'hover' = dots + reveal the hovered bar's pills;
+ *  'all' = every pill always. Per-trade ephemeral — ChartCanvas owns it and
+ *  threshold-initializes it; the primitive just renders the mode it is given. */
+export type FillLabelMode = 'dots' | 'hover' | 'all'
 
 // The canvas target type isn't re-exported by lightweight-charts; derive it from
 // the renderer interface so we don't depend on the transitive 'fancy-canvas' pkg.
@@ -92,7 +98,7 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
   constructor(private readonly src: FillLadderPrimitive) {}
 
   draw(target: DrawTarget): void {
-    const { chart, series, markers, bars, avgEntry, avgExit, hoverMode, hoveredBarTime } = this.src
+    const { chart, series, markers, bars, avgEntry, avgExit, mode, hoveredBarTime } = this.src
     if (!chart || !series || markers.length === 0) return
     const ts = chart.timeScale()
     // Live coordinate converters on the (pinned) scale. toX takes epoch ms (the
@@ -135,14 +141,16 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
         bandThickness: BAND_THICKNESS,
       })
 
-      // Per-pill visibility (v0.2.4 hover gating). Low-fill: all true (unchanged
-      // always-on). High-fill: only the hovered bar's pills. A cheap time-equality
-      // check over the ALREADY-assembled frame -- no re-layout on hover. Dots ignore
-      // this and always paint. toSeconds aligns the pill's epoch-ms bar time with
-      // the crosshair's epoch-seconds hoveredBarTime.
-      const pillVisible = frame.pills.map((p) =>
-        pillIsVisible(hoverMode, toSeconds(p.time), hoveredBarTime),
-      )
+      // Per-pill visibility (v0.2.4 fill-label modes). 'all' -> every pill; 'dots'
+      // -> no pills; 'hover' -> only the hovered bar's pill (pillIsVisible). A cheap
+      // check over the ALREADY-assembled frame -- no re-layout on mode/hover change.
+      // Dots ignore this and always paint. toSeconds aligns the pill's epoch-ms bar
+      // time with the crosshair's epoch-seconds hoveredBarTime.
+      const pillVisible = frame.pills.map((p) => {
+        if (mode === 'all') return true
+        if (mode === 'dots') return false
+        return pillIsVisible(true, toSeconds(p.time), hoveredBarTime) // 'hover'
+      })
 
       // Paint the brain's frame in z-order: leader halos, colored leaders, then
       // pills (shadowed fill + outline + text), then dots on top. Leaders draw in
@@ -249,13 +257,12 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
   avgEntry: number | null = null
   avgExit: number | null = null
 
-  // Fill-label hover gating (v0.2.4 — high-fill readability). hoverMode is derived
-  // from the rendered-fill count in setData (>= FILL_LABEL_HOVER_THRESHOLD). When
-  // ON, draw() paints pills/leaders ONLY for the hovered bar (dots always paint);
-  // when OFF (low-fill), every pill paints as before. hoveredBarTime is the chart's
-  // epoch-SECONDS bar time under the crosshair, fed by ChartTab's existing handler;
-  // null when the cursor is off the bars.
-  hoverMode = false
+  // Fill-label display mode (v0.2.4 — high-fill readability, 3-state). Set by
+  // ChartCanvas (threshold-initialized per trade, cycled by the toolbar button);
+  // the primitive just renders it. 'dots' = no pills; 'hover' = only the hovered
+  // bar's pills (hoveredBarTime, fed by ChartTab's crosshair handler); 'all' =
+  // every pill. hoveredBarTime is null when the cursor is off the bars.
+  mode: FillLabelMode = 'hover'
   hoveredBarTime: number | null = null
 
   private requestUpdate_: (() => void) | null = null
@@ -291,8 +298,6 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
     this.bars = bars
     this.avgEntry = avgEntry
     this.avgExit = avgExit
-    // High-fill trades hide pills until hover; low-fill keep them always-on.
-    this.hoverMode = fillLabelsHoverGated(markers.length)
     this.requestUpdate_?.()
   }
 
@@ -303,9 +308,17 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
    *  honoring the freeze guard (the de-collision re-runs inside draw()). ChartTab
    *  also gates by bar-change before calling; this guard is belt-and-braces. */
   setHoveredBar(timeSec: number | null): void {
-    if (!this.hoverMode) return
+    if (this.mode !== 'hover') return
     if (this.hoveredBarTime === timeSec) return
     this.hoveredBarTime = timeSec
+    this.requestUpdate_?.()
+  }
+
+  /** Set the fill-label display mode (cycled by the toolbar button), and repaint
+   *  on change. 'dots' = no pills, 'hover' = hovered bar only, 'all' = every pill. */
+  setMode(mode: FillLabelMode): void {
+    if (this.mode === mode) return
+    this.mode = mode
     this.requestUpdate_?.()
   }
 }
