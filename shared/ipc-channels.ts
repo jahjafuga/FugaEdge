@@ -71,6 +71,15 @@ export const IPC = {
   MISTAKE_DEF_ARCHIVE: 'mistake:defArchive',
   MISTAKE_DEF_UNARCHIVE: 'mistake:defUnarchive',
   MISTAKE_DEF_DELETE: 'mistake:defDelete',
+  // Catalyst vocabulary writes (CRUD) — user-customizable catalyst_def. No tag
+  // channels: catalyst is a name string on the trade, not a junction.
+  CATALYST_DEFS_GET: 'catalyst:defsGet',
+  CATALYST_DEF_CREATE: 'catalyst:defCreate',
+  CATALYST_DEF_RENAME: 'catalyst:defRename',
+  CATALYST_DEFS_REORDER: 'catalyst:defsReorder',
+  CATALYST_DEF_ARCHIVE: 'catalyst:defArchive',
+  CATALYST_DEF_UNARCHIVE: 'catalyst:defUnarchive',
+  CATALYST_DEF_DELETE: 'catalyst:defDelete',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',
   TRADE_PLANNED_STOP_LOSS_SAVE: 'trade:plannedStopLossSave',

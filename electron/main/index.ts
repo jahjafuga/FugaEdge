@@ -27,6 +27,7 @@ import { registerChartsIpc } from '../charts/ipc'
 import { registerCountryIpc } from '../country/ipc'
 import { registerPlaybookIpc } from '../playbook/ipc'
 import { registerMistakesIpc } from '../mistakes/ipc'
+import { registerCatalystIpc } from '../catalyst/ipc'
 import { registerAttachmentsIpc } from '../attachments/ipc'
 import {
   registerAttachmentProtocolHandler,
@@ -179,6 +180,7 @@ app.whenReady().then(() => {
   registerCountryIpc()
   registerPlaybookIpc()
   registerMistakesIpc()
+  registerCatalystIpc()
   registerAttachmentsIpc()
   registerAttachmentProtocolHandler()
   registerSessionIpc()

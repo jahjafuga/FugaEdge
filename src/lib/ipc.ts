@@ -23,6 +23,12 @@ import type {
   RenameMistakeDefInput,
   ReorderMistakeDefsInput,
 } from '@shared/mistakes-types'
+import type {
+  CreateCatalystDefInput,
+  RenameCatalystDefInput,
+  ReorderCatalystDefsInput,
+  CatalystDefIdInput,
+} from '@shared/catalyst-types'
 import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
@@ -157,6 +163,22 @@ export const ipc = {
     window.api.mistakeDefUnarchive(input),
   mistakeDefDelete: (input: MistakeDefIdInput) =>
     window.api.mistakeDefDelete(input),
+  // Beat 2 — catalyst_def vocabulary writes (Electron-IPC adapter; web port swaps
+  // for fetch/tRPC). The delete guard + rename propagation are enforced in the repo.
+  catalystDefsGet: (includeArchived?: boolean) =>
+    window.api.catalystDefsGet(includeArchived),
+  catalystDefCreate: (input: CreateCatalystDefInput) =>
+    window.api.catalystDefCreate(input),
+  catalystDefRename: (input: RenameCatalystDefInput) =>
+    window.api.catalystDefRename(input),
+  catalystDefsReorder: (input: ReorderCatalystDefsInput) =>
+    window.api.catalystDefsReorder(input),
+  catalystDefArchive: (input: CatalystDefIdInput) =>
+    window.api.catalystDefArchive(input),
+  catalystDefUnarchive: (input: CatalystDefIdInput) =>
+    window.api.catalystDefUnarchive(input),
+  catalystDefDelete: (input: CatalystDefIdInput) =>
+    window.api.catalystDefDelete(input),
   sessionSentimentSave: (input: import('@shared/session-types').SaveSentimentInput) =>
     window.api.sessionSentimentSave(input),
   sessionListAll: () => window.api.sessionListAll(),

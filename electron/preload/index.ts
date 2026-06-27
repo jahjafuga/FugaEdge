@@ -53,6 +53,14 @@ import type {
   ReorderMistakeDefsInput,
 } from '@shared/mistakes-types'
 import type {
+  CatalystDef,
+  CatalystDefIdInput,
+  CreateCatalystDefInput,
+  DeleteCatalystDefResult,
+  RenameCatalystDefInput,
+  ReorderCatalystDefsInput,
+} from '@shared/catalyst-types'
+import type {
   CalendarMonth,
   CalendarYear,
   DayTagsResult,
@@ -306,6 +314,20 @@ const api = {
     ipcRenderer.invoke(IPC.MISTAKE_DEF_UNARCHIVE, input),
   mistakeDefDelete: (input: MistakeDefIdInput): Promise<DeleteMistakeDefResult> =>
     ipcRenderer.invoke(IPC.MISTAKE_DEF_DELETE, input),
+  catalystDefsGet: (includeArchived?: boolean): Promise<CatalystDef[]> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEFS_GET, includeArchived),
+  catalystDefCreate: (input: CreateCatalystDefInput): Promise<CatalystDef> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_CREATE, input),
+  catalystDefRename: (input: RenameCatalystDefInput): Promise<CatalystDef> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_RENAME, input),
+  catalystDefsReorder: (input: ReorderCatalystDefsInput): Promise<CatalystDef[]> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEFS_REORDER, input),
+  catalystDefArchive: (input: CatalystDefIdInput): Promise<CatalystDef> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_ARCHIVE, input),
+  catalystDefUnarchive: (input: CatalystDefIdInput): Promise<CatalystDef> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_UNARCHIVE, input),
+  catalystDefDelete: (input: CatalystDefIdInput): Promise<DeleteCatalystDefResult> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_DELETE, input),
   sessionSentimentSave: (input: SaveSentimentInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_SENTIMENT_SAVE, input),
   sessionListAll: (): Promise<SessionMeta[]> =>
