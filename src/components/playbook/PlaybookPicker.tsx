@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
-import type { PlaybookWithStats } from '@shared/playbook-types'
+import TierBadge from './TierBadge'
+import type { PlaybookTier, PlaybookWithStats } from '@shared/playbook-types'
 
 interface PlaybookPickerProps {
   value: number | null
   valueLabel?: string | null
+  /** The selected playbook's quality tier (fed from the trade's playbook_tier)
+   *  so the trigger can show its TierBadge without waiting for the lazy list. */
+  tier?: PlaybookTier | null
   onChange: (next: number | null) => void
 }
 
@@ -29,7 +33,7 @@ export function invalidatePlaybookCache(): void {
   _cache = null
 }
 
-export default function PlaybookPicker({ value, valueLabel, onChange }: PlaybookPickerProps) {
+export default function PlaybookPicker({ value, valueLabel, tier, onChange }: PlaybookPickerProps) {
   const [open, setOpen] = useState(false)
   const [playbooks, setPlaybooks] = useState<PlaybookWithStats[] | null>(_cache)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -76,10 +80,13 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
           setOpen(false)
         }}
         className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
-          isActive ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
+          isActive ? 'bg-white/[0.04] text-text' : 'text-text hover:bg-white/[0.04]'
         }`}
       >
-        <span>{p.name}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <TierBadge tier={p.tier} />
+          <span>{p.name}</span>
+        </span>
         {isActive && <Check size={11} strokeWidth={2.5} />}
       </button>
     )
@@ -90,13 +97,14 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`inline-flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition-colors duration-150 ${
-          active
-            ? 'border-gold/40 bg-gold/[0.08] text-gold'
-            : 'border-white/[0.08] bg-white/[0.02] text-subtle hover:border-gold/40 hover:text-gold'
+        className={`inline-flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.02] px-2.5 py-1.5 text-xs transition-colors duration-150 hover:border-gold/40 hover:text-gold ${
+          active ? 'text-text' : 'text-subtle'
         }`}
       >
-        <span>{display}</span>
+        <span className="inline-flex items-center gap-1.5">
+          {active && tier != null && <TierBadge tier={tier} />}
+          <span>{display}</span>
+        </span>
         {open ? (
           <ChevronUp size={11} strokeWidth={2} />
         ) : (
@@ -126,7 +134,7 @@ export default function PlaybookPicker({ value, valueLabel, onChange }: Playbook
               setOpen(false)
             }}
             className={`flex w-full items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-xs transition-colors duration-150 ${
-              !active ? 'text-gold' : 'text-text hover:bg-white/[0.04]'
+              !active ? 'bg-white/[0.04] text-text' : 'text-text hover:bg-white/[0.04]'
             }`}
           >
             <span>No playbook</span>

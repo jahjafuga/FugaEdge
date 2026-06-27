@@ -380,6 +380,7 @@ function OverviewTab({
             <PlaybookPicker
               value={t.playbook_id}
               valueLabel={t.playbook_name}
+              tier={t.playbook_tier}
               onChange={(next) =>
                 onSavePlaybook({ trade_id: t.id, playbook_id: next })
               }
