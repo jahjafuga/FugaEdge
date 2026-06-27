@@ -709,6 +709,10 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // effect) so each fresh chart frames exactly once, while setData / markers /
   // avg-lines keep redrawing on every bars-identity change.
   const lastZoomedRef = useRef<string | null>(null)
+  // The bar time (chart epoch-seconds) the fill-ladder hover gate last saw, so the
+  // crosshair handler repaints the ladder only when the hovered BAR changes — never
+  // on every mouse-move event (freeze guard: draw() re-runs the de-collision).
+  const lastFillBarRef = useRef<number | null>(null)
   const [libError, setLibError] = useState<string | null>(null)
   // True once the async import + chart construction has finished and
   // refs.current is populated. Data / indicator / marker effects depend on
@@ -1433,6 +1437,20 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const onCrosshairMove = (param: import('lightweight-charts').MouseEventParams) => {
       const rr = refs.current
       if (!rr) return
+
+      // Fill-ladder hover gate (high-fill trades): tell the primitive which bar is
+      // under the crosshair so it reveals THAT bar's pills. Gate by bar-CHANGE — a
+      // continuous crosshair stream must NOT repaint the ladder on every event (the
+      // de-collision re-runs in draw(); per-event repaints are the freeze risk the
+      // recon flagged). setHoveredBar itself no-ops in low-fill mode, so the
+      // low-fill always-on path stays byte-unchanged. param.time is the bar's
+      // epoch-SECONDS timestamp (a number) on this intraday chart; null off the bars.
+      const fillBarTime = typeof param.time === 'number' ? param.time : null
+      if (fillBarTime !== lastFillBarRef.current) {
+        lastFillBarRef.current = fillBarTime
+        rr.fillLadder.setHoveredBar(fillBarTime)
+      }
+
       // Hovered candle: present only when the crosshair is over a data bar.
       // param.time is undefined off-data (incl. the edge whitespace), and a gap
       // can leave time set but the candle a whitespace datum with no numeric open
@@ -1467,6 +1485,9 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     r.api.subscribeCrosshairMove(onCrosshairMove)
     return () => {
       refs.current?.api.unsubscribeCrosshairMove(onCrosshairMove)
+      // Clear the ladder hover so teardown / re-subscribe starts clean.
+      refs.current?.fillLadder.setHoveredBar(null)
+      lastFillBarRef.current = null
     }
   }, [chartReady])
 

@@ -28,6 +28,7 @@ import type {
 import type { TradeMarker } from '@/core/charts/buildTradeMarkers'
 import type { IntradayBarLike } from '@/lib/buildOccupancy'
 import { assembleLadderFrame } from '@/lib/assembleLadderFrame'
+import { fillLabelsHoverGated, pillIsVisible } from '@/lib/fillLadderLayout'
 
 // The canvas target type isn't re-exported by lightweight-charts; derive it from
 // the renderer interface so we don't depend on the transitive 'fancy-canvas' pkg.
@@ -91,7 +92,7 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
   constructor(private readonly src: FillLadderPrimitive) {}
 
   draw(target: DrawTarget): void {
-    const { chart, series, markers, bars, avgEntry, avgExit } = this.src
+    const { chart, series, markers, bars, avgEntry, avgExit, hoverMode, hoveredBarTime } = this.src
     if (!chart || !series || markers.length === 0) return
     const ts = chart.timeScale()
     // Live coordinate converters on the (pinned) scale. toX takes epoch ms (the
@@ -134,6 +135,15 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
         bandThickness: BAND_THICKNESS,
       })
 
+      // Per-pill visibility (v0.2.4 hover gating). Low-fill: all true (unchanged
+      // always-on). High-fill: only the hovered bar's pills. A cheap time-equality
+      // check over the ALREADY-assembled frame -- no re-layout on hover. Dots ignore
+      // this and always paint. toSeconds aligns the pill's epoch-ms bar time with
+      // the crosshair's epoch-seconds hoveredBarTime.
+      const pillVisible = frame.pills.map((p) =>
+        pillIsVisible(hoverMode, toSeconds(p.time), hoveredBarTime),
+      )
+
       // Paint the brain's frame in z-order: leader halos, colored leaders, then
       // pills (shadowed fill + outline + text), then dots on top. Leaders draw in
       // TWO passes so every dark halo sits behind every colored line. The leader
@@ -144,6 +154,7 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
       ctx.strokeStyle = LEADER_HALO
       ctx.lineWidth = haloW
       for (let i = 0; i < frame.leaders.length; i++) {
+        if (!pillVisible[i]) continue
         const leader = frame.leaders[i]
         ctx.beginPath()
         ctx.moveTo(leader.x1 * hr, leader.y1 * vr)
@@ -154,6 +165,7 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
       // Pass 2 — side-colored leader on top of its halo.
       ctx.lineWidth = leaderW
       for (let i = 0; i < frame.leaders.length; i++) {
+        if (!pillVisible[i]) continue
         const leader = frame.leaders[i]
         ctx.strokeStyle = frame.pills[i].side === 'B' ? LEADER_COLOR_BUY : LEADER_COLOR_SELL
         ctx.beginPath()
@@ -168,33 +180,39 @@ class FillLadderRenderer implements IPrimitivePaneRenderer {
         const pill = frame.pills[i]
         const buy = pill.side === 'B'
         const color = buy ? COLOR_BUY : COLOR_SELL
-        const pillCx = pill.cx * hr
-        const pillCy = pill.cy * vr
 
-        // Pill body — drop shadow on the FILL only, for lift over candles.
-        ctx.shadowColor = PILL_SHADOW
-        ctx.shadowBlur = shadowBlur
-        ctx.shadowOffsetX = 0
-        ctx.shadowOffsetY = shadowOffY
-        roundRect(ctx, pillCx - pillW / 2, pillCy - pillH / 2, pillW, pillH, pillR)
-        ctx.fillStyle = color
-        ctx.fill()
+        // Pill (and its leader, gated above) paints only when visible: always-on
+        // in low-fill, hovered-bar-only in high-fill. The DOT always paints below.
+        if (pillVisible[i]) {
+          const pillCx = pill.cx * hr
+          const pillCy = pill.cy * vr
 
-        // Reset the shadow BEFORE the outline/text/dot — only the fill is shadowed.
-        ctx.shadowColor = 'transparent'
-        ctx.shadowBlur = 0
-        ctx.shadowOffsetY = 0
+          // Pill body — drop shadow on the FILL only, for lift over candles.
+          ctx.shadowColor = PILL_SHADOW
+          ctx.shadowBlur = shadowBlur
+          ctx.shadowOffsetX = 0
+          ctx.shadowOffsetY = shadowOffY
+          roundRect(ctx, pillCx - pillW / 2, pillCy - pillH / 2, pillW, pillH, pillR)
+          ctx.fillStyle = color
+          ctx.fill()
 
-        // Outline the same rounded-rect path — crisps the edge on any background.
-        ctx.strokeStyle = PILL_OUTLINE
-        ctx.lineWidth = outlineW
-        ctx.stroke()
+          // Reset the shadow BEFORE the outline/text/dot — only the fill is shadowed.
+          ctx.shadowColor = 'transparent'
+          ctx.shadowBlur = 0
+          ctx.shadowOffsetY = 0
 
-        // Centered "QTY @ PRICE".
-        ctx.fillStyle = buy ? COLOR_PILL_TEXT_BUY : COLOR_PILL_TEXT_SELL
-        ctx.fillText(pill.label, pillCx, pillCy)
+          // Outline the same rounded-rect path — crisps the edge on any background.
+          ctx.strokeStyle = PILL_OUTLINE
+          ctx.lineWidth = outlineW
+          ctx.stroke()
 
-        // Dot last — crisp over the leader, on the bar at the true price.
+          // Centered "QTY @ PRICE".
+          ctx.fillStyle = buy ? COLOR_PILL_TEXT_BUY : COLOR_PILL_TEXT_SELL
+          ctx.fillText(pill.label, pillCx, pillCy)
+        }
+
+        // Dot last — crisp over the leader, on the bar at the true price. ALWAYS
+        // painted (dots mark every fill in both modes; only pills hover-gate).
         ctx.beginPath()
         ctx.arc(dot.x * hr, dot.y * vr, dot.r * minR, 0, Math.PI * 2)
         ctx.fillStyle = color
@@ -231,6 +249,15 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
   avgEntry: number | null = null
   avgExit: number | null = null
 
+  // Fill-label hover gating (v0.2.4 — high-fill readability). hoverMode is derived
+  // from the rendered-fill count in setData (>= FILL_LABEL_HOVER_THRESHOLD). When
+  // ON, draw() paints pills/leaders ONLY for the hovered bar (dots always paint);
+  // when OFF (low-fill), every pill paints as before. hoveredBarTime is the chart's
+  // epoch-SECONDS bar time under the crosshair, fed by ChartTab's existing handler;
+  // null when the cursor is off the bars.
+  hoverMode = false
+  hoveredBarTime: number | null = null
+
   private requestUpdate_: (() => void) | null = null
   private readonly paneView_ = new FillLadderPaneView(this)
 
@@ -264,6 +291,21 @@ export class FillLadderPrimitive implements ISeriesPrimitive<Time> {
     this.bars = bars
     this.avgEntry = avgEntry
     this.avgExit = avgExit
+    // High-fill trades hide pills until hover; low-fill keep them always-on.
+    this.hoverMode = fillLabelsHoverGated(markers.length)
+    this.requestUpdate_?.()
+  }
+
+  /** Set the bar under the crosshair (chart epoch-SECONDS), or null when the
+   *  cursor is off the bars, and repaint. NO-OP in low-fill mode (pills are
+   *  always-on there, so hover changes nothing) and when the bar is unchanged —
+   *  so the continuous crosshair stream only repaints on an actual bar change,
+   *  honoring the freeze guard (the de-collision re-runs inside draw()). ChartTab
+   *  also gates by bar-change before calling; this guard is belt-and-braces. */
+  setHoveredBar(timeSec: number | null): void {
+    if (!this.hoverMode) return
+    if (this.hoveredBarTime === timeSec) return
+    this.hoveredBarTime = timeSec
     this.requestUpdate_?.()
   }
 }

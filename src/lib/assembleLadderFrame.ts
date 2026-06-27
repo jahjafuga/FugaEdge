@@ -6,7 +6,7 @@ import { fillLabel } from '@/lib/format'
 
 export interface LadderDot { x: number; y: number; r: number; side: 'B' | 'S' }
 export interface LadderLeader { x1: number; y1: number; x2: number; y2: number }
-export interface LadderPill { cx: number; cy: number; w: number; h: number; label: string; side: 'B' | 'S' }
+export interface LadderPill { cx: number; cy: number; w: number; h: number; label: string; side: 'B' | 'S'; time: number }
 
 export interface AssembleLadderOpts {
   paneWidth: number
@@ -93,6 +93,9 @@ export function assembleLadderFrame(
       h: opts.pillHeight,
       label: fillLabel(p.qty, p.price),
       side: p.side,
+      // Snapped bar time (epoch ms) of the source marker — lets the primitive's
+      // hover gate paint only the hovered bar's pills (high-fill mode).
+      time: m.time,
     })
   }
 

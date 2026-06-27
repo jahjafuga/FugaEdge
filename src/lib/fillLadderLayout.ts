@@ -175,3 +175,33 @@ export function layoutFillLadder(fills: FillPoint[], opts: FillLadderOptions): P
   }
   return placed
 }
+
+// v0.2.4 fill-label hover gating (high-fill readability, approved community
+// request — djsevans87 / Dave: 20-fill trades like VSME cram pills over the
+// candles). DOTS stay always-on; only the PILLS gate. Low-fill trades keep the
+// always-on pills they have today; high-fill trades hide pills until the trader
+// hovers a bar, then show only that bar's pills. Pure policy so it unit-tests
+// without the chart; the canvas primitive + ChartTab consume it.
+
+/** Total rendered-fill count at/above which fill-label PILLS switch from
+ *  always-on to hover-gated. One source of truth for the threshold. */
+export const FILL_LABEL_HOVER_THRESHOLD = 7
+
+/** True when a trade with `fillCount` rendered fills hides its pills until hover
+ *  (>= the threshold). Below it, pills stay always-on (today's behavior). */
+export function fillLabelsHoverGated(fillCount: number): boolean {
+  return fillCount >= FILL_LABEL_HOVER_THRESHOLD
+}
+
+/** Whether one pill paints this frame. Not gated (low-fill) -> always visible.
+ *  Gated (high-fill) -> only the pill whose snapped bar matches the hovered bar,
+ *  and nothing when the cursor is off the bars (hoveredBarTime null). Both times
+ *  are in the chart's epoch-seconds space; the caller normalizes before comparing. */
+export function pillIsVisible(
+  hoverGated: boolean,
+  pillTimeSec: number,
+  hoveredBarTimeSec: number | null,
+): boolean {
+  if (!hoverGated) return true
+  return hoveredBarTimeSec !== null && pillTimeSec === hoveredBarTimeSec
+}

@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
   layoutFillLadder,
+  fillLabelsHoverGated,
+  pillIsVisible,
+  FILL_LABEL_HOVER_THRESHOLD,
   type FillPoint,
   type FillLadderOptions,
 } from '../fillLadderLayout'
@@ -99,5 +102,37 @@ describe('layoutFillLadder — retained piece-1 de-collision (new signature)', (
     const fills = [exit(100, 50), exit(200, 150), exit(300, 250)]
     const placed = layoutFillLadder(fills, OPTS)
     for (let i = 0; i < fills.length; i++) expect(placed[i].pillY).toBeCloseTo(fills[i].y, 9)
+  })
+})
+
+// v0.2.4 fill-label hover gating (high-fill readability — djsevans87 / Dave):
+// dots stay always-on; pills go always-on (low-fill) vs hover-only (high-fill).
+describe('fillLabelsHoverGated — fill-count threshold', () => {
+  it('low-fill (fewer than the threshold) keeps pills always-on (not gated)', () => {
+    expect(fillLabelsHoverGated(0)).toBe(false)
+    expect(fillLabelsHoverGated(6)).toBe(false)
+  })
+  it('high-fill (at or above the threshold) gates pills behind hover', () => {
+    expect(fillLabelsHoverGated(7)).toBe(true)
+    expect(fillLabelsHoverGated(20)).toBe(true)
+  })
+  it('the threshold is 7 (one named source of truth)', () => {
+    expect(FILL_LABEL_HOVER_THRESHOLD).toBe(7)
+    expect(fillLabelsHoverGated(FILL_LABEL_HOVER_THRESHOLD)).toBe(true)
+    expect(fillLabelsHoverGated(FILL_LABEL_HOVER_THRESHOLD - 1)).toBe(false)
+  })
+})
+
+describe('pillIsVisible — per-pill hover gating', () => {
+  it('not gated (low-fill): every pill is always visible, hovered bar irrelevant', () => {
+    expect(pillIsVisible(false, 300, null)).toBe(true)
+    expect(pillIsVisible(false, 300, 999)).toBe(true)
+  })
+  it('gated (high-fill): a pill shows only when its bar matches the hovered bar', () => {
+    expect(pillIsVisible(true, 300, 300)).toBe(true)
+    expect(pillIsVisible(true, 300, 360)).toBe(false)
+  })
+  it('gated (high-fill): no pill shows when the cursor is off the bars (null)', () => {
+    expect(pillIsVisible(true, 300, null)).toBe(false)
   })
 })
