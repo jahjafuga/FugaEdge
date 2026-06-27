@@ -7,6 +7,7 @@
 // src/components/trades/TradesFilters.tsx and imports these symbols back.
 
 import type { TradeListRow } from '@shared/trades-types'
+import type { MistakeAxis } from '@shared/mistakes-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
 
 export type SideFilter = 'all' | 'long' | 'short'
@@ -27,6 +28,12 @@ export interface TradesFilterState {
    *  null), distinct from the seeded "No Setup" SYSTEM playbook (a real numeric
    *  id like any other). Empty array = no playbook filtering. */
   playbookIds: (number | null)[]
+  /** Selected mistakes to keep, keyed by (axis, name) — OR within the set. Keyed
+   *  by axis+name, NOT id: the trade row carries mistake NAMES (`mistakes`) and
+   *  `{name, axis}` tags (`mistakeTags`), never mistake ids; and the same name
+   *  can exist on both axes (the vocabulary unique index is (axis, lower(name))),
+   *  so name-alone would conflate the axes. Empty array = no mistakes filtering. */
+  mistakeKeys: { axis: MistakeAxis; name: string }[]
 }
 
 export function emptyFilters(): TradesFilterState {
@@ -40,6 +47,7 @@ export function emptyFilters(): TradesFilterState {
     aPlus: false,
     mistakesOnly: false,
     playbookIds: [],
+    mistakeKeys: [],
   }
 }
 
@@ -53,7 +61,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.outcome !== 'all' ||
     f.aPlus ||
     f.mistakesOnly ||
-    f.playbookIds.length > 0
+    f.playbookIds.length > 0 ||
+    f.mistakeKeys.length > 0
   )
 }
 
@@ -92,6 +101,18 @@ export function applyTradesFilters(
     if (f.playbookIds.length > 0) {
       const matches = f.playbookIds.some((id) =>
         id === null ? t.playbook_id === null : t.playbook_id === id,
+      )
+      if (!matches) return false
+    }
+    // Mistakes filter — OR within the selected set, matched by (axis, name)
+    // against the row's axis-aware tags. The row carries no mistake ids, and the
+    // same name can live on both axes, so the match is axis-qualified (never
+    // name-alone). mistakeTags is optional in the type (fixtures) though the real
+    // list read always populates it; guard with ?? [].
+    if (f.mistakeKeys.length > 0) {
+      const tags = t.mistakeTags ?? []
+      const matches = f.mistakeKeys.some((k) =>
+        tags.some((tag) => tag.axis === k.axis && tag.name === k.name),
       )
       if (!matches) return false
     }

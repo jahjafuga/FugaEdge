@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookWithStats } from '@shared/playbook-types'
+import type { MistakeAxis, MistakeDef } from '@shared/mistakes-types'
 import { ipc } from '@/lib/ipc'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
@@ -74,6 +75,11 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
         <PlaybookFilterDropdown
           selected={filters.playbookIds}
           onChange={(next) => onChange({ ...filters, playbookIds: next })}
+        />
+
+        <MistakesFilterDropdown
+          selected={filters.mistakeKeys}
+          onChange={(next) => onChange({ ...filters, mistakeKeys: next })}
         />
 
         <div className="flex items-center gap-2">
@@ -310,5 +316,160 @@ function FilterCheckbox({ checked }: { checked: boolean }) {
     >
       {checked && <Check size={10} strokeWidth={3} />}
     </span>
+  )
+}
+
+// The two-axis section order + labels — mirrors TradeMistakePicker's AXES so the
+// filter speaks the same language as the per-trade editor.
+const MISTAKE_AXES: { axis: MistakeAxis; label: string }[] = [
+  { axis: 'technical', label: 'Technical' },
+  { axis: 'psychological', label: 'Psychological' },
+]
+
+// Multi-select MISTAKES filter — clones PlaybookFilterDropdown's shell/trigger/
+// panel exactly, but the body is TWO axis-grouped sections (Technical then
+// Psychological) instead of the system/user split. Selection is keyed by
+// {axis, name} (NOT id): the trade row carries mistake names + {name, axis}
+// tags, never ids, and the same name can live on both axes. Neutral checkboxes,
+// no tier badges (mistakes have no tier) and NOT the modal's loss-red.
+function MistakesFilterDropdown({
+  selected,
+  onChange,
+}: {
+  selected: { axis: MistakeAxis; name: string }[]
+  onChange: (next: { axis: MistakeAxis; name: string }[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [defs, setDefs] = useState<MistakeDef[] | null>(null)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Lazy-load the ACTIVE vocabulary on first open (no arg -> archived excluded);
+  // cache in state so re-opening never refetches.
+  useEffect(() => {
+    if (!open || defs) return
+    let cancelled = false
+    ipc.mistakeDefsGet().then((list) => {
+      if (!cancelled) setDefs(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, defs])
+
+  // Click-outside + Escape close it; toggling a row leaves it open (multi-select).
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const count = selected.length
+  const active = count > 0
+
+  const isChecked = (axis: MistakeAxis, name: string) =>
+    selected.some((k) => k.axis === axis && k.name === name)
+
+  const toggle = (axis: MistakeAxis, name: string) => {
+    onChange(
+      isChecked(axis, name)
+        ? selected.filter((k) => !(k.axis === axis && k.name === name))
+        : [...selected, { axis, name }],
+    )
+  }
+
+  const renderRow = (d: MistakeDef) => {
+    const checked = isChecked(d.axis, d.name)
+    return (
+      <button
+        key={d.id}
+        type="button"
+        onClick={() => toggle(d.axis, d.name)}
+        className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-150 ${
+          checked ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
+        }`}
+      >
+        <FilterCheckbox checked={checked} />
+        <span className="truncate">{d.name}</span>
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Filter by mistake"
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+          active
+            ? 'border-gold/40 text-fg-primary'
+            : 'border-border-subtle text-fg-tertiary hover:border-gold/40 hover:text-gold'
+        }`}
+      >
+        Mistakes
+        {active && (
+          <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gold px-1 text-[9px] text-accent-ink">
+            {count}
+          </span>
+        )}
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 max-h-[280px] w-[240px] overflow-auto rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
+          {!defs && (
+            <div className="px-2 py-2 text-[10px] text-fg-muted">Loading…</div>
+          )}
+          {defs &&
+            (() => {
+              // Group by axis, drop empty sections, render Technical then
+              // Psychological with a divider only BETWEEN rendered sections.
+              const sections = MISTAKE_AXES.map(({ axis, label }) => ({
+                axis,
+                label,
+                rows: defs.filter((d) => d.axis === axis),
+              })).filter((s) => s.rows.length > 0)
+              if (sections.length === 0) {
+                return <div className="px-2 py-2 text-[10px] text-fg-muted">No mistakes</div>
+              }
+              return sections.map((s, i) => (
+                <div key={s.axis}>
+                  {i > 0 && <div className="my-1 h-px bg-border-subtle" />}
+                  <div className="mb-1 mt-0.5 px-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                    {s.label}
+                  </div>
+                  {s.rows.map(renderRow)}
+                </div>
+              ))
+            })()}
+          {active && (
+            <>
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+              >
+                Clear mistakes
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { applyTradesFilters, emptyFilters, isFiltering } from '../tradesFilter'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookTier } from '@shared/playbook-types'
+import type { MistakeAxis } from '@shared/mistakes-types'
 
 function trade(over: Partial<TradeListRow>): TradeListRow {
   return {
@@ -31,6 +32,15 @@ function tradeWithTier(id: number, tier: PlaybookTier | null): TradeListRow {
 
 function tradeWithPlaybook(id: number, playbook_id: number | null): TradeListRow {
   return trade({ id, playbook_id })
+}
+
+function tradeWithMistakes(
+  id: number,
+  tags: { axis: MistakeAxis; name: string }[],
+): TradeListRow {
+  // The predicate reads mistakeTags (axis-aware); the flat `mistakes` mirror is
+  // populated to match the real list read (mistakes = mistakeTags.map(name)).
+  return trade({ id, mistakeTags: tags, mistakes: tags.map((t) => t.name) })
 }
 
 describe('applyTradesFilters — A+ Setups pill', () => {
@@ -194,5 +204,118 @@ describe('isFiltering — playbook dimension', () => {
 
   it('is true when only the untagged (null) bucket is selected', () => {
     expect(isFiltering({ ...emptyFilters(), playbookIds: [null] })).toBe(true)
+  })
+})
+
+describe('applyTradesFilters — Mistakes filter (mistakeKeys)', () => {
+  it('empty mistakeKeys does not filter (all trades pass)', () => {
+    const list = [
+      tradeWithMistakes(1, [{ axis: 'technical', name: 'Chased extension' }]),
+      tradeWithMistakes(2, []),
+      tradeWithMistakes(3, [{ axis: 'psychological', name: 'FOMO' }]),
+    ]
+    const out = applyTradesFilters(list, { ...emptyFilters(), mistakeKeys: [] })
+    expect(out.map((t) => t.id)).toEqual([1, 2, 3])
+  })
+
+  it('a single key keeps only trades whose mistakeTags include that exact axis+name', () => {
+    const list = [
+      tradeWithMistakes(1, [{ axis: 'technical', name: 'Chased extension' }]),
+      tradeWithMistakes(2, [{ axis: 'psychological', name: 'FOMO' }]),
+      tradeWithMistakes(3, [
+        { axis: 'technical', name: 'Chased extension' },
+        { axis: 'psychological', name: 'Revenge trade' },
+      ]),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      mistakeKeys: [{ axis: 'technical', name: 'Chased extension' }],
+    })
+    expect(out.map((t) => t.id)).toEqual([1, 3])
+  })
+
+  it('multiple keys match as OR (any of the selected mistakes)', () => {
+    const list = [
+      tradeWithMistakes(1, [{ axis: 'technical', name: 'Chased extension' }]),
+      tradeWithMistakes(2, [{ axis: 'psychological', name: 'FOMO' }]),
+      tradeWithMistakes(3, [{ axis: 'technical', name: 'Entered too early' }]),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      mistakeKeys: [
+        { axis: 'technical', name: 'Chased extension' },
+        { axis: 'psychological', name: 'FOMO' },
+      ],
+    })
+    expect(out.map((t) => t.id)).toEqual([1, 2])
+  })
+
+  it('a trade with no mistakeTags is excluded when a key is selected (?? [] guard)', () => {
+    const list = [
+      tradeWithMistakes(1, [{ axis: 'technical', name: 'Chased extension' }]),
+      trade({ id: 2 }), // no mistakeTags at all — exercises the ?? [] guard
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      mistakeKeys: [{ axis: 'technical', name: 'Chased extension' }],
+    })
+    expect(out.map((t) => t.id)).toEqual([1])
+  })
+
+  it('AXIS DISTINCTION — same name on a different axis does NOT match (axis-qualified, not name-alone)', () => {
+    const list = [
+      tradeWithMistakes(1, [{ axis: 'technical', name: 'FOMO' }]),
+      tradeWithMistakes(2, [{ axis: 'psychological', name: 'FOMO' }]),
+    ]
+    // Selecting the PSYCHOLOGICAL 'FOMO' matches only the psychological-tagged trade.
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      mistakeKeys: [{ axis: 'psychological', name: 'FOMO' }],
+    })
+    expect(out.map((t) => t.id)).toEqual([2])
+  })
+
+  it('composes with another dimension as AND (side + mistake)', () => {
+    const list = [
+      trade({
+        id: 1,
+        side: 'long',
+        mistakeTags: [{ axis: 'technical', name: 'Chased extension' }],
+        mistakes: ['Chased extension'],
+      }),
+      trade({
+        id: 2,
+        side: 'short',
+        mistakeTags: [{ axis: 'technical', name: 'Chased extension' }],
+        mistakes: ['Chased extension'],
+      }),
+      trade({
+        id: 3,
+        side: 'long',
+        mistakeTags: [{ axis: 'psychological', name: 'FOMO' }],
+        mistakes: ['FOMO'],
+      }),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      side: 'long',
+      mistakeKeys: [{ axis: 'technical', name: 'Chased extension' }],
+    })
+    expect(out.map((t) => t.id)).toEqual([1])
+  })
+})
+
+describe('isFiltering — mistakes dimension', () => {
+  it('is false for empty filters', () => {
+    expect(isFiltering(emptyFilters())).toBe(false)
+  })
+
+  it('is true when any mistake is selected', () => {
+    expect(
+      isFiltering({
+        ...emptyFilters(),
+        mistakeKeys: [{ axis: 'technical', name: 'FOMO' }],
+      }),
+    ).toBe(true)
   })
 })
