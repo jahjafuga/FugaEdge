@@ -102,15 +102,6 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-          Mistakes
-        </div>
-        <p className="mt-1 text-sm text-fg-secondary">
-          Tag what went wrong — these roll up in Analytics → Psychology.
-        </p>
-      </div>
-
       <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
         {AXES.map(({ axis, label }) => (
           <AxisBlock
@@ -176,9 +167,9 @@ function AxisBlock({
   const available = (defs ?? []).filter((d) => d.axis === axis && !taggedIds.has(d.id))
 
   return (
-    <div className="card-premium border border-loss/20 p-3">
+    <div className="rounded-lg border border-loss/20 bg-bg-1/40 p-3">
       <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        {label} Mistakes
+        {label}
       </div>
       <div className="space-y-1.5">
         {/* Tagged mistakes — full-width loss-red rows, stacked (label left, ×

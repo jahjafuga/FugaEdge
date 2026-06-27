@@ -523,9 +523,9 @@ function OverviewTab({
               picker carries its own header). Hidden in chart-only fullscreen like the
               other non-chart sections; Beat 2's two-column shell relocates it to the
               right column. */}
-          <div className={isFullscreen ? 'hidden' : ''}>
+          <Card title="Mistakes" subtitle="Tag what went wrong — these roll up in Analytics → Psychology." className={isFullscreen ? 'hidden' : ''}>
             <TradeMistakePicker trade={t} />
-          </div>
+          </Card>
         </div>
       </div>
 
