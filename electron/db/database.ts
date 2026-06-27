@@ -17,6 +17,7 @@ import { migrateAddWarmupAttemptedAt } from './migrate-add-warmup-attempted-at'
 import { migrateAddWarmupError } from './migrate-add-warmup-error'
 import { migrateConfluenceJunction } from './migrate-confluence-junction'
 import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
+import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -889,6 +890,15 @@ function migrateAfterSchema(
   // covered too; seed runs only when mistake_def is empty. NOTHING reads these
   // yet. See migrate-mistakes-taxonomy.ts.
   migrateMistakesTaxonomy(conn)
+
+  // Catalyst-customizable beat 1 (schema 35) — the user-customizable catalyst
+  // vocabulary foundation: the catalyst_def table (seeded 15 defaults on an empty
+  // table). Additive + idempotent; runs every launch (NOT version-gated) so fresh
+  // installs are covered too; seed runs only when catalyst_def is empty. Catalyst
+  // stays a string on trades.catalyst_type (no junction). NOTHING reads this table
+  // yet — the modal's CatalystEditor keeps using the static CATALYST_TYPES until a
+  // later beat. See migrate-catalyst-vocabulary.ts.
+  migrateCatalystVocabulary(conn)
 
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the
