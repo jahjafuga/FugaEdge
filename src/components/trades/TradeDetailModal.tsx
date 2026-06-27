@@ -841,8 +841,12 @@ function Ema9Readout({ pct }: { pct: number | null }) {
 function ExecutionList({ trade }: { trade: TradeListRow }) {
   if (trade.executions.length === 0) return null
   const avg = blendedFillAvg(trade.executions)
+  // xl:h-[440px] pins the card to the chart's height so it stretches up on short
+  // trades and caps + scrolls on tall ones (the rows region is flex-1 below). 440 =
+  // ChartTab chartHeight (400px canvas) + ~40px toolbar/gap = the chart column's
+  // LazyVisible min-h-[440px] (grid sibling at the chart+fills row). Keep in sync.
   return (
-    <div className="rounded-lg border border-border-subtle bg-bg-2 p-3">
+    <div className="flex flex-col rounded-lg border border-border-subtle bg-bg-2 p-3 xl:h-[440px]">
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
@@ -850,9 +854,10 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
           fill: a colored dot (buy → win green, sell → loss red) on a COLOR-SEGMENTED
           spine — the connector below a dot is colored by the NEXT (lower) dot's side,
           so the segment leading into a sell reads red and buy→buy reads green; dots
-          sit on top (z-10). Two-line detail beside it. Only the ROWS scroll (bounded
-          max-h); the "{n} fills" title above and the AVG PRICE footer below stay fixed. */}
-      <div className="max-h-96 overflow-y-auto pr-1">
+          sit on top (z-10). Two-line detail beside it. The rows region is flex-1 within
+          the card's xl:h-[440px] bound, so it grows to fill (short trades) and scrolls
+          (tall trades); the "{n} fills" title above and AVG PRICE footer below stay fixed. */}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
         <div className="flex flex-col">
           {trade.executions.map((e, i) => {
             const isBuy = e.side === 'B'
