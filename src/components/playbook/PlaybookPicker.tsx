@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, ChevronUp } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import TierBadge from './TierBadge'
+import SystemTierChip from './SystemTierChip'
 import type { PlaybookTier, PlaybookWithStats } from '@shared/playbook-types'
 
 interface PlaybookPickerProps {
@@ -84,7 +85,7 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
         }`}
       >
         <span className="inline-flex items-center gap-1.5">
-          <TierBadge tier={p.tier} />
+          {p.is_system ? <SystemTierChip /> : <TierBadge tier={p.tier} />}
           <span>{p.name}</span>
         </span>
         {isActive && <Check size={11} strokeWidth={2.5} />}
