@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, X } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import TierBadge from '@/components/playbook/TierBadge'
+import { tierTone } from '@/components/playbook/tierTone'
 import { filterAvailableSecondaries } from '@/core/playbook/availableSecondaries'
 import { topUsedSecondaries } from '@/core/playbook/topUsedSecondaries'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookTag, PlaybookWithStats } from '@shared/playbook-types'
+
+// The embedded Setup card surfaces the top-N most-used addable confluences as
+// one-tap quick chips; the set is frozen per trade-open (see quickAddIds).
+const QUICK_ADD_COUNT = 3
 
 interface ConfluenceTagsProps {
   trade: TradeListRow
@@ -28,11 +33,20 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
   const [playbooks, setPlaybooks] = useState<PlaybookWithStats[] | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  // The FROZEN quick-add suggestion set (embedded Setup card). Snapshotted ONCE
+  // per trade-open from the initial top-used addable confluences, then deplete-
+  // only: an added suggestion drops out for good (no backfill, and a later
+  // removal does NOT bring it back). null until the snapshot is captured.
+  const [quickAddIds, setQuickAddIds] = useState<number[] | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  // The trade's current secondaries — reloads when the trade changes.
+  // The trade's current secondaries — reloads when the trade changes. Clearing
+  // first re-arms the quick-add freeze below so it re-snapshots for the new trade
+  // instead of reusing the previous trade's frozen suggestion set.
   useEffect(() => {
     let cancelled = false
+    setTags(null)
+    setQuickAddIds(null)
     ipc
       .playbookTagsGet(trade.id)
       .then((t) => {
@@ -61,6 +75,32 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
       cancelled = true
     }
   }, [])
+
+  // Snapshot the top-N quick-add suggestions ONCE per trade-open (embedded Setup
+  // card only), as soon as both the tag set and the playbook list have loaded.
+  // Computed from the addable confluences AT OPEN; it does NOT recompute as tags
+  // change, so adding one suggestion never backfills another into the row.
+  useEffect(() => {
+    if (!embedded || quickAddIds !== null || !playbooks || tags === null) return
+    const initial = filterAvailableSecondaries(
+      playbooks,
+      trade.playbook_id,
+      tags.map((t) => t.id),
+    )
+    setQuickAddIds(topUsedSecondaries(initial, QUICK_ADD_COUNT).map((p) => p.id))
+  }, [embedded, quickAddIds, playbooks, tags, trade.playbook_id])
+
+  // Deplete-only: once a frozen suggestion becomes an added tag, retire it from
+  // the snapshot for good — the row shrinks as you pick (no backfill), and a
+  // later removal does NOT bring it back (we only ever filter OUT, never add in).
+  useEffect(() => {
+    const tagIds = new Set((tags ?? []).map((t) => t.id))
+    setQuickAddIds((ids) => {
+      if (!ids) return ids
+      const next = ids.filter((id) => !tagIds.has(id))
+      return next.length === ids.length ? ids : next
+    })
+  }, [tags])
 
   // Dropdown: click-outside + Escape (mirrors PlaybookPicker).
   useEffect(() => {
@@ -131,13 +171,20 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
     ? filterAvailableSecondaries(playbooks, trade.playbook_id, selectedIds)
     : []
 
-  // Embedded Setup card: surface the most-used addable confluences as one-tap
-  // quick chips, demoting the dropdown to a "More" overflow for whatever's left.
-  // Standalone keeps its single "Add confluence" dropdown over the full list, so
-  // all three derived values collapse to the original behavior when !embedded.
-  const QUICK_ADD_COUNT = 3
-  const quickAdds = embedded ? topUsedSecondaries(available, QUICK_ADD_COUNT) : []
-  const showMore = !embedded || available.length > QUICK_ADD_COUNT
+  // Embedded Setup card: the FROZEN quick-add chips (snapshot above) resolved to
+  // playbook objects — the retire effect has already dropped any that were added,
+  // so this is just the surviving suggestions, depleting toward empty. The "+
+  // More" dropdown stays FULLY DYNAMIC over the live `available` set (the escape
+  // hatch for anything not in, or no longer in, the frozen row), so it shows
+  // whenever anything is addable. Standalone collapses to its single "Add
+  // confluence" dropdown; quickAdds is [] when !embedded, so it is unchanged.
+  const quickAdds: PlaybookWithStats[] =
+    embedded && quickAddIds && playbooks
+      ? quickAddIds
+          .map((id) => playbooks.find((p) => p.id === id))
+          .filter((p): p is PlaybookWithStats => p != null)
+      : []
+  const showMore = !embedded || available.length > 0
   const moreLabel = embedded ? 'More' : 'Add confluence'
 
   // Shared body — the chip row + Add-confluence dropdown, identical in the
@@ -147,7 +194,7 @@ export default function ConfluenceTags({ trade, embedded = false }: ConfluenceTa
       {(tags ?? []).map((tag) => (
         <span
           key={tag.id}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-1 text-[11px] text-fg-secondary"
+          className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] ${tierTone(tag.tier)}`}
         >
           <TierBadge tier={tag.tier} />
           <span>{tag.name}</span>
