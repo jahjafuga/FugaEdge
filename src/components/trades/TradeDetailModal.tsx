@@ -924,15 +924,21 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
 // of the Overview's embedded chart. After first load the chunk is browser-cached.
 function ChartTabSkeleton() {
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border-subtle bg-bg-2 py-12 text-center">
-      <Loader2 size={24} strokeWidth={1.75} className="mb-3 animate-spin text-gold/70" />
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        Loading chart…
+    <Card
+      title="Chart"
+      padded={false}
+      right={<div className="skeleton h-7 w-56 rounded-md" aria-hidden="true" />}
+    >
+      <div className="flex min-h-[400px] flex-col items-center justify-center py-12 text-center">
+        <Loader2 size={24} strokeWidth={1.75} className="mb-3 animate-spin text-gold/70" />
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+          Loading chart…
+        </div>
+        <div className="mt-1 text-sm text-fg-tertiary">
+          Fetching the chart library and intraday bars.
+        </div>
       </div>
-      <div className="mt-1 text-sm text-fg-tertiary">
-        Fetching the chart library and intraday bars.
-      </div>
-    </div>
+    </Card>
   )
 }
 

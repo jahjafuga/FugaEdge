@@ -26,6 +26,7 @@ import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/char
 import { FillLadderPrimitive } from './fillLadderPrimitive'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors, type ChartPalette } from '@/lib/chartColors'
+import Card from '@/components/ui/Card'
 
 // MASTER tokens — kept as constants so the lightweight-charts API (which
 // wants raw hex, not Tailwind classes) stays on the same palette as the
@@ -513,68 +514,70 @@ function ChartCanvas({
   }, [savingShot])
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Beat B3 — the OHLC ContextBar row is gone; OHLC + Volume and the latest
-          EMA / VWAP values now float as a TradingView-style overlay on the chart
-          itself (ChartOverlay, in LightweightChartHost), so the chart reclaims
-          this height. Entry-vs-9EMA is dropped from the chart entirely — it stays
-          in the Trader DNA block. */}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <TimeframeToggle value={tf} onChange={onChangeTf} />
-        <div className="flex items-center gap-2">
-          <IndicatorsDropdown
-            tfLabel={tfLabel}
-            showEma9={showEma9}
-            showEma20={showEma20}
-            showVwap={showVwap}
-            showMacd={showMacd}
-            onToggleEma9={onToggleEma9}
-            onToggleEma20={onToggleEma20}
-            onToggleVwap={onToggleVwap}
-            onToggleMacd={onToggleMacd}
-          />
-          <DrawButton />
-          <div className="mx-0.5 h-5 w-px bg-border-subtle" aria-hidden="true" />
-          <div className="flex items-center gap-1">
-            <ChartIconButton
-              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              onClick={onToggleFullscreen}
-            >
-              {isFullscreen ? (
-                <Minimize2 size={13} strokeWidth={2} />
-              ) : (
-                <Maximize2 size={13} strokeWidth={2} />
-              )}
-            </ChartIconButton>
-            <ChartIconButton
-              title="Screenshot"
-              onClick={handleScreenshot}
-              disabled={savingShot}
-            >
-              {savingShot ? (
-                <Loader2 size={13} strokeWidth={2} className="animate-spin" />
-              ) : (
-                <Camera size={13} strokeWidth={2} />
-              )}
-            </ChartIconButton>
-            <ChartIconButton
-              title="Re-fetch from Massive"
-              onClick={onRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <Loader2 size={13} strokeWidth={2} className="animate-spin" />
-              ) : (
-                <RefreshCw size={13} strokeWidth={2} />
-              )}
-            </ChartIconButton>
-            <ChartIconButton title="Fit to fills" onClick={() => fitRef.current?.()}>
-              <Crosshair size={13} strokeWidth={2} />
-            </ChartIconButton>
+    <Card
+      title="Chart"
+      padded={false}
+      right={
+        <div className="flex flex-wrap items-center gap-2">
+          <TimeframeToggle value={tf} onChange={onChangeTf} />
+          <div className="flex items-center gap-2">
+            <IndicatorsDropdown
+              tfLabel={tfLabel}
+              showEma9={showEma9}
+              showEma20={showEma20}
+              showVwap={showVwap}
+              showMacd={showMacd}
+              onToggleEma9={onToggleEma9}
+              onToggleEma20={onToggleEma20}
+              onToggleVwap={onToggleVwap}
+              onToggleMacd={onToggleMacd}
+            />
+            <DrawButton />
+            <div className="mx-0.5 h-5 w-px bg-border-subtle" aria-hidden="true" />
+            <div className="flex items-center gap-1">
+              <ChartIconButton
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                onClick={onToggleFullscreen}
+              >
+                {isFullscreen ? (
+                  <Minimize2 size={13} strokeWidth={2} />
+                ) : (
+                  <Maximize2 size={13} strokeWidth={2} />
+                )}
+              </ChartIconButton>
+              <ChartIconButton
+                title="Screenshot"
+                onClick={handleScreenshot}
+                disabled={savingShot}
+              >
+                {savingShot ? (
+                  <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <Camera size={13} strokeWidth={2} />
+                )}
+              </ChartIconButton>
+              <ChartIconButton
+                title="Re-fetch from Massive"
+                onClick={onRefresh}
+                disabled={refreshing}
+              >
+                {refreshing ? (
+                  <Loader2 size={13} strokeWidth={2} className="animate-spin" />
+                ) : (
+                  <RefreshCw size={13} strokeWidth={2} />
+                )}
+              </ChartIconButton>
+              <ChartIconButton title="Fit to fills" onClick={() => fitRef.current?.()}>
+                <Crosshair size={13} strokeWidth={2} />
+              </ChartIconButton>
+            </div>
           </div>
         </div>
-      </div>
-
+      }
+    >
+      {/* OHLC + Volume and the latest EMA / VWAP values float as a TradingView-
+          style overlay on the chart itself (ChartOverlay, in LightweightChartHost);
+          Entry-vs-9EMA stays in the Trader DNA block. */}
       <LightweightChartHost
         trade={trade}
         bars={bars}
@@ -590,7 +593,7 @@ function ChartCanvas({
         indicators={indicators}
         macd={showMacd ? macd : EMPTY_MACD}
       />
-    </div>
+    </Card>
   )
 }
 
@@ -658,10 +661,10 @@ interface ChartRefs {
 // container style, the height effect, and the screenshot capture+restore so they
 // never disagree. window.innerHeight is read at toggle time (NOT reactive to a
 // live window resize — re-toggle to recompute; the ResizeObserver stays
-// width-only by design). 180 ≈ the slim bar + ContextBar + toolbar + gaps above
-// the chart — tune in smoke if the chart over/under-fills the viewport.
+// width-only by design). 195 ≈ the slim bar + the chart Card header (title +
+// toolbar) + gaps above the chart — tune in smoke if it over/under-fills.
 function chartHeightFor(isFullscreen: boolean): number {
-  return isFullscreen ? Math.max(400, window.innerHeight - 180) : 400
+  return isFullscreen ? Math.max(400, window.innerHeight - 195) : 400
 }
 
 // Build the shared autoscaleInfoProvider every right-scale series uses. Returns
@@ -1486,7 +1489,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           embed. Canvas paints over the bg-2 background. */}
       <div
         ref={containerRef}
-        className="w-full overflow-hidden rounded-lg border border-border-subtle bg-bg-2 shadow-sm"
+        className="w-full overflow-hidden rounded-b-[var(--card-radius)]"
         style={{ height: chartHeight }}
       />
       {/* TradingView-style floating legend: O/H/L/C + the on-toggle 9EMA / 20EMA
