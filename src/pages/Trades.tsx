@@ -289,43 +289,50 @@ export default function Trades() {
       <div className="space-y-4">
         <MigrationCollisionsBanner />
         <QuickFilters filters={filters} onChange={setFilters} />
-        <TradesFilters filters={filters} onChange={setFilters} trades={trades} />
+        {/* Beat B — filter bar + VIEW strip share ONE premium controls surface
+            (card-premium, no glow: the table below carries the gold bloom as the
+            hero). TradesFilters is now surface-less; this wrapper supplies the
+            surface + padding. The VIEW strip stays here (rendered for every view)
+            so the Table/Charts/Grid toggle persists outside the table card. */}
+        <div className="card-premium space-y-4 p-4">
+          <TradesFilters filters={filters} onChange={setFilters} trades={trades} />
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-            View
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Column-visibility toggle. The Shares Out column is off by default
-                to keep the table dense — most users only care about it
-                during specific symbol research. Preference persists. */}
-            <button
-              type="button"
-              onClick={() => setShowFloatColumn((v) => !v)}
-              aria-pressed={showFloatColumn}
- className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                showFloatColumn
-                  ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                  : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-              }`}
-              title="Show / hide the Float column"
-            >
-              Float col
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSparkline((v) => !v)}
-              aria-pressed={showSparkline}
-              className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                showSparkline
-                  ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                  : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-              }`}
-              title="Show / hide the per-row sparkline mini-chart"
-            >
-              Sparkline
-            </button>
-            <TradesViewToggle value={view} onChange={setView} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+              View
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Column-visibility toggle. The Shares Out column is off by default
+                  to keep the table dense — most users only care about it
+                  during specific symbol research. Preference persists. */}
+              <button
+                type="button"
+                onClick={() => setShowFloatColumn((v) => !v)}
+                aria-pressed={showFloatColumn}
+                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                  showFloatColumn
+                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                }`}
+                title="Show / hide the Float column"
+              >
+                Float col
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSparkline((v) => !v)}
+                aria-pressed={showSparkline}
+                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                  showSparkline
+                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                }`}
+                title="Show / hide the per-row sparkline mini-chart"
+              >
+                Sparkline
+              </button>
+              <TradesViewToggle value={view} onChange={setView} />
+            </div>
           </div>
         </div>
 

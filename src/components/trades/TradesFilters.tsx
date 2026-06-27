@@ -67,7 +67,7 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
   const filtering = isFiltering(filters)
 
   return (
-    <div className="space-y-3 rounded-lg border border-border-subtle bg-bg-2 p-4 shadow-sm">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex h-8 items-center gap-2 rounded-md border border-border-subtle bg-bg-1 px-2.5 transition-colors duration-150 focus-within:border-gold">
           <Search size={14} strokeWidth={1.75} className="text-fg-tertiary" />
