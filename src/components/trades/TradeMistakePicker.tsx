@@ -176,7 +176,7 @@ function AxisBlock({
   const available = (defs ?? []).filter((d) => d.axis === axis && !taggedIds.has(d.id))
 
   return (
-    <div className="rounded-lg border border-loss/20 bg-bg-2 p-3">
+    <div className="card-premium border border-loss/20 p-3">
       <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {label} Mistakes
       </div>

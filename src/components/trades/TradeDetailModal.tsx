@@ -846,7 +846,7 @@ function ExecutionList({ trade }: { trade: TradeListRow }) {
   // ChartTab chartHeight (400px canvas) + ~40px toolbar/gap = the chart column's
   // LazyVisible min-h-[440px] (grid sibling at the chart+fills row). Keep in sync.
   return (
-    <div className="flex flex-col rounded-lg border border-border-subtle bg-bg-2 p-3 xl:h-[440px]">
+    <div className="card-premium flex flex-col p-3 xl:h-[440px]">
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
         {trade.executions.length} fill{trade.executions.length === 1 ? '' : 's'}
       </div>
