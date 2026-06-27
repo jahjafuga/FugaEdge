@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import type { RoundTripExecution } from '@shared/import-types'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
@@ -14,7 +14,7 @@ interface SparklineProps {
 
 // Inline SVG plot of execution prices over time. Single color derived from
 // net P&L sign — green for profit, red for loss, muted for scratch / single fill.
-export default function Sparkline({
+function Sparkline({
   executions,
   netPnl,
   width = 80,
@@ -106,3 +106,9 @@ export default function Sparkline({
     </svg>
   )
 }
+
+// Memoized: the trades table re-renders on every virtualized scroll, but a row's
+// executions + netPnl do not change while scrolling, so memo skips recomputing the
+// identical SVG for each visible row every frame (the scroll-jank fix). The cell
+// passes shallow-stable props (row.original.executions / .net_pnl).
+export default memo(Sparkline)
