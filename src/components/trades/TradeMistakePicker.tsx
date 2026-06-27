@@ -10,12 +10,12 @@ interface TradeMistakePickerProps {
 
 // Beat 5 — the two axes render SIDE-BY-SIDE as two bordered premium panels in a
 // 2-column grid (Technical left, Psychological right; stacks to 1 column on
-// narrow viewports). `align` steers each panel's Add-dropdown to open INWARD
-// (left panel rightward, right panel leftward) so neither clips the modal edge.
+// narrow viewports). Each panel's Add-dropdown spans its column width and opens
+// straight down, so it never overflows the column or spills toward center.
 // Labelled headers only, no per-axis colour-coding (mirrors MistakesVocabularyEditor).
-const AXES: { axis: MistakeAxis; label: string; align: 'left' | 'right' }[] = [
-  { axis: 'technical', label: 'Technical', align: 'left' },
-  { axis: 'psychological', label: 'Psychological', align: 'right' },
+const AXES: { axis: MistakeAxis; label: string }[] = [
+  { axis: 'technical', label: 'Technical' },
+  { axis: 'psychological', label: 'Psychological' },
 ]
 
 // Beat 2c — the per-trade two-axis mistake picker (the trade_mistake junction).
@@ -112,12 +112,11 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
       </div>
 
       <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
-        {AXES.map(({ axis, label, align }) => (
+        {AXES.map(({ axis, label }) => (
           <AxisBlock
             key={axis}
             axis={axis}
             label={label}
-            align={align}
             tags={tags}
             defs={defs}
             busy={busy}
@@ -137,7 +136,6 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
 function AxisBlock({
   axis,
   label,
-  align,
   tags,
   defs,
   busy,
@@ -146,7 +144,6 @@ function AxisBlock({
 }: {
   axis: MistakeAxis
   label: string
-  align: 'left' | 'right'
   tags: MistakeTag[] | null
   defs: MistakeDef[] | null
   busy: boolean
@@ -210,8 +207,8 @@ function AxisBlock({
 
         {/* + Add — sits below the rows; a quiet neutral/gold-hover action (NOT
             red — it's an action, not a mistake). Dropdown scoped to this axis,
-            anchored inward via `align`. */}
-        <div ref={wrapRef} className="relative inline-flex">
+            spans the column width and opens straight down. */}
+        <div ref={wrapRef} className="relative">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
@@ -229,7 +226,7 @@ function AxisBlock({
           </button>
           {open && (
             <div
-              className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-30 mt-1 max-h-[240px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur`}
+              className="absolute left-0 top-full z-30 mt-1 max-h-[240px] w-full overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur"
             >
               {!defs && <div className="px-2 py-2 text-[10px] text-fg-muted">Loading…</div>}
               {defs && available.length === 0 && (
