@@ -17,8 +17,8 @@ export default function RChip({ r }: { r: number | null }) {
       : r >= 0
         ? 'border-gold/40 bg-gold/[0.08] text-gold'
         : r >= -1
-          ? 'border-red/30 bg-red/[0.06] text-red/80'
-          : 'border-red/50 bg-red/[0.12] text-red'
+          ? 'border-red/30 bg-red/[0.06] text-loss/80'
+          : 'border-red/50 bg-red/[0.12] text-loss'
   return (
     <span
       className={`rounded border px-2 py-0.5 font-mono text-[11px] font-medium ${tone}`}

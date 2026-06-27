@@ -291,10 +291,10 @@ function ModalHeader({ trade, onClose }: { trade: TradeListRow; onClose: () => v
           <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
             Net P&amp;L
           </div>
-          <div className={`font-mono text-2xl font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
-            {signed(trade.net_pnl)}
-          </div>
-          <div className="mt-1 flex justify-end">
+          <div className="flex items-center justify-end gap-2">
+            <span className={`font-mono text-3xl font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
+              {signed(trade.net_pnl)}
+            </span>
             <RChip r={trade.r_multiple} />
           </div>
         </div>
