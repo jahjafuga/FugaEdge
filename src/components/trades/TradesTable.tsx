@@ -72,6 +72,10 @@ interface TradesTableProps {
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
   showCountryColumn?: boolean
+  /** Show the Catalyst column (catalyst_type). Off by default. */
+  showCatalystColumn?: boolean
+  /** Show the Mistakes column (first mistake + N more). Off by default. */
+  showMistakesColumn?: boolean
   /** Show the per-row sparkline mini-chart column. Off by default. */
   showSparkline?: boolean
 }
@@ -107,6 +111,8 @@ const COLUMN_WIDTHS = {
   fees: 80,
   net_pnl: 110,
   float: 70,
+  catalyst: 130,
+  mistakes: 150,
   spark: 1,
 } as const
 
@@ -202,6 +208,8 @@ export default function TradesTable({
   onBulkSetMistakes,
   showFloatColumn = false,
   showCountryColumn = true,
+  showCatalystColumn = false,
+  showMistakesColumn = false,
   showSparkline = false,
 }: TradesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
@@ -278,6 +286,57 @@ export default function TradesTable({
           {compactShares(info.getValue())}
         </div>
       ),
+    })
+    const catalystColumn = col.accessor('catalyst_type', {
+      id: 'catalyst',
+      header: 'Catalyst',
+      size: COLUMN_WIDTHS.catalyst,
+      // Alpha sort, nulls last — clones the Country column's null-aware comparator.
+      sortingFn: (a, b) => {
+        const av = a.original.catalyst_type
+        const bv = b.original.catalyst_type
+        if (av == null && bv == null) return 0
+        if (av == null) return 1
+        if (bv == null) return -1
+        return av.localeCompare(bv)
+      },
+      cell: (info) => {
+        const v = info.getValue()
+        if (v == null || v === '')
+          return <span className="font-mono text-[10px] text-fg-muted">—</span>
+        return (
+          <span className="block truncate text-sm text-fg-secondary" title={v}>
+            {v}
+          </span>
+        )
+      },
+    })
+    // Mistakes — "first + +N more". Display column (not sortable): the array is
+    // ordered by axis/sort_position in the SQL, so m[0] is a stable first. Empty
+    // renders an em-dash (no-fabrication rule — never "0 mistakes").
+    const mistakesColumn = col.display({
+      id: 'mistakes',
+      header: 'Mistakes',
+      size: COLUMN_WIDTHS.mistakes,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const m = row.original.mistakes
+        if (!m || m.length === 0)
+          return <span className="font-mono text-[10px] text-fg-muted">—</span>
+        return (
+          <span
+            className="inline-flex max-w-full items-baseline gap-1"
+            title={m.join(', ')}
+          >
+            <span className="truncate text-sm text-fg-secondary">{m[0]}</span>
+            {m.length > 1 && (
+              <span className="shrink-0 text-[10px] font-medium text-fg-muted">
+                +{m.length - 1}
+              </span>
+            )}
+          </span>
+        )
+      },
     })
     const sparkColumn = col.display({
       id: 'spark',
@@ -455,9 +514,38 @@ export default function TradesTable({
       const insertAt = playbookIdx >= 0 ? playbookIdx + 1 : 5
       base.splice(insertAt, 0, countryColumn)
     }
+    // Catalyst after Country (else after Playbook); Mistakes after Catalyst (else
+    // Country, else Playbook) — findIndex keeps them grouped for any on/off combo.
+    if (showCatalystColumn) {
+      const countryIdx = base.findIndex((c) => c.id === 'country')
+      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
+      const insertAt =
+        countryIdx >= 0 ? countryIdx + 1 : playbookIdx >= 0 ? playbookIdx + 1 : 6
+      base.splice(insertAt, 0, catalystColumn)
+    }
+    if (showMistakesColumn) {
+      const catIdx = base.findIndex((c) => c.id === 'catalyst')
+      const countryIdx = base.findIndex((c) => c.id === 'country')
+      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
+      const insertAt =
+        catIdx >= 0
+          ? catIdx + 1
+          : countryIdx >= 0
+            ? countryIdx + 1
+            : playbookIdx >= 0
+              ? playbookIdx + 1
+              : 6
+      base.splice(insertAt, 0, mistakesColumn)
+    }
     if (showSparkline) base.push(sparkColumn)
     return base
-  }, [showFloatColumn, showCountryColumn, showSparkline])
+  }, [
+    showFloatColumn,
+    showCountryColumn,
+    showCatalystColumn,
+    showMistakesColumn,
+    showSparkline,
+  ])
 
   const table = useReactTable({
     data: trades,

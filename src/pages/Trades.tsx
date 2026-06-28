@@ -38,6 +38,8 @@ import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
 const FLOAT_COL_STORAGE_KEY = 'trades.showFloatColumn'
 const COUNTRY_COL_STORAGE_KEY = 'trades.showCountryColumn'
+const CATALYST_COL_STORAGE_KEY = 'trades.showCatalystColumn'
+const MISTAKES_COL_STORAGE_KEY = 'trades.showMistakesColumn'
 
 export default function Trades() {
   const [trades, setTrades] = useState<TradeListRow[] | null>(null)
@@ -53,6 +55,15 @@ export default function Trades() {
     if (typeof window === 'undefined') return true
     const v = window.localStorage.getItem(COUNTRY_COL_STORAGE_KEY)
     return v === null ? true : v === '1'
+  })
+  // Catalyst + Mistakes columns default OFF (clone Float's inline-localStorage).
+  const [showCatalystColumn, setShowCatalystColumn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(CATALYST_COL_STORAGE_KEY) === '1'
+  })
+  const [showMistakesColumn, setShowMistakesColumn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(MISTAKES_COL_STORAGE_KEY) === '1'
   })
   const [showSparkline, setShowSparkline] = useState<boolean>(() => readShowSparkline())
 
@@ -71,6 +82,22 @@ export default function Trades() {
       showCountryColumn ? '1' : '0',
     )
   }, [showCountryColumn])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      CATALYST_COL_STORAGE_KEY,
+      showCatalystColumn ? '1' : '0',
+    )
+  }, [showCatalystColumn])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(
+      MISTAKES_COL_STORAGE_KEY,
+      showMistakesColumn ? '1' : '0',
+    )
+  }, [showMistakesColumn])
 
   useEffect(() => {
     writeShowSparkline(showSparkline)
@@ -366,6 +393,32 @@ export default function Trades() {
               </button>
               <button
                 type="button"
+                onClick={() => setShowCatalystColumn((v) => !v)}
+                aria-pressed={showCatalystColumn}
+                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                  showCatalystColumn
+                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                }`}
+                title="Show / hide the Catalyst column"
+              >
+                Catalyst col
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMistakesColumn((v) => !v)}
+                aria-pressed={showMistakesColumn}
+                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+                  showMistakesColumn
+                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                }`}
+                title="Show / hide the Mistakes column"
+              >
+                Mistakes col
+              </button>
+              <button
+                type="button"
                 onClick={() => setShowSparkline((v) => !v)}
                 aria-pressed={showSparkline}
                 className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
@@ -405,6 +458,8 @@ export default function Trades() {
             onBulkSetMistakes={handleBulkSetMistakes}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
+            showCatalystColumn={showCatalystColumn}
+            showMistakesColumn={showMistakesColumn}
             showSparkline={showSparkline}
           />
         ) : view === 'charts-large' ? (
