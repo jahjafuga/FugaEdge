@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { CATALYST_TYPES } from '@shared/trades-types'
+import { useEffect, useState } from 'react'
+import { ipc } from '@/lib/ipc'
+import type { CatalystDef } from '@shared/catalyst-types'
 
 interface CatalystEditorProps {
   catalystType: string | null
@@ -9,9 +10,11 @@ interface CatalystEditorProps {
   onChange: (catalystType: string | null, daysSince: number | null) => void
 }
 
-// Two-field editor for the trade's catalyst metadata. Dropdown selects
-// from the canonical CATALYST_TYPES list (a "—" sentinel clears the type);
-// number input edits days_since.
+// Two-field editor for the trade's catalyst metadata. Dropdown selects from the
+// user-customizable catalyst_def vocabulary (lazy-loaded; a "—" sentinel clears
+// the type); number input edits days_since. A value not in the active list (an
+// archived/renamed catalyst, or a pre-migration legacy string) still shows as a
+// "(current)" option so a save never silently drops it.
 //
 // Both fields save on change (dropdown: onChange; days: onBlur/Enter to
 // avoid IPC-spam during typing).
@@ -21,6 +24,20 @@ export default function CatalystEditor({
   onChange,
 }: CatalystEditorProps) {
   const [draft, setDraft] = useState<string>(daysSince == null ? '' : String(daysSince))
+  const [defs, setDefs] = useState<CatalystDef[] | null>(null)
+
+  // Lazy-load the ACTIVE catalyst vocabulary once (archived excluded). Until it
+  // resolves the select still renders "— None —" + the current value, so it is
+  // never blank during load.
+  useEffect(() => {
+    let cancelled = false
+    ipc.catalystDefsGet().then((list) => {
+      if (!cancelled) setDefs(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Keep the input draft in sync when the parent value changes externally
   // (e.g. trade swap inside the modal).
@@ -46,6 +63,12 @@ export default function CatalystEditor({
     if (n !== daysSince) onChange(catalystType, n)
   }
 
+  // Surface a value that isn't in the active list (archived / renamed / legacy)
+  // as a "(current)" option so it stays selected and a save preserves it.
+  const names = defs?.map((d) => d.name) ?? []
+  const showCurrent =
+    catalystType != null && catalystType !== '' && !names.includes(catalystType)
+
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_120px]">
       <div>
@@ -61,8 +84,11 @@ export default function CatalystEditor({
           className="h-8 w-full cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 text-sm text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
         >
           <option value="">— None —</option>
-          {CATALYST_TYPES.map((t) => (
-            <option key={t} value={t}>{t}</option>
+          {showCurrent && (
+            <option value={catalystType ?? ''}>{catalystType} (current)</option>
+          )}
+          {(defs ?? []).map((d) => (
+            <option key={d.id} value={d.name}>{d.name}</option>
           ))}
         </select>
       </div>

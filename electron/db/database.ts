@@ -18,6 +18,7 @@ import { migrateAddWarmupError } from './migrate-add-warmup-error'
 import { migrateConfluenceJunction } from './migrate-confluence-junction'
 import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
+import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -899,6 +900,13 @@ function migrateAfterSchema(
   // yet — the modal's CatalystEditor keeps using the static CATALYST_TYPES until a
   // later beat. See migrate-catalyst-vocabulary.ts.
   migrateCatalystVocabulary(conn)
+
+  // Catalyst-customizable beat 4a (schema 36) — normalize the two legacy catalyst
+  // strings ('News' -> 'News / PR', 'FDA/Clinical' -> 'FDA / Clinical') to the
+  // schema-35 seeded def names. Pure DATA migration (two literal UPDATEs), runs
+  // after the vocabulary so trade strings line up with the seeded names. Idempotent
+  // (a re-run matches zero rows) + deletion-blind. See migrate-catalyst-legacy-strings.ts.
+  migrateCatalystLegacyStrings(conn)
 
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the
