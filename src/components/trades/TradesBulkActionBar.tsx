@@ -1,4 +1,4 @@
-import { Tag, Trash2, X } from 'lucide-react'
+import { Newspaper, Tag, Trash2, X } from 'lucide-react'
 import { int, signed, pnlClass } from '@/lib/format'
 
 interface TradesBulkActionBarProps {
@@ -16,6 +16,7 @@ interface TradesBulkActionBarProps {
    *  retained selection so the user can retry. */
   error?: string | null
   onSetPlaybook: () => void
+  onSetCatalyst: () => void
   onMoveToTrash: () => void
   onClear: () => void
 }
@@ -32,6 +33,7 @@ export default function TradesBulkActionBar({
   busy = false,
   error = null,
   onSetPlaybook,
+  onSetCatalyst,
   onMoveToTrash,
   onClear,
 }: TradesBulkActionBarProps) {
@@ -81,6 +83,15 @@ export default function TradesBulkActionBar({
         >
           <Tag size={14} strokeWidth={2} />
           Set playbook
+        </button>
+        <button
+          type="button"
+          onClick={onSetCatalyst}
+          disabled={busy}
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Newspaper size={14} strokeWidth={2} />
+          Set catalyst
         </button>
         <button
           type="button"

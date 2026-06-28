@@ -22,6 +22,7 @@ import type {
 } from '@shared/import-types'
 import type { DashboardData, TimeRange } from '@shared/dashboard-types'
 import type {
+  BulkSetCatalystInput,
   TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
@@ -160,6 +161,8 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_FLOAT_SAVE, input),
   tradeCatalystSave: (input: UpdateCatalystInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_CATALYST_SAVE, input),
+  tradesCatalystSaveBulk: (input: BulkSetCatalystInput): Promise<TradeListRow[]> =>
+    ipcRenderer.invoke(IPC.TRADES_CATALYST_SAVE_BULK, input),
   tradeCountrySave: (input: UpdateCountryInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_COUNTRY_SAVE, input),
   tradeCountrySaveSymbol: (input: UpdateCountryForSymbolInput): Promise<number> =>

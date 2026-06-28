@@ -88,6 +88,8 @@ export const IPC = {
   TRADE_PLANNED_STOP_LOSS_SAVE: 'trade:plannedStopLossSave',
   TRADE_FLOAT_SAVE: 'trade:floatSave',
   TRADE_CATALYST_SAVE: 'trade:catalystSave',
+  // Phase 2 — bulk set catalyst_type on many trades (mirrors TRADES_PLAYBOOK_SAVE_BULK).
+  TRADES_CATALYST_SAVE_BULK: 'trades:catalystSaveBulk',
   COUNTRY_RESOLVE: 'country:resolveForTicker',
   COUNTRY_BACKFILL: 'country:backfillAll',
   COUNTRY_BACKFILL_PROGRESS: 'country:backfillProgress',

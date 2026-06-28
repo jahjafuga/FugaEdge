@@ -1,6 +1,7 @@
 import type { CommitInput, PreviewInputFile } from '@shared/import-types'
 import type { SaveDayTagsInput, SaveWeekNotesInput } from '@shared/calendar-types'
 import type {
+  BulkSetCatalystInput,
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateCountryInput,
@@ -75,6 +76,8 @@ export const ipc = {
     window.api.tradeFloatSave(input),
   tradeCatalystSave: (input: UpdateCatalystInput) =>
     window.api.tradeCatalystSave(input),
+  tradesCatalystSaveBulk: (input: BulkSetCatalystInput) =>
+    window.api.tradesCatalystSaveBulk(input),
   tradeCountrySave: (input: UpdateCountryInput) => window.api.tradeCountrySave(input),
   tradeCountrySaveSymbol: (input: import('@shared/trades-types').UpdateCountryForSymbolInput) =>
     window.api.tradeCountrySaveSymbol(input),

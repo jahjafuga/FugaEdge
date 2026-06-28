@@ -171,6 +171,14 @@ export interface UpdateCatalystInput {
   days_since_catalyst: number | null
 }
 
+/** Phase 2 bulk-retag — set catalyst_type on many trades at once. Unlike
+ *  UpdateCatalystInput it carries NO days_since: the bulk sets the catalyst only,
+ *  leaving each selected trade's days-since untouched. */
+export interface BulkSetCatalystInput {
+  trade_ids: number[]
+  catalyst_type: string | null
+}
+
 export interface UpdateCountryInput {
   trade_id: number
   /** ISO alpha-2 (any case) or null to clear. */

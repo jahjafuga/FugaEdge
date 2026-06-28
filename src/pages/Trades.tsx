@@ -227,6 +227,20 @@ export default function Trades() {
     [],
   )
 
+  // Phase 2 bulk-retag catalyst — like the playbook bulk, the rows STAY; the IPC
+  // returns the updated rows so we patch the changed catalyst_type in by id.
+  const handleBulkSetCatalyst = useCallback(
+    async (ids: number[], catalystType: string | null) => {
+      const updated = await ipc.tradesCatalystSaveBulk({
+        trade_ids: ids,
+        catalyst_type: catalystType,
+      })
+      const byId = new Map(updated.map((t) => [t.id, t]))
+      setTrades((prev) => (prev ? prev.map((t) => byId.get(t.id) ?? t) : prev))
+    },
+    [],
+  )
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -371,6 +385,7 @@ export default function Trades() {
             onRestore={handleRestore}
             onBulkSoftDelete={handleBulkSoftDelete}
             onBulkSetPlaybook={handleBulkSetPlaybook}
+            onBulkSetCatalyst={handleBulkSetCatalyst}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}

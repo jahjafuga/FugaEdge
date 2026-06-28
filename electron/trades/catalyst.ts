@@ -26,3 +26,26 @@ export function saveCatalyst(input: UpdateCatalystInput): TradeListRow | null {
   ).run(cleanType(input.catalyst_type), cleanDays(input.days_since_catalyst), input.trade_id)
   return getTrade(input.trade_id)
 }
+
+// Phase 2 beat 2 — bulk set catalyst_type on many trades. UNLIKE saveCatalyst, this
+// sets catalyst_type ONLY (no days_since_catalyst), so each selected trade keeps its
+// own days-since. Mirrors softDeleteTrades / setPlaybookOnTradesBulk's shape: one
+// transaction, a single `WHERE id IN (...)`; MAX_BULK (500, UI-enforced) stays under
+// the bind limit so no chunking. No junction, no invariant, no FK validation —
+// catalyst is a free-form string column. cleanType matches the single-save cleaning.
+export function setCatalystOnTradesBulk(
+  tradeIds: number[],
+  catalystType: string | null,
+): void {
+  const db = openDatabase()
+  if (tradeIds.length === 0) return
+  const clean = cleanType(catalystType)
+  const ph = tradeIds.map(() => '?').join(',')
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE trades SET catalyst_type = ? WHERE id IN (${ph})`).run(
+      clean,
+      ...tradeIds,
+    )
+  })
+  tx()
+}

@@ -4,7 +4,9 @@ import { join } from 'node:path'
 import { IPC } from '@shared/ipc-channels'
 import type {
   BulkLifecycleInput,
+  BulkSetCatalystInput,
   SingleTradeIdInput,
+  TradeListRow,
   UpdateCatalystInput,
   UpdateConfidenceInput,
   UpdateFloatInput,
@@ -22,7 +24,7 @@ import { saveTimeframe } from './timeframe'
 import { saveConfidence } from './confidence'
 import { savePlannedRisk, savePlannedStopLossPrice } from './planned-risk'
 import { saveFloat } from './float-shares'
-import { saveCatalyst } from './catalyst'
+import { saveCatalyst, setCatalystOnTradesBulk } from './catalyst'
 import {
   softDeleteTrade,
   softDeleteTrades,
@@ -119,6 +121,22 @@ export function registerTradesIpc(): void {
       .catch((e) => console.warn('[xp hook]', e))
     return out
   })
+  // Phase 2 — bulk set catalyst_type on many trades. Mirrors TRADE_CATALYST_SAVE:
+  // repo write -> bump -> fire-and-forget XP reconcile for ALL ids (catalyst feeds
+  // D8) -> return refreshed rows so the renderer patches the changed catalyst_type.
+  ipcMain.handle(
+    IPC.TRADES_CATALYST_SAVE_BULK,
+    (_e, input: BulkSetCatalystInput) => {
+      setCatalystOnTradesBulk(input.trade_ids, input.catalyst_type)
+      bumpDataVersion()
+      void Promise.resolve()
+        .then(() => xpReconcileForTradeIds(input.trade_ids))
+        .catch((e) => console.warn('[xp hook]', e))
+      return input.trade_ids
+        .map((id) => getTrade(id))
+        .filter((t): t is TradeListRow => t != null)
+    },
+  )
 
   // ── v0.2.3 P2b — soft-delete lifecycle ───────────────────────────────────
   ipcMain.handle(IPC.TRADE_SOFT_DELETE, (_e, input: SingleTradeIdInput) =>

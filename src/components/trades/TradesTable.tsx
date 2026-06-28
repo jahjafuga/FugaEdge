@@ -33,6 +33,7 @@ import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
 import TradesBulkActionBar from './TradesBulkActionBar'
 import BulkSetPlaybookModal from './BulkSetPlaybookModal'
+import BulkSetCatalystModal from './BulkSetCatalystModal'
 
 interface TradesTableProps {
   trades: TradeListRow[]
@@ -56,6 +57,9 @@ interface TradesTableProps {
   /** Phase 2 — bulk set the primary playbook on the selected trades. The host
    *  applies the write and patches the returned rows. */
   onBulkSetPlaybook?: (ids: number[], playbookId: number | null) => Promise<void>
+  /** Phase 2 — bulk set the catalyst on the selected trades (catalyst_type only;
+   *  each trade keeps its own days-since). */
+  onBulkSetCatalyst?: (ids: number[], catalystType: string | null) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -186,6 +190,7 @@ export default function TradesTable({
   onRestore,
   onBulkSoftDelete,
   onBulkSetPlaybook,
+  onBulkSetCatalyst,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -207,6 +212,9 @@ export default function TradesTable({
   // Retag (set-playbook) keeps its OWN busy/error so a retag failure never muddles
   // the delete confirm's state, and vice versa.
   const [bulkSetPlaybookOpen, setBulkSetPlaybookOpen] = useState(false)
+  // Catalyst shares bulkRetagBusy/bulkRetagError — only one retag modal opens at a
+  // time, so the busy/error can't collide; just its own open flag.
+  const [bulkSetCatalystOpen, setBulkSetCatalystOpen] = useState(false)
   const [bulkRetagBusy, setBulkRetagBusy] = useState(false)
   const [bulkRetagError, setBulkRetagError] = useState<string | null>(null)
 
@@ -626,6 +634,24 @@ export default function TradesTable({
       setBulkRetagBusy(false)
     }
   }
+
+  const handleBulkSetCatalyst = async (catalystType: string | null) => {
+    if (!onBulkSetCatalyst || bulkRetagBusy) return
+    const ids = selectedTrades.map((t) => t.id)
+    if (ids.length === 0) return
+    setBulkRetagBusy(true)
+    setBulkRetagError(null)
+    try {
+      await onBulkSetCatalyst(ids, catalystType)
+      setSelectedIds(new Set())
+      setLastClickedIndex(null)
+      setBulkSetCatalystOpen(false)
+    } catch (e) {
+      setBulkRetagError(e instanceof Error ? e.message : 'Failed to set catalyst.')
+    } finally {
+      setBulkRetagBusy(false)
+    }
+  }
   const colCount = columns.length + (bulkEnabled ? 1 : 0)
 
   return (
@@ -730,6 +756,10 @@ export default function TradesTable({
             setBulkRetagError(null)
             setBulkSetPlaybookOpen(true)
           }}
+          onSetCatalyst={() => {
+            setBulkRetagError(null)
+            setBulkSetCatalystOpen(true)
+          }}
           onMoveToTrash={() => {
             setBulkError(null)
             setBulkConfirmOpen(true)
@@ -788,6 +818,18 @@ export default function TradesTable({
           busy={bulkRetagBusy}
           error={bulkRetagError}
           onApply={handleBulkSetPlaybook}
+        />
+      )}
+
+      {bulkEnabled && (
+        <BulkSetCatalystModal
+          open={bulkSetCatalystOpen}
+          onClose={() => setBulkSetCatalystOpen(false)}
+          count={selectedCount}
+          netPnlTotal={bulkNetPnl}
+          busy={bulkRetagBusy}
+          error={bulkRetagError}
+          onApply={handleBulkSetCatalyst}
         />
       )}
 
