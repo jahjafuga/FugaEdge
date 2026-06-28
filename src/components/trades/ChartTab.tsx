@@ -861,6 +861,18 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           // the "wrong price line at ~$4" bug.
           priceLineVisible: false,
           lastValueVisible: false,
+          // F1 Beat 3 — make the right price axis + crosshair follow the same
+          // $1 rule as every other price display (price(): 4dp under $1, 2dp at/
+          // over). SCOPED to the candle series on purpose: a chart-level
+          // localization.priceFormatter would bleed into the volume scale
+          // (type:'volume' -> shown as a $-price) and the MACD pane (MACD values
+          // as 4dp prices). minMove 0.0001 lets the axis place sub-penny ticks so
+          // the 4dp-under-$1 labels aren't quantized to pennies.
+          priceFormat: {
+            type: 'custom',
+            formatter: (p: number) => price(p),
+            minMove: 0.0001,
+          },
         })
 
         const volume = chart.addSeries(lc.HistogramSeries, {
