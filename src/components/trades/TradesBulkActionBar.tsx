@@ -1,4 +1,5 @@
-import { AlertTriangle, Newspaper, Tag, Trash2, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { AlertTriangle, ChevronDown, Newspaper, Tag, Trash2, X } from 'lucide-react'
 import { int, signed, pnlClass } from '@/lib/format'
 
 interface TradesBulkActionBarProps {
@@ -39,6 +40,29 @@ export default function TradesBulkActionBar({
   onMoveToTrash,
   onClear,
 }: TradesBulkActionBarProps) {
+  // Retag dropdown — collapses the three bulk-retag actions into one menu. Clones
+  // the filter-dropdown shell (open + ref + click-outside/Escape). The panel opens
+  // UPWARD (bottom-full) because this bar sits at the bottom of an overflow-hidden
+  // card (TradesTable card), so a downward panel would clip. These hooks run BEFORE
+  // the count===0 early return — Rules of Hooks: no conditional / post-return hooks.
+  const [retagOpen, setRetagOpen] = useState(false)
+  const retagRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!retagOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (retagRef.current && !retagRef.current.contains(e.target as Node)) setRetagOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setRetagOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [retagOpen])
+
   if (count === 0) return null
 
   return (
@@ -77,33 +101,60 @@ export default function TradesBulkActionBar({
           <X size={13} strokeWidth={2.25} />
           Clear
         </button>
-        <button
-          type="button"
-          onClick={onSetPlaybook}
-          disabled={busy}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Tag size={14} strokeWidth={2} />
-          Set playbook
-        </button>
-        <button
-          type="button"
-          onClick={onSetCatalyst}
-          disabled={busy}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Newspaper size={14} strokeWidth={2} />
-          Set catalyst
-        </button>
-        <button
-          type="button"
-          onClick={onSetMistakes}
-          disabled={busy}
-          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <AlertTriangle size={14} strokeWidth={2} />
-          Set mistakes
-        </button>
+        <div ref={retagRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setRetagOpen((v) => !v)}
+            disabled={busy}
+            aria-expanded={retagOpen}
+            className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Tag size={14} strokeWidth={2} />
+            Retag
+            <ChevronDown
+              size={14}
+              strokeWidth={2}
+              className={`transition-transform duration-150 ${retagOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {retagOpen && (
+            <div className="absolute bottom-full left-0 z-20 mb-1 w-[200px] rounded-md border border-border-subtle bg-bg-3 p-1.5 shadow-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  onSetPlaybook()
+                  setRetagOpen(false)
+                }}
+                className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-fg-primary transition-colors duration-150 hover:bg-white/[0.04]"
+              >
+                <Tag size={14} strokeWidth={2} className="text-gold" />
+                Set playbook
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onSetCatalyst()
+                  setRetagOpen(false)
+                }}
+                className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-fg-primary transition-colors duration-150 hover:bg-white/[0.04]"
+              >
+                <Newspaper size={14} strokeWidth={2} className="text-gold" />
+                Set catalyst
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onSetMistakes()
+                  setRetagOpen(false)
+                }}
+                className="flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left text-sm text-fg-primary transition-colors duration-150 hover:bg-white/[0.04]"
+              >
+                <AlertTriangle size={14} strokeWidth={2} className="text-gold" />
+                Set mistakes
+              </button>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={onMoveToTrash}
