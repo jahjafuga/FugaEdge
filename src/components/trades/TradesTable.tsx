@@ -32,6 +32,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal'
 import Sparkline from './Sparkline'
 import TradeDetailModal from './TradeDetailModal'
 import TradesBulkActionBar from './TradesBulkActionBar'
+import BulkSetPlaybookModal from './BulkSetPlaybookModal'
 
 interface TradesTableProps {
   trades: TradeListRow[]
@@ -52,6 +53,9 @@ interface TradesTableProps {
    *  leading selection checkbox column + a bottom action bar. Absent on the
    *  calendar/review hosts, so those render no selection UI. */
   onBulkSoftDelete?: (ids: number[]) => Promise<void>
+  /** Phase 2 — bulk set the primary playbook on the selected trades. The host
+   *  applies the write and patches the returned rows. */
+  onBulkSetPlaybook?: (ids: number[], playbookId: number | null) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -181,6 +185,7 @@ export default function TradesTable({
   onSoftDelete,
   onRestore,
   onBulkSoftDelete,
+  onBulkSetPlaybook,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -199,6 +204,11 @@ export default function TradesTable({
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  // Retag (set-playbook) keeps its OWN busy/error so a retag failure never muddles
+  // the delete confirm's state, and vice versa.
+  const [bulkSetPlaybookOpen, setBulkSetPlaybookOpen] = useState(false)
+  const [bulkRetagBusy, setBulkRetagBusy] = useState(false)
+  const [bulkRetagError, setBulkRetagError] = useState<string | null>(null)
 
   const columns = useMemo(() => {
     const countryColumn = col.accessor('country', {
@@ -595,6 +605,27 @@ export default function TradesTable({
       setBulkBusy(false)
     }
   }
+
+  // Mirrors handleBulkSoftDelete's busy/error/clear pattern, but on success the
+  // host PATCHES the returned rows (the trades stay in the list with new playbook
+  // fields) rather than filtering them out.
+  const handleBulkSetPlaybook = async (playbookId: number | null) => {
+    if (!onBulkSetPlaybook || bulkRetagBusy) return
+    const ids = selectedTrades.map((t) => t.id)
+    if (ids.length === 0) return
+    setBulkRetagBusy(true)
+    setBulkRetagError(null)
+    try {
+      await onBulkSetPlaybook(ids, playbookId)
+      setSelectedIds(new Set())
+      setLastClickedIndex(null)
+      setBulkSetPlaybookOpen(false)
+    } catch (e) {
+      setBulkRetagError(e instanceof Error ? e.message : 'Failed to set playbook.')
+    } finally {
+      setBulkRetagBusy(false)
+    }
+  }
   const colCount = columns.length + (bulkEnabled ? 1 : 0)
 
   return (
@@ -695,6 +726,10 @@ export default function TradesTable({
           atCap={atCap}
           busy={bulkBusy}
           error={bulkError}
+          onSetPlaybook={() => {
+            setBulkRetagError(null)
+            setBulkSetPlaybookOpen(true)
+          }}
           onMoveToTrash={() => {
             setBulkError(null)
             setBulkConfirmOpen(true)
@@ -741,6 +776,18 @@ export default function TradesTable({
               </p>
             </div>
           }
+        />
+      )}
+
+      {bulkEnabled && (
+        <BulkSetPlaybookModal
+          open={bulkSetPlaybookOpen}
+          onClose={() => setBulkSetPlaybookOpen(false)}
+          count={selectedCount}
+          netPnlTotal={bulkNetPnl}
+          busy={bulkRetagBusy}
+          error={bulkRetagError}
+          onApply={handleBulkSetPlaybook}
         />
       )}
 

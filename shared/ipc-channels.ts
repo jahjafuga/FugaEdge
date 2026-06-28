@@ -50,6 +50,9 @@ export const IPC = {
   PLAYBOOK_CREATE: 'playbook:create',
   PLAYBOOK_UPDATE: 'playbook:update',
   TRADE_PLAYBOOK_SAVE: 'trade:playbookSave',
+  // Phase 2 — bulk set the primary playbook on many trades (plural TRADES_*_BULK
+  // for batch ops, mirroring TRADES_SOFT_DELETE_BULK).
+  TRADES_PLAYBOOK_SAVE_BULK: 'trades:playbookSaveBulk',
   PLAYBOOK_DELETE: 'playbook:delete',
   // v0.2.5 Beat 2 — playbook confluence: read a trade's secondary confluence
   // tag set, and add/remove a secondary tag (the trade_playbooks junction).

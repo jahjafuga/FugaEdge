@@ -35,6 +35,7 @@ import type {
 } from '@shared/trades-types'
 import type { ResolvedCountry } from '@/core/country/resolve'
 import type {
+  BulkSetPlaybookInput,
   CreatePlaybookInput,
   PlaybookTag,
   PlaybookTagInput,
@@ -284,6 +285,8 @@ const api = {
     ipcRenderer.invoke(IPC.PLAYBOOK_UPDATE, input),
   tradePlaybookSave: (input: SetPlaybookOnTradeInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_PLAYBOOK_SAVE, input),
+  tradesPlaybookSaveBulk: (input: BulkSetPlaybookInput): Promise<TradeListRow[]> =>
+    ipcRenderer.invoke(IPC.TRADES_PLAYBOOK_SAVE_BULK, input),
   playbookDelete: (
     id: number,
   ): Promise<{ deleted: boolean; trades_unlinked: number }> =>

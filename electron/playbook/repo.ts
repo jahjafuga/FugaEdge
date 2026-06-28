@@ -300,6 +300,41 @@ export function setPlaybookOnTrade(tradeId: number, playbookId: number | null): 
   tx()
 }
 
+// Phase 2 beat 1 — the BULK primary-playbook write. FAITHFULLY REPLICATES
+// setPlaybookOnTrade for N trades: validate the playbook ONCE, then in ONE
+// transaction (a) Invariant 1 — drop the new primary from the trade_playbooks
+// junction for every selected trade so it's never BOTH primary and a secondary,
+// then (b) set the primary on all of them. Mirrors softDeleteTrades's shape:
+// a single `WHERE id IN (...)` per statement; MAX_BULK (500, enforced in the UI)
+// stays under SQLite's bind limit so no chunking is needed. Setting null clears
+// the primary and skips the junction delete (matching the single-save's null
+// path). Touches no updated_at and recomputes nothing — same as the single save.
+export function setPlaybookOnTradesBulk(
+  tradeIds: number[],
+  playbookId: number | null,
+): void {
+  const db = openDatabase()
+  if (tradeIds.length === 0) return
+  // Validate ONCE (not per-trade) so we never leave a dangling primary id.
+  if (playbookId != null) {
+    const exists = db.prepare('SELECT 1 FROM playbooks WHERE id = ?').get(playbookId)
+    if (!exists) throw new Error(`Playbook ${playbookId} not found`)
+  }
+  const ph = tradeIds.map(() => '?').join(',')
+  const tx = db.transaction(() => {
+    if (playbookId != null) {
+      db.prepare(
+        `DELETE FROM trade_playbooks WHERE playbook_id = ? AND trade_id IN (${ph})`,
+      ).run(playbookId, ...tradeIds)
+    }
+    db.prepare(`UPDATE trades SET playbook_id = ? WHERE id IN (${ph})`).run(
+      playbookId,
+      ...tradeIds,
+    )
+  })
+  tx()
+}
+
 // Beat 2 — read a trade's SECONDARY confluence tags (the trade_playbooks
 // junction), NOT the primary on trades.playbook_id. A separate per-trade fetch
 // (the ATTACHMENTS_LIST precedent), ordered by name for a stable display. tier

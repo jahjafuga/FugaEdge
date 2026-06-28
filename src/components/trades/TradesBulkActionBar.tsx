@@ -1,4 +1,4 @@
-import { Trash2, X } from 'lucide-react'
+import { Tag, Trash2, X } from 'lucide-react'
 import { int, signed, pnlClass } from '@/lib/format'
 
 interface TradesBulkActionBarProps {
@@ -15,6 +15,7 @@ interface TradesBulkActionBarProps {
   /** Bulk soft-delete error (atomic reject path). Persisted alongside the
    *  retained selection so the user can retry. */
   error?: string | null
+  onSetPlaybook: () => void
   onMoveToTrash: () => void
   onClear: () => void
 }
@@ -30,6 +31,7 @@ export default function TradesBulkActionBar({
   atCap = false,
   busy = false,
   error = null,
+  onSetPlaybook,
   onMoveToTrash,
   onClear,
 }: TradesBulkActionBarProps) {
@@ -70,6 +72,15 @@ export default function TradesBulkActionBar({
         >
           <X size={13} strokeWidth={2.25} />
           Clear
+        </button>
+        <button
+          type="button"
+          onClick={onSetPlaybook}
+          disabled={busy}
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Tag size={14} strokeWidth={2} />
+          Set playbook
         </button>
         <button
           type="button"

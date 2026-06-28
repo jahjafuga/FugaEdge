@@ -1,11 +1,13 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
+  BulkSetPlaybookInput,
   CreatePlaybookInput,
   PlaybookTagInput,
   SetPlaybookOnTradeInput,
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
+import type { TradeListRow } from '@shared/trades-types'
 import { bumpDataVersion } from '../lib/cache'
 import { xpReconcileForTradeIds } from '../xp/reconcile'
 import {
@@ -16,6 +18,7 @@ import {
   listPlaybooks,
   removePlaybookTag,
   setPlaybookOnTrade,
+  setPlaybookOnTradesBulk,
   updatePlaybook,
 } from './repo'
 import { getTrade } from '../trades/list'
@@ -43,6 +46,23 @@ export function registerPlaybookIpc(): void {
         .then(() => xpReconcileForTradeIds([input.trade_id]))
         .catch((e) => console.warn('[xp hook]', e))
       return getTrade(input.trade_id)
+    },
+  )
+  // Phase 2 — bulk set the primary playbook. Mirrors TRADE_PLAYBOOK_SAVE: repo
+  // write -> bump -> fire-and-forget XP reconcile for ALL ids (playbook feeds
+  // D8/D9) -> return the refreshed rows so the renderer patches them in with the
+  // correct server-joined playbook_name / tier.
+  ipcMain.handle(
+    IPC.TRADES_PLAYBOOK_SAVE_BULK,
+    (_e, input: BulkSetPlaybookInput) => {
+      setPlaybookOnTradesBulk(input.trade_ids, input.playbook_id)
+      bumpDataVersion()
+      void Promise.resolve()
+        .then(() => xpReconcileForTradeIds(input.trade_ids))
+        .catch((e) => console.warn('[xp hook]', e))
+      return input.trade_ids
+        .map((id) => getTrade(id))
+        .filter((t): t is TradeListRow => t != null)
     },
   )
   ipcMain.handle(IPC.PLAYBOOK_DELETE, (_e, id: number) => {

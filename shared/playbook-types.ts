@@ -63,6 +63,14 @@ export interface SetPlaybookOnTradeInput {
   playbook_id: number | null
 }
 
+/** Phase 2 bulk-retag — set the PRIMARY playbook on many trades at once. Mirrors
+ *  SetPlaybookOnTradeInput with trade_ids[]; `playbook_id: null` clears the
+ *  primary on all of them. */
+export interface BulkSetPlaybookInput {
+  trade_ids: number[]
+  playbook_id: number | null
+}
+
 /** A single confluence (secondary) tag on a trade — a lightweight projection of
  *  the playbook joined from the trade_playbooks junction. Distinct from the
  *  PRIMARY setup (trades.playbook_id): a playbook is primary OR secondary on a

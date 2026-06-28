@@ -11,6 +11,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type {
+  BulkSetPlaybookInput,
   CreatePlaybookInput,
   PlaybookTagInput,
   SetPlaybookOnTradeInput,
@@ -134,6 +135,8 @@ export const ipc = {
   playbookUpdate: (input: UpdatePlaybookInput) => window.api.playbookUpdate(input),
   tradePlaybookSave: (input: SetPlaybookOnTradeInput) =>
     window.api.tradePlaybookSave(input),
+  tradesPlaybookSaveBulk: (input: BulkSetPlaybookInput) =>
+    window.api.tradesPlaybookSaveBulk(input),
   playbookDelete: (id: number) => window.api.playbookDelete(id),
   playbookTagsGet: (tradeId: number) => window.api.playbookTagsGet(tradeId),
   playbookTagAdd: (input: PlaybookTagInput) => window.api.playbookTagAdd(input),

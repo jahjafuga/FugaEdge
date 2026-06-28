@@ -212,6 +212,21 @@ export default function Trades() {
     setTrades((prev) => (prev ? prev.filter((t) => !idSet.has(t.id)) : prev))
   }, [])
 
+  // Phase 2 bulk-retag — the rows STAY in the list (unlike delete); the bulk IPC
+  // returns the updated rows with the correct server-joined playbook_name / tier,
+  // so we patch them in by id (mirrors the single-save patch at handleSavePlaybook).
+  const handleBulkSetPlaybook = useCallback(
+    async (ids: number[], playbookId: number | null) => {
+      const updated = await ipc.tradesPlaybookSaveBulk({
+        trade_ids: ids,
+        playbook_id: playbookId,
+      })
+      const byId = new Map(updated.map((t) => [t.id, t]))
+      setTrades((prev) => (prev ? prev.map((t) => byId.get(t.id) ?? t) : prev))
+    },
+    [],
+  )
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -355,6 +370,7 @@ export default function Trades() {
             onSoftDelete={handleSoftDelete}
             onRestore={handleRestore}
             onBulkSoftDelete={handleBulkSoftDelete}
+            onBulkSetPlaybook={handleBulkSetPlaybook}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}
