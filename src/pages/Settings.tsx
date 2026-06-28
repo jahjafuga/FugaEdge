@@ -6,6 +6,7 @@ import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEditor'
+import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEditor'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
@@ -281,6 +282,8 @@ export default function Settings() {
         </SettingsAccordion>
 
         <MistakesVocabularyEditor />
+
+        <CatalystVocabularyEditor />
 
         <SettingsAccordion
           storageKey="dayTags"
