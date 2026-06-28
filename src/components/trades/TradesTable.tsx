@@ -26,6 +26,7 @@ import type {
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import { money, price, int, pnlClass, signed, longDate, compactShares, formatEastern } from '@/lib/format'
 import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
+import { tierRank } from '@/core/playbook/tierRank'
 import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -407,6 +408,10 @@ export default function TradesTable({
         id: 'playbook',
         header: 'Playbook',
         size: COLUMN_WIDTHS.playbook,
+        // Brendan's tier-rank sort (worst-to-best, untagged last) — replaces the
+        // default alphabetical-by-name. Ranking lives in the pure tierRank helper;
+        // ascending first-click gives No Setup -> C -> B -> A -> A+ -> Untagged.
+        sortingFn: (a, b) => tierRank(a.original) - tierRank(b.original),
         cell: ({ row }) => {
           const name = row.original.playbook_name
           const tier = row.original.playbook_tier
