@@ -43,6 +43,10 @@ function tradeWithMistakes(
   return trade({ id, mistakeTags: tags, mistakes: tags.map((t) => t.name) })
 }
 
+function tradeWithCatalyst(id: number, catalyst_type: string | null): TradeListRow {
+  return trade({ id, catalyst_type })
+}
+
 describe('applyTradesFilters — A+ Setups pill', () => {
   it('returns only trades whose playbook tier is A+', () => {
     const list = [
@@ -317,5 +321,106 @@ describe('isFiltering — mistakes dimension', () => {
         mistakeKeys: [{ axis: 'technical', name: 'FOMO' }],
       }),
     ).toBe(true)
+  })
+})
+
+describe('applyTradesFilters — Catalyst filter (catalystTypes)', () => {
+  it('empty catalystTypes does not filter (all trades pass)', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, null),
+      tradeWithCatalyst(3, 'Earnings'),
+    ]
+    const out = applyTradesFilters(list, { ...emptyFilters(), catalystTypes: [] })
+    expect(out.map((t) => t.id)).toEqual([1, 2, 3])
+  })
+
+  it('a single name keeps only trades with that exact catalyst_type', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, 'Earnings'),
+      tradeWithCatalyst(3, 'News / PR'),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      catalystTypes: ['News / PR'],
+    })
+    expect(out.map((t) => t.id)).toEqual([1, 3])
+  })
+
+  it('multiple names match as OR (any of the selected catalysts)', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, 'Earnings'),
+      tradeWithCatalyst(3, 'Halt Resume'),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      catalystTypes: ['News / PR', 'Halt Resume'],
+    })
+    expect(out.map((t) => t.id)).toEqual([1, 3])
+  })
+
+  it('null matches untagged trades (catalyst_type === null)', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, null),
+      tradeWithCatalyst(3, null),
+    ]
+    const out = applyTradesFilters(list, { ...emptyFilters(), catalystTypes: [null] })
+    expect(out.map((t) => t.id)).toEqual([2, 3])
+  })
+
+  it('null + a name matches untagged OR that catalyst', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, null),
+      tradeWithCatalyst(3, 'Earnings'),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      catalystTypes: [null, 'Earnings'],
+    })
+    expect(out.map((t) => t.id)).toEqual([2, 3])
+  })
+
+  it('a trade with a different catalyst is excluded when a specific name is selected', () => {
+    const list = [
+      tradeWithCatalyst(1, 'News / PR'),
+      tradeWithCatalyst(2, 'Earnings'),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      catalystTypes: ['News / PR'],
+    })
+    expect(out.map((t) => t.id)).toEqual([1])
+  })
+
+  it('composes with another dimension as AND (side + catalyst)', () => {
+    const list = [
+      trade({ id: 1, side: 'long', catalyst_type: 'News / PR' }),
+      trade({ id: 2, side: 'short', catalyst_type: 'News / PR' }),
+      trade({ id: 3, side: 'long', catalyst_type: 'Earnings' }),
+    ]
+    const out = applyTradesFilters(list, {
+      ...emptyFilters(),
+      side: 'long',
+      catalystTypes: ['News / PR'],
+    })
+    expect(out.map((t) => t.id)).toEqual([1])
+  })
+})
+
+describe('isFiltering — catalyst dimension', () => {
+  it('is false for empty filters', () => {
+    expect(isFiltering(emptyFilters())).toBe(false)
+  })
+
+  it('is true when any catalyst is selected', () => {
+    expect(isFiltering({ ...emptyFilters(), catalystTypes: ['News / PR'] })).toBe(true)
+  })
+
+  it('is true when only the untagged (null) bucket is selected', () => {
+    expect(isFiltering({ ...emptyFilters(), catalystTypes: [null] })).toBe(true)
   })
 })

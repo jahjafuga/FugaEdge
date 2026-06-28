@@ -34,6 +34,11 @@ export interface TradesFilterState {
    *  can exist on both axes (the vocabulary unique index is (axis, lower(name))),
    *  so name-alone would conflate the axes. Empty array = no mistakes filtering. */
   mistakeKeys: { axis: MistakeAxis; name: string }[]
+  /** Selected catalyst NAMES to keep (OR within the set). A `null` is the "No
+   *  catalyst" bucket — untagged trades (catalyst_type === null). Matched by name,
+   *  not id: catalyst is a free-form string column (trades.catalyst_type), no FK.
+   *  Empty array = no catalyst filtering. */
+  catalystTypes: (string | null)[]
 }
 
 export function emptyFilters(): TradesFilterState {
@@ -48,6 +53,7 @@ export function emptyFilters(): TradesFilterState {
     mistakesOnly: false,
     playbookIds: [],
     mistakeKeys: [],
+    catalystTypes: [],
   }
 }
 
@@ -62,7 +68,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.aPlus ||
     f.mistakesOnly ||
     f.playbookIds.length > 0 ||
-    f.mistakeKeys.length > 0
+    f.mistakeKeys.length > 0 ||
+    f.catalystTypes.length > 0
   )
 }
 
@@ -113,6 +120,15 @@ export function applyTradesFilters(
       const tags = t.mistakeTags ?? []
       const matches = f.mistakeKeys.some((k) =>
         tags.some((tag) => tag.axis === k.axis && tag.name === k.name),
+      )
+      if (!matches) return false
+    }
+    // Catalyst filter — OR within the selected set, matched by exact name against
+    // the row's catalyst_type string. `null` is the "No catalyst" bucket (untagged
+    // trades), matched strictly so it never collides with a real name.
+    if (f.catalystTypes.length > 0) {
+      const matches = f.catalystTypes.some((c) =>
+        c === null ? t.catalyst_type === null : t.catalyst_type === c,
       )
       if (!matches) return false
     }
