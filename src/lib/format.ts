@@ -117,6 +117,28 @@ export function signed(n: number): string {
   return money(n)
 }
 
+// True when an avg per-share P&L value rounds to $0.00 at 2 decimals — the
+// single home for the 0.005 threshold so perShareGainLoss (the string) and the
+// caller's color choice (neutral vs pnlClass) agree. Anything with |value| <
+// 0.005 rounds to $0.00; 0.005 itself rounds UP to a cent (money(0.005) →
+// "$0.01"), so it is deliberately NOT zero.
+export function perShareGainLossIsZero(value: number): boolean {
+  return Math.abs(value) < 0.005
+}
+
+// Renders the "Avg per-share gain/loss" stat: signed, exactly 2 decimals, with
+// the "/sh" suffix. The fix for djsevans87's "-$0.0033/sh" report — the old
+// inline used price() (2–4 dp) with a sign derived from the raw value, so a
+// tiny loss showed 4 dp and, rounded naively, would show a stray "−$0.00/sh".
+// Here a value that rounds to zero prints a CLEAN "$0.00/sh" — no sign at all.
+// Sign is U+2212 (−), matching the prior inline render. Color is the caller's
+// job (className) — pair with perShareGainLossIsZero to go neutral on zero.
+export function perShareGainLoss(value: number): string {
+  if (perShareGainLossIsZero(value)) return '$0.00/sh'
+  const sign = value >= 0 ? '+' : '−'
+  return `${sign}${money(Math.abs(value))}/sh`
+}
+
 const SHORT_MONTH = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',

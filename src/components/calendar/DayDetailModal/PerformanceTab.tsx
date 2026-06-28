@@ -5,8 +5,9 @@ import {
   formatProfitFactor,
   int,
   money,
+  perShareGainLoss,
+  perShareGainLossIsZero,
   pnlClass,
-  price,
   signed,
 } from '@/lib/format'
 
@@ -58,8 +59,14 @@ export default function PerformanceTab({ detail }: { detail: DayDetail }) {
             m.avgPerShareGainLoss == null ? (
               <Dash />
             ) : (
-              <span className={`font-mono ${pnlClass(m.avgPerShareGainLoss)}`}>
-                {m.avgPerShareGainLoss >= 0 ? '+' : '−'}${price(Math.abs(m.avgPerShareGainLoss))}/sh
+              <span
+                className={`font-mono ${
+                  perShareGainLossIsZero(m.avgPerShareGainLoss)
+                    ? 'text-fg-tertiary'
+                    : pnlClass(m.avgPerShareGainLoss)
+                }`}
+              >
+                {perShareGainLoss(m.avgPerShareGainLoss)}
               </span>
             ),
         },

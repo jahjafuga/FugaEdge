@@ -29,6 +29,8 @@ import {
   localEasternToUtc,
   mmss,
   percent,
+  perShareGainLoss,
+  perShareGainLossIsZero,
   rvolLabel,
   signedPct,
   utcToEasternParts,
@@ -408,6 +410,72 @@ describe('formatPnlRatio — avg win ÷ |avg loss| (distinct from profit factor)
 
   it('renders null as the em-dash placeholder (no decided trades)', () => {
     expect(formatPnlRatio(null)).toBe('—')
+  })
+})
+
+describe('perShareGainLoss — avg per-share P&L, 2dp with clean-zero (Feature 2, djsevans87)', () => {
+  // The "Avg per-share gain/loss" stat used to render 4 decimals (price() is
+  // 2–4 dp) with a sign derived from the raw value — so a tiny loss like
+  // -$0.0033/sh showed "−$0.0033/sh", and naive 2dp rounding would leave a
+  // stray "−$0.00/sh" (the sign fires on the raw negative even though the
+  // magnitude rounds to zero). This helper rounds to exactly 2dp and, when the
+  // magnitude rounds to $0.00, drops the sign entirely. U+2212 (−) is the
+  // negative sign, matching the prior inline render.
+
+  it('prefixes a positive value with "+" and renders exactly 2 decimals', () => {
+    expect(perShareGainLoss(0.51)).toBe('+$0.51/sh')
+    expect(perShareGainLoss(1.2)).toBe('+$1.20/sh') // trailing zero — always 2dp
+  })
+
+  it('prefixes a negative value with U+2212 and renders exactly 2 decimals', () => {
+    expect(perShareGainLoss(-1.2)).toBe('−$1.20/sh')
+    expect(perShareGainLoss(-0.51)).toBe('−$0.51/sh')
+  })
+
+  it('shows a CLEAN $0.00/sh (no sign) for a tiny negative that rounds to zero — the djsevans87 case', () => {
+    expect(perShareGainLoss(-0.0033)).toBe('$0.00/sh') // NOT "−$0.00/sh"
+  })
+
+  it('shows a CLEAN $0.00/sh (no sign) for a tiny positive that rounds to zero', () => {
+    expect(perShareGainLoss(0.004)).toBe('$0.00/sh') // NOT "+$0.00/sh"
+  })
+
+  it('shows $0.00/sh (no sign) for exactly zero', () => {
+    expect(perShareGainLoss(0)).toBe('$0.00/sh')
+  })
+
+  it('treats the 0.005 boundary as non-zero — rounds up to one cent, keeps the sign', () => {
+    // Math.abs(0.005) < 0.005 is false (same double), so 0.005 is "non-zero"
+    // and must round up to a cent; 0.004 is below the threshold → clean zero.
+    expect(perShareGainLoss(-0.005)).toBe('−$0.01/sh')
+    expect(perShareGainLoss(-0.004)).toBe('$0.00/sh')
+    expect(perShareGainLoss(0.005)).toBe('+$0.01/sh')
+  })
+
+  it('always renders the magnitude with exactly two decimal places', () => {
+    for (const v of [0.5, 1, 2.5, 12.3, -0.5, -3, -0.51]) {
+      // sign is + or U+2212; magnitude is digits.dd
+      expect(perShareGainLoss(v)).toMatch(/^[+−]\$\d+\.\d{2}\/sh$/)
+    }
+  })
+})
+
+describe('perShareGainLossIsZero — the rounds-to-$0.00 predicate (one home for the 0.005 threshold)', () => {
+  // The caller uses this to pick a NEUTRAL color (not red/green) when the value
+  // rounds to $0.00, so the string helper and the color decision agree on the
+  // single threshold rather than each hard-coding 0.005.
+  it('is true for any value whose magnitude rounds to $0.00 at 2dp', () => {
+    expect(perShareGainLossIsZero(-0.0033)).toBe(true)
+    expect(perShareGainLossIsZero(0.004)).toBe(true)
+    expect(perShareGainLossIsZero(-0.004)).toBe(true)
+    expect(perShareGainLossIsZero(0)).toBe(true)
+  })
+
+  it('is false for a value that rounds to a non-zero cent (incl. the 0.005 boundary)', () => {
+    expect(perShareGainLossIsZero(-0.51)).toBe(false)
+    expect(perShareGainLossIsZero(0.51)).toBe(false)
+    expect(perShareGainLossIsZero(-0.005)).toBe(false)
+    expect(perShareGainLossIsZero(0.005)).toBe(false)
   })
 })
 

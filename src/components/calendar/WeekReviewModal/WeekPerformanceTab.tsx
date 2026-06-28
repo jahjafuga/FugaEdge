@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WeekDetail, WeekMetrics } from '@shared/week-types'
 import Card from '@/components/ui/Card'
-import { duration, formatProfitFactor, int, money, pnlClass, price, shortDate, signed } from '@/lib/format'
+import { duration, formatProfitFactor, int, money, perShareGainLoss, perShareGainLossIsZero, pnlClass, shortDate, signed } from '@/lib/format'
 
 interface Row {
   label: string
@@ -53,8 +53,14 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
             m.avgPerShareGainLoss == null ? (
               <Dash />
             ) : (
-              <span className={`font-mono ${pnlClass(m.avgPerShareGainLoss)}`}>
-                {m.avgPerShareGainLoss >= 0 ? '+' : '−'}${price(Math.abs(m.avgPerShareGainLoss))}/sh
+              <span
+                className={`font-mono ${
+                  perShareGainLossIsZero(m.avgPerShareGainLoss)
+                    ? 'text-fg-tertiary'
+                    : pnlClass(m.avgPerShareGainLoss)
+                }`}
+              >
+                {perShareGainLoss(m.avgPerShareGainLoss)}
               </span>
             ),
         },
