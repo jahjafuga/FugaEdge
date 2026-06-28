@@ -415,7 +415,7 @@ function RiskSection({ trade }: { trade: TradeListRow }) {
       <Row
         label="Risk / share"
         value={
-          trade.risk_per_share == null ? '—' : price(trade.risk_per_share)
+          trade.risk_per_share == null ? '—' : money(trade.risk_per_share)
         }
       />
       <Row
@@ -445,8 +445,8 @@ function HoldSection({
   return (
     <Section title="Hold & excursion">
       <Row label="Hold time" value={duration(holdSeconds)} />
-      <Row label="MAE" value={mae == null ? '—' : `${price(mae)}/sh`} />
-      <Row label="MFE" value={mfe == null ? '—' : `${price(mfe)}/sh`} />
+      <Row label="MAE" value={mae == null ? '—' : `${money(mae)}/sh`} />
+      <Row label="MFE" value={mfe == null ? '—' : `${money(mfe)}/sh`} />
     </Section>
   )
 }
