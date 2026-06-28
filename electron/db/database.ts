@@ -19,6 +19,7 @@ import { migrateConfluenceJunction } from './migrate-confluence-junction'
 import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
+import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -907,6 +908,16 @@ function migrateAfterSchema(
   // after the vocabulary so trade strings line up with the seeded names. Idempotent
   // (a re-run matches zero rows) + deletion-blind. See migrate-catalyst-legacy-strings.ts.
   migrateCatalystLegacyStrings(conn)
+
+  // v0.2.6 Beat 1 (schema 37) — journal-rules data-model SCAFFOLD. Registered +
+  // version-bumped, but converts NO DATA this beat: it detects whether
+  // settings.journal_rules is still legacy string[] vs migrated JournalRule[] and
+  // logs only. The string-names -> {id,name,archived} conversion, the per-entry
+  // rules_followed/rule_violations name->id remap, and orphan resurrection land
+  // in Beat 2 behind the same detectJournalRulesShape guard. NOTHING reads the
+  // new shape yet (the checklist + Settings editor keep using string[] until
+  // Beats 3-4). See migrate-journal-rules-to-objects.ts.
+  migrateJournalRulesToObjects(conn)
 
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the

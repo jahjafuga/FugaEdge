@@ -4,6 +4,11 @@ export interface SettingsValues {
    *  The profit-side mirror of max_daily_loss (a per-day threshold). */
   daily_profit_target: number
   account_size: number
+  /** v0.2.6 — STILL string[] this beat (the legacy model). Beat 2 migrates the
+   *  stored value to JournalRule[] ({id,name,archived}) via
+   *  migrate-journal-rules-to-objects; Beats 3-4 then flip this type + rewire the
+   *  consumers (Settings RuleList editor, RuleChecklist, saveJournalDay, journal
+   *  read). See shared/journal-types JournalRule. */
   journal_rules: string[]
   mistake_list: string[]
   day_tag_list: string[]

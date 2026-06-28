@@ -111,7 +111,11 @@
 //
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
-export const SCHEMA_VERSION = '36'
+//
+// Bumped to 37 (v0.2.6 Beat 1): journal-rules data-model scaffold. Registers
+// migrate-journal-rules-to-objects (string[] -> JournalRule[]) — a NO-OP this
+// beat (detect-and-log only); the data conversion lands in Beat 2.
+export const SCHEMA_VERSION = '37'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
