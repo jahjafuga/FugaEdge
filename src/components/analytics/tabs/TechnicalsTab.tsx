@@ -24,6 +24,7 @@ import { computeCombinedReads } from '@/core/technicals/combinedReads'
 import { computeTimeOfDay } from '@/core/technicals/timeOfDay'
 import { filterRows } from '@/core/technicals/filterRows'
 import { rangeForDatePreset } from '@/core/technicals/datePreset'
+import { technicalsScopeLabel } from '@/core/technicals/scopeLabel'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import Skeleton from '@/components/ui/Skeleton'
 import SectionHeader from '@/components/ui/SectionHeader'
@@ -143,6 +144,16 @@ export default function TechnicalsTab() {
         onFiltersChange={setFilters}
         playbookOptions={playbookOptions}
         excludedCount={rows === null ? 0 : stats.excluded}
+        scopeLabel={
+          rows === null
+            ? null
+            : technicalsScopeLabel({
+                count: filteredRows.length,
+                hasTickerFilter: filters.ticker !== '',
+                hasPlaybookFilter: filters.playbookName !== null,
+                rangeLabel: 'selected range',
+              })
+        }
       />
       {/* Body: skeleton while loading, alert on error, the two section bands
           on success. Both branches keep the SectionHeaders mounted so the

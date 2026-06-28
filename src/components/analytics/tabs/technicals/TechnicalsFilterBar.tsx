@@ -28,6 +28,7 @@ interface TechnicalsFilterBarProps {
   onFiltersChange: (next: TechnicalsFilters) => void
   playbookOptions: string[] // empty in Commit 5; Commit 6 populates it
   excludedCount: number // trades dropped by the data gate (§C:103 chip)
+  scopeLabel: string | null // in-tab scope line ("N round trips in ..."); null while loading
 }
 
 export default function TechnicalsFilterBar({
@@ -35,6 +36,7 @@ export default function TechnicalsFilterBar({
   onFiltersChange,
   playbookOptions,
   excludedCount,
+  scopeLabel,
 }: TechnicalsFilterBarProps) {
   return (
     <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border-subtle bg-bg-1/95 px-4 py-3 font-sans backdrop-blur">
@@ -145,6 +147,14 @@ export default function TechnicalsFilterBar({
           />
         </div>
       </div>
+      {/* Honest in-tab scope line — the tab's OWN population (date range + active
+          ticker/playbook filters), so the all-time page subtitle never reads as
+          if it scopes this tab. Hidden while loading (scopeLabel null). */}
+      {scopeLabel && (
+        <div className="mt-2 text-[11px] font-medium text-fg-tertiary">
+          {scopeLabel}
+        </div>
+      )}
     </div>
   )
 }
