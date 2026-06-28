@@ -13,6 +13,7 @@ describe('computeHeaderStrip — data gate', () => {
   it('(T1) empty input → all stats zeroed', () => {
     expect(computeHeaderStrip([], '1m')).toEqual({
       denominator: 0,
+      vwapDenominator: 0,
       excluded: 0,
       macdPositive: EMPTY_CARD,
       aboveVwap: EMPTY_CARD,
@@ -222,5 +223,59 @@ describe('computeHeaderStrip — fullAlignment pre-market amendment', () => {
     const snap = makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 })
     const row = makeRow({ technicals: snap, open_time: '2026-05-15T13:45:00.000Z' }) // 09:45 ET
     expect(computeHeaderStrip([row], '1m').fullAlignment.n).toBe(0)
+  })
+})
+
+describe('computeHeaderStrip — VWAP card coverage denominator (v0.2.5 fix)', () => {
+  // A 10-trade, all-data-complete, all-regular-hours fixture that exercises the
+  // VWAP split AND the three shared-denominator cards at once:
+  //   - VWAP above (vwap_dist_pct > 0): rows 1,2,4,5             → 4
+  //   - VWAP below, non-null:           row 6                    → 1
+  //   - VWAP null (pre-session entry, no RTH VWAP): rows 3,7-10  → 5
+  //     → vwapDenominator = 5 (non-null only), aboveVwap.n = 4   → 80.0%
+  //   - MACD positive:                  rows 1,2,3               → 3 → 30.0% of 10
+  //   - above 9 EMA (ema9_dist_pct > 0): rows 1,3               → 2 → 20.0% of 10
+  //   - fully aligned (macd & vwap>0 & ema9>0, RTH): row 1      → 1 → 10.0% of 10
+  const TEN = [
+    makeRow({ id: 1, technicals: makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: 1.5, ema9_dist_pct: 1.0 }) }),
+    makeRow({ id: 2, technicals: makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: 2.0, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 3, technicals: makeCompleteSnapshot({ macd_positive: true, vwap_dist_pct: null, ema9_dist_pct: 1.0 }) }),
+    makeRow({ id: 4, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: 1.0, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 5, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: 3.0, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 6, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: -0.5, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 7, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: null, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 8, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: null, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 9, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: null, ema9_dist_pct: -1.0 }) }),
+    makeRow({ id: 10, technicals: makeCompleteSnapshot({ macd_positive: false, vwap_dist_pct: null, ema9_dist_pct: -1.0 }) }),
+  ]
+
+  it('(Test A) VWAP card % divides by the non-null-VWAP denominator, not the shared one', () => {
+    const result = computeHeaderStrip(TEN, '1m')
+    // 4 above ÷ 5 with-VWAP-data = 80.0%, NOT 4 ÷ 10 data-complete = 40.0%.
+    expect(result.aboveVwap.percent).toBe(80.0)
+    expect(result.aboveVwap.n).toBe(4)
+    expect(result.vwapDenominator).toBe(5)
+    expect(result.denominator).toBe(10) // shared gate denominator unchanged
+  })
+
+  it('(Test C) vwap===0 counts in the VWAP denominator but not the numerator; null is excluded from it', () => {
+    const rows = [
+      makeRow({ id: 1, technicals: makeCompleteSnapshot({ vwap_dist_pct: 1.0 }) }), // above → denom + numerator
+      makeRow({ id: 2, technicals: makeCompleteSnapshot({ vwap_dist_pct: 0 }) }), // exactly at → denom, NOT numerator
+      makeRow({ id: 3, technicals: makeCompleteSnapshot({ vwap_dist_pct: null }) }), // no data → excluded from denom
+    ]
+    const result = computeHeaderStrip(rows, '1m')
+    expect(result.vwapDenominator).toBe(2) // the >0 and the ===0; null excluded
+    expect(result.aboveVwap.n).toBe(1) // only the >0 (===0 is not "above")
+    expect(result.aboveVwap.percent).toBe(50.0) // 1 ÷ 2
+    expect(result.denominator).toBe(3) // all three are data-complete
+  })
+
+  it('(Test D) regression: MACD / EMA9 / Discipline cards still divide by the full data-complete denominator (10)', () => {
+    const result = computeHeaderStrip(TEN, '1m')
+    expect(result.denominator).toBe(10)
+    expect(result.macdPositive.percent).toBe(30.0) // 3 ÷ 10 — unchanged by this fix
+    expect(result.aboveEma9.percent).toBe(20.0) // 2 ÷ 10 — unchanged by this fix
+    expect(result.fullAlignment.percent).toBe(10.0) // 1 ÷ 10 — unchanged by this fix
   })
 })

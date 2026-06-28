@@ -8,19 +8,21 @@ interface HeaderStripCardsProps {
 
 // The four Header Strip cards (spec §B item 2). Single row of four on wide
 // viewports; wraps to 2×2 below `xl` (1280px), honoring spec §B's "<1280px wraps
-// to 2×2" (previously `lg` / 1024px). All four share one denominator — the §C:103
-// "trades with data" gate — so the count footnote reads identically on each.
+// to 2×2" (previously `lg` / 1024px). The MACD / 9EMA / discipline cards share the
+// §C:103 "trades with data" denominator; the VWAP card uses its own non-null-VWAP
+// coverage count (stats.vwapDenominator) — vwap_dist_pct is null for pre-session
+// entries — so its footnote honestly reads "of N trades with VWAP data".
 export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
   const cards = [
-    { label: 'MACD positive at entry', stat: stats.macdPositive },
-    { label: 'Above VWAP at entry', stat: stats.aboveVwap },
-    { label: 'Above 9 EMA at entry', stat: stats.aboveEma9 },
-    { label: 'Discipline score (full alignment)', stat: stats.fullAlignment },
+    { label: 'MACD positive at entry', stat: stats.macdPositive, coverage: stats.denominator, coverageLabel: 'trades with data' },
+    { label: 'Above VWAP at entry', stat: stats.aboveVwap, coverage: stats.vwapDenominator, coverageLabel: 'trades with VWAP data' },
+    { label: 'Above 9 EMA at entry', stat: stats.aboveEma9, coverage: stats.denominator, coverageLabel: 'trades with data' },
+    { label: 'Discipline score (full alignment)', stat: stats.fullAlignment, coverage: stats.denominator, coverageLabel: 'trades with data' },
   ]
 
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      {cards.map(({ label, stat }) => (
+      {cards.map(({ label, stat, coverage, coverageLabel }) => (
         <KpiCard
           key={label}
           label={label}
@@ -38,7 +40,7 @@ export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
                 {percent(stat.winRate, 0)} · {signed(stat.netPnl)}
               </div>
               <div className="mt-0.5 text-fg-muted">
-                (of {stats.denominator} trades with data)
+                (of {coverage} {coverageLabel})
               </div>
             </>
           }
