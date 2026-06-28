@@ -19,7 +19,7 @@ import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
-import { runPendingMaeMfeBackfill } from '../market/intraday'
+import { runPendingMaeMfeBackfill, runLaunchEma9Backfill } from '../market/intraday'
 import { runPendingDailyChangeBackfill } from '../market/daily-change-backfill'
 import { runPendingRvolBackfill } from '../market/rvol-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
@@ -235,6 +235,10 @@ app.whenReady().then(() => {
   // recompute, unrelated to the warmup→technicals→xp chain.)
   win.once('ready-to-show', () => {
     setImmediate(runPendingMaeMfeBackfill)
+    // v0.2.5 — EMA9 distance launch sweep (keyless, idempotent): populates
+    // Entry-vs-9EMA for trades whose bars are already cached but were never
+    // recomputed (e.g. chart-opened since the last refresh). No network.
+    setImmediate(runLaunchEma9Backfill)
     // v0.2.5 Trader DNA — fire-once daily % change backfill (schema-31 arm).
     // Gentle/background/cancelable network sweep; no-op when the flag is unset.
     setImmediate(runPendingDailyChangeBackfill)

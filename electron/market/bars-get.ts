@@ -207,5 +207,23 @@ export async function getIntradayBars(
         })
     })
   }
+
+  // EMA9 distance sibling — active bars are now cached for this (symbol, date),
+  // so recompute Entry-vs-9EMA for the affected trades WITHOUT a manual refresh.
+  // Unlike the lazy-guard (trade_technicals, which needs the warmup seed), this
+  // needs only ACTIVE bars, so it fires whenever bars are present even if warmup
+  // is empty. Bars are already upserted by getIntradayBarsInner above (no race);
+  // fire-and-forget setImmediate keeps the chart-open path snappy. Dynamic import
+  // mirrors the lazy-guard (no static cycle with intraday.ts).
+  if (!payload.error && payload.bars.length > 0) {
+    setImmediate(() => {
+      void import('./intraday')
+        .then((m) => m.backfillAllEma9Distances())
+        .catch((err) => {
+          const msg = err instanceof Error ? err.message : String(err)
+          console.error(`[FE intraday] chart-open EMA9 backfill failed: ${msg}`)
+        })
+    })
+  }
   return payload
 }

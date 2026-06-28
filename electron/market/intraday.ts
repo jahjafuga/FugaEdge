@@ -264,6 +264,23 @@ export function backfillAllEma9Distances(): number {
   return written
 }
 
+// v0.2.5 — launch sweep so recent trades' Entry-vs-9EMA populates WITHOUT a
+// manual Refresh intraday. Unlike runPendingMaeMfeBackfill there is NO migration
+// latch: backfillAllEma9Distances is keyless (computes from already-cached
+// intraday_bars; no network) and idempotent (writes only changed rows), so it is
+// safe to run unconditionally every launch. Self-contained try/catch mirrors the
+// MAE/MFE arm so a setImmediate throw never crashes startup.
+export function runLaunchEma9Backfill(): void {
+  try {
+    const written = backfillAllEma9Distances()
+    console.info(
+      `[FE intraday] launch EMA9 backfill done: ${written} trade(s) recomputed`,
+    )
+  } catch (e) {
+    console.error(`[FE intraday] launch EMA9 backfill failed: ${e}`)
+  }
+}
+
 interface TradeForEma {
   side: 'long' | 'short'
   avg_buy_price: number
