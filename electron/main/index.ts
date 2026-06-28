@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '@shared/ipc-channels'
 import { resolveDataDirs } from '@/core/runtime/dataDirs'
+import { nextZoomLevel } from '@/core/zoom/zoomLevel'
 import { openDatabase, closeDatabase, setDbPathOverride } from '../db/database'
 import { registerIpcHandlers } from '../db/ipc'
 import { registerImportIpc } from '../import/ipc'
@@ -123,6 +124,26 @@ function createWindow(): BrowserWindow {
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
+  })
+
+  // Zoom keys — own Ctrl+= (in), Ctrl+- (out), Ctrl+0 (reset) via setZoomLevel.
+  // Electron's default-menu accelerator binds zoom-IN to Ctrl+Plus, which a plain
+  // Ctrl+= does not match (input.key is '='), so zoom-in was dead. Handling all
+  // three here (before the menu; preventDefault suppresses the default accelerator)
+  // fixes zoom-in and keeps zoom consistent, without removing the default menu
+  // (so copy/paste and other default accelerators stay intact). Clamped so the UI
+  // can't zoom into an unreadable state.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    if (!input.control && !input.meta) return
+    let dir: 1 | -1 | 0 | null = null
+    if (input.key === '=' || input.key === '+') dir = 1
+    else if (input.key === '-') dir = -1
+    else if (input.key === '0') dir = 0
+    if (dir === null) return
+    event.preventDefault()
+    const wc = win.webContents
+    wc.setZoomLevel(nextZoomLevel(wc.getZoomLevel(), dir))
   })
 
   if (isDev && process.env.ELECTRON_RENDERER_URL) {
