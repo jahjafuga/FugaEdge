@@ -26,12 +26,24 @@ export function int(n: number): string {
   return intFmt.format(n)
 }
 
-const px2 = new Intl.NumberFormat('en-US', {
-  minimumFractionDigits: 2,
+// Per-share PRICE formatter with a $1 magnitude threshold (Feature 1,
+// djsevans87): under $1 -> EXACTLY 4 decimals (sub-penny ticks), $1 and over ->
+// EXACTLY 2 decimals (penny ticks). A fixed decimal count per bucket (no
+// trailing-zero trim), matching how equities quote. The bucket is chosen by
+// |n| (a value's SIZE), but n itself is formatted, so a rare negative price
+// keeps its sign. Distinct from money() (always 2dp, $-prefixed dollar amounts)
+// — every quoted-price display site routes through here, so this one rule
+// governs prices platform-wide.
+const priceUnder1 = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 4,
   maximumFractionDigits: 4,
 })
+const priceAtOrOver1 = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
 export function price(n: number): string {
-  return px2.format(n)
+  return Math.abs(n) < 1 ? priceUnder1.format(n) : priceAtOrOver1.format(n)
 }
 
 // "QTY @ PRICE" label for the fill-ladder pills (v0.2.4) — the single source of

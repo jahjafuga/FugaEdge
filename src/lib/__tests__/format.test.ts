@@ -31,6 +31,7 @@ import {
   percent,
   perShareGainLoss,
   perShareGainLossIsZero,
+  price,
   rvolLabel,
   signedPct,
   utcToEasternParts,
@@ -45,8 +46,56 @@ describe('fillLabel — "QTY @ PRICE" pill label (v0.2.4)', () => {
   it('thousands-separates the qty', () => {
     expect(fillLabel(1200, 5.11)).toBe('1,200 @ 5.11')
   })
-  it('keeps extra price precision (2–4 dp)', () => {
-    expect(fillLabel(5, 5.001)).toBe('5 @ 5.001')
+  it('formats the fill price by the $1-threshold rule (4dp under $1, 2dp at/over)', () => {
+    expect(fillLabel(5, 0.5)).toBe('5 @ 0.5000') // sub-$1 fill -> 4dp
+    expect(fillLabel(5, 5.001)).toBe('5 @ 5.00') // >=$1 fill -> 2dp (was "5.001")
+  })
+})
+
+describe('price — $1-threshold decimals: 4dp under $1, 2dp at/over $1 (Feature 1, djsevans87)', () => {
+  // Prices should read by market tick convention: sub-$1 stocks quote in sub-
+  // pennies (4dp), $1-and-over in pennies (2dp). The OLD helper showed 2-4dp
+  // from the value's own decimals (0.4 -> "0.40", 1.2345 -> "1.2345"); this is
+  // a hard $1 threshold by MAGNITUDE (|n| < 1) instead.
+
+  it('shows EXACTLY 4 decimals under $1 (even when the value looks "round")', () => {
+    expect(price(0.4)).toBe('0.4000')
+    expect(price(0.5)).toBe('0.5000') // NOT "0.50" — under $1 is always 4dp
+    expect(price(0.12)).toBe('0.1200')
+    expect(price(0.475)).toBe('0.4750')
+    expect(price(0.4753)).toBe('0.4753')
+    expect(price(0.99)).toBe('0.9900')
+  })
+
+  it('shows EXACTLY 2 decimals at $1 and over (rounding the rest away)', () => {
+    expect(price(1.2345)).toBe('1.23')
+    expect(price(12.3456)).toBe('12.35') // 4th decimal carries into the 2nd
+    expect(price(23.5)).toBe('23.50')
+    expect(price(100)).toBe('100.00')
+    expect(price(150.5)).toBe('150.50')
+  })
+
+  it('treats EXACTLY $1 as the 2dp side (rule: under $1 -> 4, $1 and over -> 2)', () => {
+    expect(price(1)).toBe('1.00')
+    expect(price(1.0001)).toBe('1.00')
+    expect(price(0.9999)).toBe('0.9999') // a hair under -> still 4dp
+  })
+
+  it('rounds at the 2dp boundary the way Intl does (half-expand on the stored double)', () => {
+    // 1.005's nearest double is ~1.00500000000000078, so Intl rounds UP to
+    // "1.01" -- unlike (1.005).toFixed(2) === "1.00", which sees ~1.00499...
+    expect(price(1.005)).toBe('1.01')
+  })
+
+  it('uses MAGNITUDE for the threshold (a negative sub-$1 value still gets 4dp)', () => {
+    // Quoted prices are positive in practice; this pins the |n| < 1 contract.
+    expect(price(-0.5)).toBe('-0.5000')
+    expect(price(-23.5)).toBe('-23.50')
+  })
+
+  it('renders a FIXED decimal count per bucket (no trailing-zero trimming)', () => {
+    for (const v of [0.1, 0.9, 0.4]) expect(price(v)).toMatch(/^\d\.\d{4}$/) // under $1 -> 4dp
+    for (const v of [1, 9.9, 23]) expect(price(v)).toMatch(/^\d+\.\d{2}$/) // >= $1 -> 2dp
   })
 })
 
