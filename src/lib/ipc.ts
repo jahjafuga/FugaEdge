@@ -19,6 +19,7 @@ import type {
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import type {
+  BulkSetMistakesInput,
   CreateMistakeDefInput,
   MistakeDefIdInput,
   MistakeTagInput,
@@ -155,6 +156,8 @@ export const ipc = {
     window.api.tradeMistakeTagAdd(input),
   tradeMistakeTagRemove: (input: MistakeTagInput) =>
     window.api.tradeMistakeTagRemove(input),
+  tradesMistakesSaveBulk: (input: BulkSetMistakesInput) =>
+    window.api.tradesMistakesSaveBulk(input),
   // Beat 2b — mistake_def vocabulary writes (Electron-IPC adapter; web port swaps
   // for fetch/tRPC). The delete guard is enforced in the repo, not here.
   mistakeDefCreate: (input: CreateMistakeDefInput) =>

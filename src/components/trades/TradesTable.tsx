@@ -34,6 +34,7 @@ import TradeDetailModal from './TradeDetailModal'
 import TradesBulkActionBar from './TradesBulkActionBar'
 import BulkSetPlaybookModal from './BulkSetPlaybookModal'
 import BulkSetCatalystModal from './BulkSetCatalystModal'
+import BulkSetMistakesModal from './BulkSetMistakesModal'
 
 interface TradesTableProps {
   trades: TradeListRow[]
@@ -60,6 +61,13 @@ interface TradesTableProps {
   /** Phase 2 — bulk set the catalyst on the selected trades (catalyst_type only;
    *  each trade keeps its own days-since). */
   onBulkSetCatalyst?: (ids: number[], catalystType: string | null) => Promise<void>
+  /** Phase 2 — bulk add/remove mistakes (by mistake_def_id) on the selected
+   *  trades. Add unions; Remove strips. No replace-all. */
+  onBulkSetMistakes?: (
+    ids: number[],
+    mode: 'add' | 'remove',
+    mistakeDefIds: number[],
+  ) => Promise<void>
   /** Show the Shares Out column. Off by default to keep the table dense. */
   showFloatColumn?: boolean
   /** Show the Country column. Defaults to true. */
@@ -191,6 +199,7 @@ export default function TradesTable({
   onBulkSoftDelete,
   onBulkSetPlaybook,
   onBulkSetCatalyst,
+  onBulkSetMistakes,
   showFloatColumn = false,
   showCountryColumn = true,
   showSparkline = false,
@@ -215,6 +224,9 @@ export default function TradesTable({
   // Catalyst shares bulkRetagBusy/bulkRetagError — only one retag modal opens at a
   // time, so the busy/error can't collide; just its own open flag.
   const [bulkSetCatalystOpen, setBulkSetCatalystOpen] = useState(false)
+  // Mistakes shares the same bulkRetagBusy/bulkRetagError as playbook/catalyst —
+  // only one retag modal opens at a time; just its own open flag.
+  const [bulkSetMistakesOpen, setBulkSetMistakesOpen] = useState(false)
   const [bulkRetagBusy, setBulkRetagBusy] = useState(false)
   const [bulkRetagError, setBulkRetagError] = useState<string | null>(null)
 
@@ -652,6 +664,27 @@ export default function TradesTable({
       setBulkRetagBusy(false)
     }
   }
+
+  const handleBulkSetMistakes = async (
+    mode: 'add' | 'remove',
+    mistakeDefIds: number[],
+  ) => {
+    if (!onBulkSetMistakes || bulkRetagBusy) return
+    const ids = selectedTrades.map((t) => t.id)
+    if (ids.length === 0) return
+    setBulkRetagBusy(true)
+    setBulkRetagError(null)
+    try {
+      await onBulkSetMistakes(ids, mode, mistakeDefIds)
+      setSelectedIds(new Set())
+      setLastClickedIndex(null)
+      setBulkSetMistakesOpen(false)
+    } catch (e) {
+      setBulkRetagError(e instanceof Error ? e.message : 'Failed to update mistakes.')
+    } finally {
+      setBulkRetagBusy(false)
+    }
+  }
   const colCount = columns.length + (bulkEnabled ? 1 : 0)
 
   return (
@@ -760,6 +793,10 @@ export default function TradesTable({
             setBulkRetagError(null)
             setBulkSetCatalystOpen(true)
           }}
+          onSetMistakes={() => {
+            setBulkRetagError(null)
+            setBulkSetMistakesOpen(true)
+          }}
           onMoveToTrash={() => {
             setBulkError(null)
             setBulkConfirmOpen(true)
@@ -830,6 +867,18 @@ export default function TradesTable({
           busy={bulkRetagBusy}
           error={bulkRetagError}
           onApply={handleBulkSetCatalyst}
+        />
+      )}
+
+      {bulkEnabled && (
+        <BulkSetMistakesModal
+          open={bulkSetMistakesOpen}
+          onClose={() => setBulkSetMistakesOpen(false)}
+          count={selectedCount}
+          netPnlTotal={bulkNetPnl}
+          busy={bulkRetagBusy}
+          error={bulkRetagError}
+          onApply={handleBulkSetMistakes}
         />
       )}
 

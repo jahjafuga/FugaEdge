@@ -1,4 +1,4 @@
-import { Newspaper, Tag, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Newspaper, Tag, Trash2, X } from 'lucide-react'
 import { int, signed, pnlClass } from '@/lib/format'
 
 interface TradesBulkActionBarProps {
@@ -17,6 +17,7 @@ interface TradesBulkActionBarProps {
   error?: string | null
   onSetPlaybook: () => void
   onSetCatalyst: () => void
+  onSetMistakes: () => void
   onMoveToTrash: () => void
   onClear: () => void
 }
@@ -34,6 +35,7 @@ export default function TradesBulkActionBar({
   error = null,
   onSetPlaybook,
   onSetCatalyst,
+  onSetMistakes,
   onMoveToTrash,
   onClear,
 }: TradesBulkActionBarProps) {
@@ -92,6 +94,15 @@ export default function TradesBulkActionBar({
         >
           <Newspaper size={14} strokeWidth={2} />
           Set catalyst
+        </button>
+        <button
+          type="button"
+          onClick={onSetMistakes}
+          disabled={busy}
+          className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-4 text-sm font-semibold text-gold transition-colors duration-150 hover:border-gold/60 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <AlertTriangle size={14} strokeWidth={2} />
+          Set mistakes
         </button>
         <button
           type="button"

@@ -241,6 +241,22 @@ export default function Trades() {
     [],
   )
 
+  // Phase 2 bulk-retag mistakes — Add unions the picked mistakes into every
+  // selected trade, Remove strips them (junction keyed by mistake_def_id). Rows
+  // STAY; the IPC returns the updated rows so we patch them in by id.
+  const handleBulkSetMistakes = useCallback(
+    async (ids: number[], mode: 'add' | 'remove', mistakeDefIds: number[]) => {
+      const updated = await ipc.tradesMistakesSaveBulk({
+        trade_ids: ids,
+        mode,
+        mistake_def_ids: mistakeDefIds,
+      })
+      const byId = new Map(updated.map((t) => [t.id, t]))
+      setTrades((prev) => (prev ? prev.map((t) => byId.get(t.id) ?? t) : prev))
+    },
+    [],
+  )
+
   // Defer the freeform symbol input so typing stays snappy while filtering
   // 5000+ trades + sparklines. Discrete chips/dates/toggles stay eager.
   const deferredSymbol = useDeferredValue(filters.symbol)
@@ -386,6 +402,7 @@ export default function Trades() {
             onBulkSoftDelete={handleBulkSoftDelete}
             onBulkSetPlaybook={handleBulkSetPlaybook}
             onBulkSetCatalyst={handleBulkSetCatalyst}
+            onBulkSetMistakes={handleBulkSetMistakes}
             showFloatColumn={showFloatColumn}
             showCountryColumn={showCountryColumn}
             showSparkline={showSparkline}

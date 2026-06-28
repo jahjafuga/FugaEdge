@@ -104,6 +104,51 @@ export function removeMistakeTag(tradeId: number, mistakeDefId: number): void {
   ).run(tradeId, mistakeDefId)
 }
 
+// Phase 2 beat 3 — bulk ADD (union). INSERT OR IGNORE the cross-product of
+// tradeIds x mistakeDefIds in one transaction, mirroring the single addMistakeTag's
+// idempotent insert: a mistake a trade already carries is a silent no-op (the
+// composite PK swallows it), and existing mistakes are untouched. Blind-safe — no
+// per-trade current-state read. No per-id validation: the FK on mistake_def_id
+// rejects a bad id (atomic rollback) and the picker only offers active def ids.
+export function addMistakesToTradesBulk(
+  tradeIds: number[],
+  mistakeDefIds: number[],
+): void {
+  const db = openDatabase()
+  if (tradeIds.length === 0 || mistakeDefIds.length === 0) return
+  const stmt = db.prepare(
+    'INSERT OR IGNORE INTO trade_mistake (trade_id, mistake_def_id) VALUES (?, ?)',
+  )
+  const tx = db.transaction(() => {
+    for (const tid of tradeIds) {
+      for (const mid of mistakeDefIds) {
+        stmt.run(tid, mid)
+      }
+    }
+  })
+  tx()
+}
+
+// Phase 2 beat 3 — bulk REMOVE (strip). A single cross-product DELETE: drop every
+// (trade, def) pair in tradeIds x mistakeDefIds, leaving each trade's OTHER mistakes
+// intact. Blind-safe — a pair that isn't there deletes zero rows. Under the bind
+// limit (MAX_BULK 500 trades + a handful of defs).
+export function removeMistakesFromTradesBulk(
+  tradeIds: number[],
+  mistakeDefIds: number[],
+): void {
+  const db = openDatabase()
+  if (tradeIds.length === 0 || mistakeDefIds.length === 0) return
+  const tph = tradeIds.map(() => '?').join(',')
+  const mph = mistakeDefIds.map(() => '?').join(',')
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM trade_mistake WHERE trade_id IN (${tph}) AND mistake_def_id IN (${mph})`,
+    ).run(...tradeIds, ...mistakeDefIds)
+  })
+  tx()
+}
+
 // ── Beat 2b — vocabulary writes (mistake_def CRUD) ──────────────────────────
 
 function rowToDef(r: MistakeDefRowDb): MistakeDef {

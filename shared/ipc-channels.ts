@@ -66,6 +66,8 @@ export const IPC = {
   TRADE_MISTAKE_TAGS_GET: 'trade:mistakeTagsGet',
   TRADE_MISTAKE_TAG_ADD: 'trade:mistakeTagAdd',
   TRADE_MISTAKE_TAG_REMOVE: 'trade:mistakeTagRemove',
+  // Phase 2 — bulk add/remove mistakes across many trades (one channel, mode field).
+  TRADES_MISTAKES_SAVE_BULK: 'trades:mistakesSaveBulk',
   // Beat 2b — mistake_def vocabulary writes (CRUD). The repo enforces the delete
   // guard (custom + unreferenced → delete; else archive).
   MISTAKE_DEF_CREATE: 'mistake:defCreate',

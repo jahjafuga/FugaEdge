@@ -1,22 +1,26 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
+  BulkSetMistakesInput,
   CreateMistakeDefInput,
   MistakeDefIdInput,
   MistakeTagInput,
   RenameMistakeDefInput,
   ReorderMistakeDefsInput,
 } from '@shared/mistakes-types'
+import type { TradeListRow } from '@shared/trades-types'
 import { bumpDataVersion } from '../lib/cache'
 import { getTrade } from '../trades/list'
 import {
   addMistakeTag,
+  addMistakesToTradesBulk,
   archiveMistakeDef,
   createMistakeDef,
   deleteMistakeDef,
   getMistakeTagsForTrade,
   listMistakeDefs,
   removeMistakeTag,
+  removeMistakesFromTradesBulk,
   renameMistakeDef,
   reorderMistakeDefs,
   unarchiveMistakeDef,
@@ -44,6 +48,21 @@ export function registerMistakesIpc(): void {
     removeMistakeTag(input.trade_id, input.mistake_def_id)
     bumpDataVersion()
     return getTrade(input.trade_id)
+  })
+  // Phase 2 — bulk add/remove mistakes across many trades (one channel, mode field).
+  // Mirrors the single tag handlers (bump + return refreshed rows) but batched; NO
+  // XP reconcile (mistakes don't feed XP — the single handlers don't fire it).
+  // 'add' unions (INSERT OR IGNORE), 'remove' strips (cross-product DELETE).
+  ipcMain.handle(IPC.TRADES_MISTAKES_SAVE_BULK, (_e, input: BulkSetMistakesInput) => {
+    if (input.mode === 'add') {
+      addMistakesToTradesBulk(input.trade_ids, input.mistake_def_ids)
+    } else {
+      removeMistakesFromTradesBulk(input.trade_ids, input.mistake_def_ids)
+    }
+    bumpDataVersion()
+    return input.trade_ids
+      .map((id) => getTrade(id))
+      .filter((t): t is TradeListRow => t != null)
   })
 
   // Beat 2b — mistake_def vocabulary writes. Each write -> bumpDataVersion() ->

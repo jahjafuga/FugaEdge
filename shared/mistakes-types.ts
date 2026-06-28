@@ -33,6 +33,16 @@ export interface MistakeTagInput {
   mistake_def_id: number
 }
 
+/** Phase 2 bulk-retag — Add or Remove a set of mistakes across many trades.
+ *  mode 'add' unions the def ids into each trade (INSERT OR IGNORE — keeps
+ *  existing); 'remove' strips them (DELETE — leaves the rest). Keyed by
+ *  mistake_def_id (the junction key), not (axis, name). */
+export interface BulkSetMistakesInput {
+  trade_ids: number[]
+  mode: 'add' | 'remove'
+  mistake_def_ids: number[]
+}
+
 // ── Beat 2b — vocabulary WRITE inputs (mistake_def CRUD). PURE shapes; the
 //    SQLite write methods live in electron/mistakes/repo.ts behind them.
 

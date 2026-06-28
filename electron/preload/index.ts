@@ -45,6 +45,7 @@ import type {
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import type {
+  BulkSetMistakesInput,
   CreateMistakeDefInput,
   DeleteMistakeDefResult,
   MistakeDef,
@@ -308,6 +309,8 @@ const api = {
     ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_ADD, input),
   tradeMistakeTagRemove: (input: MistakeTagInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_MISTAKE_TAG_REMOVE, input),
+  tradesMistakesSaveBulk: (input: BulkSetMistakesInput): Promise<TradeListRow[]> =>
+    ipcRenderer.invoke(IPC.TRADES_MISTAKES_SAVE_BULK, input),
   mistakeDefCreate: (input: CreateMistakeDefInput): Promise<MistakeDef> =>
     ipcRenderer.invoke(IPC.MISTAKE_DEF_CREATE, input),
   mistakeDefRename: (input: RenameMistakeDefInput): Promise<MistakeDef> =>
