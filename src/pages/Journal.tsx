@@ -6,7 +6,8 @@ import Skeleton from '@/components/ui/Skeleton'
 import EmotionPicker from '@/components/ui/EmotionPicker'
 import JournalHeader from '@/components/journal/JournalHeader'
 import DayPnlBanner from '@/components/journal/DayPnlBanner'
-import RuleChecklist, { type RuleState } from '@/components/journal/RuleChecklist'
+import RuleChecklist from '@/components/journal/RuleChecklist'
+import { activeRules, splitRuleMarks, type RuleState } from '@/core/journal/rules'
 import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
@@ -84,18 +85,13 @@ const AUTOSAVE_DEBOUNCE_MS = 1500
 
 // Build the journalSave payload from an editor snapshot. Pure — shared by the
 // debounced save and the flush-on-navigate path so the two can't drift.
-function buildSaveInput(
-  snapshot: EditorState,
-  day: JournalDay,
-  date: string,
-): SaveJournalInput {
-  const rules_followed: string[] = []
-  const rule_violations: string[] = []
-  for (const rule of day.rules) {
-    const state = snapshot.rules[rule] ?? 'neutral'
-    if (state === 'followed') rules_followed.push(rule)
-    else if (state === 'violated') rule_violations.push(rule)
-  }
+function buildSaveInput(snapshot: EditorState, date: string): SaveJournalInput {
+  // Save marks BY ID, including ids for rules no longer in the active checklist
+  // (archived rules' history) — splitRuleMarks is the re-orphan guard, so
+  // re-saving a day never drops an archived rule's mark.
+  const { followed: rules_followed, violated: rule_violations } = splitRuleMarks(
+    snapshot.rules,
+  )
   return {
     date,
     premarket_notes: snapshot.premarket,
@@ -236,7 +232,7 @@ export default function Journal() {
       // Fire-and-forget — no setState (the component is reloading / unmounting).
       const d = dayRef.current
       if (d && isDirty(savedSnapshotRef.current, editorRef.current)) {
-        ipc.journalSave(buildSaveInput(editorRef.current, d, date)).catch(() => {})
+        ipc.journalSave(buildSaveInput(editorRef.current, date)).catch(() => {})
       }
     }
   }, [date])
@@ -272,7 +268,7 @@ export default function Journal() {
       setSaving(true)
       setSaveError(false)
       try {
-        await ipc.journalSave(buildSaveInput(snapshot, day, date))
+        await ipc.journalSave(buildSaveInput(snapshot, date))
         setSavedSnapshot(snapshot)
         setSavedAt(Date.now())
       } catch {
@@ -436,10 +432,46 @@ export default function Journal() {
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
               <Card title="Rules" subtitle="Mark each as followed (✓) or violated (✗). Leave blank if not applicable.">
                 <RuleChecklist
-                  rules={day.rules}
+                  rules={activeRules(day.rules)}
                   states={editor.rules}
                   onChange={setRuleState}
                 />
+                {(() => {
+                  // Read-only history: marks on rules that are now archived (e.g.
+                  // resurrected orphans) stay visible even though they're off the
+                  // active checklist — the recovered history, made visible.
+                  const archivedMarked = day.rules.filter(
+                    (r) =>
+                      r.archived &&
+                      (editor.rules[r.id] === 'followed' ||
+                        editor.rules[r.id] === 'violated'),
+                  )
+                  if (archivedMarked.length === 0) return null
+                  return (
+                    <div className="mt-3 rounded-md border border-border-subtle/60 bg-bg-1/40 px-4 py-3">
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                        Archived rules marked this day
+                      </div>
+                      <ul className="space-y-1">
+                        {archivedMarked.map((r) => (
+                          <li
+                            key={r.id}
+                            className="flex items-center justify-between text-sm text-fg-secondary"
+                          >
+                            <span>{r.name}</span>
+                            <span
+                              className={
+                                editor.rules[r.id] === 'followed' ? 'text-win' : 'text-loss'
+                              }
+                            >
+                              {editor.rules[r.id] === 'followed' ? 'Followed' : 'Violated'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
               </Card>
 
               <Card title="Emotion" subtitle="How was the headspace? 1 = awful, 5 = great.">

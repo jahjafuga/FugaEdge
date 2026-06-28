@@ -1,4 +1,5 @@
 import { getDbPath, openDatabase } from '../db/database'
+import { parseJournalRules, cleanJournalRules } from '@/core/journal/rules'
 import type {
   SettingsPayload,
   SettingsUpdate,
@@ -111,7 +112,7 @@ export function getSettings(): SettingsPayload {
     max_daily_loss: parseNumber(map[KEYS.maxDailyLoss], DEFAULTS.max_daily_loss),
     daily_profit_target: parseNumber(map[KEYS.dailyProfitTarget], DEFAULTS.daily_profit_target),
     account_size: parseNumber(map[KEYS.accountSize], DEFAULTS.account_size),
-    journal_rules: parseStringArray(map[KEYS.journalRules]),
+    journal_rules: parseJournalRules(map[KEYS.journalRules]),
     mistake_list: parseStringArray(map[KEYS.mistakeList]),
     day_tag_list: parseStringArray(map[KEYS.dayTagList]),
     polygon_api_key: (map[KEYS.polygonApiKey] ?? '').trim(),
@@ -178,10 +179,12 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
       }
     }
     if (input.journal_rules != null) {
-      const clean = input.journal_rules
-        .map((r) => String(r).trim())
-        .filter(Boolean)
-      upsert.run(KEYS.journalRules, JSON.stringify(clean))
+      // Validate (trim names, drop malformed) but KEEP archived rules — dropping
+      // an archived rule would re-orphan its history (the original bug).
+      upsert.run(
+        KEYS.journalRules,
+        JSON.stringify(cleanJournalRules(input.journal_rules)),
+      )
     }
     if (input.mistake_list != null) {
       const clean = input.mistake_list

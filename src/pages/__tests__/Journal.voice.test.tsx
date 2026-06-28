@@ -70,7 +70,7 @@ function makeDay(entry: Partial<JournalDay['entry']> | null = null): JournalDay 
         }
       : null,
     summary: null,
-    rules: ['Followed the plan'],
+    rules: [{ id: 'r1', name: 'Followed the plan', archived: false }],
     sentiment: null,
   }
 }

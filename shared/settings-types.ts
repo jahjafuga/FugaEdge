@@ -1,15 +1,17 @@
+import type { JournalRule } from './journal-types'
+
 export interface SettingsValues {
   max_daily_loss: number
   /** v0.2.5 — daily net-P&L profit target in dollars; 0 = not set / disabled.
    *  The profit-side mirror of max_daily_loss (a per-day threshold). */
   daily_profit_target: number
   account_size: number
-  /** v0.2.6 — STILL string[] this beat (the legacy model). Beat 2 migrates the
-   *  stored value to JournalRule[] ({id,name,archived}) via
-   *  migrate-journal-rules-to-objects; Beats 3-4 then flip this type + rewire the
-   *  consumers (Settings RuleList editor, RuleChecklist, saveJournalDay, journal
-   *  read). See shared/journal-types JournalRule. */
-  journal_rules: string[]
+  /** The id-stable rule model: {id,name,archived}. Renaming
+   *  mutates a rule's name without changing its id, so per-day history (stored as
+   *  ids) survives; archived rules stay in the list (history preserved, hidden
+   *  from the active checklist). Migrated from the legacy string[] by
+   *  migrate-journal-rules-to-objects (Beat 2). */
+  journal_rules: JournalRule[]
   mistake_list: string[]
   day_tag_list: string[]
   polygon_api_key: string

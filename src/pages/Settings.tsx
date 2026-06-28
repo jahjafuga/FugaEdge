@@ -4,6 +4,7 @@ import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
+import JournalRuleEditor from '@/components/settings/JournalRuleEditor'
 import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEditor'
 import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEditor'
@@ -14,6 +15,7 @@ import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
+import { rulesEqual } from '@/core/journal/rules'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
 import { money } from '@/lib/format'
@@ -45,7 +47,7 @@ function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (saved.account_size !== current.account_size) return true
   if (saved.polygon_api_key !== current.polygon_api_key) return true
   if (saved.fmp_api_key !== current.fmp_api_key) return true
-  if (!arraysEqual(saved.journal_rules, current.journal_rules)) return true
+  if (!rulesEqual(saved.journal_rules, current.journal_rules)) return true
   if (!arraysEqual(saved.mistake_list, current.mistake_list)) return true
   if (!arraysEqual(saved.day_tag_list, current.day_tag_list)) return true
   return false
@@ -271,12 +273,10 @@ export default function Settings() {
           subtitle="Shown on the Journal page as a checklist. Order is preserved."
           count={editor.journal_rules.length}
         >
-          <RuleList
+          <JournalRuleEditor
             rules={editor.journal_rules}
             onChange={(next) =>
-              setEditor((prev) =>
-                prev ? { ...prev, journal_rules: next } : prev,
-              )
+              setEditor((prev) => (prev ? { ...prev, journal_rules: next } : prev))
             }
           />
         </SettingsAccordion>

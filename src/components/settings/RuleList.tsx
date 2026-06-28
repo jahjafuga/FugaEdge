@@ -1,5 +1,8 @@
 import { useState, type KeyboardEvent } from 'react'
 
+// Generic string-list editor (add / edit-in-place / remove). Used for plain
+// string lists like day tags. Journal RULES use JournalRuleEditor (the id-stable
+// {id,name,archived} model with rename-by-id + archive).
 interface RuleListProps {
   rules: string[]
   onChange: (next: string[]) => void

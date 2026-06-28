@@ -1,11 +1,13 @@
 import { Check, X } from 'lucide-react'
-
-export type RuleState = 'followed' | 'violated' | 'neutral'
+import type { JournalRule } from '@shared/journal-types'
+import type { RuleState } from '@/core/journal/rules'
 
 interface RuleChecklistProps {
-  rules: string[]
+  /** The rules to render — the caller passes the ACTIVE ones (activeRules). */
+  rules: JournalRule[]
+  /** Per-rule state, keyed by rule id. */
   states: Record<string, RuleState>
-  onChange: (rule: string, next: RuleState) => void
+  onChange: (ruleId: string, next: RuleState) => void
 }
 
 // State is implicit: not in `states` (or set to 'neutral') means no opinion;
@@ -22,9 +24,9 @@ export default function RuleChecklist({ rules, states, onChange }: RuleChecklist
   return (
     <ul className="divide-y divide-border/40 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-1/40">
       {rules.map((rule) => {
-        const state = states[rule] ?? 'neutral'
+        const state = states[rule.id] ?? 'neutral'
         return (
-          <li key={rule} className="flex items-center justify-between gap-4 px-4 py-2.5">
+          <li key={rule.id} className="flex items-center justify-between gap-4 px-4 py-2.5">
             <span
               className={`text-sm ${
                 state === 'violated'
@@ -34,7 +36,7 @@ export default function RuleChecklist({ rules, states, onChange }: RuleChecklist
                     : 'text-fg-secondary'
               }`}
             >
-              {rule}
+              {rule.name}
             </span>
             <div className="flex items-center gap-1">
               <StateButton
@@ -42,14 +44,14 @@ export default function RuleChecklist({ rules, states, onChange }: RuleChecklist
                 icon={<Check size={13} strokeWidth={2.5} />}
                 tone="green"
                 active={state === 'followed'}
-                onClick={() => onChange(rule, state === 'followed' ? 'neutral' : 'followed')}
+                onClick={() => onChange(rule.id, state === 'followed' ? 'neutral' : 'followed')}
               />
               <StateButton
                 label="violated"
                 icon={<X size={13} strokeWidth={2.5} />}
                 tone="red"
                 active={state === 'violated'}
-                onClick={() => onChange(rule, state === 'violated' ? 'neutral' : 'violated')}
+                onClick={() => onChange(rule.id, state === 'violated' ? 'neutral' : 'violated')}
               />
             </div>
           </li>

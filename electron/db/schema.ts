@@ -112,7 +112,7 @@
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
 //
-// Bumped to 37 (v0.2.6 Beat 1): journal-rules data-model scaffold. Registers
+// Bumped to 37: journal-rules data-model scaffold. Registers
 // migrate-journal-rules-to-objects (string[] -> JournalRule[]) — a NO-OP this
 // beat (detect-and-log only); the data conversion lands in Beat 2.
 export const SCHEMA_VERSION = '37'
@@ -549,6 +549,10 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('max_daily_loss', '500');
 -- the Settings page. (Pre-L24 installs already carry a seeded row; they
 -- also carry trades, which suppresses onboarding regardless.)
 INSERT OR IGNORE INTO settings (key, value) VALUES ('theme',          'dark');
+-- Seeded as the LEGACY string[] on purpose: migrate-journal-rules-to-
+-- objects converts it to JournalRule[] on first launch (detectJournalRulesShape
+-- sees 'legacy-strings'). One conversion path for fresh + existing DBs; no
+-- hardcoded ULIDs here, and the migration is idempotent (re-runs see 'objects').
 INSERT OR IGNORE INTO settings (key, value) VALUES (
   'journal_rules',
   '["Followed pre-market plan","Sized correctly per setup","Honored stop loss","Avoided FOMO entries","No revenge trading","Took breaks after losing trades","Stopped at max daily loss"]'

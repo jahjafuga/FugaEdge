@@ -9,6 +9,9 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
   const premarket = (input.premarket_notes ?? '').trim()
   const postsession = (input.postsession_notes ?? '').trim()
   const emotion = input.emotion_rating == null ? null : Number(input.emotion_rating)
+  // rules_followed / rule_violations are rule ID strings (post-Beat-2; were
+  // names). This write is shape-agnostic — it serializes whatever string[] the
+  // renderer sends, so no transform is needed here.
   const followed = JSON.stringify(input.rules_followed ?? [])
   const violations = JSON.stringify(input.rule_violations ?? [])
   // Recording lengths (seconds) — coerce to a non-negative integer or null.

@@ -37,7 +37,7 @@ const tradesList = vi.mocked(ipc.tradesList)
 const playbooksList = vi.mocked(ipc.playbooksList)
 
 function makeDay(): JournalDay {
-  return { date: '2026-06-18', entry: null, summary: null, rules: ['Followed the plan'], sentiment: null }
+  return { date: '2026-06-18', entry: null, summary: null, rules: [{ id: 'r1', name: 'Followed the plan', archived: false }], sentiment: null }
 }
 
 beforeEach(() => {

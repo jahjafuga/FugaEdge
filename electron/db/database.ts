@@ -909,7 +909,7 @@ function migrateAfterSchema(
   // (a re-run matches zero rows) + deletion-blind. See migrate-catalyst-legacy-strings.ts.
   migrateCatalystLegacyStrings(conn)
 
-  // v0.2.6 Beat 1 (schema 37) — journal-rules data-model SCAFFOLD. Registered +
+  // Journal-rules data-model migration (schema 37). Registered +
   // version-bumped, but converts NO DATA this beat: it detects whether
   // settings.journal_rules is still legacy string[] vs migrated JournalRule[] and
   // logs only. The string-names -> {id,name,archived} conversion, the per-entry

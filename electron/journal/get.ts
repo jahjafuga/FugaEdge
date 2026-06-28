@@ -1,10 +1,12 @@
 import { openDatabase } from '../db/database'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
+import { parseJournalRules } from '@/core/journal/rules'
 import type {
   JournalDay,
   JournalDaySummary,
   JournalEntry,
+  JournalRule,
 } from '@shared/journal-types'
 
 interface JournalRow {
@@ -43,11 +45,14 @@ function parseStringArray(raw: string | null | undefined): string[] {
   return trimmed.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
-function readRules(db: ReturnType<typeof openDatabase>): string[] {
+// The canonical rule list for a day — now JournalRule[] (post-Beat-2 the stored
+// settings value is objects). The local parseStringArray below still serves the
+// per-entry rules_followed/rule_violations, which remain ID string[] arrays.
+function readRules(db: ReturnType<typeof openDatabase>): JournalRule[] {
   const row = db
     .prepare("SELECT value FROM settings WHERE key = 'journal_rules'")
     .get() as { value: string } | undefined
-  return parseStringArray(row?.value)
+  return parseJournalRules(row?.value)
 }
 
 function readEntry(
