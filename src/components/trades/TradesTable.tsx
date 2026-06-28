@@ -776,7 +776,7 @@ export default function TradesTable({
   const colCount = columns.length + (bulkEnabled ? 1 : 0)
 
   return (
-    <div className="card-premium card-glow-gold flex max-h-[calc(100vh-280px)] flex-col overflow-hidden">
+    <div className="card-premium card-glow-gold flex max-h-[calc(100vh-340px)] flex-col overflow-hidden">
       {/* Card is a flex column capped at the viewport: the scroll container
           flexes to fill, and the bulk action bar (below) lands at the card
           bottom instead of being pushed off-screen. min-h-0 is load-bearing —
