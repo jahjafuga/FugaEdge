@@ -49,6 +49,7 @@ export default function BulkSetPlaybookModal({
     <Modal
       open={open}
       onClose={onClose}
+      premium
       title={`Set playbook on ${count} trade${plural}?`}
       width={440}
     >

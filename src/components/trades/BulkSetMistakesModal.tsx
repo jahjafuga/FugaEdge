@@ -87,6 +87,7 @@ export default function BulkSetMistakesModal({
     <Modal
       open={open}
       onClose={onClose}
+      premium
       title={`Edit mistakes on ${count} trade${plural}?`}
       width={440}
     >

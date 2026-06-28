@@ -62,6 +62,7 @@ export default function BulkSetCatalystModal({
     <Modal
       open={open}
       onClose={onClose}
+      premium
       title={`Set catalyst on ${count} trade${plural}?`}
       width={440}
     >

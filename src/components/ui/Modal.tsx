@@ -14,6 +14,9 @@ interface ModalProps {
   headerRight?: ReactNode
   /** When true, the body has no padding — caller controls layout. */
   bodyPadded?: boolean
+  /** When true, renders the felt-surface premium treatment matching
+   *  DetailModalShell. Default false keeps the plain panel. */
+  premium?: boolean
 }
 
 // MASTER §5.4 — portal modal. Backdrop 72% bg-0 + 4px blur, surface bg-3
@@ -27,6 +30,7 @@ export default function Modal({
   children,
   headerRight,
   bodyPadded = true,
+  premium = false,
 }: ModalProps) {
   useEffect(() => {
     if (!open) return
@@ -42,6 +46,18 @@ export default function Modal({
 
   if (!open) return null
 
+  // Premium swaps ONLY the surface + backdrop opacity/blur — structure, header,
+  // close button, and body padding are unchanged. card-premium owns bg/border/
+  // shadow; card-accent adds the gold top hairline (its self-contained ::before);
+  // overflow-hidden clips that + the corners; rounded-lg stays 8px to match
+  // DetailModalShell. Default (false) keeps today's plain panel byte-identical.
+  const backdropClass = premium
+    ? 'absolute inset-0 bg-bg-0/80 backdrop-blur-[5px]'
+    : 'absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]'
+  const panelClass = premium
+    ? 'card-premium card-accent relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-lg animate-modal-in'
+    : 'relative flex max-h-[92vh] w-full flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in'
+
   return createPortal(
     <div
       role="dialog"
@@ -49,11 +65,11 @@ export default function Modal({
       className="fixed inset-0 z-[60] flex items-center justify-center p-6"
     >
       <div
-        className="absolute inset-0 bg-bg-0/72 backdrop-blur-[4px]"
+        className={backdropClass}
         onClick={onClose}
       />
       <div
-        className="relative flex max-h-[92vh] w-full flex-col rounded-lg border border-border bg-bg-3 shadow-lg animate-modal-in"
+        className={panelClass}
         style={{ maxWidth: width }}
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-subtle px-5 py-4">
