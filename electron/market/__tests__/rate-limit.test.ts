@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
-import { backoffFor, withRateLimitRetry } from '../rate-limit'
+import {
+  backoffFor,
+  withRateLimitRetry,
+  spacingMsForCallsPerMin,
+  WARMUP_SPACING_MS,
+  POLYGON_FREE_TIER_CALLS_PER_MIN,
+} from '../rate-limit'
 import { MassiveError, parseRetryAfterHeader } from '../massive'
 
 function makeSleep() {
@@ -87,6 +93,28 @@ describe('backoffFor', () => {
 
   it('caps long schedules at maxBackoffMs', () => {
     expect(backoffFor(10, 12_000, 60_000)).toBe(60_000)
+  })
+})
+
+describe('spacingMsForCallsPerMin / WARMUP_SPACING_MS — free-tier-derived pacing', () => {
+  it('5 calls/min (Polygon free tier) -> 12000 ms floor', () => {
+    expect(spacingMsForCallsPerMin(5)).toBe(12_000)
+  })
+
+  it('a higher paid/business-tier limit derives a SMALLER spacing (parameterized, not hardcoded)', () => {
+    expect(spacingMsForCallsPerMin(60)).toBe(1_000) // 1/sec
+    expect(spacingMsForCallsPerMin(100)).toBe(600)
+    expect(spacingMsForCallsPerMin(120)).toBe(500)
+  })
+
+  it('rounds UP so the derived call rate never EXCEEDS the limit', () => {
+    expect(spacingMsForCallsPerMin(7)).toBe(8_572) // ceil(60000/7) = ceil(8571.43)
+  })
+
+  it('WARMUP_SPACING_MS is COMPUTED from the named free-tier constant (config, not a magic 12000)', () => {
+    expect(POLYGON_FREE_TIER_CALLS_PER_MIN).toBe(5)
+    expect(WARMUP_SPACING_MS).toBe(spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN))
+    expect(WARMUP_SPACING_MS).toBe(12_000)
   })
 })
 

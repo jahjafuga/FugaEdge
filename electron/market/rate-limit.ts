@@ -42,6 +42,30 @@ const DEFAULT_MAX_ATTEMPTS = 3
 const DEFAULT_BASE_BACKOFF_MS = 12_000
 const DEFAULT_MAX_BACKOFF_MS = 60_000
 
+// ── Proactive pacing basis (free-tier-derived, NOT hardcoded) ────────────────
+// The provider call-rate limit is the single named input; the inter-call spacing
+// is COMPUTED from it. So moving to a paid/"FugaEdge business" tier is a CONFIG
+// change (raise the calls-per-min) — the derivation and every caller are unchanged.
+// (SaaS port: the per-user-key model becomes one shared server-side key + a
+// shared throttle, but this pacing math stays identical — only where the limit
+// lives moves to a tier config.)
+//
+// Polygon's documented free-tier limit (also referenced in this file's header).
+export const POLYGON_FREE_TIER_CALLS_PER_MIN = 5
+
+/** Minimum ms between successive calls to hold at/under `callsPerMin`. Rounds UP
+ *  so the derived rate never EXCEEDS the limit (5/min → 12000ms; 100/min → 600ms).
+ *  Pure: the limit is the only input. */
+export function spacingMsForCallsPerMin(callsPerMin: number): number {
+  return Math.ceil(60_000 / callsPerMin)
+}
+
+/** Proactive inter-call spacing for runWarmupBackfill — derived from the free-tier
+ *  limit so the bulk warmup recovery paces UNDER it and (in the normal case) never
+ *  trips a 429. withRateLimitRetry remains the belt-and-suspenders for any 429 that
+ *  still slips through. 12000ms today; recomputes if the tier limit changes. */
+export const WARMUP_SPACING_MS = spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN)
+
 const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
 /** Capped exponential schedule. Attempt index 0 → base, 1 → base*2.5,

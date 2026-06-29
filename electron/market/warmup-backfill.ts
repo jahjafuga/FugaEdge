@@ -17,6 +17,7 @@ import { warmupKeysNeedingFetch, getIntradayRow, upsertIntradayRow, tradeCountsB
 import { fetchWarmupBars } from './bars-get'
 import { getSettings } from '../settings/repo'
 import { runChunkedBackfill } from '@/lib/chunkedBackfill'
+import { withRateLimitRetry, WARMUP_SPACING_MS } from './rate-limit'
 
 // WarmupBackfillProgress's canonical definition lives in shared/market-types.ts
 // so the renderer (src/lib/ipc.ts) + preload can import it without crossing into
@@ -42,6 +43,10 @@ export interface WarmupBackfillResult {
 
 export interface WarmupBackfillOptions {
   onProgress?: (p: WarmupBackfillProgress) => void
+  /** Injectable sleep (tests pass an instant one); defaults to setTimeout-based
+   *  real sleep. Drives BOTH the inter-call spacing floor and the withRateLimitRetry
+   *  backoff, so a paced run is real in prod but instant under test. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 export async function runWarmupBackfill(
@@ -63,76 +68,90 @@ export async function runWarmupBackfill(
     return { fetched: 0, empty: 0, errors: 0, totalAttempted: 0, durationMs: Date.now() - t0 }
   }
 
-  // Pre-chunk the flat worklist into CHUNK_SIZE arrays and drive them through
-  // runChunkedBackfill with chunkSize:1 — exactly runBackfillCore's shape, so
-  // the primitive yields after every chunk (but the last) and its per-item
-  // onProgress IS per-chunk. We count inside processItem and discard the
-  // primitive's result (used purely for the yield + progress mechanic).
-  const chunks: { symbol: string; date: string }[][] = []
-  for (let i = 0; i < keys.length; i += CHUNK_SIZE) {
-    chunks.push(keys.slice(i, i + CHUNK_SIZE))
+  // Injectable clock (tests pass an instant sleep); real setTimeout in prod.
+  const sleep =
+    opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+
+  // PROACTIVE PACING (§K throttle beat). The 2026-06-10 strand was a rate-limit
+  // storm: 11 keys fetched back-to-back with no spacing. Hold successive Polygon
+  // calls at/under the free-tier limit via WARMUP_SPACING_MS (derived from
+  // POLYGON_FREE_TIER_CALLS_PER_MIN in rate-limit.ts — config, not a magic number),
+  // so the bulk recovery never re-creates the storm. Mirrors country/fetch.ts's
+  // respectSpacing() closure; the floor is enforced between fetches only.
+  let lastRequestAt = 0
+  const respectSpacing = async (): Promise<void> => {
+    const since = Date.now() - lastRequestAt
+    if (since < WARMUP_SPACING_MS) await sleep(WARMUP_SPACING_MS - since)
+    lastRequestAt = Date.now()
   }
 
-  // §K Beat 2.6 — translate the chunk progress into the "Computing N trades…"
-  // counts the Settings row shows. tradeCountsByKey is the only keys→trades join
-  // (the IPC emitters + renderer never see the keys). cumulative[i] = trades
-  // whose warmup is done once chunk i finishes; tradesTotal = the whole pass.
+  // §K Beat 2.6 — "Computing N trades…" counts for the Settings row. tradeCountsByKey
+  // is the only keys→trades join (the IPC emitters + renderer never see the keys).
+  // Progress now emits PER KEY (was per 50-key chunk) so a paced multi-minute run
+  // shows steady movement instead of looking frozen — which would push a user toward
+  // the force-refresh footgun that wipes warmup.
   const counts = tradeCountsByKey(keys)
-  const chunkTradeTotals = chunks.map((chunk) =>
-    chunk.reduce((sum, k) => sum + (counts[`${k.symbol}|${k.date}`] ?? 0), 0),
+  const tradesTotal = keys.reduce(
+    (sum, k) => sum + (counts[`${k.symbol}|${k.date}`] ?? 0),
+    0,
   )
-  const tradesTotal = chunkTradeTotals.reduce((a, b) => a + b, 0)
-  let acc = 0
-  const cumulative = chunkTradeTotals.map((n) => (acc += n))
+  let tradesDone = 0
 
   let fetched = 0
   let empty = 0
   let errors = 0
 
-  await runChunkedBackfill<{ symbol: string; date: string }[]>({
-    items: chunks,
-    chunkSize: 1,
+  // Flat keys with chunkSize = CHUNK_SIZE: runChunkedBackfill fires onProgress per
+  // KEY and the setImmediate yield every CHUNK_SIZE keys (event-loop courtesy).
+  await runChunkedBackfill<{ symbol: string; date: string }>({
+    items: keys,
+    chunkSize: CHUNK_SIZE,
     yieldBetweenChunks: () => new Promise((r) => setImmediate(r)),
-    onProgress: ({ current }) =>
-      opts.onProgress?.({ tradesDone: cumulative[current - 1], tradesTotal }),
-    processItem: async (chunk) => {
-      for (const { symbol, date } of chunk) {
-        const cached = getIntradayRow(symbol, date)
-        if (cached === null) {
-          // Row vanished between worklist enumeration and processing — only if
-          // another path deleted it mid-sweep. Count honestly, skip the upsert.
-          errors += 1
-          continue
-        }
-
-        const attemptedAt = new Date().toISOString()
-        let warmupBars: IntradayBar[] = []
-        let warmupError: string | null = null
-        try {
-          warmupBars = await fetchWarmupBars(apiKey, symbol, date)
-          if (warmupBars.length === 0) empty += 1
-          else fetched += 1
-        } catch (err) {
-          // Network/auth failure. warmupBars stays []; we still stamp the marker
-          // below, but now also capture the message in warmupError. The §K.1.1
-          // worklist predicate re-enters keys whose warmup_error IS NOT NULL, so
-          // this throw is retried next launch — while legit empties (warmupError
-          // null) stay locked. That throw-vs-empty split is the whole point of §K.1.
-          warmupError = err instanceof Error ? err.message : String(err)
-          errors += 1
-        }
-
-        upsertIntradayRow({
-          symbol,
-          date,
-          bars: cached.bars, // preserved — warmup never touches the active day
-          warmup_bars: warmupBars,
-          warmup_attempted_at: attemptedAt,
-          warmup_error: warmupError, // §K.1.2 — null on success/empty, message on throw
-          fetched_at: cached.fetched_at, // preserved
-          error: cached.error, // preserved (always null for eligible keys)
-        })
+    onProgress: ({ item }) => {
+      tradesDone += counts[`${item.symbol}|${item.date}`] ?? 0
+      opts.onProgress?.({ tradesDone, tradesTotal })
+    },
+    processItem: async ({ symbol, date }) => {
+      const cached = getIntradayRow(symbol, date)
+      if (cached === null) {
+        // Row vanished between worklist enumeration and processing — only if
+        // another path deleted it mid-sweep. Count honestly, skip the upsert.
+        errors += 1
+        return
       }
+
+      await respectSpacing()
+      const attemptedAt = new Date().toISOString()
+      let warmupBars: IntradayBar[] = []
+      let warmupError: string | null = null
+      try {
+        // withRateLimitRetry: a 429 backs off (12/30/60s, honors Retry-After) and
+        // retries IN-RUN rather than throwing — so a transient throttle no longer
+        // strands the key (the §K.1.3 failure mode this beat closes). Belt-and-
+        // suspenders behind respectSpacing's proactive floor. Non-429 errors and an
+        // exhausted-429 still throw through to the catch → warmup_error stamped, and
+        // the §K.1.1 predicate re-enters those (error set) on the next launch.
+        warmupBars = await withRateLimitRetry(
+          () => fetchWarmupBars(apiKey, symbol, date),
+          { sleep },
+        )
+        if (warmupBars.length === 0) empty += 1
+        else fetched += 1
+      } catch (err) {
+        warmupError = err instanceof Error ? err.message : String(err)
+        errors += 1
+      }
+
+      upsertIntradayRow({
+        symbol,
+        date,
+        bars: cached.bars, // preserved — warmup never touches the active day
+        warmup_bars: warmupBars,
+        warmup_attempted_at: attemptedAt,
+        warmup_error: warmupError, // §K.1.2 — null on success/empty, message on throw
+        fetched_at: cached.fetched_at, // preserved
+        error: cached.error, // preserved (always null for eligible keys)
+      })
     },
   })
 
