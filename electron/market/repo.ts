@@ -455,7 +455,9 @@ export function isStrandedLockedWarmupRow(r: StrandedWarmupCandidate): boolean {
 // to the §K.1 predicate from a legit empty, so they stay locked out of every
 // future runWarmupBackfill. This nulls the marker on EXACTLY that locked shape so
 // warmupKeysNeedingFetch re-includes them; a throttled re-fetch then heals them.
-// Returns the affected-key count for the Settings surface.
+// Returns the cleared keys ({ symbol, date }[], the shape tradeCountsByKey /
+// warmupKeysNeedingFetch consume) so the Settings handler can map them to a trade
+// count for the "re-queued N trades" copy; keys.length is the old affected count.
 //
 // Structured like warmupKeysNeedingFetch: SELECT candidates (bar-emptiness as SQL
 // booleans), filter the locked shape in JS via isStrandedLockedWarmupRow, then null
@@ -466,7 +468,7 @@ export function isStrandedLockedWarmupRow(r: StrandedWarmupCandidate): boolean {
 // quota and re-tripping the rate limits §K.1 was built to avoid (§K.1.3 rationale,
 // docs/plans/v0.2.4-technical-analysis.md:354). Wire to a Settings "Recover
 // stranded warmup keys" button only.
-export function reclearStrandedWarmupMarkers(): number {
+export function reclearStrandedWarmupMarkers(): { symbol: string; date: string }[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
@@ -481,7 +483,7 @@ export function reclearStrandedWarmupMarkers(): number {
     'UPDATE intraday_bars SET warmup_attempted_at = NULL WHERE symbol = ? AND date = ?',
   )
   for (const r of locked) stmt.run(r.symbol, r.date)
-  return locked.length
+  return locked.map((r) => ({ symbol: r.symbol, date: r.date }))
 }
 
 export function setTradeEma9Distance(tradeId: number, pct: number | null): void {

@@ -219,6 +219,11 @@ const api = {
       ipcRenderer.removeListener(IPC.WARMUP_BACKFILL_PROGRESS, listener)
     }
   },
+  // v0.2.4 §K.1.4 — trigger the "Recover stranded indicators" recovery. Returns
+  // instantly with { recleared, tradesQueued }; the paced re-fetch then streams on
+  // WARMUP_BACKFILL_PROGRESS (subscribe via warmupOnBackfillProgress above).
+  warmupReclearStranded: (): Promise<{ recleared: number; tradesQueued: number }> =>
+    ipcRenderer.invoke(IPC.WARMUP_RECLEAR),
   attachmentsList: (tradeId: number): Promise<AttachmentRecord[]> =>
     ipcRenderer.invoke(IPC.ATTACHMENTS_LIST, tradeId),
   attachmentsAdd: (input: AddAttachmentsInput): Promise<AddAttachmentsResult> =>

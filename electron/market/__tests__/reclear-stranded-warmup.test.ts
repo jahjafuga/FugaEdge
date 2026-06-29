@@ -88,7 +88,7 @@ describe('reclearStrandedWarmupMarkers — wiring', () => {
     expect(upd!.sql).toMatch(/WHERE\s+symbol\s*=\s*\?\s+AND\s+date\s*=\s*\?/i)
   })
 
-  it('mixed rows → returns exactly the LOCKED count and UPDATEs only locked keys', () => {
+  it('mixed rows → returns the cleared KEYS (locked-shape only) and UPDATEs only those keys', () => {
     cannedAllRows = [
       cand({ symbol: 'LOCK1', date: '2026-05-29' }), // locked
       cand({ symbol: 'LOCK2', date: '2026-05-11' }), // locked
@@ -98,8 +98,14 @@ describe('reclearStrandedWarmupMarkers — wiring', () => {
       cand({ symbol: 'HEALTHY', date: '2026-05-17', warmup_empty: 0 }), // not (has warmup)
       cand({ symbol: 'NEVER', date: '2026-05-16', warmup_attempted_at: null }), // not (never attempted)
     ]
-    const n = repo.reclearStrandedWarmupMarkers()
-    expect(n).toBe(2)
+    const keys = repo.reclearStrandedWarmupMarkers()
+    // returns the cleared keys — shape matches tradeCountsByKey / warmupKeysNeedingFetch
+    // input ({ symbol, date }[]) so the Settings handler passes them straight through.
+    expect(keys).toEqual([
+      { symbol: 'LOCK1', date: '2026-05-29' },
+      { symbol: 'LOCK2', date: '2026-05-11' },
+    ])
+    expect(keys.length).toBe(2) // the old count is preserved as keys.length
     const updatedKeys = runCalls
       .filter((c) => /UPDATE intraday_bars/i.test(c.sql))
       .map((c) => c.args.join('|'))
@@ -109,10 +115,10 @@ describe('reclearStrandedWarmupMarkers — wiring', () => {
     }
   })
 
-  it('no locked rows → returns 0 and runs no UPDATE', () => {
+  it('no locked rows → returns [] and runs no UPDATE', () => {
     cannedAllRows = [cand({ warmup_error: '429' }), cand({ has_bars: 0 })]
-    const n = repo.reclearStrandedWarmupMarkers()
-    expect(n).toBe(0)
+    const keys = repo.reclearStrandedWarmupMarkers()
+    expect(keys).toEqual([])
     expect(runCalls.filter((c) => /UPDATE intraday_bars/i.test(c.sql))).toEqual([])
   })
 })

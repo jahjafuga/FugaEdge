@@ -102,6 +102,7 @@ export const ipc = {
   warmupOnBackfillProgress: (
     cb: (p: import('@shared/market-types').WarmupBackfillProgress) => void,
   ) => window.api.warmupOnBackfillProgress(cb),
+  recoverStrandedWarmup: () => window.api.warmupReclearStranded(),
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),

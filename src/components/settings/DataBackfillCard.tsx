@@ -61,9 +61,18 @@ export default function DataBackfillCard({
   const [dcResult, setDcResult] = useState<{ filled: number; uncomputable: number; failed: number } | null>(null)
   const [dcErr, setDcErr] = useState<string | null>(null)
 
-  // ── Indicators (warmup) — passive: warmup is auto-armed at launch + chained on
-  // refresh, so there's no button here, only a live "Computing N trades…" status.
+  // ── Indicators (warmup) — auto-armed at launch + chained on refresh, with a live
+  // "Computing N trades…" status. Plus the §K.1.4 manual "Recover stranded
+  // indicators" action below for trades whose warmup was skipped after a past
+  // rate-limit pause. recleared = cleared keys; tradesQueued = the trade total
+  // (the user-facing number reported in the result line).
   const [warmupProgress, setWarmupProgress] = useState<WarmupBackfillProgress | null>(null)
+  const [recoverRunning, setRecoverRunning] = useState(false)
+  const [recoverResult, setRecoverResult] = useState<{
+    recleared: number
+    tradesQueued: number
+  } | null>(null)
+  const [recoverErr, setRecoverErr] = useState<string | null>(null)
 
   useEffect(() => {
     const off = ipc.countryOnBackfillProgress((p) => setProgress(p))
@@ -194,6 +203,24 @@ export default function DataBackfillCard({
     } finally {
       setDcRunning(false)
       setDcProgress(null)
+    }
+  }
+
+  const runRecover = async () => {
+    if (recoverRunning) return
+    setRecoverRunning(true)
+    setRecoverResult(null)
+    setRecoverErr(null)
+    try {
+      // Returns instantly with { recleared, tradesQueued }; the paced warmup
+      // re-fetch then streams on the Indicators progress row below (already
+      // subscribed via warmupOnBackfillProgress) — no new progress UI here.
+      const r = await ipc.recoverStrandedWarmup()
+      setRecoverResult(r)
+    } catch (e) {
+      setRecoverErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRecoverRunning(false)
     }
   }
 
@@ -402,28 +429,56 @@ export default function DataBackfillCard({
           </div>
         </div>
 
-        {/* ── Indicators — passive status for the §K bulk warmup pass. No button:
-            warmup is auto-armed at launch + chained on refresh. Shows only while
-            running; "N trades" = tradesTotal − tradesDone, decrementing to 0. ── */}
-        {warmupProgress &&
-          warmupProgress.tradesTotal > 0 &&
-          warmupProgress.tradesDone < warmupProgress.tradesTotal && (
-            <div className="border-t border-border-strong pt-3">
-              <div className="mb-2 text-xs font-medium text-fg-secondary">Indicators</div>
-              <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
-                <div
-                  className="h-full bg-gold transition-all"
-                  style={{
-                    width: `${Math.floor((warmupProgress.tradesDone / warmupProgress.tradesTotal) * 100)}%`,
-                  }}
-                />
+        {/* ── Indicators — §K warmup pass. Auto-armed at launch + chained on
+            refresh, plus the §K.1.4 manual "Recover stranded indicators" button for
+            trades whose warmup was skipped after a past rate-limit pause. The button
+            re-clears + re-queues in the background (returns instantly); the progress
+            row below ticks per-key ("N trades" = tradesTotal − tradesDone → 0). It
+            is a RECOVER action — it never overwrites existing warmup data, unlike a
+            force re-fetch. ── */}
+        <div className="border-t border-border-strong pt-3">
+          <div className="mb-2 text-xs font-medium text-fg-secondary">Indicators</div>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={runRecover}
+              disabled={recoverRunning}
+              className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {recoverRunning ? 'Recovering…' : 'Recover stranded indicators'}
+            </button>
+            <p className="text-xs text-fg-tertiary">
+              Re-eligibles trades whose indicators were skipped after a past
+              rate-limit pause. Does not overwrite existing data.
+            </p>
+            {warmupProgress &&
+              warmupProgress.tradesTotal > 0 &&
+              warmupProgress.tradesDone < warmupProgress.tradesTotal && (
+                <div>
+                  <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
+                    <div
+                      className="h-full bg-gold transition-all"
+                      style={{
+                        width: `${Math.floor((warmupProgress.tradesDone / warmupProgress.tradesTotal) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="mt-1 text-[10px] text-fg-tertiary tnum">
+                    Computing {warmupProgress.tradesTotal - warmupProgress.tradesDone} trade
+                    {warmupProgress.tradesTotal - warmupProgress.tradesDone === 1 ? '' : 's'}…
+                  </div>
+                </div>
+              )}
+            {recoverResult && (
+              <div className="text-xs text-fg-secondary">
+                {recoverResult.tradesQueued > 0
+                  ? `Re-queued ${recoverResult.tradesQueued} trade${recoverResult.tradesQueued === 1 ? '' : 's'} for indicator refetch — filling in now.`
+                  : 'No stranded trades to recover.'}
               </div>
-              <div className="mt-1 text-[10px] text-fg-tertiary tnum">
-                Computing {warmupProgress.tradesTotal - warmupProgress.tradesDone} trade
-                {warmupProgress.tradesTotal - warmupProgress.tradesDone === 1 ? '' : 's'}…
-              </div>
-            </div>
-          )}
+            )}
+            {recoverErr && <div className="text-xs text-loss">{recoverErr}</div>}
+          </div>
+        </div>
       </div>
       <BackfillKeyModal
         open={modalOpen}

@@ -157,6 +157,12 @@ export const IPC = {
   // operating on intraday_bars. Subscribed by Settings' "Computing N trades"
   // row (Beat 2.6). Emitter wired by launch arming (Beat 2.4).
   WARMUP_BACKFILL_PROGRESS: 'market:warmupBackfillProgress',
+  // v0.2.4 §K.1.4 — user trigger for the Settings "Recover stranded indicators"
+  // button: re-clears the locked-legit-empty warmup markers, then fires the
+  // throttled warmup -> technicals -> xp re-fetch in the background. Progress
+  // reuses WARMUP_BACKFILL_PROGRESS above (the Indicators row) — this is the
+  // trigger only. Returns { recleared, tradesQueued } so the button reports trades.
+  WARMUP_RECLEAR: 'market:warmupReclearStranded',
   // v0.2.4 Session 3 — progress emission for the bulk trade_technicals
   // backfill armed at ready-to-show. Auto-armed (no trigger channel —
   // unlike COUNTRY_BACKFILL / FLOAT_BACKFILL / PROFILE_BACKFILL, which are

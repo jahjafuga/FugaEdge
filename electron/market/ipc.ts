@@ -6,6 +6,7 @@ import { getIntradayBars } from './bars-get'
 import { runWarmupBackfill } from './warmup-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
 import { runXpReconcile } from '../xp/reconcile'
+import { reclearStrandedWarmupMarkers, tradeCountsByKey } from './repo'
 
 interface RefreshInput {
   force?: boolean
@@ -71,5 +72,45 @@ export function registerMarketIpc(): void {
   })
   ipcMain.handle(IPC.MARKET_INTRADAY_CANCEL, () => {
     cancelIntradayRefresh()
+  })
+  // v0.2.4 §K.1.4 — Settings "Recover stranded indicators" button. Re-clears the
+  // locked-legit-empty warmup markers (instant, synchronous), reports how many
+  // TRADES that frees (the user thinks in trades; reclear returns keys, so we join
+  // keys → trades via tradeCountsByKey), then fires the throttled
+  // warmup → technicals → xp re-fetch in the BACKGROUND.
+  //
+  // FIRE-AND-FORGET (do NOT await): the button returns instantly with the counts;
+  // the paced re-fetch streams its own progress on the existing Indicators row
+  // (WARMUP_BACKFILL_PROGRESS), mirroring the launch arming. Same order + try/catch
+  // shape as the MARKET_INTRADAY_REFRESH chain above.
+  //
+  // CRITICAL: this must NOT call refreshIntraday / pass force — the intraday refresh
+  // path overwrites warmup_bars, which would wipe the very data this recovery
+  // restores. Recovery goes straight to runWarmupBackfill (worklist-scoped to the
+  // keys we just re-cleared) and never touches the active-day refresh.
+  ipcMain.handle(IPC.WARMUP_RECLEAR, (e) => {
+    const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
+    const keys = reclearStrandedWarmupMarkers()
+    if (keys.length === 0) return { recleared: 0, tradesQueued: 0 }
+    const counts = tradeCountsByKey(keys)
+    const tradesQueued = keys.reduce(
+      (sum, k) => sum + (counts[`${k.symbol}|${k.date}`] ?? 0),
+      0,
+    )
+    void (async () => {
+      try {
+        await runWarmupBackfill({
+          onProgress: wc ? (p) => wc.send(IPC.WARMUP_BACKFILL_PROGRESS, p) : undefined,
+        })
+        await runTradeTechnicalsBackfill({
+          onProgress: wc ? (p) => wc.send(IPC.TECHNICALS_BACKFILL_PROGRESS, p) : undefined,
+        })
+        runXpReconcile()
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        console.error(`[FE warmup recover] reclear→warmup→technicals→xp failed: ${msg}`)
+      }
+    })()
+    return { recleared: keys.length, tradesQueued }
   })
 }
