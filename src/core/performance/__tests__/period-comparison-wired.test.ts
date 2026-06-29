@@ -107,4 +107,25 @@ describe('computePeriodComparison — wired stat tier (volume / scratch-hold / d
     expect(comparison.periodB.avgHoldScratch).toBeNull() // no scratch trades
     expect(comparison.periodB.maxDrawdown).toBe(0) // monotonic-up equity (all-up branch)
   })
+
+  // Phase 1 (djsevans87) — the per-share + shares-traded wired fields flow from
+  // computeFullStats(rows) onto periodA/periodB, same pattern as the three above.
+  // Period A per-share (position = max legs): T1 +100/150, T4 +30/150 (winners),
+  // T3 -60/200 (loser); T2 is the net=0 scratch (excluded from gain/loss).
+  it('period A: per-share gain/loss/extremes + pooled per-share + shares traded', () => {
+    expect(comparison.periodA.avgPerShareGain).toBeCloseTo((100 / 150 + 30 / 150) / 2, 6)
+    expect(comparison.periodA.maxPerShareWin).toBeCloseTo(100 / 150, 6)
+    expect(comparison.periodA.avgPerShareLoss).toBeCloseTo(-60 / 200, 6) // -0.30
+    expect(comparison.periodA.maxPerShareLoss).toBeCloseTo(-60 / 200, 6) // lone loser
+    expect(comparison.periodA.avgPerSharePnl).toBeCloseTo(70 / 600, 6) // pooled net / Σ position
+    expect(comparison.periodA.totalSharesTraded).toBe(1200) // both-leg sum
+  })
+
+  it('period B: all winners -> loss-side per-share null; shares traded 600', () => {
+    expect(comparison.periodB.avgPerShareGain).toBeCloseTo((0.5 + 0.4 + 0.2) / 3, 6)
+    expect(comparison.periodB.maxPerShareWin).toBeCloseTo(0.5, 6)
+    expect(comparison.periodB.avgPerShareLoss).toBeNull()
+    expect(comparison.periodB.maxPerShareLoss).toBeNull()
+    expect(comparison.periodB.totalSharesTraded).toBe(600)
+  })
 })

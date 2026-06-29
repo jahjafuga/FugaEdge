@@ -29,7 +29,7 @@ import {
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import Card from '@/components/ui/Card'
-import { duration, money, shortDate, signed } from '@/lib/format'
+import { duration, money, perShareGainLoss, perShareGainLossIsZero, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors, type ChartPalette } from '@/lib/chartColors'
 import {
@@ -479,7 +479,7 @@ function PeriodPicker({
 // gauges mirror QualityTab's SqnHero (track + target tick + fill-to-actual).
 // Pure presentation over comparison.periodA/periodB — no core change.
 
-type FormatKind = 'money' | 'pct' | 'int' | 'ratio' | 'duration'
+type FormatKind = 'money' | 'pct' | 'int' | 'ratio' | 'duration' | 'perShare'
 
 interface StatSpec {
   label: string
@@ -540,6 +540,19 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
       ],
     },
     {
+      // Phase 1 (djsevans87) — per-share tier. perShare format = perShareGainLoss
+      // ("+$0.51/sh", 2dp, clean-zero). loss/max-loss use higherIsBetter:true so a
+      // SMALLER (less-negative) per-share loss reads green, matching Avg/Largest loser.
+      title: 'P&L per share',
+      rows: [
+        { label: 'Avg per-share P&L',  a: a.avgPerSharePnl ?? null,  b: b.avgPerSharePnl ?? null,  format: 'perShare', higherIsBetter: true },
+        { label: 'Avg per-share gain', a: a.avgPerShareGain ?? null, b: b.avgPerShareGain ?? null, format: 'perShare', higherIsBetter: true },
+        { label: 'Avg per-share loss', a: a.avgPerShareLoss ?? null, b: b.avgPerShareLoss ?? null, format: 'perShare', higherIsBetter: true },
+        { label: 'Max per-share win',  a: a.maxPerShareWin ?? null,  b: b.maxPerShareWin ?? null,  format: 'perShare', higherIsBetter: true },
+        { label: 'Max per-share loss', a: a.maxPerShareLoss ?? null, b: b.maxPerShareLoss ?? null, format: 'perShare', higherIsBetter: true },
+      ],
+    },
+    {
       title: 'Consistency',
       rows: [
         { label: 'Green days',        a: a.greenDays,       b: b.greenDays,       format: 'int',   higherIsBetter: true },
@@ -597,6 +610,9 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
         // is a positive $ magnitude where smaller is better. 'int' on volume renders
         // raw digits (no compaction) — flagged for a possible compactShares format kind.
         { label: 'Avg daily volume',  a: a.avgDailyVolume ?? null, b: b.avgDailyVolume ?? null, format: 'int',      higherIsBetter: null },
+        // Phase 1 (djsevans87) — total shares traded (both legs). Context, not
+        // good/bad → neutral grey delta, like Avg daily volume / Total trades.
+        { label: 'Shares traded',     a: a.totalSharesTraded ?? null, b: b.totalSharesTraded ?? null, format: 'int', higherIsBetter: null },
         { label: 'Max drawdown',      a: a.maxDrawdown ?? null,    b: b.maxDrawdown ?? null,    format: 'money',    higherIsBetter: false },
       ],
     },
@@ -632,6 +648,10 @@ function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
         a.largestRedDay != null ? a.worstDay : null,
         b.largestRedDay != null ? b.worstDay : null,
       ) },
+    // Phase 1 (djsevans87) — Account growth $ IS the period's net P&L (display
+    // row, no new computation). Identical to "Net P&L" above by definition;
+    // Phase 2 adds Account growth % to pair with it.
+    { label: 'Account growth $', a: a.netPnL, b: b.netPnL, format: 'money', higherIsBetter: true },
   ]
   return (
     <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">
@@ -766,6 +786,7 @@ function fmtValue(v: number | null, kind: FormatKind): string {
   if (v == null) return '—'
   switch (kind) {
     case 'money':    return signed(v)
+    case 'perShare': return perShareGainLoss(v)
     case 'pct':      return `${(v * 100).toFixed(1)}%`
     case 'int':      return `${Math.round(v)}`
     case 'ratio':    return Number.isFinite(v) ? v.toFixed(2) : '∞'
@@ -777,6 +798,12 @@ function fmtDelta(delta: number | null, kind: FormatKind): string {
   if (delta == null) return '—'
   switch (kind) {
     case 'money':    return signed(delta)
+    // Delta uses the ASCII-hyphen sign convention to MATCH the money rows (the
+    // value tiles keep perShareGainLoss's U+2212). Clean-zero still collapses to
+    // an unsigned "$0.00/sh" so a sub-$0.005 delta never shows a stray "-$0.00".
+    case 'perShare': return perShareGainLossIsZero(delta)
+      ? '$0.00/sh'
+      : `${delta > 0 ? '+' : '-'}${money(Math.abs(delta))}/sh`
     case 'pct':      return `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
     case 'int':      return `${delta >= 0 ? '+' : ''}${Math.round(delta)}`
     case 'ratio':    return Number.isFinite(delta)

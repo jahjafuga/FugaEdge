@@ -158,6 +158,22 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
   const profitFactor =
     losers.length > 0 ? winnersSum / Math.abs(losersSum) : null
 
+  // Per-share gain/loss + extremes (Phase 1, djsevans87). per-share = net_pnl /
+  // position size (max of the two legs) — the SAME basis as avg_per_share_pnl
+  // above. Unlike that pooled stat, these are per-TRADE means/extremes over the
+  // winner/loser subsets (mirroring avg_winner/avg_loser). A zero-position row is
+  // guarded out. Null when the side has no qualifying trades (em-dash downstream).
+  const perShareOf = (t: TradeForStats): number | null => {
+    const pos = Math.max(t.shares_bought, t.shares_sold)
+    return pos > 0 ? t.net_pnl / pos : null
+  }
+  const winnerPerShares = winners.map(perShareOf).filter((v): v is number => v != null)
+  const loserPerShares = losers.map(perShareOf).filter((v): v is number => v != null)
+  const avgPerShareGain = meanOrNull(winnerPerShares)
+  const avgPerShareLoss = meanOrNull(loserPerShares)
+  const maxPerShareWin = winnerPerShares.length > 0 ? Math.max(...winnerPerShares) : null
+  const maxPerShareLoss = loserPerShares.length > 0 ? Math.min(...loserPerShares) : null
+
   let kelly: number | null = null
   if (winRate !== null && lossRate !== null && avgWin !== null && avgLoss !== null && avgWin > 0) {
     kelly = (winRate - (lossRate * Math.abs(avgLoss)) / avgWin) * 100
@@ -194,6 +210,10 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
     avg_winner: avgWin,
     avg_loser: avgLoss,
     avg_per_share_pnl: avgPerShare,
+    avg_per_share_gain: avgPerShareGain,
+    avg_per_share_loss: avgPerShareLoss,
+    max_per_share_win: maxPerShareWin,
+    max_per_share_loss: maxPerShareLoss,
     std_dev_pnl: sd,
     profit_factor: profitFactor,
     total_shares_traded: totalShares,

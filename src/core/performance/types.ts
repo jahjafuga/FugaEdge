@@ -165,6 +165,21 @@ export interface PeriodMetrics {
   avgHoldScratch?: number | null
   /** Max peak-to-trough drawdown of the cumulative-P&L curve, $ magnitude. */
   maxDrawdown?: number | null
+  // ── Phase 1 per-share + shares tier (djsevans87) — FullStats-derived, attached
+  // per period in computePeriodComparison (same wired pattern as avgDailyVolume).
+  // Optional so bare computePeriodMetrics callers leave them undefined.
+  /** Pooled per-share P&L: net / Σ position shares (max legs). */
+  avgPerSharePnl?: number | null
+  /** Per-trade mean per-share P&L over winners. */
+  avgPerShareGain?: number | null
+  /** Per-trade mean per-share P&L over losers (negative). */
+  avgPerShareLoss?: number | null
+  /** Highest single-trade per-share P&L among winners. */
+  maxPerShareWin?: number | null
+  /** Lowest (most negative) single-trade per-share P&L among losers. */
+  maxPerShareLoss?: number | null
+  /** Total shares traded (both legs summed). */
+  totalSharesTraded?: number | null
 }
 
 /** One bar of the R-multiple histogram. `bucket` is the display label; the

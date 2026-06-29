@@ -580,12 +580,24 @@ export function computePeriodComparison(
     avgDailyVolume: fsA.avg_daily_volume,
     avgHoldScratch: fsA.avg_hold_seconds_scratches,
     maxDrawdown: ddA?.amount ?? null,
+    avgPerSharePnl: fsA.avg_per_share_pnl,
+    avgPerShareGain: fsA.avg_per_share_gain,
+    avgPerShareLoss: fsA.avg_per_share_loss,
+    maxPerShareWin: fsA.max_per_share_win,
+    maxPerShareLoss: fsA.max_per_share_loss,
+    totalSharesTraded: fsA.total_shares_traded,
   }
   const periodB: PeriodMetrics = {
     ...b,
     avgDailyVolume: fsB.avg_daily_volume,
     avgHoldScratch: fsB.avg_hold_seconds_scratches,
     maxDrawdown: ddB?.amount ?? null,
+    avgPerSharePnl: fsB.avg_per_share_pnl,
+    avgPerShareGain: fsB.avg_per_share_gain,
+    avgPerShareLoss: fsB.avg_per_share_loss,
+    maxPerShareWin: fsB.max_per_share_win,
+    maxPerShareLoss: fsB.max_per_share_loss,
+    totalSharesTraded: fsB.total_shares_traded,
   }
 
   return {

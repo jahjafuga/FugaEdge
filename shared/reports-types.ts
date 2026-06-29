@@ -27,7 +27,14 @@ export interface FullStats {
   avg_daily_pnl: number | null     // sum(net_pnl) / distinct trade days
   avg_winner: number | null        // mean of winning trades
   avg_loser: number | null         // mean of losing trades (negative)
-  avg_per_share_pnl: number | null // total_net / total_shares_traded
+  avg_per_share_pnl: number | null // pooled: total_net / Σ position shares (max legs)
+  // Phase 1 per-share tier (djsevans87) — per-TRADE means/extremes over the
+  // winner/loser subsets (mirroring avg_winner/avg_loser), NOT pooled. per-share
+  // basis = net_pnl / max(shares_bought, shares_sold). Null when the side is empty.
+  avg_per_share_gain: number | null  // mean per-share P&L over winners
+  avg_per_share_loss: number | null  // mean per-share P&L over losers (negative)
+  max_per_share_win: number | null   // highest single-trade per-share P&L (winners)
+  max_per_share_loss: number | null  // lowest (most negative) per-share P&L (losers)
   std_dev_pnl: number | null       // sample std dev across trades (null when N < 2)
   profit_factor: number | null
 
