@@ -174,6 +174,25 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
   const maxPerShareWin = winnerPerShares.length > 0 ? Math.max(...winnerPerShares) : null
   const maxPerShareLoss = loserPerShares.length > 0 ? Math.min(...loserPerShares) : null
 
+  // Price-move % per trade (Phase 2, djsevans87) = per-share $ / entry price — a
+  // RATIO (the ×100 is applied at display by CompareView's 'pct' kind, like
+  // greenDayPct / scratch_pct). Entry basis = entryPriceOf (avg_buy long /
+  // avg_sell short) — the SAME basis avg_mae_pct / avg_mfe_pct use. entry <= 0 or
+  // a zero-position row is EXCLUDED (null), never counted as 0%. Per-trade means
+  // over the winner/loser subsets; APPT% is the mean over winners + losers.
+  const pctMoveOf = (t: TradeForStats): number | null => {
+    const ps = perShareOf(t)
+    const entry = entryPriceOf(t)
+    return ps != null && entry > 0 ? ps / entry : null
+  }
+  const winnerPcts = winners.map(pctMoveOf).filter((v): v is number => v != null)
+  const loserPcts = losers.map(pctMoveOf).filter((v): v is number => v != null)
+  const apptPct = meanOrNull([...winnerPcts, ...loserPcts])
+  const avgWinPct = meanOrNull(winnerPcts)
+  const avgLossPct = meanOrNull(loserPcts)
+  const maxWinPct = winnerPcts.length > 0 ? Math.max(...winnerPcts) : null
+  const maxLossPct = loserPcts.length > 0 ? Math.min(...loserPcts) : null
+
   let kelly: number | null = null
   if (winRate !== null && lossRate !== null && avgWin !== null && avgLoss !== null && avgWin > 0) {
     kelly = (winRate - (lossRate * Math.abs(avgLoss)) / avgWin) * 100
@@ -214,6 +233,11 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
     avg_per_share_loss: avgPerShareLoss,
     max_per_share_win: maxPerShareWin,
     max_per_share_loss: maxPerShareLoss,
+    appt_pct: apptPct,
+    avg_win_pct: avgWinPct,
+    avg_loss_pct: avgLossPct,
+    max_win_pct: maxWinPct,
+    max_loss_pct: maxLossPct,
     std_dev_pnl: sd,
     profit_factor: profitFactor,
     total_shares_traded: totalShares,

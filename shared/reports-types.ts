@@ -35,6 +35,15 @@ export interface FullStats {
   avg_per_share_loss: number | null  // mean per-share P&L over losers (negative)
   max_per_share_win: number | null   // highest single-trade per-share P&L (winners)
   max_per_share_loss: number | null  // lowest (most negative) per-share P&L (losers)
+  // Phase 2 (djsevans87) — price-move % per trade = per-share $ / entry price,
+  // stored as a RATIO/fraction (×100 at display, like greenDayPct / scratch_pct —
+  // NOT the already-×100 avg_mae_pct / avg_mfe_pct below). Per-trade means over the
+  // winner/loser subsets; appt_pct is the mean over winners + losers (scratch out).
+  appt_pct: number | null      // avg profit-per-trade as a price-move ratio
+  avg_win_pct: number | null   // mean price-move ratio over winners
+  avg_loss_pct: number | null  // mean price-move ratio over losers (negative)
+  max_win_pct: number | null   // highest winner price-move ratio
+  max_loss_pct: number | null  // lowest (most negative) loser price-move ratio
   std_dev_pnl: number | null       // sample std dev across trades (null when N < 2)
   profit_factor: number | null
 

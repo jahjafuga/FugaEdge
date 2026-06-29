@@ -180,6 +180,19 @@ export interface PeriodMetrics {
   maxPerShareLoss?: number | null
   /** Total shares traded (both legs summed). */
   totalSharesTraded?: number | null
+  // ── Phase 2 P&L % tier (djsevans87) — price-move % per trade (per-share $ /
+  // entry price), stored as a RATIO (×100 at display via the 'pct' format kind).
+  // FullStats-derived, attached in computePeriodComparison.
+  /** Avg profit-per-trade as a price-move ratio (mean over winners + losers). */
+  apptPct?: number | null
+  /** Mean price-move ratio over winners. */
+  avgWinPct?: number | null
+  /** Mean price-move ratio over losers (negative). */
+  avgLossPct?: number | null
+  /** Highest winner price-move ratio. */
+  maxWinPct?: number | null
+  /** Lowest (most negative) loser price-move ratio. */
+  maxLossPct?: number | null
 }
 
 /** One bar of the R-multiple histogram. `bucket` is the display label; the

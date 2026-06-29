@@ -586,6 +586,11 @@ export function computePeriodComparison(
     maxPerShareWin: fsA.max_per_share_win,
     maxPerShareLoss: fsA.max_per_share_loss,
     totalSharesTraded: fsA.total_shares_traded,
+    apptPct: fsA.appt_pct,
+    avgWinPct: fsA.avg_win_pct,
+    avgLossPct: fsA.avg_loss_pct,
+    maxWinPct: fsA.max_win_pct,
+    maxLossPct: fsA.max_loss_pct,
   }
   const periodB: PeriodMetrics = {
     ...b,
@@ -598,6 +603,11 @@ export function computePeriodComparison(
     maxPerShareWin: fsB.max_per_share_win,
     maxPerShareLoss: fsB.max_per_share_loss,
     totalSharesTraded: fsB.total_shares_traded,
+    apptPct: fsB.appt_pct,
+    avgWinPct: fsB.avg_win_pct,
+    avgLossPct: fsB.avg_loss_pct,
+    maxWinPct: fsB.max_win_pct,
+    maxLossPct: fsB.max_loss_pct,
   }
 
   return {

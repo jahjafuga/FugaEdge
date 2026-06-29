@@ -553,6 +553,21 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
       ],
     },
     {
+      // Phase 2 (djsevans87) — price-move % tier (sibling of "P&L per share").
+      // Fields are RATIOS; the 'pct' kind applies ×100 + signs the delta (ASCII
+      // hyphen), like the win-rate / MFE-capture rows. higherIsBetter:true on all
+      // five so a SMALLER (less-negative) loss % reads green (mirrors the per-share
+      // loss rows). Empty side -> null -> em-dash.
+      title: 'P&L %',
+      rows: [
+        { label: 'APPT %',     a: a.apptPct ?? null,    b: b.apptPct ?? null,    format: 'pct', higherIsBetter: true },
+        { label: 'Avg win %',  a: a.avgWinPct ?? null,  b: b.avgWinPct ?? null,  format: 'pct', higherIsBetter: true },
+        { label: 'Avg loss %', a: a.avgLossPct ?? null, b: b.avgLossPct ?? null, format: 'pct', higherIsBetter: true },
+        { label: 'Max win %',  a: a.maxWinPct ?? null,  b: b.maxWinPct ?? null,  format: 'pct', higherIsBetter: true },
+        { label: 'Max loss %', a: a.maxLossPct ?? null, b: b.maxLossPct ?? null, format: 'pct', higherIsBetter: true },
+      ],
+    },
+    {
       title: 'Consistency',
       rows: [
         { label: 'Green days',        a: a.greenDays,       b: b.greenDays,       format: 'int',   higherIsBetter: true },

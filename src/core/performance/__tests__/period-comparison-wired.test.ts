@@ -128,4 +128,24 @@ describe('computePeriodComparison — wired stat tier (volume / scratch-hold / d
     expect(comparison.periodB.maxPerShareLoss).toBeNull()
     expect(comparison.periodB.totalSharesTraded).toBe(600)
   })
+
+  // Phase 2 (djsevans87) — the P&L % fields flow onto periodA/periodB. The fixture
+  // uses entry price = $1 (tradeRow default avg_buy/sell_price), so each trade's
+  // price-move ratio EQUALS its per-share $ here (ratio = per-share / 1). The %
+  // math proper is pinned with varied entry prices in fullStats-pct.test.ts; this
+  // just confirms the wiring reaches both periods.
+  it('period A: P&L % fields (entry=$1 so ratio equals per-share here)', () => {
+    expect(comparison.periodA.avgWinPct).toBeCloseTo((100 / 150 + 30 / 150) / 2, 6)
+    expect(comparison.periodA.maxWinPct).toBeCloseTo(100 / 150, 6)
+    expect(comparison.periodA.avgLossPct).toBeCloseTo(-0.3, 6)
+    expect(comparison.periodA.maxLossPct).toBeCloseTo(-0.3, 6)
+    expect(comparison.periodA.apptPct).toBeCloseTo((100 / 150 + 30 / 150 - 0.3) / 3, 6)
+  })
+
+  it('period B: all winners -> loss-side % null', () => {
+    expect(comparison.periodB.avgWinPct).toBeCloseTo((0.5 + 0.4 + 0.2) / 3, 6)
+    expect(comparison.periodB.maxWinPct).toBeCloseTo(0.5, 6)
+    expect(comparison.periodB.avgLossPct).toBeNull()
+    expect(comparison.periodB.maxLossPct).toBeNull()
+  })
 })
