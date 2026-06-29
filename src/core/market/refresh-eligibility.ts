@@ -39,3 +39,62 @@ export function shouldRetryErrored(
   if (!Number.isFinite(last)) return true // no usable timestamp → never strand
   return now - last >= cooldownMs // skip inside the window; re-attempt past it
 }
+
+// ── Fix (a) — missing-first refresh classification + ordering ────────────────
+// The market-refresh worklist used to be one alphabetical batch with missing
+// and stale symbols interleaved, so a newly-traded symbol (no market_data row)
+// queued behind the whole stale alphabet and — under the rate limit — rarely
+// got through. These pure helpers classify each symbol and order MISSING ones
+// first so a fresh symbol surfaces on the first refresh click. The electron
+// repo supplies the rows; the policy stays here, unit-tested, web-portable.
+
+export type RefreshKind =
+  | 'missing'           // no market_data row yet — fetch first (high priority)
+  | 'errored-retry'     // errored, transient/ambiguous — re-attempt
+  | 'errored-cooldown'  // errored, plan-gated inside cooldown — skip this run
+  | 'stale'             // present, no error, older than the cache window — re-fetch
+  | 'fresh'             // present, no error, within the cache window — skip
+
+/** Classify one symbol's market_data row (or its absence) for a force=false
+ *  refresh. Pure — `now`/`staleAfterMs` are injected. Mirrors the prior inline
+ *  predicate in symbolsNeedingFetch, now reusable + testable. */
+export function classifyRefresh(
+  row: { error: string | null; fetched_at: string } | null,
+  now: number,
+  staleAfterMs: number,
+  cooldownMs: number = PLAN_GATE_COOLDOWN_MS,
+): RefreshKind {
+  if (!row) return 'missing'
+  if (row.error) {
+    return shouldRetryErrored(row.error, row.fetched_at, now, cooldownMs)
+      ? 'errored-retry'
+      : 'errored-cooldown'
+  }
+  const fetched = Date.parse(row.fetched_at)
+  // Unparseable timestamp → treat as stale (never strand a row on a bad date).
+  if (!Number.isFinite(fetched)) return 'stale'
+  return now - fetched >= staleAfterMs ? 'stale' : 'fresh'
+}
+
+/** Whether a classified symbol should be fetched this run (excludes fresh +
+ *  in-cooldown). */
+export function shouldRefresh(kind: RefreshKind): boolean {
+  return kind === 'missing' || kind === 'errored-retry' || kind === 'stale'
+}
+
+/** Missing-first ordering: MISSING symbols lead, then stale / errored-retry;
+ *  fresh and in-cooldown are dropped. Input is the classified symbols in their
+ *  natural (alphabetical) order; output preserves that order WITHIN each bucket.
+ *  Pure — the electron repo classifies its rows and calls this. */
+export function orderRefreshSymbols(
+  classified: { symbol: string; kind: RefreshKind }[],
+): string[] {
+  const missing: string[] = []
+  const rest: string[] = []
+  for (const { symbol, kind } of classified) {
+    if (kind === 'missing') missing.push(symbol)
+    else if (shouldRefresh(kind)) rest.push(symbol)
+    // fresh / errored-cooldown → excluded
+  }
+  return [...missing, ...rest]
+}

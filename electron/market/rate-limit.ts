@@ -1,10 +1,12 @@
 // Shared rate-limit retry helper.
 //
-// Centralizes the "soft retry on 429" pattern that was duplicated across
-// six call sites (resolve-countries, enrich-float, enrich-aggregates,
-// country backfill, intraday, and runRefresh's internal fetchOne). The
-// previous design did a single 12s retry and dropped the symbol on the
-// second failure — Lao's Day 7A smoke test hit Polygon's free-tier
+// Centralizes the "soft retry on 429" pattern that was previously duplicated
+// inline across the market + import fetch paths (resolve-countries,
+// enrich-aggregates, country backfill, intraday, and — once the runRefresh
+// rate-limit migration landed — runRefresh's internal fetchOne, which had been
+// the last holdout, still on its own ad-hoc 350ms throttle + single 12s retry).
+// The previous inline design did a single 12s retry and dropped the symbol on
+// the second failure — Lao's Day 7A smoke test hit Polygon's free-tier
 // 5-calls/min limit and 10 of 19 symbols errored out because one retry
 // wasn't enough to wait for the bucket to refill.
 //

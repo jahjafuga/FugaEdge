@@ -68,6 +68,19 @@ function seed(symbol: string, over: Partial<MarketDbRow> = {}): void {
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
 
+// Fix (c) — fetch.ts now wraps each Polygon call in withRateLimitRetry and paces
+// at WARMUP_SPACING_MS. Mock the helper so tests assert the call STRUCTURE (the
+// helper is invoked per call) without the 12s wall-clock pacing: spacing → 0, and
+// withRateLimitRetry just records the invocation + passes through.
+const { rlRetrySpy } = vi.hoisted(() => ({ rlRetrySpy: vi.fn() }))
+vi.mock('../rate-limit', () => ({
+  withRateLimitRetry: <T>(fn: () => Promise<T>): Promise<T> => {
+    rlRetrySpy()
+    return fn()
+  },
+  WARMUP_SPACING_MS: 0,
+}))
+
 vi.mock('../../settings/repo', () => ({
   getSettings: () => ({ values: { polygon_api_key: 'test-key' } }),
 }))
@@ -160,6 +173,7 @@ beforeEach(() => {
   marketData.clear()
   refResult = {}
   refError = null
+  rlRetrySpy.mockClear()
 })
 
 describe('refreshMarketData — sector/industry existing-wins (Commit B)', () => {
@@ -223,5 +237,21 @@ describe('refreshMarketData — sector/industry existing-wins (Commit B)', () =>
     expect(row.industry).toBe('Biotechnology')  // untouched
     expect(row.error).toContain('500')          // failure recorded
     expect(row.fetched_at).not.toBe(SEED_FETCHED_AT) // timestamp advanced
+  })
+})
+
+// Fix (c) — runRefresh's fetchOne is migrated onto the shared withRateLimitRetry
+// (3-attempt 12/30/60s backoff) + WARMUP_SPACING_MS (5/min) pacing, replacing the
+// old ad-hoc 350ms throttle + single aggregate-only retry. Assert the call
+// STRUCTURE (helper invoked per Polygon call), not wall-clock timing.
+describe('refreshMarketData — rate-limit migration (Fix c)', () => {
+  it('wraps BOTH the ticker-reference and the aggregates call in withRateLimitRetry', async () => {
+    seed('TEST', { sector: null })
+    refResult = { results: { market_cap: 1234 } }
+
+    await refreshMarketData({ force: true })
+
+    // One symbol → two wrapped Polygon calls: fetchTickerReference + fetchDailyAggregates.
+    expect(rlRetrySpy).toHaveBeenCalledTimes(2)
   })
 })

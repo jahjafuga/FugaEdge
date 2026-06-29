@@ -1,5 +1,9 @@
 import { openDatabase } from '../db/database'
-import { shouldRetryErrored } from '@/core/market/refresh-eligibility'
+import {
+  classifyRefresh,
+  orderRefreshSymbols,
+  shouldRetryErrored,
+} from '@/core/market/refresh-eligibility'
 
 export interface MarketRow {
   symbol: string
@@ -168,25 +172,19 @@ export function symbolsNeedingFetch(staleAfterMs: number, force: boolean): strin
   const known = new Map<string, MarketRow>()
   for (const r of getAllMarketRows()) known.set(r.symbol, r)
 
+  // Fix (a) — classify each symbol (missing / errored-retry / errored-cooldown /
+  // stale / fresh) with the pure refresh-eligibility helper, then order MISSING
+  // symbols AHEAD of stale ones so a newly-traded symbol surfaces on the first
+  // refresh click instead of queuing behind the whole stale alphabet. fresh +
+  // in-cooldown rows are dropped by orderRefreshSymbols. This layer only supplies
+  // the rows; the classification + missing-first policy live (and are unit-tested)
+  // in src/core/market/refresh-eligibility.ts.
   const now = Date.now()
-  const out: string[] = []
-  for (const { symbol } of distinct) {
-    const row = known.get(symbol)
-    if (!row) {
-      out.push(symbol) // never fetched
-      continue
-    }
-    if (row.error) {
-      // Errored: retry transient failures; skip a plan-gated symbol while it's
-      // still inside the cooldown window (don't re-hammer a 403 every refresh).
-      if (shouldRetryErrored(row.error, row.fetched_at, now)) out.push(symbol)
-      continue
-    }
-    // No error: re-fetch only when stale.
-    const fetched = Date.parse(row.fetched_at)
-    if (!(Number.isFinite(fetched) && now - fetched < staleAfterMs)) out.push(symbol)
-  }
-  return out
+  const classified = distinct.map(({ symbol }) => ({
+    symbol,
+    kind: classifyRefresh(known.get(symbol) ?? null, now, staleAfterMs),
+  }))
+  return orderRefreshSymbols(classified)
 }
 
 // v0.2.3 Stage A — worklist for the sector/industry backfill. `industry` is

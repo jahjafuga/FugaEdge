@@ -5,6 +5,7 @@ import {
   fetchTickerReference,
   MassiveError,
 } from './massive'
+import { withRateLimitRetry, WARMUP_SPACING_MS } from './rate-limit'
 import { resolveCountryFromPolygon } from '@/core/country/resolve'
 import {
   getMarketRow,
@@ -17,9 +18,14 @@ import { backfillAllRvol } from './rvol-backfill'
 import type { MarketRefreshProgress } from '@shared/market-types'
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
-const REQUEST_SPACING_MS = 350             // floor between requests (~3/s)
 const MAX_CONCURRENT = 2
-const RETRY_BACKOFF_MS = 12_000            // on 429
+// Fix (c) — pacing + 429 handling are now the SHARED helpers (the warmup-backfill
+// model, electron/market/warmup-backfill.ts): respectSpacing paces at
+// WARMUP_SPACING_MS (derived from Polygon's 5/min free tier) instead of the old
+// ad-hoc 350ms, and every Polygon call is wrapped in withRateLimitRetry (3
+// attempts, 12/30/60s backoff, honors Retry-After). The old REQUEST_SPACING_MS
+// (~3/s, which blasted the 5/min bucket) + single aggregate-only RETRY_BACKOFF_MS
+// retry are gone — that ad-hoc throttle was the cause of the "145 failed" 429 storm.
 
 export interface RefreshResult {
   attempted: number
@@ -139,8 +145,8 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
   let lastRequestAt = 0
   const respectSpacing = async () => {
     const since = Date.now() - lastRequestAt
-    if (since < REQUEST_SPACING_MS) {
-      await new Promise((r) => setTimeout(r, REQUEST_SPACING_MS - since))
+    if (since < WARMUP_SPACING_MS) {
+      await new Promise((r) => setTimeout(r, WARMUP_SPACING_MS - since))
     }
     lastRequestAt = Date.now()
   }
@@ -154,22 +160,16 @@ async function runRefresh(opts: RefreshOptions): Promise<RefreshResult> {
 
     try {
       await respectSpacing()
-      const ref = await fetchTickerReference(polygon_api_key, symbol)
+      const ref = await withRateLimitRetry(() =>
+        fetchTickerReference(polygon_api_key, symbol),
+      )
       const details = extractTickerDetails(symbol, ref)
       const country = resolveCountryFromPolygon(ref)
 
       await respectSpacing()
-      let aggs
-      try {
-        aggs = await fetchDailyAggregates(polygon_api_key, symbol, from, to)
-      } catch (e) {
-        if (e instanceof MassiveError && e.status === 429) {
-          await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS))
-          aggs = await fetchDailyAggregates(polygon_api_key, symbol, from, to)
-        } else {
-          throw e
-        }
-      }
+      const aggs = await withRateLimitRetry(() =>
+        fetchDailyAggregates(polygon_api_key, symbol, from, to),
+      )
 
       const dailyVolumes: Record<string, number> = {}
       for (const a of aggs) dailyVolumes[a.date] = a.volume
