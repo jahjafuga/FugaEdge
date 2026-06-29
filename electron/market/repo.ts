@@ -418,6 +418,72 @@ export function warmupKeysNeedingFetch(): { symbol: string; date: string }[] {
     .map((r) => ({ symbol: r.symbol, date: r.date }))
 }
 
+// v0.2.4 §K.1.3 — candidate row for the stranded-warmup re-clear: the bar-
+// emptiness booleans are computed SQL-side (so the SELECT payload stays tiny — never
+// the multi-KB bars JSON), mirroring warmupKeysNeedingFetch's "Option C" split.
+export interface StrandedWarmupCandidate {
+  warmup_attempted_at: string | null
+  warmup_error: string | null
+  error: string | null
+  has_bars: number // SQL boolean: bars IS NOT NULL AND bars != '[]'
+  warmup_empty: number // SQL boolean: warmup_bars IS NULL OR warmup_bars = '[]'
+}
+
+// The §K.1.3 "locked legit-empty" shape — pure predicate so the selection logic is
+// unit-testable in JS (the repo SELECT is a dumb fetch). The six conditions are
+// byte-identical to the dry-run-proven clause:
+//   warmup_attempted_at IS NOT NULL    -> warmup_attempted_at != null
+//   warmup_bars IS NULL OR = '[]'      -> warmup_empty
+//   warmup_error IS NULL               -> warmup_error == null
+//   bars IS NOT NULL AND bars != '[]'  -> has_bars
+//   error IS NULL                      -> error == null
+// The has_bars + error guards mean it can NEVER touch the no-active-bars / errored
+// stuck keys — only the recoverable locked-legit-empty shape (Part B's bucket b).
+export function isStrandedLockedWarmupRow(r: StrandedWarmupCandidate): boolean {
+  return (
+    r.warmup_attempted_at != null &&
+    r.warmup_error == null &&
+    r.error == null &&
+    Boolean(r.has_bars) &&
+    Boolean(r.warmup_empty)
+  )
+}
+
+// v0.2.4 §K.1.3 — one-time recovery for STRANDED pre-§K.1.0 throws. Keys that
+// threw during the 2026-06-10 pre-launch smoke (before warmup_error existed) carry
+// warmup_attempted_at SET, warmup_bars '[]', warmup_error NULL — indistinguishable
+// to the §K.1 predicate from a legit empty, so they stay locked out of every
+// future runWarmupBackfill. This nulls the marker on EXACTLY that locked shape so
+// warmupKeysNeedingFetch re-includes them; a throttled re-fetch then heals them.
+// Returns the affected-key count for the Settings surface.
+//
+// Structured like warmupKeysNeedingFetch: SELECT candidates (bar-emptiness as SQL
+// booleans), filter the locked shape in JS via isStrandedLockedWarmupRow, then null
+// the marker per matched (symbol,date) key — keeping the predicate in testable JS.
+//
+// USER-GATED — must NOT auto-run (launch / migration). A fresh user's legit empties
+// share this shape, so auto-clearing would force-refetch every one, burning Polygon
+// quota and re-tripping the rate limits §K.1 was built to avoid (§K.1.3 rationale,
+// docs/plans/v0.2.4-technical-analysis.md:354). Wire to a Settings "Recover
+// stranded warmup keys" button only.
+export function reclearStrandedWarmupMarkers(): number {
+  const db = openDatabase()
+  const rows = db
+    .prepare(`
+      SELECT symbol, date, warmup_attempted_at, warmup_error, error,
+             (bars IS NOT NULL AND bars != '[]')         AS has_bars,
+             (warmup_bars IS NULL OR warmup_bars = '[]') AS warmup_empty
+      FROM intraday_bars
+    `)
+    .all() as (StrandedWarmupCandidate & { symbol: string; date: string })[]
+  const locked = rows.filter(isStrandedLockedWarmupRow)
+  const stmt = db.prepare(
+    'UPDATE intraday_bars SET warmup_attempted_at = NULL WHERE symbol = ? AND date = ?',
+  )
+  for (const r of locked) stmt.run(r.symbol, r.date)
+  return locked.length
+}
+
 export function setTradeEma9Distance(tradeId: number, pct: number | null): void {
   const db = openDatabase()
   db.prepare('UPDATE trades SET entry_ema9_distance_pct = ? WHERE id = ?').run(pct, tradeId)
