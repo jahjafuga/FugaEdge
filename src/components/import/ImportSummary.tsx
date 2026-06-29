@@ -36,7 +36,8 @@ export default function ImportSummary({
                   f.format === 'webull_mobile' ||
                   f.format === 'xlsx' ||
                   f.format === 'ocean_one' ||
-                  f.format === 'tradezero'
+                  f.format === 'tradezero' ||
+                  f.format === 'tradezero_summary'
                     ? `${int(f.rowCount)} trades`
                     : null}
                 </span>
@@ -99,13 +100,15 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
   //   - Webull Mobile (Name-led CSV)
   //   - Webull Desktop (XLSX)
   //   - TradeZero (Account-led CSV)
+  //   - TradeZero summary (Trade-Type-led CSV — pre-aggregated round trips)
   if (
     format === 'tradehistory' ||
     format === 'trades_window' ||
     format === 'webull_mobile' ||
     format === 'xlsx' ||
     format === 'ocean_one' ||
-    format === 'tradezero'
+    format === 'tradezero' ||
+    format === 'tradezero_summary'
   ) {
     return (
       <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">

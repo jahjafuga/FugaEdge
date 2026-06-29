@@ -121,8 +121,8 @@ const api = {
     ipcRenderer.invoke(IPC.APP_OPEN_EXTERNAL, url),
   dbHealthcheck: (): Promise<DbHealthcheck> => ipcRenderer.invoke(IPC.DB_HEALTHCHECK),
   resetDatabase: (): Promise<DbResetResult> => ipcRenderer.invoke(IPC.DB_RESET),
-  importPreview: (files: PreviewInputFile[]): Promise<PreviewResult> =>
-    ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files),
+  importPreview: (files: PreviewInputFile[], previewDate?: string): Promise<PreviewResult> =>
+    ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files, previewDate),
   importCommit: (input: CommitInput): Promise<CommitResult> =>
     ipcRenderer.invoke(IPC.IMPORT_COMMIT, input),
   dashboardGet: (range?: TimeRange): Promise<DashboardData> =>

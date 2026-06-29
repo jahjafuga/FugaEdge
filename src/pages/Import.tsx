@@ -9,12 +9,12 @@ import PreviewTable from '@/components/import/PreviewTable'
 import FeesPreviewTable from '@/components/import/FeesPreviewTable'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
-import type { PreviewResult, CommitResult } from '@shared/import-types'
+import type { PreviewResult, CommitResult, PreviewInputFile } from '@shared/import-types'
 
 type Phase =
   | { kind: 'idle' }
   | { kind: 'parsing'; filenames: string[] }
-  | { kind: 'preview'; data: PreviewResult; dateOverride: string }
+  | { kind: 'preview'; data: PreviewResult; dateOverride: string; inputs: PreviewInputFile[] }
   | { kind: 'committing' }
   | { kind: 'done'; result: CommitResult }
   | { kind: 'error'; message: string }
@@ -27,13 +27,24 @@ export default function Import() {
     async (files: { name: string; text?: string; bytes?: Uint8Array }[]) => {
       setPhase({ kind: 'parsing', filenames: files.map((f) => f.name) })
       try {
-        const data = await ipc.importPreview(
-          files.map((f) => ({ filename: f.name, text: f.text, bytes: f.bytes })),
-        )
-        // Seed date override with the inferred range start, or today.
+        const inputs: PreviewInputFile[] = files.map((f) => ({
+          filename: f.name,
+          text: f.text,
+          bytes: f.bytes,
+        }))
+        const data = await ipc.importPreview(inputs)
+        // Seed the date override. A dateless TradeZero summary file must NOT
+        // silently default to today — that would stamp the trades with the wrong
+        // date and quietly mis-date the journal. When a summary is present and no
+        // real date could be inferred, seed EMPTY so the user is FORCED to pick
+        // the actual trade date (the button stays disabled until they do — see
+        // blockingNeedsDate). Every other batch keeps the inferred-range / today
+        // seed unchanged.
+        const hasSummary = data.files.some((f) => f.format === 'tradezero_summary')
         const seed =
-          data.dateRange?.from ?? new Date().toISOString().slice(0, 10)
-        setPhase({ kind: 'preview', data, dateOverride: seed })
+          data.dateRange?.from ??
+          (hasSummary ? '' : new Date().toISOString().slice(0, 10))
+        setPhase({ kind: 'preview', data, dateOverride: seed, inputs })
       } catch (e) {
         setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
       }
@@ -58,6 +69,33 @@ export default function Import() {
       setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
     }
   }, [phase])
+
+  // Re-preview when the date changes for a batch containing a TradeZero summary
+  // file: a summary trip bakes the date into its dedup hashes at parse time, so
+  // the trips must be REBUILT (not just re-labelled) for the new date. Fee-only
+  // files don't need this — their date is applied to fee rows at commit
+  // (feeDateOverride) — so for those we just record the date locally.
+  const handleDateChange = useCallback(
+    async (d: string) => {
+      if (phase.kind !== 'preview') return
+      const hasSummary = phase.data.files.some((f) => f.format === 'tradezero_summary')
+      if (!hasSummary) {
+        setPhase({ ...phase, dateOverride: d })
+        return
+      }
+      const inputs = phase.inputs
+      setPhase({ ...phase, dateOverride: d })
+      try {
+        const data = await ipc.importPreview(inputs, d)
+        setPhase((p) => (p.kind === 'preview' ? { ...p, data, dateOverride: d } : p))
+      } catch (e) {
+        // Keep the current preview on a transient re-preview failure; the date
+        // input stays so the user can retry.
+        console.error('[import] summary re-preview failed', e)
+      }
+    },
+    [phase],
+  )
 
   return (
     <PageShell
@@ -93,7 +131,7 @@ export default function Import() {
         <PreviewPanel
           data={phase.data}
           dateOverride={phase.dateOverride}
-          onDateChange={(d) => setPhase({ ...phase, dateOverride: d })}
+          onDateChange={handleDateChange}
           onCancel={reset}
           onConfirm={commit}
           onShowGuide={() => setGuideOpen(true)}
@@ -261,8 +299,8 @@ function PreviewPanel({
               Date required
             </div>
             <div className="mt-1 text-sm text-fg-secondary">
-              A daily summary file in this batch has no date in its filename. Pick the
-              trade date so fees can be matched to the right round trips.
+              A summary file in this batch has no date. Pick the trade date so the
+              imported rows are dated correctly.
             </div>
           </div>
           <div>
@@ -358,10 +396,10 @@ function PreviewPanel({
           disabled={!hasUsableContent || blockingNeedsDate || blockedByPaper}
           className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {!hasUsableContent
-            ? 'Nothing new to import'
-            : blockingNeedsDate
-              ? 'Pick a date to continue'
+          {blockingNeedsDate
+            ? 'Pick a date to continue'
+            : !hasUsableContent
+              ? 'Nothing new to import'
               : blockedByPaper
                 ? 'Paper imports arrive in v0.3.0'
                 : confirmLabel(data)}

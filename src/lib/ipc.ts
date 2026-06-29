@@ -47,7 +47,8 @@ export const ipc = {
   openExternal: (url: string) => window.api.openExternal(url),
   dbHealthcheck: () => window.api.dbHealthcheck(),
   resetDatabase: () => window.api.resetDatabase(),
-  importPreview: (files: PreviewInputFile[]) => window.api.importPreview(files),
+  importPreview: (files: PreviewInputFile[], previewDate?: string) =>
+    window.api.importPreview(files, previewDate),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
   tradesList: (opts?: { date?: string; deleted?: boolean }) =>

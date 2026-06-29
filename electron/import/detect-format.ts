@@ -7,6 +7,7 @@ export type CsvFormat =
   | 'webull_mobile'
   | 'daily-summary'
   | 'tradezero'
+  | 'tradezero_summary'
   | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
@@ -83,6 +84,14 @@ export function detectFormat(csvText: string): CsvFormat {
   // Account-led export can't false-match.
   if (first === 'account' && has('t/d') && has('exec time')) {
     return 'tradezero'
+  }
+
+  // TradeZero daily-summary export — first column is "Trade Type". No other
+  // shape leads with Trade Type; pair it with two summary-distinctive headers
+  // ("Day Profit & Loss" + "Bought Average Price") so a Trade-Type-led header
+  // missing the aggregate columns won't false-match.
+  if (first === 'trade type' && has('day profit & loss') && has('bought average price')) {
+    return 'tradezero_summary'
   }
 
   // Daily summary — first column is Symbol. Verify with fee/aggregate markers

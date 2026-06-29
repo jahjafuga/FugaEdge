@@ -18,6 +18,7 @@ import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { parseWebullMobileCsv } from './parse-webull-mobile'
 import { parseTradeZeroCsv } from './parse-tradezero'
+import { parseTradeZeroSummaryCsv } from './parse-tradezero-summary'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
@@ -96,7 +97,7 @@ export function registerImportIpc(): void {
 
   ipcMain.handle(
     IPC.IMPORT_PREVIEW,
-    async (_e, files: PreviewInputFile[]): Promise<PreviewResult> => {
+    async (_e, files: PreviewInputFile[], previewDate?: string): Promise<PreviewResult> => {
       const fileInfos: FileInfo[] = []
       const allExecutions = []
       // Round-trip-native parser output (Ocean One): trips that arrive already
@@ -411,6 +412,57 @@ export function registerImportIpc(): void {
                   (t.symbol ? ` symbol=${t.symbol}` : ''),
               )
             }
+          }
+        } else if (fmt === 'tradezero_summary') {
+          // TradeZero daily-summary: pre-aggregated round trips, NO date in the
+          // file. The date is supplied by the preview prompt (previewDate). A
+          // summary trip bakes the date into its dedup hashes at parse time, so
+          // we can only build trips once we have it — until then, flag needsDate
+          // and build none (the file still appears in the list). With a date,
+          // parse → directTrips (round-trip-native, the Ocean One path).
+          if (previewDate) {
+            const parsed = parseTradeZeroSummaryCsv(f.text, previewDate, f.filename)
+            directTrips.push(...parsed.roundTrips)
+            issues.push(
+              ...csvParseIssues(f.filename, 'tradezero_summary', {
+                kept: parsed.roundTrips.length,
+                skipped: parsed.skipped,
+                malformedRows: parsed.warnings.length,
+                requiresDate: false,
+              }),
+            )
+            fileInfos.push({
+              filename: f.filename,
+              format: 'tradezero_summary',
+              filenameDateParsed: false,
+              inferredDate: previewDate,
+              rowCount: parsed.roundTrips.length,
+            })
+            for (const t of parsed.trace) {
+              if (t.outcome === 'skipped') {
+                console.info(
+                  `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                    (t.symbol ? ` symbol=${t.symbol}` : ''),
+                )
+              }
+            }
+          } else {
+            needsDate = true
+            issues.push(
+              ...csvParseIssues(f.filename, 'tradezero_summary', {
+                kept: 0,
+                skipped: 0,
+                malformedRows: 0,
+                requiresDate: true,
+              }),
+            )
+            fileInfos.push({
+              filename: f.filename,
+              format: 'tradezero_summary',
+              filenameDateParsed: false,
+              inferredDate: '',
+              rowCount: 0,
+            })
           }
         } else if (fmt === 'daily-summary') {
           feeFilesPresent = true

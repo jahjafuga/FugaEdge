@@ -195,6 +195,7 @@ export type CsvFormat =
   | 'ocean_one'
   | 'daily-summary'
   | 'tradezero'
+  | 'tradezero_summary'
   | 'unknown'
 
 export interface FileInfo {

@@ -42,6 +42,7 @@ const FORMAT_DISPLAY_NAMES: Record<string, string> = {
   xlsx: 'Webull Desktop',
   ocean_one: 'Ocean One',
   tradezero: 'TradeZero',
+  tradezero_summary: 'TradeZero Summary',
   'daily-summary': 'DAS Account Report',
 }
 
