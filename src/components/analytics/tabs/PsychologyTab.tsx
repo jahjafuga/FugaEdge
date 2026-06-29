@@ -1,6 +1,7 @@
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import MistakesCard from '@/components/analytics/MistakesCard'
+import RuleBreaksCard from '@/components/analytics/RuleBreaksCard'
 import SentimentBreakdownCard from '@/components/analytics/SentimentBreakdownCard'
 import { int } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
@@ -102,6 +103,8 @@ export default function PsychologyTab({ data }: PsychologyTabProps) {
           </Card>
         </div>
       </div>
+
+      <RuleBreaksCard data={data.ruleBreaks} />
 
       <Card title="Revenge / fatigue" subtitle="Surfaces from the Insights engine — check the dashboard banner.">
         <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4 text-xs text-fg-secondary">

@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
+import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
 import { computeDrawdown } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
@@ -861,6 +862,19 @@ function computeCatalystAnalytics(rows: TradeRow[]): CatalystAnalytics {
   return { buckets, tagged_trades: tagged, total_trades: rows.length }
 }
 
+// Phase 3 — parse a journal.rule_breaks cell (a JSON string array) into string[].
+// Malformed / empty reads back as []. The pure computeRuleBreaks dedups; this just
+// marshals the stored JSON.
+function parseRuleBreaks(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const arr = JSON.parse(raw)
+    return Array.isArray(arr) ? arr.map((s) => String(s)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
 export function getAnalytics(): AnalyticsData {
   const db = openDatabase()
   const rows = db
@@ -927,6 +941,25 @@ export function getAnalytics(): AnalyticsData {
   const exitQuality = computeExitQuality(rows)
   const discipline = computeDiscipline(db, rows)
 
+  // Phase 3 — per-day rule-break rollup. Read the journal rows carrying rule
+  // breaks (the journal-read precedent in computeDiscipline above), parse the JSON
+  // arrays into a date->breaks map, and pair with the per-date net P&L the equity
+  // curve already computed. The aggregation is the pure computeRuleBreaks
+  // (src/core); getAnalytics only marshals the inputs.
+  const ruleBreakRows = db
+    .prepare(`
+      SELECT date, rule_breaks FROM journal
+      WHERE rule_breaks IS NOT NULL AND rule_breaks != '' AND rule_breaks != '[]'
+    `)
+    .all() as { date: string; rule_breaks: string }[]
+  const ruleBreaksByDate = new Map<string, string[]>(
+    ruleBreakRows.map((r) => [r.date, parseRuleBreaks(r.rule_breaks)]),
+  )
+  const netPnlByDate = new Map<string, number>(
+    equity.map((p) => [p.date, p.daily_pnl]),
+  )
+  const ruleBreaks = computeRuleBreaks(ruleBreaksByDate, netPnlByDate)
+
   return {
     trade_count: rows.length,
     equity,
@@ -940,6 +973,7 @@ export function getAnalytics(): AnalyticsData {
     exitQuality,
     momentum: computeMomentum(rows),
     mistakes: computeMistakes(rows),
+    ruleBreaks,
     r: computeRAnalytics(rows),
     float: computeFloatAnalytics(rows),
     sentiment: computeSentimentAnalytics(rows),

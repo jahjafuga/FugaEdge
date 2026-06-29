@@ -116,6 +116,28 @@ export interface MistakesAnalytics {
   clean_win_rate: number | null
 }
 
+// Phase 3 (djsevans87) — per-DAY rule-break rollup, the day-level sibling of the
+// per-trade MistakesAnalytics. No axis (rule-breaks are a flat list). Aggregated
+// over DAYS: a day with N breaks contributes to N labels' day_count but is ONE
+// day in the clean-vs-flawed split.
+export interface RuleBreakImpact {
+  label: string
+  day_count: number                // distinct days this rule-break was tagged on
+  net_pnl: number                  // Σ net P&L of those days
+  avg_pnl_per_day: number | null   // net_pnl / day_count; null when day_count 0
+  green_day_rate: number | null    // days net>0 / day_count; null when day_count 0
+}
+
+export interface RuleBreaksAnalytics {
+  byRuleBreak: RuleBreakImpact[]   // ordered by net_pnl ascending (worst first)
+  days_with_any_break: number      // flawed days (>= 1 break)
+  clean_days: number               // traded days with no break tagged
+  flawed_day_net_pnl: number
+  clean_day_net_pnl: number
+  flawed_green_rate: number | null // green flawed days / flawed days
+  clean_green_rate: number | null  // green clean days / clean days
+}
+
 export interface RBucket {
   key: string         // '≤ -3R', '-3 to -2R', etc.
   range: [number, number]   // inclusive lower, exclusive upper (Infinity allowed)
@@ -238,6 +260,9 @@ export interface AnalyticsData {
   exitQuality: ExitDelta[]    // top N by delta desc
   momentum: MomentumAnalytics
   mistakes: MistakesAnalytics
+  /** Phase 3 (djsevans87) — per-day rule-break rollup (the day-level sibling of
+   *  `mistakes`). */
+  ruleBreaks: RuleBreaksAnalytics
   r: RAnalytics
   float: FloatAnalytics
   sentiment: SentimentAnalytics
