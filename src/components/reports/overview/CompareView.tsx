@@ -48,6 +48,7 @@ import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
   computePeriodComparison,
+  netPnlPctOfAccount,
   daysBetween,
   rangeForPreset,
   rangeForSameMonthLastYear,
@@ -66,6 +67,9 @@ interface CompareViewProps {
   rangeA: DateRange
   rangeB: DateRange
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
+  /** Static configured account size for "Net P&L (% of account size)". null when
+   *  never configured (stored_keys check upstream) -> that row renders em-dash. */
+  accountSize?: number | null
 }
 
 const PRESETS: PeriodPreset[] = [
@@ -114,6 +118,7 @@ export default function CompareView({
   rangeA,
   rangeB,
   onRangeChange,
+  accountSize,
 }: CompareViewProps) {
   const comparison = useMemo<ComparisonResult>(
     () => computePeriodComparison(trades, rangeA, rangeB),
@@ -158,7 +163,7 @@ export default function CompareView({
               verdict headline + 70%/2:1 reference gauges, then edge core,
               consistency, execution quality, behaviour, and activity. Pure
               presentation over comparison.periodA/periodB. */}
-          <VerdictBlock a={comparison.periodA} b={comparison.periodB} />
+          <VerdictBlock a={comparison.periodA} b={comparison.periodB} accountSize={accountSize ?? null} />
 
           {eitherEmpty && (
             <div className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary">
@@ -628,16 +633,18 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
         // Phase 1 (djsevans87) — total shares traded (both legs). Context, not
         // good/bad → neutral grey delta, like Avg daily volume / Total trades.
         { label: 'Shares traded',     a: a.totalSharesTraded ?? null, b: b.totalSharesTraded ?? null, format: 'int', higherIsBetter: null },
+        // Phase 3 (djsevans87) — avg position size in $ (size, not good/bad -> neutral).
+        { label: 'Avg position size', a: a.avgPositionSize ?? null,   b: b.avgPositionSize ?? null,   format: 'money', higherIsBetter: null },
         { label: 'Max drawdown',      a: a.maxDrawdown ?? null,    b: b.maxDrawdown ?? null,    format: 'money',    higherIsBetter: false },
       ],
     },
   ]
 }
 
-function VerdictBlock({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
+function VerdictBlock({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics; accountSize: number | null }) {
   return (
     <div className="space-y-4">
-      <VerdictCard a={a} b={b} />
+      <VerdictCard a={a} b={b} accountSize={accountSize} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {buildSections(a, b).map((s) => (
           <StatSectionCard key={s.title} section={s} />
@@ -650,7 +657,7 @@ function VerdictBlock({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
 // The headline card — the trader's verdict at a glance: the four numbers Ross
 // reviews first, then the two reference gauges (accuracy vs the 70% target,
 // P/L ratio vs the 2:1 target).
-function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
+function VerdictCard({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics; accountSize: number | null }) {
   const headline: StatSpec[] = [
     { label: 'Net P&L',         a: a.netPnL,        b: b.netPnL,        format: 'money', higherIsBetter: true },
     { label: 'Avg daily P&L',   a: a.avgDailyPnL,   b: b.avgDailyPnL,   format: 'money', higherIsBetter: true },
@@ -667,6 +674,10 @@ function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
     // row, no new computation). Identical to "Net P&L" above by definition;
     // Phase 2 adds Account growth % to pair with it.
     { label: 'Account growth $', a: a.netPnL, b: b.netPnL, format: 'money', higherIsBetter: true },
+    // Phase 3 (djsevans87) — honestly labeled: net P&L rescaled by the STATIC
+    // configured account_size (NOT true compounding growth). null accountSize
+    // (never configured) -> netPnlPctOfAccount returns null -> em-dash.
+    { label: 'Net P&L (% of account size)', a: netPnlPctOfAccount(a.netPnL, accountSize), b: netPnlPctOfAccount(b.netPnL, accountSize), format: 'pct', higherIsBetter: true },
   ]
   return (
     <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">

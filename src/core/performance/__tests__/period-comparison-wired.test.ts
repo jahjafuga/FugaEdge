@@ -148,4 +148,15 @@ describe('computePeriodComparison — wired stat tier (volume / scratch-hold / d
     expect(comparison.periodB.avgLossPct).toBeNull()
     expect(comparison.periodB.maxLossPct).toBeNull()
   })
+
+  // Phase 3 (djsevans87) — Avg Position Size ($) flows onto periodA/periodB.
+  // Entry = $1 (tradeRow default), so position size = max(legs) × 1 = max(legs).
+  // Period A trades (incl the scratch T2): max legs 150, 100, 200, 150 -> mean 150.
+  // Period B: 100, 100, 100 -> mean 100.
+  it('period A: avg position size = mean(max-legs × $1)', () => {
+    expect(comparison.periodA.avgPositionSize).toBeCloseTo((150 + 100 + 200 + 150) / 4, 6)
+  })
+  it('period B: avg position size = 100', () => {
+    expect(comparison.periodB.avgPositionSize).toBeCloseTo(100, 6)
+  })
 })

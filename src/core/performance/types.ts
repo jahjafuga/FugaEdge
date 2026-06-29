@@ -193,6 +193,8 @@ export interface PeriodMetrics {
   maxWinPct?: number | null
   /** Lowest (most negative) loser price-move ratio. */
   maxLossPct?: number | null
+  /** Avg position size in $ (mean of position_shares × entry_price over all trades). */
+  avgPositionSize?: number | null
 }
 
 /** One bar of the R-multiple histogram. `bucket` is the display label; the
