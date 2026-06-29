@@ -6,6 +6,7 @@ export type CsvFormat =
   | 'trades_window'
   | 'webull_mobile'
   | 'daily-summary'
+  | 'tradezero'
   | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
@@ -74,6 +75,14 @@ export function detectFormat(csvText: string): CsvFormat {
     has('time-in-force')
   ) {
     return 'webull_mobile'
+  }
+
+  // TradeZero execution export — first column is "Account". No DAS/Webull shape
+  // leads with Account; pair the first-column check with two TradeZero-
+  // distinctive headers ("T/D" trade-date and "Exec Time") so an unrelated
+  // Account-led export can't false-match.
+  if (first === 'account' && has('t/d') && has('exec time')) {
+    return 'tradezero'
   }
 
   // Daily summary — first column is Symbol. Verify with fee/aggregate markers

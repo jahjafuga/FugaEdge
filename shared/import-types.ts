@@ -12,7 +12,7 @@ export type ExecSide = 'B' | 'S'
 
 /** Origin broker for a row. Drives format-specific parser routing only —
  *  the universal Execution shape itself is broker-agnostic. */
-export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS' | 'OceanOne'
+export type SourceBroker = 'DAS' | 'Webull' | 'Lightspeed' | 'IBKR' | 'ToS' | 'OceanOne' | 'TradeZero'
 
 /** Which export shape produced this row. 'summary' = daily aggregate,
  *  'execution' = per-fill (DAS Trades.csv), 'tradehistory' = per-fill
@@ -194,6 +194,7 @@ export type CsvFormat =
   | 'xlsx'
   | 'ocean_one'
   | 'daily-summary'
+  | 'tradezero'
   | 'unknown'
 
 export interface FileInfo {

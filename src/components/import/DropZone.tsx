@@ -102,7 +102,7 @@ export default function DropZone({ onFiles, disabled }: DropZoneProps) {
             Drop your broker export file(s)
           </div>
           <div className="mt-1 text-xs text-fg-secondary">
-            DAS Trader, Webull, or Ocean One files. Drag any combination.
+            DAS Trader, Webull, Ocean One, or TradeZero files. Drag any combination.
           </div>
         </div>
         <div className="mt-3 max-w-md text-[11px] uppercase tracking-wider text-fg-tertiary">

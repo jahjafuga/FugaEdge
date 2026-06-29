@@ -17,6 +17,7 @@ import { parseTradeHistoryCsv } from './parse-tradehistory'
 import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { parseWebullMobileCsv } from './parse-webull-mobile'
+import { parseTradeZeroCsv } from './parse-tradezero'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
@@ -371,6 +372,34 @@ export function registerImportIpc(): void {
           fileInfos.push({
             filename: f.filename,
             format: 'webull_mobile',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
+        } else if (fmt === 'tradezero') {
+          executionFilesPresent = true
+          const parsed = parseTradeZeroCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'tradezero', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
+          fileInfos.push({
+            filename: f.filename,
+            format: 'tradezero',
             filenameDateParsed: false,
             inferredDate: '',
             rowCount: parsed.executions.length,
