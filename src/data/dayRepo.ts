@@ -1,4 +1,4 @@
-import type { DayDetail } from '@shared/day-types'
+import type { DayDetail, RuleBreaksResult } from '@shared/day-types'
 
 // v0.2.2 — renderer-side typed client for the Day Detail data source.
 // Sits behind the same architecture rule the rest of `/src/data/` is meant to
@@ -15,5 +15,8 @@ export const dayRepo = {
   },
   saveDayNote(date: string, body: string): Promise<void> {
     return window.api.dayNoteSave(date, body)
+  },
+  saveRuleBreaks(date: string, breaks: string[]): Promise<RuleBreaksResult> {
+    return window.api.ruleBreaksSave(date, breaks)
   },
 }

@@ -107,7 +107,7 @@ import type {
   SessionMeta,
 } from '@shared/session-types'
 import type { DataHealth } from '@shared/data-health-types'
-import type { DayDetail } from '@shared/day-types'
+import type { DayDetail, RuleBreaksResult } from '@shared/day-types'
 import type { WeekDetail } from '@shared/week-types'
 import type {
   ListTradesWithTechnicalsOptions,
@@ -402,6 +402,8 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
   dayNoteSave: (date: string, body: string): Promise<void> =>
     ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
+  ruleBreaksSave: (date: string, breaks: string[]): Promise<RuleBreaksResult> =>
+    ipcRenderer.invoke(IPC.DAY_RULE_BREAKS_SAVE, { date, breaks }),
   weekDetailGet: (weekStart: string): Promise<WeekDetail> =>
     ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart),
 }

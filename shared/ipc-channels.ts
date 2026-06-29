@@ -141,6 +141,9 @@ export const IPC = {
   DAY_GET_DETAIL: 'day:getDetail',
   // v0.2.2 Day 4 — Day Detail writable field, stored on session_meta.
   DAY_NOTE_SAVE: 'day:noteSave',
+  // Phase 2 (djsevans87) — Day Detail writable field: per-day rule breaks,
+  // stored on journal.rule_breaks (the day_tags column pattern).
+  DAY_RULE_BREAKS_SAVE: 'day:ruleBreaksSave',
   // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
   // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
   WEEK_GET_DETAIL: 'week:getDetail',

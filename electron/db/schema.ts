@@ -431,6 +431,11 @@ CREATE TABLE IF NOT EXISTS journal (
   rules_followed    TEXT NOT NULL DEFAULT '',
   rule_violations   TEXT NOT NULL DEFAULT '',
   day_tags          TEXT NOT NULL DEFAULT '[]',  -- JSON array of short labels (FOMC, Earnings, Choppy…)
+  -- Phase 2 (djsevans87) — day-level rule breaks, a JSON array drawn from the
+  -- daily_rule_break_list vocabulary. Same shape as day_tags; also added via the
+  -- guarded PRAGMA-checked ALTER in migrateAfterSchema for existing DBs (no
+  -- SCHEMA_VERSION bump — additive nullable-with-default).
+  rule_breaks       TEXT NOT NULL DEFAULT '[]',
   -- Voice Journal Phase 1 — per-field voice recording length in seconds
   -- (nullable; NULL = no recording). Also added via ALTER in migrateAfterSchema
   -- for existing DBs; declared here so a FRESH DB gets them at creation (the

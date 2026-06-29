@@ -4,6 +4,7 @@ import {
   BarChart3,
   ListChecks,
   NotebookPen,
+  ShieldAlert,
 } from 'lucide-react'
 import type { DayDetail } from '@shared/day-types'
 import { dayRepo } from '@/data/dayRepo'
@@ -14,18 +15,20 @@ import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
+import RuleBreaksEditor from '@/components/calendar/RuleBreaksEditor'
 
 interface DayDetailModalProps {
   date: string | null
   onClose: () => void
 }
 
-type TabKey = 'overview' | 'performance' | 'trades' | 'notes'
+type TabKey = 'overview' | 'performance' | 'trades' | 'ruleBreaks' | 'notes'
 
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
+  { key: 'ruleBreaks', label: 'Rule Breaks', Icon: ShieldAlert, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
 ]
 
@@ -121,6 +124,21 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           selectedTradeId={stack.selectedTradeId}
           onSelectTrade={stack.selectTrade}
         />
+      )}
+      {detail && !loading && tab === 'ruleBreaks' && (
+        <div className="space-y-3">
+          <p className="text-xs text-fg-secondary">
+            Tag the day-level rule breaks that happened on {longDate(detail.date)}.
+            Edit the list in Settings → Daily Rule Breaks.
+          </p>
+          <RuleBreaksEditor
+            date={detail.date}
+            breaks={detail.ruleBreaks}
+            onChange={(next) =>
+              setDetail((d) => (d ? { ...d, ruleBreaks: next } : d))
+            }
+          />
+        </div>
       )}
       {detail && !loading && tab === 'notes' && (
         <DetailNotesTab

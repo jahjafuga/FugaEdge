@@ -3,6 +3,7 @@ import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import type { DayDetail } from '@shared/day-types'
 import { listTrades } from '../trades/list'
 import { getSessionMeta } from '../session/repo'
+import { readRuleBreaks } from './ruleBreaks'
 
 // v0.2.2 Day 1 — Day Detail data assembly.
 //
@@ -23,5 +24,6 @@ export function getDayDetail(date: string): DayDetail {
     metrics,
     trades,
     note: meta?.notes ? meta.notes : null,
+    ruleBreaks: readRuleBreaks(date),
   }
 }

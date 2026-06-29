@@ -83,4 +83,21 @@ export interface DayDetail {
   // Day-level note ships in Day 4; placeholder here so the shape is stable
   // across the v0.2.2 build sequence.
   note: string | null
+  /** Phase 2 (djsevans87) — day-level rule breaks tagged on this day, drawn from
+   *  the daily_rule_break_list vocabulary and stored on journal.rule_breaks (the
+   *  day_tags per-day pattern). Empty array when none tagged. */
+  ruleBreaks: string[]
+}
+
+/** Phase 2 — input for saving a day's rule-breaks (the day-detail write path,
+ *  mirroring SaveDayTagsInput). */
+export interface SaveRuleBreaksInput {
+  date: string
+  breaks: string[]
+}
+
+/** Phase 2 — result of saveRuleBreaks: the date + the cleaned, persisted list. */
+export interface RuleBreaksResult {
+  date: string
+  breaks: string[]
 }

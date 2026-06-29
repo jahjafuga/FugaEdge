@@ -806,6 +806,12 @@ function migrateAfterSchema(
   if (!journalCols.some((c) => c.name === 'day_tags')) {
     conn.exec("ALTER TABLE journal ADD COLUMN day_tags TEXT NOT NULL DEFAULT '[]'")
   }
+  // Phase 2 (djsevans87) — day-level rule breaks (JSON array). Additive,
+  // nullable-with-default; existing rows get '[]'. No SCHEMA_VERSION bump — same
+  // guarded-PRAGMA ALTER idiom as day_tags directly above.
+  if (!journalCols.some((c) => c.name === 'rule_breaks')) {
+    conn.exec("ALTER TABLE journal ADD COLUMN rule_breaks TEXT NOT NULL DEFAULT '[]'")
+  }
   // Voice Journal Phase 1 — per-field voice recording length in SECONDS.
   // Nullable; NULL = no recording (incl. every row predating these columns).
   // The transcript text lands in premarket_notes/postsession_notes — these hold
