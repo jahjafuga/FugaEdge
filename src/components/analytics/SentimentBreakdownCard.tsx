@@ -3,6 +3,7 @@ import { Info } from 'lucide-react'
 import Tooltip from '@/components/ui/Tooltip'
 import type { SentimentAnalytics } from '@shared/analytics-types'
 import { int, money, percent, signed, pnlClass } from '@/lib/format'
+import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
 
 interface SentimentBreakdownCardProps {
   data: SentimentAnalytics
@@ -59,8 +60,15 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
               >
                 <td className="px-3 py-2">
                   <span className="inline-flex items-center gap-2">
-                    {b.level != null && <LevelDot level={b.level} />}
-                    <span className="text-fg-primary">{b.label}</span>
+                    {b.level != null && (
+                      <img
+                        src={SENTIMENT_ICONS[b.level]}
+                        alt=""
+                        aria-hidden="true"
+                        className="h-7 w-7 shrink-0"
+                      />
+                    )}
+                    <span className="text-fg-primary">{stripLevelPrefix(b.label)}</span>
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-fg-primary tnum">
@@ -113,15 +121,10 @@ export default function SentimentBreakdownCard({ data }: SentimentBreakdownCardP
   )
 }
 
-// Small color dot matching the calendar badge + journal selector palette.
-// Reuse keeps the visual language consistent — the user can scan the table
-// for green vs red days at a glance.
-function LevelDot({ level }: { level: 1 | 2 | 3 | 4 | 5 }) {
-  const cls =
-    level >= 4
-      ? 'bg-win'
-      : level === 3
-        ? 'bg-gold'
-        : 'bg-loss'
-  return <span className={`inline-block h-2 w-2 rounded-full ${cls}`} aria-hidden="true" />
+// Server sentiment labels are "5 — 3+ stocks >100%" (electron/analytics/get.ts).
+// The icon now carries the digit, so drop a leading "<n> — " (em dash) prefix for
+// display only — the server label data is untouched. "Unrated" has no prefix and
+// passes through unchanged.
+function stripLevelPrefix(label: string): string {
+  return label.replace(/^\d+\s*—\s*/, '')
 }

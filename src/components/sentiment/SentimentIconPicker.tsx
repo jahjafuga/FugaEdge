@@ -91,13 +91,6 @@ export default function SentimentIconPicker({
                     : 'opacity-40 grayscale group-hover:opacity-100 group-hover:grayscale-0'
                 }`}
               />
-              <span
-                className={`font-mono text-[11px] font-semibold tnum transition-colors duration-200 ${
-                  isActive ? 'text-fg-primary' : 'text-fg-muted group-hover:text-fg-secondary'
-                }`}
-              >
-                {n}
-              </span>
             </button>
           )
         })}
