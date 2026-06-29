@@ -31,11 +31,11 @@ function emaRow(
   })
 }
 
-// 2 trades At 9 EMA (e2, dist 0.1) stacked, 1 Blow-off (e6, dist 15.0) broken.
+// 2 trades At 9 EMA (e2, dist 0.1) stacked, 1 Blow-off (e7, dist 25.0) broken.
 const ROWS = [
   emaRow(1, 100, 0.1, true),
   emaRow(2, -50, 0.1, true),
-  emaRow(3, 200, 15.0, false),
+  emaRow(3, 200, 25.0, false),
 ]
 const STATS = computeEmaBuckets(ROWS, '1m')
 
@@ -63,9 +63,9 @@ function renderXBand() {
 const card = (name: RegExp) => screen.getByRole('button', { name })
 
 describe('EmaDistanceBand — Section 4 vertical list (integration)', () => {
-  it('renders all six §A5 bucket rows', () => {
+  it('renders all seven §A5 bucket rows', () => {
     renderBand()
-    expect(screen.getAllByRole('button')).toHaveLength(6)
+    expect(screen.getAllByRole('button')).toHaveLength(7)
     expect(card(/Below 9 EMA/)).toBeTruthy()
     expect(card(/At 9 EMA/)).toBeTruthy()
     expect(card(/Blow-off \/ parabolic/)).toBeTruthy()
@@ -91,11 +91,11 @@ describe('EmaDistanceBand — Section 4 vertical list (integration)', () => {
     expect(screen.getAllByText('+0.1%')).toHaveLength(2)
   })
 
-  it('the DivergingBar reflects each bucket index position (e2 centred, e6 full right)', () => {
+  it('the DivergingBar reflects each bucket index position (e2 centred, e7 full right)', () => {
     renderBand()
     // e2 (At 9 EMA) barValue 0 → no bar rect.
     expect(card(/At 9 EMA/).querySelector('rect')).toBeNull()
-    // e6 (Blow-off) barValue +4 at extent 4 → full right half (width 48 of 96).
+    // e7 (Blow-off) barValue +5 at extent 5 → full right half (width 48 of 96).
     const rect = card(/Blow-off/).querySelector('rect')
     expect(rect?.getAttribute('x')).toBe('48')
     expect(rect?.getAttribute('width')).toBe('48')

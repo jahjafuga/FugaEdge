@@ -1,5 +1,5 @@
 // EMA distance band (spec §B Section 4 / §A5) — the second vertical-list section,
-// the foundation arc's second non-MACD consumer. Six clickable BucketRows in §A5
+// the foundation arc's second non-MACD consumer. Seven clickable BucketRows in §A5
 // reading order (most-below → most-above), each with a click-to-expand accordion
 // beneath it (single-open per section, via useBucketBand), then the 9/20 stacking
 // crossover strip below the list. Composes the shared components: BucketRow (the
@@ -62,6 +62,10 @@ const TINT_REST: Record<EmaBucketKey, string> = {
   e4: 'bg-ema-4/[0.12]',
   e5: 'bg-ema-5/[0.12]',
   e6: 'bg-ema-6/[0.12]',
+  // e7 (Bug C) reuses ema-6 as a placeholder — a distinct Blow-off color is a
+  // deliberate visual decision deferred to the design pass (these bg-ema-N tokens
+  // are F8 gray placeholders already, per the §J note below).
+  e7: 'bg-ema-6/[0.12]',
 }
 const TINT_ACTIVE: Record<EmaBucketKey, string> = {
   e1: 'bg-ema-1/[0.18]',
@@ -70,6 +74,7 @@ const TINT_ACTIVE: Record<EmaBucketKey, string> = {
   e4: 'bg-ema-4/[0.18]',
   e5: 'bg-ema-5/[0.18]',
   e6: 'bg-ema-6/[0.18]',
+  e7: 'bg-ema-6/[0.18]', // placeholder — see TINT_REST
 }
 
 interface EmaDistanceBandProps {

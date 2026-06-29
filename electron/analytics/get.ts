@@ -4,6 +4,11 @@ import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeDrawdown } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
+import {
+  EMA9_DISTANCE_BUCKET_LABELS,
+  ema9DistanceLabel,
+  isExtendedEntry,
+} from '@/core/technicals/ema9DistanceBuckets'
 import type {
   AnalyticsData,
   CatalystAnalytics,
@@ -338,25 +343,16 @@ function computeByConfidence(rows: TradeRow[]): MomentumBucket[] {
     .map((k) => bucketStatsFor(groups.get(k)!, `${k} dot${k === '1' ? '' : 's'}`))
 }
 
-function ema9Bucket(pct: number): string {
-  const abs = Math.abs(pct)
-  if (abs < 1) return 'at EMA (0–1%)'
-  if (abs < 3) return 'slight (1–3%)'
-  if (abs < 7) return 'extended (3–7%)'
-  return 'very extended (7%+)'
-}
-
 function computeByEma9(rows: TradeRow[]): MomentumBucket[] {
-  const order = ['at EMA (0–1%)', 'slight (1–3%)', 'extended (3–7%)', 'very extended (7%+)']
   const groups = new Map<string, TradeRow[]>()
   for (const t of rows) {
-    if (t.entry_ema9_distance_pct == null) continue
-    const key = ema9Bucket(t.entry_ema9_distance_pct)
+    const key = ema9DistanceLabel(t.entry_ema9_distance_pct)
+    if (key === null) continue
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
   }
-  return order
+  return EMA9_DISTANCE_BUCKET_LABELS
     .filter((k) => groups.has(k))
     .map((k) => bucketStatsFor(groups.get(k)!, k))
 }
@@ -372,7 +368,7 @@ function computeExtendedCompare(rows: TradeRow[]): ExtendedEntryCompare {
       continue
     }
     withData++
-    if (Math.abs(t.entry_ema9_distance_pct) > 5) extended.push(t)
+    if (isExtendedEntry(t.entry_ema9_distance_pct)) extended.push(t)
     else clean.push(t)
   }
   const sumCleanPnl = clean.reduce((s, t) => s + t.net_pnl, 0)

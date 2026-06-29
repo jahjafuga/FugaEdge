@@ -85,10 +85,10 @@ export interface VolumeByTimeBucket {
 }
 
 export interface ExtendedEntryCompare {
-  clean_count: number        // |ema9 distance| ≤ 5%
+  clean_count: number        // signed 9 EMA distance < +5% (at / near / below)
   clean_net_pnl: number
   clean_win_rate: number | null
-  extended_count: number     // |ema9 distance| > 5%
+  extended_count: number     // signed 9 EMA distance >= +5% (above the EMA only)
   extended_net_pnl: number
   extended_win_rate: number | null
   trades_with_data: number   // total trades whose distance is known
@@ -139,7 +139,7 @@ export interface RAnalytics {
 export interface MomentumAnalytics {
   volumeByHalfHour: VolumeByTimeBucket[]
   byTimeframe: MomentumBucket[]            // 10s / 1m / 5m / unset
-  byEma9Bucket: MomentumBucket[]           // at EMA / slight / extended / very extended
+  byEma9Bucket: MomentumBucket[]           // canonical signed 7-band labels (below → blow-off)
   byConfidence: MomentumBucket[]           // 1 / 2 / 3 / 4 / 5 / unset
   extendedEntry: ExtendedEntryCompare
   /** Total trades that have a populated entry_ema9_distance_pct. */

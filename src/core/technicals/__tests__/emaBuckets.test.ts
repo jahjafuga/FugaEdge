@@ -11,7 +11,7 @@ import type { EmaBucketStats } from '../emaBuckets'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import { makeCompleteSnapshot, makeRow } from '@/test/fixtures/technicals'
 
-// RED-first tests for the EMA distance 6-bucket aggregation (spec §A5),
+// RED-first tests for the EMA distance 7-bucket aggregation (spec §A5),
 // paralleling vwapBuckets.test.ts. A classifiable row is placed by its 1m
 // ema9_dist_pct; the 9/20 crossover (ema9_above_ema20) is an INDEPENDENT
 // dimension, so emaRow takes `above` separately (default null = crossover-null,
@@ -44,7 +44,7 @@ const EMPTY_BUCKET = {
 
 const EMA_KEYS = EMA_BUCKETS.map((b) => b.key)
 
-// Partition invariant — denominator equals the sum of all 6 distance-bucket
+// Partition invariant — denominator equals the sum of all 7 distance-bucket
 // counts (crossover is a separate dimension, excluded from this sum), so no
 // trade is lost or double-counted on the distance axis.
 function expectDenominatorInvariant(r: EmaBucketStats): void {
@@ -54,14 +54,14 @@ function expectDenominatorInvariant(r: EmaBucketStats): void {
 
 // ── EMA_BUCKETS metadata ─────────────────────────────────────────────────────
 describe('EMA_BUCKETS metadata', () => {
-  it('(M1) is the 6-bucket §A5 single source of truth (keys, edges, barValues)', () => {
-    expect(EMA_BUCKETS).toHaveLength(6)
-    expect(EMA_KEYS).toEqual(['e1', 'e2', 'e3', 'e4', 'e5', 'e6'])
+  it('(M1) is the 7-bucket §A5 single source of truth (keys, edges, barValues)', () => {
+    expect(EMA_BUCKETS).toHaveLength(7)
+    expect(EMA_KEYS).toEqual(['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7'])
     // Linear index − 2 (1-based), e2 (At 9 EMA) centred on the equilibrium axis.
-    expect(EMA_BUCKETS.map((b) => b.barValue)).toEqual([-1, 0, 1, 2, 3, 4])
-    expect(EMA_BUCKET_EXTENT).toBe(4)
+    expect(EMA_BUCKETS.map((b) => b.barValue)).toEqual([-1, 0, 1, 2, 3, 4, 5])
+    expect(EMA_BUCKET_EXTENT).toBe(5)
     expect(EMA_BUCKETS[0].lo).toBe(-Infinity)
-    expect(EMA_BUCKETS[5].hi).toBe(Infinity)
+    expect(EMA_BUCKETS[6].hi).toBe(Infinity)
     const at9ema = EMA_BUCKETS[1]
     expect(at9ema.key).toBe('e2')
     expect(at9ema.lo).toBe(-0.5)
@@ -73,21 +73,23 @@ describe('EMA_BUCKETS metadata', () => {
 
 // ── classifyEmaBucket ────────────────────────────────────────────────────────
 describe('classifyEmaBucket', () => {
-  it('(C1) places interior values into e1..e6', () => {
+  it('(C1) places interior values into e1..e7', () => {
     expect(classifyEmaBucket(emaRow(1, 0, -1.0), '1m')).toBe('e1')
     expect(classifyEmaBucket(emaRow(2, 0, 0), '1m')).toBe('e2')
     expect(classifyEmaBucket(emaRow(3, 0, 1.0), '1m')).toBe('e3')
     expect(classifyEmaBucket(emaRow(4, 0, 3.0), '1m')).toBe('e4')
     expect(classifyEmaBucket(emaRow(5, 0, 7.0), '1m')).toBe('e5')
     expect(classifyEmaBucket(emaRow(6, 0, 15.0), '1m')).toBe('e6')
+    expect(classifyEmaBucket(emaRow(7, 0, 25.0), '1m')).toBe('e7')
   })
 
   it('(C2) edges are left-inclusive, right-exclusive (§A5)', () => {
     expect(classifyEmaBucket(emaRow(1, 0, -0.5), '1m')).toBe('e2') // -0.5 = e2 lower edge
     expect(classifyEmaBucket(emaRow(2, 0, 0.5), '1m')).toBe('e3') // +0.5 → e3, NOT e2
     expect(classifyEmaBucket(emaRow(3, 0, 2.0), '1m')).toBe('e4')
-    expect(classifyEmaBucket(emaRow(4, 0, 5.0), '1m')).toBe('e5')
+    expect(classifyEmaBucket(emaRow(4, 0, 5.0), '1m')).toBe('e5') // +5.0 → EXTENDED (djsevans), NOT e4
     expect(classifyEmaBucket(emaRow(5, 0, 10.0), '1m')).toBe('e6')
+    expect(classifyEmaBucket(emaRow(6, 0, 20.0), '1m')).toBe('e7') // +20.0 → Blow-off
   })
 
   it('(C3) technicals null → null (data gate)', () => {
@@ -218,7 +220,7 @@ describe('computeEmaBuckets — exclusion tiers', () => {
 
 // ── computeEmaBuckets — partition + math ─────────────────────────────────────
 describe('computeEmaBuckets — partition + math', () => {
-  it('(T5) one trade per bucket → denominator 6, each n=1, distinct netPnl', () => {
+  it('(T5) one trade per bucket → denominator 7, each n=1, distinct netPnl', () => {
     const rows = [
       emaRow(1, 10, -1.0), // e1
       emaRow(2, 20, 0), // e2
@@ -226,9 +228,10 @@ describe('computeEmaBuckets — partition + math', () => {
       emaRow(4, 40, 3.0), // e4
       emaRow(5, 50, 7.0), // e5
       emaRow(6, 60, 15.0), // e6
+      emaRow(7, 70, 25.0), // e7
     ]
     const r = computeEmaBuckets(rows, '1m')
-    expect(r.denominator).toBe(6)
+    expect(r.denominator).toBe(7)
     expect(r.excluded).toBe(0)
     expect(r.unclassified).toBe(0)
     expect(r.buckets.e1.netPnl).toBe(10)
@@ -237,6 +240,7 @@ describe('computeEmaBuckets — partition + math', () => {
     expect(r.buckets.e4.netPnl).toBe(40)
     expect(r.buckets.e5.netPnl).toBe(50)
     expect(r.buckets.e6.netPnl).toBe(60)
+    expect(r.buckets.e7.netPnl).toBe(70)
     for (const k of EMA_KEYS) expect(r.buckets[k].n).toBe(1)
     expectDenominatorInvariant(r)
   })

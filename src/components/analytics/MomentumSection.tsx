@@ -139,10 +139,10 @@ export default function MomentumSection({ momentum, totalTrades, dayOfWeek }: Mo
 
       <Card
         title="Extended entries vs clean entries"
-        subtitle="Trades entered >5% from 9EMA vs those at or near it."
+        subtitle="Trades entered ≥ +5% above the 9 EMA vs everything nearer or below."
         hover
         right={
-          <Tooltip content="Anything beyond 5% from the 9-period EMA at entry is flagged 'extended'. Compare net P&L and win rate to see if you're chasing.">
+          <Tooltip content="Entries ≥ +5% ABOVE the 9-period EMA at entry are flagged 'extended' (a momentum chase); at, near, or below the 9 EMA is 'clean'. Compare net P&L and win rate.">
             <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
           </Tooltip>
         }
@@ -413,7 +413,7 @@ function ExtendedCompare({ data }: { data: ExtendedEntryCompare }) {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <Side
         label="Clean entries"
-        sublabel="|distance from 9EMA| ≤ 5%"
+        sublabel="9 EMA distance < +5%"
         count={data.clean_count}
         netPnl={data.clean_net_pnl}
         winRate={data.clean_win_rate}
@@ -421,7 +421,7 @@ function ExtendedCompare({ data }: { data: ExtendedEntryCompare }) {
       />
       <Side
         label="Extended entries"
-        sublabel="|distance from 9EMA| > 5% — momentum chase"
+        sublabel="9 EMA distance ≥ +5% — momentum chase"
         count={data.extended_count}
         netPnl={data.extended_net_pnl}
         winRate={data.extended_win_rate}

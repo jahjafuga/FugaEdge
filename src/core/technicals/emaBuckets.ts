@@ -1,5 +1,5 @@
-// Pure EMA distance 6-bucket aggregation (spec §A5) — the Section 4 sibling of
-// vwapBuckets.ts. Partitions data-complete, classifiable trades into the 6 signed
+// Pure EMA distance 7-bucket aggregation (spec §A5) — the Section 4 sibling of
+// vwapBuckets.ts. Partitions data-complete, classifiable trades into the 7 signed
 // 9-EMA-distance buckets (Below → Blow-off) for the toggled timeframe, tracks the
 // excluded + unclassified tiers separately, and computes the per-bucket
 // BucketStats. Adds one dimension VWAP lacks: the 9/20 crossover
@@ -16,9 +16,10 @@ import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from './headerStrip'
 import type { BucketStats } from './types'
 
-/** The six 9-EMA-distance buckets, ordered most-below → most-above (§A5),
- *  aligned with the bg-ema-N palette slugs (e1 → ema-1, … e6 → ema-6). */
-export type EmaBucketKey = 'e1' | 'e2' | 'e3' | 'e4' | 'e5' | 'e6'
+/** The seven 9-EMA-distance buckets, ordered most-below → most-above (§A5),
+ *  aligned with the bg-ema-N palette slugs (e1 → ema-1, … e6 → ema-6; e7 reuses
+ *  ema-6 as a placeholder pending its own palette token). */
+export type EmaBucketKey = 'e1' | 'e2' | 'e3' | 'e4' | 'e5' | 'e6' | 'e7'
 
 export interface EmaBucketMeta {
   key: EmaBucketKey
@@ -33,10 +34,10 @@ export interface EmaBucketMeta {
   barValue: number
 }
 
-// DivergingBar symmetric extent — e6 (barValue +4) fills the right track; the
-// lone below bucket (e1 = −1) reaches a quarter, mirroring §A5's one-below /
-// five-at-or-above asymmetry.
-export const EMA_BUCKET_EXTENT = 4
+// DivergingBar symmetric extent — e7 (barValue +5) fills the right track; the
+// lone below bucket (e1 = −1) reaches a fifth, mirroring §A5's one-below /
+// six-at-or-above asymmetry.
+export const EMA_BUCKET_EXTENT = 5
 
 /**
  * Single source of truth for the EMA band: keys, labels, the numeric edges the
@@ -45,13 +46,17 @@ export const EMA_BUCKET_EXTENT = 4
  * Labels are §A5 verbatim with the range appended, ASCII hyphens for the negative
  * edges (matching the VWAP precedent).
  */
+// Canonical signed 7-band scheme (Bug C — djsevans's proposal, adopted wholesale:
+// +2% is still a good pullback, so "extended" must not start until +5%). SIGNED,
+// not absolute distance — a negative value is "below the 9 EMA", never extended.
 export const EMA_BUCKETS: readonly EmaBucketMeta[] = [
   { key: 'e1', label: 'Below 9 EMA / broken trend < -0.5%', lo: -Infinity, hi: -0.5, barValue: -1 },
-  { key: 'e2', label: 'At 9 EMA (pullback zone) -0.5% to +0.5%', lo: -0.5, hi: 0.5, barValue: 0 },
-  { key: 'e3', label: 'Slightly above +0.5% to +2.0%', lo: 0.5, hi: 2.0, barValue: 1 },
-  { key: 'e4', label: 'Extended +2.0% to +5.0%', lo: 2.0, hi: 5.0, barValue: 2 },
-  { key: 'e5', label: 'Very extended +5.0% to +10.0%', lo: 5.0, hi: 10.0, barValue: 3 },
-  { key: 'e6', label: 'Blow-off / parabolic > +10.0%', lo: 10.0, hi: Infinity, barValue: 4 },
+  { key: 'e2', label: 'At 9 EMA (ideal pullback zone) -0.5% to +0.5%', lo: -0.5, hi: 0.5, barValue: 0 },
+  { key: 'e3', label: 'Near EMA (pullback zone) +0.5% to +2.0%', lo: 0.5, hi: 2.0, barValue: 1 },
+  { key: 'e4', label: 'Above EMA (trending) +2.0% to +5.0%', lo: 2.0, hi: 5.0, barValue: 2 },
+  { key: 'e5', label: 'Extended +5.0% to +10.0%', lo: 5.0, hi: 10.0, barValue: 3 },
+  { key: 'e6', label: 'Very extended +10.0% to +20.0%', lo: 10.0, hi: 20.0, barValue: 4 },
+  { key: 'e7', label: 'Blow-off / parabolic > +20.0%', lo: 20.0, hi: Infinity, barValue: 5 },
 ]
 
 /**
@@ -77,11 +82,27 @@ export interface EmaBucketStats {
 }
 
 /**
+ * Classify a SIGNED 9-EMA distance % into a canonical band key, or null when the
+ * value is null/NaN. The single source of truth for the canonical scheme, shared
+ * by BOTH the Technicals band (classifyEmaBucket, which reads the per-timeframe
+ * snapshot) AND the Momentum analytics surfaces (ema9DistanceBuckets.ts, which
+ * read trades.entry_ema9_distance_pct). Edges are left-inclusive / right-exclusive
+ * per §A5, so e.g. +5.0% is Extended (e5), not Above-EMA (e4).
+ */
+export function classifyEma9Distance(distPct: number | null): EmaBucketKey | null {
+  if (distPct === null) return null
+  // The edges partition all of ℝ, so a finite value matches exactly one bucket;
+  // find returns undefined only for NaN, which resolves to null.
+  const meta = EMA_BUCKETS.find((b) => distPct >= b.lo && distPct < b.hi)
+  return meta ? meta.key : null
+}
+
+/**
  * The EMA bucket a single trade lands in on `timeframe`, or null when it can't be
  * placed (gate fail, or ema9_dist_pct null). Single source of truth for the
  * distance axis: computeEmaBuckets accumulates through it and rowsForEmaBucket
- * resolves accordion rows through it, so the two never drift. The range partition
- * reads EMA_BUCKETS' lo/hi edges (left-inclusive, right-exclusive per §A5).
+ * resolves accordion rows through it, so the two never drift. Delegates the
+ * number→band partition to classifyEma9Distance (the shared canonical classifier).
  */
 export function classifyEmaBucket(
   row: TradeWithTechnicalsRow,
@@ -90,12 +111,7 @@ export function classifyEmaBucket(
   const t = row.technicals
   if (t === null || !t.data_complete) return null
   const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
-  const d = snap.ema9_dist_pct
-  if (d === null) return null
-  // The edges partition all of ℝ, so a finite d always matches exactly one
-  // bucket; find returns undefined only for NaN, which resolves to null.
-  const meta = EMA_BUCKETS.find((b) => d >= b.lo && d < b.hi)
-  return meta ? meta.key : null
+  return classifyEma9Distance(snap.ema9_dist_pct)
 }
 
 /**
