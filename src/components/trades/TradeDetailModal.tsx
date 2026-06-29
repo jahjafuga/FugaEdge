@@ -30,6 +30,7 @@ import ConfluenceTags from './ConfluenceTags'
 import TradeLifecycleFooter from './TradeLifecycleFooter'
 import RChip from './RChip'
 import Card from '@/components/ui/Card'
+import Tooltip from '@/components/ui/Tooltip'
 import { blendedFillAvg, computeExecutionStats } from '@/core/trades/executionStats'
 import { type TradeNavPosition } from '@/core/trades/tradeNavigation'
 
@@ -354,7 +355,21 @@ function ModalHeader({ trade, onClose, navPosition, onNavigate }: { trade: Trade
             <span className={`font-mono text-3xl font-semibold tnum ${pnlClass(trade.net_pnl)}`}>
               {signed(trade.net_pnl)}
             </span>
-            <RChip r={trade.r_multiple} />
+            <Tooltip
+              side="bottom"
+              align="end"
+              className="cursor-help"
+              content={
+                <>
+                  R measures your realized P&amp;L against the risk you planned
+                  (entry → stop). A loss bigger than the planned risk reads
+                  beyond −1R; a loss smaller than planned stays within it — so a
+                  tight stop that overruns correctly shows a larger R.
+                </>
+              }
+            >
+              <RChip r={trade.r_multiple} />
+            </Tooltip>
           </div>
         </div>
         <button
@@ -475,6 +490,9 @@ function OverviewTab({
                 shares={Math.max(t.shares_bought, t.shares_sold)}
                 riskPerShare={t.risk_per_share}
                 totalRisk={t.total_risk}
+                netPnL={t.net_pnl}
+                rMultiple={t.r_multiple}
+                isClosed={!t.is_open}
                 onChange={(next) =>
                   onSavePlannedStopLoss({ trade_id: t.id, planned_stop_loss_price: next })
                 }

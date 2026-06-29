@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { money, signedPct } from '@/lib/format'
+import { money, signed, signedPct } from '@/lib/format'
 
 interface PlannedRiskEditorProps {
   /** Pre-trade stop loss PRICE. */
@@ -12,6 +12,16 @@ interface PlannedRiskEditorProps {
   riskPerShare: number | null
   /** Server-derived total $ risk. */
   totalRisk: number | null
+  /** Realized net P&L for the trade — the R numerator. Display-only: shown in
+   *  the explicit "P&L / risk = R" relationship line. Never used to compute R
+   *  here; R arrives pre-computed via rMultiple. */
+  netPnL: number
+  /** Server-derived R-multiple (net P&L ÷ total risk). Null when no stop/risk
+   *  is set. Rendered verbatim — never recomputed in the renderer. */
+  rMultiple: number | null
+  /** True when the trade is closed. The realized "= R" line only renders on a
+   *  closed trade — an open trade's P&L isn't final. */
+  isClosed: boolean
   onChange: (next: number | null) => void
 }
 
@@ -26,6 +36,9 @@ export default function PlannedRiskEditor({
   shares,
   riskPerShare,
   totalRisk,
+  netPnL,
+  rMultiple,
+  isClosed,
   onChange,
 }: PlannedRiskEditorProps) {
   const [text, setText] = useState<string>(
@@ -102,6 +115,19 @@ export default function PlannedRiskEditor({
           <span>{displayTotalRisk == null ? '—' : `${money(displayTotalRisk)} total`}</span>
           <span className="text-fg-tertiary">·</span>
           <span>{displayStopDistancePct == null ? '—' : signedPct(displayStopDistancePct)}</span>
+        </div>
+      )}
+
+      {/* Explicit R relationship — makes the ratio legible so a user changing
+          the stop sees exactly what R is a ratio of: realized P&L over planned
+          risk. Display-only; uses the SAVED total risk + r_multiple (the same
+          computeRiskBreakdown values shown elsewhere), never recomputed here.
+          Only on a closed, stopped trade; R is a neutral ratio, not P&L-toned. */}
+      {isClosed && rMultiple != null && totalRisk != null && (
+        <div className="font-mono text-[11px] tnum text-fg-secondary">
+          {signed(netPnL)} P&amp;L / {money(totalRisk)} risk ={' '}
+          {rMultiple >= 0 ? '+' : ''}
+          {rMultiple.toFixed(2)}R
         </div>
       )}
     </div>
