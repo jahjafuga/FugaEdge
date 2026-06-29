@@ -14,6 +14,10 @@ export interface SettingsValues {
   journal_rules: JournalRule[]
   mistake_list: string[]
   day_tag_list: string[]
+  /** Daily Rule Breaks (djsevans87) — day-level discipline-violation labels,
+   *  the rule-break sibling of day_tag_list. Phase 1 is the configurable list
+   *  only; per-day tagging + Analytics reporting land in later phases. */
+  daily_rule_break_list: string[]
   polygon_api_key: string
   /** v0.2.2 Commit A — FMP (Financial Modeling Prep) API key, paired with
    *  the Polygon/Massive key for real-float enrichment. Empty on fresh

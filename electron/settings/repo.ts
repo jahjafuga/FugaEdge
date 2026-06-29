@@ -13,6 +13,7 @@ const KEYS = {
   journalRules: 'journal_rules',
   mistakeList: 'mistake_list',
   dayTagList: 'day_tag_list',
+  dailyRuleBreakList: 'daily_rule_break_list',
   polygonApiKey: 'polygon_api_key',
   fmpApiKey: 'fmp_api_key',
   lastCountryBackfill: 'last_country_backfill',
@@ -40,6 +41,7 @@ const DEFAULTS: SettingsValues = {
   journal_rules: [],
   mistake_list: [],
   day_tag_list: [],
+  daily_rule_break_list: [],
   polygon_api_key: '',
   fmp_api_key: '',
   last_country_backfill: null,
@@ -115,6 +117,7 @@ export function getSettings(): SettingsPayload {
     journal_rules: parseJournalRules(map[KEYS.journalRules]),
     mistake_list: parseStringArray(map[KEYS.mistakeList]),
     day_tag_list: parseStringArray(map[KEYS.dayTagList]),
+    daily_rule_break_list: parseStringArray(map[KEYS.dailyRuleBreakList]),
     polygon_api_key: (map[KEYS.polygonApiKey] ?? '').trim(),
     fmp_api_key: (map[KEYS.fmpApiKey] ?? '').trim(),
     last_country_backfill: (map[KEYS.lastCountryBackfill] ?? '').trim() || null,
@@ -197,6 +200,12 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
         .map((t) => String(t).trim())
         .filter(Boolean)
       upsert.run(KEYS.dayTagList, JSON.stringify(clean))
+    }
+    if (input.daily_rule_break_list != null) {
+      const clean = input.daily_rule_break_list
+        .map((t) => String(t).trim())
+        .filter(Boolean)
+      upsert.run(KEYS.dailyRuleBreakList, JSON.stringify(clean))
     }
     if (input.polygon_api_key != null) {
       upsert.run(KEYS.polygonApiKey, String(input.polygon_api_key).trim())

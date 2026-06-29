@@ -50,6 +50,7 @@ function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (!rulesEqual(saved.journal_rules, current.journal_rules)) return true
   if (!arraysEqual(saved.mistake_list, current.mistake_list)) return true
   if (!arraysEqual(saved.day_tag_list, current.day_tag_list)) return true
+  if (!arraysEqual(saved.daily_rule_break_list, current.daily_rule_break_list)) return true
   return false
 }
 
@@ -131,6 +132,7 @@ export default function Settings() {
         journal_rules: editor.journal_rules,
         mistake_list: editor.mistake_list,
         day_tag_list: editor.day_tag_list,
+        daily_rule_break_list: editor.daily_rule_break_list,
         polygon_api_key: editor.polygon_api_key,
         fmp_api_key: editor.fmp_api_key,
       })
@@ -296,6 +298,22 @@ export default function Settings() {
             onChange={(next) =>
               setEditor((prev) =>
                 prev ? { ...prev, day_tag_list: next } : prev,
+              )
+            }
+          />
+        </SettingsAccordion>
+
+        <SettingsAccordion
+          storageKey="dailyRuleBreaks"
+          title="Daily Rule Breaks"
+          subtitle="Day-level rule breaks — your discipline-violation labels."
+          count={editor.daily_rule_break_list.length}
+        >
+          <RuleList
+            rules={editor.daily_rule_break_list}
+            onChange={(next) =>
+              setEditor((prev) =>
+                prev ? { ...prev, daily_rule_break_list: next } : prev,
               )
             }
           />

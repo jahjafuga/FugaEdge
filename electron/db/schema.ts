@@ -574,6 +574,16 @@ INSERT OR IGNORE INTO settings (key, value) VALUES (
   'day_tag_list',
   '["FOMC","CPI","Earnings","News","Halt","Choppy","Trending","Holiday"]'
 );
+-- Daily Rule Breaks (djsevans87) — day-level discipline-violation vocabulary,
+-- the rule-break sibling of day_tag_list (which stays market-context labels).
+-- Seeded once via INSERT OR IGNORE in SCHEMA_SQL (db.exec runs every boot; an
+-- absent key inserts once, user edits are preserved) — NO SCHEMA_VERSION bump,
+-- same as day_tag_list / mistake_list. Phase 1 ships the configurable list only;
+-- per-day tagging + Analytics reporting land in later phases.
+INSERT OR IGNORE INTO settings (key, value) VALUES (
+  'daily_rule_break_list',
+  '["Gave back >30% after daily goal","Ignored daily max loss","Low accuracy (<50% on 5+ trades)","3 consecutive outsized losses (>4%)"]'
+);
 -- Latch — set to 'true' once the first-run seed runs (or once the migration
 -- detects an existing populated playbook table). Never re-seeds afterwards.
 INSERT OR IGNORE INTO settings (key, value) VALUES ('defaults_seeded', 'false');

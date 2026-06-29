@@ -77,6 +77,42 @@ describe('settings repo — show_macd_pane (§H)', () => {
   })
 })
 
+describe('settings repo — daily_rule_break_list (Daily Rule Breaks Phase 1)', () => {
+  it('default: a fresh KV map yields an empty list', () => {
+    expect(getSettings().values.daily_rule_break_list).toEqual([])
+  })
+
+  it('parseStringArray: a stored JSON array reads back as string[]', () => {
+    store.current = {
+      daily_rule_break_list: '["Ignored daily max loss","Gave back >30% after daily goal"]',
+    }
+    expect(getSettings().values.daily_rule_break_list).toEqual([
+      'Ignored daily max loss',
+      'Gave back >30% after daily goal',
+    ])
+  })
+
+  it('write/read roundtrip: saveSettings persists JSON, getSettings parses it back', () => {
+    const list = ['Gave back >30% after daily goal', 'Ignored daily max loss']
+    saveSettings({ daily_rule_break_list: list })
+    expect(store.current.daily_rule_break_list).toBe(JSON.stringify(list))
+    expect(getSettings().values.daily_rule_break_list).toEqual(list)
+  })
+
+  it('clean: blank / whitespace entries are trimmed and dropped on save', () => {
+    saveSettings({ daily_rule_break_list: ['  Keep  ', '', '   ', 'Also'] })
+    expect(getSettings().values.daily_rule_break_list).toEqual(['Keep', 'Also'])
+  })
+
+  it('partial upsert: writing the list leaves other fields untouched', () => {
+    saveSettings({ max_daily_loss: 999 })
+    saveSettings({ daily_rule_break_list: ['X'] })
+    const { values } = getSettings()
+    expect(values.daily_rule_break_list).toEqual(['X'])
+    expect(values.max_daily_loss).toBe(999)
+  })
+})
+
 describe('settings repo — indicator toggles (B1: EMA9 / EMA20 / VWAP persistence)', () => {
   it('all three default OFF on a fresh KV map', () => {
     const { values } = getSettings()
