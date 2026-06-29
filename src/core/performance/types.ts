@@ -193,6 +193,9 @@ export interface PeriodMetrics {
   maxWinPct?: number | null
   /** Lowest (most negative) loser price-move ratio. */
   maxLossPct?: number | null
+  /** Avg share size — mean of position_shares (max legs) over trades with a
+   *  position. A pure share count (no entry-price gate). */
+  avgShareSize?: number | null
   /** Avg position size in $ (mean of position_shares × entry_price over all trades). */
   avgPositionSize?: number | null
 }

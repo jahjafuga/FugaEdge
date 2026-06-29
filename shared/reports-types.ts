@@ -44,6 +44,10 @@ export interface FullStats {
   avg_loss_pct: number | null  // mean price-move ratio over losers (negative)
   max_win_pct: number | null   // highest winner price-move ratio
   max_loss_pct: number | null  // lowest (most negative) loser price-move ratio
+  // Avg share size (djsevans87) — mean of position_shares (max legs) over trades
+  // with a position; a pure share COUNT (no entry-price gate). Reconciles roughly
+  // with the $ size below (× avg entry).
+  avg_share_size: number | null
   // Phase 3 (djsevans87) — mean of position_shares × entry_price ($) over all
   // trades; entry<=0 / zero-position excluded. Pure trade data.
   avg_position_size: number | null

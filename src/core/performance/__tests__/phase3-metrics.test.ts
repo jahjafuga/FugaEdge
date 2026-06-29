@@ -71,6 +71,53 @@ describe('computeFullStats — Avg Position Size in $ (Phase 3)', () => {
   })
 })
 
+describe('computeFullStats — Avg Share Size (share count, djsevans87)', () => {
+  // Avg Share Size = mean over trades of position_shares (max legs) — the SAME
+  // per-trade share basis as Avg Position Size, minus the × entry_price (and so
+  // minus the entry>0 guard: a pure count doesn't depend on price). Zero-position
+  // rows (max legs == 0) are excluded; outcome-independent; null when none qualify.
+  it('mean of position_shares (max legs) over all trades, incl scratch', () => {
+    // legs 100, 200, 50 -> mean 116.6667 (distinct from the $ version)
+    const s = computeFullStats([
+      mk({ net_pnl: 200, shares_bought: 100, shares_sold: 100 }),
+      mk({ net_pnl: -100, shares_bought: 200, shares_sold: 200 }),
+      mk({ net_pnl: 0, shares_bought: 50, shares_sold: 50 }),
+    ])
+    expect(s.avg_share_size).toBeCloseTo((100 + 200 + 50) / 3, 6)
+  })
+
+  it('uses max(legs) on unequal legs (side-independent)', () => {
+    // bought 100, sold 80 -> position_shares = max = 100
+    expect(computeFullStats([mk({ shares_bought: 100, shares_sold: 80 })]).avg_share_size)
+      .toBeCloseTo(100, 6)
+  })
+
+  it('counts a pos>0 trade even when entry price is 0 (NOT excluded — pure count)', () => {
+    // The $ size version EXCLUDES the entry-0 row; the share count INCLUDES it.
+    const s = computeFullStats([
+      mk({ shares_bought: 100, shares_sold: 100, avg_buy_price: 10, avg_sell_price: 11 }),
+      mk({ shares_bought: 100, shares_sold: 100, avg_buy_price: 0, avg_sell_price: 0 }),
+    ])
+    expect(s.avg_share_size).toBeCloseTo(100, 6)    // (100 + 100) / 2 — both counted
+    expect(s.avg_position_size).toBeCloseTo(1000, 6) // entry-0 row dropped here
+  })
+
+  it('zero-share row excluded (sane); all-zero -> null', () => {
+    const mixed = computeFullStats([
+      mk({ shares_bought: 100, shares_sold: 100 }),
+      mk({ shares_bought: 0, shares_sold: 0 }),
+    ])
+    expect(mixed.avg_share_size).toBeCloseTo(100, 6) // not 50
+    expect(computeFullStats([mk({ shares_bought: 0, shares_sold: 0 })]).avg_share_size).toBeNull()
+  })
+
+  it('single trade -> its share size; empty -> null (em-dash, never 0/NaN)', () => {
+    expect(computeFullStats([mk({ shares_bought: 300, shares_sold: 300 })]).avg_share_size)
+      .toBeCloseTo(300, 6)
+    expect(computeFullStats([]).avg_share_size).toBeNull()
+  })
+})
+
 describe('netPnlPctOfAccount — Net P&L as a ratio of static account size (Phase 3)', () => {
   it('real account size -> netPnL / account_size (ratio; ×100 at display)', () => {
     expect(netPnlPctOfAccount(500, 25000)).toBeCloseTo(0.02, 10) // +2%

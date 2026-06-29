@@ -159,4 +159,14 @@ describe('computePeriodComparison — wired stat tier (volume / scratch-hold / d
   it('period B: avg position size = 100', () => {
     expect(comparison.periodB.avgPositionSize).toBeCloseTo(100, 6)
   })
+
+  // Avg Share Size (count, djsevans87) flows onto periodA/periodB. Same max-legs
+  // basis; here entry=$1 so it coincides numerically with avg position size (the
+  // distinct count vs $ math is pinned in phase3-metrics.test.ts).
+  it('period A: avg share size = mean(max legs) = 150', () => {
+    expect(comparison.periodA.avgShareSize).toBeCloseTo((150 + 100 + 200 + 150) / 4, 6)
+  })
+  it('period B: avg share size = 100', () => {
+    expect(comparison.periodB.avgShareSize).toBeCloseTo(100, 6)
+  })
 })

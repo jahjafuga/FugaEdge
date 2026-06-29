@@ -591,6 +591,7 @@ export function computePeriodComparison(
     avgLossPct: fsA.avg_loss_pct,
     maxWinPct: fsA.max_win_pct,
     maxLossPct: fsA.max_loss_pct,
+    avgShareSize: fsA.avg_share_size,
     avgPositionSize: fsA.avg_position_size,
   }
   const periodB: PeriodMetrics = {
@@ -609,6 +610,7 @@ export function computePeriodComparison(
     avgLossPct: fsB.avg_loss_pct,
     maxWinPct: fsB.max_win_pct,
     maxLossPct: fsB.max_loss_pct,
+    avgShareSize: fsB.avg_share_size,
     avgPositionSize: fsB.avg_position_size,
   }
 

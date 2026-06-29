@@ -207,6 +207,19 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
   const positionSizes = trades.map(positionSizeOf).filter((v): v is number => v != null)
   const avgPositionSize = meanOrNull(positionSizes)
 
+  // Avg Share Size (djsevans87) — mean over trades of position_shares (max legs),
+  // the SAME per-trade share basis as avg_position_size above but WITHOUT the ×
+  // entry_price (so also without the entry>0 guard: a pure share count doesn't
+  // depend on price). Zero-position rows (max legs == 0) are excluded so a
+  // malformed empty row can't drag the mean; outcome-independent; null when no
+  // trade has a position. Reconciles roughly with avg_position_size (avg share
+  // size × avg entry ~ avg position size $) — rough because the $ version also
+  // drops entry<=0 rows that this count keeps.
+  const shareSizes = trades
+    .map((t) => Math.max(t.shares_bought, t.shares_sold))
+    .filter((pos) => pos > 0)
+  const avgShareSize = meanOrNull(shareSizes)
+
   let kelly: number | null = null
   if (winRate !== null && lossRate !== null && avgWin !== null && avgLoss !== null && avgWin > 0) {
     kelly = (winRate - (lossRate * Math.abs(avgLoss)) / avgWin) * 100
@@ -252,6 +265,7 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
     avg_loss_pct: avgLossPct,
     max_win_pct: maxWinPct,
     max_loss_pct: maxLossPct,
+    avg_share_size: avgShareSize,
     avg_position_size: avgPositionSize,
     std_dev_pnl: sd,
     profit_factor: profitFactor,

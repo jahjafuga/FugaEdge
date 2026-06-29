@@ -633,6 +633,9 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
         // Phase 1 (djsevans87) — total shares traded (both legs). Context, not
         // good/bad → neutral grey delta, like Avg daily volume / Total trades.
         { label: 'Shares traded',     a: a.totalSharesTraded ?? null, b: b.totalSharesTraded ?? null, format: 'int', higherIsBetter: null },
+        // Avg share size (djsevans87) — avg share COUNT per trade (max legs), the
+        // count companion to Avg position size $. Size is neutral (not good/bad).
+        { label: 'Avg share size',    a: a.avgShareSize ?? null,      b: b.avgShareSize ?? null,      format: 'int',   higherIsBetter: null },
         // Phase 3 (djsevans87) — avg position size in $ (size, not good/bad -> neutral).
         { label: 'Avg position size', a: a.avgPositionSize ?? null,   b: b.avgPositionSize ?? null,   format: 'money', higherIsBetter: null },
         { label: 'Max drawdown',      a: a.maxDrawdown ?? null,    b: b.maxDrawdown ?? null,    format: 'money',    higherIsBetter: false },
