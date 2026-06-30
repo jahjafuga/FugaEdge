@@ -19,6 +19,7 @@ import { parseDailySummaryCsv } from './parse-daily-summary'
 import { parseWebullMobileCsv } from './parse-webull-mobile'
 import { parseTradeZeroCsv } from './parse-tradezero'
 import { parseLightspeedCsv } from './parse-lightspeed'
+import { parseToSActivityCsv, parseToSStatementCsv } from './parse-tos'
 import { parseTradeZeroSummaryCsv } from './parse-tradezero-summary'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
@@ -430,6 +431,62 @@ export function registerImportIpc(): void {
           fileInfos.push({
             filename: f.filename,
             format: 'lightspeed',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
+        } else if (fmt === 'tos_activity') {
+          executionFilesPresent = true
+          const parsed = parseToSActivityCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'tos_activity', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
+          fileInfos.push({
+            filename: f.filename,
+            format: 'tos_activity',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
+        } else if (fmt === 'tos_statement') {
+          executionFilesPresent = true
+          const parsed = parseToSStatementCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'tos_statement', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
+          fileInfos.push({
+            filename: f.filename,
+            format: 'tos_statement',
             filenameDateParsed: false,
             inferredDate: '',
             rowCount: parsed.executions.length,

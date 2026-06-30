@@ -44,6 +44,8 @@ const FORMAT_DISPLAY_NAMES: Record<string, string> = {
   tradezero: 'TradeZero',
   tradezero_summary: 'TradeZero Summary',
   lightspeed: 'Lightspeed',
+  tos_activity: 'ThinkorSwim',
+  tos_statement: 'ThinkorSwim Statement',
   'daily-summary': 'DAS Account Report',
 }
 
@@ -59,7 +61,7 @@ export function unknownFormat(filename: string): ImportIssue {
   return {
     code: 'UNKNOWN_FORMAT',
     severity: 'error',
-    message: `We couldn't recognize "${filename}". FugaEdge reads DAS Trader, Webull, Ocean One, TradeZero, and Lightspeed exports.`,
+    message: `We couldn't recognize "${filename}". FugaEdge reads DAS Trader, Webull, Ocean One, TradeZero, Lightspeed, and ThinkorSwim exports.`,
     actionable:
       'Open the broker export guide to check you exported the right file. ' +
       'If FugaEdge doesn’t support your broker yet, use "Request a broker" to tell us.',
@@ -84,7 +86,7 @@ export function unsupportedFileType(filename: string): ImportIssue {
     severity: 'error',
     message:
       `"${filename}" isn’t a file FugaEdge can read. It reads .csv exports ` +
-      '(DAS Trader, Webull Mobile, TradeZero, Lightspeed), .xlsx exports (Webull Desktop), and .xls exports (Ocean One).',
+      '(DAS Trader, Webull Mobile, TradeZero, Lightspeed, ThinkorSwim), .xlsx exports (Webull Desktop), and .xls exports (Ocean One).',
     actionable:
       'Drop a .csv, .xlsx, or .xls export from your broker. Need help exporting? Open the broker guide.',
   }

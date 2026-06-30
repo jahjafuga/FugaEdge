@@ -38,7 +38,9 @@ export default function ImportSummary({
                   f.format === 'ocean_one' ||
                   f.format === 'tradezero' ||
                   f.format === 'tradezero_summary' ||
-                  f.format === 'lightspeed'
+                  f.format === 'lightspeed' ||
+                  f.format === 'tos_activity' ||
+                  f.format === 'tos_statement'
                     ? `${int(f.rowCount)} trades`
                     : null}
                 </span>
@@ -113,7 +115,9 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
     format === 'ocean_one' ||
     format === 'tradezero' ||
     format === 'tradezero_summary' ||
-    format === 'lightspeed'
+    format === 'lightspeed' ||
+    format === 'tos_activity' ||
+    format === 'tos_statement'
   ) {
     return (
       <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">

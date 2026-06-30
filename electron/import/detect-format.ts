@@ -9,6 +9,8 @@ export type CsvFormat =
   | 'tradezero'
   | 'tradezero_summary'
   | 'lightspeed'
+  | 'tos_activity'
+  | 'tos_statement'
   | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
@@ -93,6 +95,19 @@ export function detectFormat(csvText: string): CsvFormat {
   // carries. PapaParse sniffing handles both the quoted and unquoted dialects.
   if (first === 'account number' && has('cusip') && has('trade number')) {
     return 'lightspeed'
+  }
+
+  // ThinkorSwim Trade Activity — clean flat CSV, first column "Exec Time".
+  // "Pos Effect" + "Price Improvement" are distinctive to this ToS export.
+  if (first === 'exec time' && has('pos effect') && has('price improvement')) {
+    return 'tos_activity'
+  }
+
+  // ThinkorSwim Account Statement — section-formatted; row 1 is the section
+  // title "Account Trade History" (BOM stripped above). No other shape leads
+  // with that title.
+  if (first === 'account trade history') {
+    return 'tos_statement'
   }
 
   // TradeZero daily-summary export — first column is "Trade Type". No other
