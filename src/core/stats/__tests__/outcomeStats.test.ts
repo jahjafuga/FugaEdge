@@ -6,7 +6,7 @@
 // zero / Infinity guards as they exist today).
 
 import { describe, expect, it } from 'vitest'
-import { computeOutcomeStats } from '../outcomeStats'
+import { computeOutcomeStats, pnlRatioFromAvgs } from '../outcomeStats'
 
 const T = (...pnls: number[]) => pnls.map((net_pnl) => ({ net_pnl }))
 
@@ -23,6 +23,7 @@ describe('computeOutcomeStats', () => {
     expect(s.avg_loser).toBeCloseTo(-20, 10) // -60/3
     expect(s.expectancy).toBeCloseTo(18, 10) // 0.4*75 − 0.6*20
     expect(s.profit_factor).toBeCloseTo(2.5, 10) // 150/60
+    expect(s.pnl_ratio).toBeCloseTo(3.75, 10) // avg_winner 75 / |avg_loser 20|
   })
 
   it('all winners — no losers → profit_factor null, expectancy null (no avg_loser)', () => {
@@ -34,6 +35,7 @@ describe('computeOutcomeStats', () => {
     expect(s.avg_loser).toBeNull()
     expect(s.profit_factor).toBeNull() // losers === 0
     expect(s.expectancy).toBeNull() // avg_loser null
+    expect(s.pnl_ratio).toBeNull() // avg_loser null
   })
 
   it('all losers — no winners → win_rate 0, profit_factor 0, expectancy null', () => {
@@ -46,6 +48,7 @@ describe('computeOutcomeStats', () => {
     expect(s.avg_loser).toBeCloseTo(-15, 10)
     expect(s.profit_factor).toBe(0) // 0 / |−30|
     expect(s.expectancy).toBeNull() // avg_winner null
+    expect(s.pnl_ratio).toBeNull() // avg_winner null
   })
 
   it('all scratches — decided 0 → every ratio null', () => {
@@ -81,6 +84,7 @@ describe('computeOutcomeStats', () => {
       profit_factor: null,
       avg_winner: null,
       avg_loser: null,
+      pnl_ratio: null,
     })
   })
 
@@ -91,5 +95,29 @@ describe('computeOutcomeStats', () => {
     expect(s.winners).toBe(1)
     expect(s.losers).toBe(1)
     expect(s.win_rate).toBe(0.5)
+  })
+
+  it('pnl_ratio = avg_winner / |avg_loser| on a decided set', () => {
+    // 1 winner +80, 1 loser -40 → avg_winner 80, avg_loser -40 → 2.0
+    const s = computeOutcomeStats(T(80, -40))
+    expect(s.pnl_ratio).toBeCloseTo(2, 10)
+  })
+})
+
+describe('pnlRatioFromAvgs', () => {
+  it('avg_winner / |avg_loser|', () => {
+    expect(pnlRatioFromAvgs(80, -40)).toBeCloseTo(2, 10)
+  })
+  it('null when avg_loser is 0 (no divide-by-zero)', () => {
+    expect(pnlRatioFromAvgs(80, 0)).toBeNull()
+  })
+  it('null when avg_loser is null (no losers)', () => {
+    expect(pnlRatioFromAvgs(80, null)).toBeNull()
+  })
+  it('null when avg_winner is null (no winners)', () => {
+    expect(pnlRatioFromAvgs(null, -40)).toBeNull()
+  })
+  it('null when both null', () => {
+    expect(pnlRatioFromAvgs(null, null)).toBeNull()
   })
 })

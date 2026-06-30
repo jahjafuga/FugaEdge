@@ -1,25 +1,41 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
+import { ChevronRight } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
-import { money, percent, signed, pnlClass } from '@/lib/format'
+import AccordionPanel from '@/components/analytics/tabs/technicals/AccordionPanel'
+import { useBucketBand } from '@/components/analytics/tabs/technicals/useBucketBand'
+import { money, percent, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import {
   aggregateTierPerformance,
   type TierPerformanceRow,
+  type PlaybookPerfRow,
 } from '@/core/playbook/tiers'
 import { primaryState } from '@/core/playbook/primaryState'
 import { computeOutcomeStats, type OutcomeStats } from '@/core/stats/outcomeStats'
+import type { PlaybookTier } from '@shared/playbook-types'
 import type { TradeListRow } from '@shared/trades-types'
 
 interface TierPerformanceCardProps {
   trades: readonly TradeListRow[]
 }
 
+// The table is 7 columns wide (Tier · Setups · Trades · Win% · Net P&L ·
+// Expectancy · P/L ratio); the expansion row spans all of them.
+const TIER_COL_COUNT = 7
+
 // Tier Performance — the headline insight view for v0.1.5. Proves (or
 // disproves) whether A+ discipline actually pays. Pure render off the
-// trade list joined with playbooks.tier from the IPC.
+// trade list joined with playbooks.tier from the IPC. Each tier row expands
+// (djsevans87) into its per-playbook breakdown — same stats, grouped by the
+// playbook inside the tier — reusing the Technicals inline-accordion machine.
 export default function TierPerformanceCard({ trades }: TierPerformanceCardProps) {
   const rows = useMemo(() => aggregateTierPerformance(trades), [trades])
+
+  // Single-open accordion (parent-owned), shared with the Technicals bands:
+  // opening one tier closes any other, and the closing panel's content stays
+  // mounted through the collapse animation.
+  const { isBucketOpen, isBucketDisplayed, onToggle } = useBucketBand<PlaybookTier>()
 
   // Idea 3 — the gradeless No-Setup row, computed SEPARATELY from the tier
   // aggregation (whose null-tier skip would otherwise leak untagged trades).
@@ -48,7 +64,7 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
   return (
     <Card
       title="Tier performance"
-      subtitle="One row per setup tier with at least one tagged trade. A+ → A → B → C order, plus a gradeless No-Setup row when present."
+      subtitle="One row per setup tier with at least one tagged trade, A+ → A → B → C, plus a gradeless No-Setup row when present. Click a tier to break it down by playbook."
       padded={false}
     >
       <div className="overflow-auto">
@@ -56,16 +72,23 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
           <thead>
             <tr className="border-b border-border-subtle/60 text-[10px] uppercase tracking-wider text-fg-tertiary">
               <th className="px-3 py-2 text-left font-semibold">Tier</th>
+              <th className="px-3 py-2 text-right font-semibold">Setups</th>
               <th className="px-3 py-2 text-right font-semibold">Trades</th>
               <th className="px-3 py-2 text-right font-semibold">Win %</th>
               <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
               <th className="px-3 py-2 text-right font-semibold">Expectancy</th>
-              <th className="px-3 py-2 text-right font-semibold">Profit factor</th>
+              <th className="px-3 py-2 text-right font-semibold">P/L ratio</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <TierRow key={r.tier} row={r} />
+              <TierRow
+                key={r.tier}
+                row={r}
+                isOpen={isBucketOpen(r.tier)}
+                isDisplayed={isBucketDisplayed(r.tier)}
+                onToggle={() => onToggle(r.tier)}
+              />
             ))}
             {noSetup.length > 0 && (
               <NoSetupRow count={noSetup.length} stats={noSetupStats} />
@@ -77,48 +100,176 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
   )
 }
 
-function TierRow({ row: r }: { row: TierPerformanceRow }) {
+function TierRow({
+  row: r,
+  isOpen,
+  isDisplayed,
+  onToggle,
+}: {
+  row: TierPerformanceRow
+  isOpen: boolean
+  isDisplayed: boolean
+  onToggle: () => void
+}) {
+  // A real tier always has at least one playbook; the guard keeps the row inert
+  // (no chevron, no toggle) for the degenerate no-playbook case so the accordion
+  // never opens onto an empty panel.
+  const expandable = r.playbooks.length > 0
   return (
-    <tr className="border-b border-border-subtle/40 last:border-b-0">
-      <td className="px-3 py-2">
-        <div className="flex items-center gap-2">
-          <TierBadge tier={r.tier} />
-          <span className="text-[10px] text-fg-tertiary tnum">
-            {r.winners}W / {r.losers}L
-            {r.scratches > 0 ? ` / ${r.scratches}S` : ''}
-          </span>
-        </div>
-      </td>
-      <td className="px-3 py-2 text-right font-mono text-fg-primary tnum">
-        {r.trades}
-      </td>
-      <td className="px-3 py-2 text-right font-mono tnum">
-        {r.win_rate == null ? (
-          <span className="text-fg-tertiary">—</span>
-        ) : (
-          <span className="text-gold">{percent(r.win_rate, 0)}</span>
-        )}
-      </td>
-      <td
-        className={`px-3 py-2 text-right font-mono font-medium tnum ${pnlClass(r.net_pnl)}`}
+    <Fragment>
+      <tr
+        className={`border-b border-border-subtle/40 transition-colors ${
+          expandable ? 'cursor-pointer' : ''
+        } ${
+          isOpen
+            ? 'bg-gold/[0.04]'
+            : expandable
+              ? 'hover:bg-fg-muted/[0.04]'
+              : ''
+        }`}
+        onClick={expandable ? onToggle : undefined}
+        onKeyDown={
+          expandable
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onToggle()
+                }
+              }
+            : undefined
+        }
+        tabIndex={expandable ? 0 : undefined}
+        aria-expanded={expandable ? isOpen : undefined}
       >
-        {signed(r.net_pnl)}
-      </td>
-      <td className="px-3 py-2 text-right font-mono tnum">
-        {r.expectancy == null ? (
-          <span className="text-fg-tertiary">—</span>
-        ) : (
-          <span className={pnlClass(r.expectancy)}>{money(r.expectancy)}/trade</span>
-        )}
-      </td>
-      <td className="px-3 py-2 text-right font-mono tnum">
-        {r.profit_factor == null ? (
-          <span className="text-fg-tertiary">—</span>
-        ) : (
-          <span className="text-fg-primary">{r.profit_factor.toFixed(2)}</span>
-        )}
-      </td>
-    </tr>
+        <td className="px-3 py-2">
+          <div className="flex items-center gap-2">
+            {expandable && (
+              <ChevronRight
+                aria-hidden
+                size={14}
+                strokeWidth={2}
+                className={`shrink-0 text-fg-tertiary transition-transform duration-200 ${
+                  isOpen ? 'rotate-90' : ''
+                }`}
+              />
+            )}
+            <TierBadge tier={r.tier} />
+            <span className="text-[10px] text-fg-tertiary tnum">
+              {r.winners}W / {r.losers}L
+              {r.scratches > 0 ? ` / ${r.scratches}S` : ''}
+            </span>
+          </div>
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-fg-secondary tnum">
+          {r.setups}
+        </td>
+        <td className="px-3 py-2 text-right font-mono text-fg-primary tnum">
+          {r.trades}
+        </td>
+        <td className="px-3 py-2 text-right font-mono tnum">
+          {r.win_rate == null ? (
+            <span className="text-fg-tertiary">—</span>
+          ) : (
+            <span className="text-gold">{percent(r.win_rate, 0)}</span>
+          )}
+        </td>
+        <td
+          className={`px-3 py-2 text-right font-mono font-medium tnum ${pnlClass(r.net_pnl)}`}
+        >
+          {signed(r.net_pnl)}
+        </td>
+        <td className="px-3 py-2 text-right font-mono tnum">
+          {r.expectancy == null ? (
+            <span className="text-fg-tertiary">—</span>
+          ) : (
+            <span className={pnlClass(r.expectancy)}>{money(r.expectancy)}/trade</span>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right font-mono tnum">
+          {r.pnl_ratio == null ? (
+            <span className="text-fg-tertiary">—</span>
+          ) : (
+            <span className="text-fg-primary">{formatPnlRatio(r.pnl_ratio)}</span>
+          )}
+        </td>
+      </tr>
+      {expandable && (
+        <tr>
+          <td colSpan={TIER_COL_COUNT} className="p-0">
+            <AccordionPanel open={isOpen}>
+              {isDisplayed && <PlaybookSubTable playbooks={r.playbooks} />}
+            </AccordionPanel>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+}
+
+// The nested per-playbook breakdown for one expanded tier. Same stat columns as
+// the parent (minus Setups — a playbook IS one setup), indented and sub-styled.
+// Uses the SAME formatters as the tier row, so the playbook rows reconcile with
+// the tier total above them by inspection.
+function PlaybookSubTable({ playbooks }: { playbooks: PlaybookPerfRow[] }) {
+  return (
+    <div className="bg-bg-1/40 px-3 pb-3">
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="text-[9px] uppercase tracking-wider text-fg-tertiary">
+            <th className="py-1.5 pl-7 pr-3 text-left font-semibold">Setup</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Trades</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Win %</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Net P&amp;L</th>
+            <th className="px-3 py-1.5 text-right font-semibold">Expectancy</th>
+            <th className="px-3 py-1.5 text-right font-semibold">P/L ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {playbooks.map((p) => (
+            <tr key={p.playbook_id} className="border-t border-border-subtle/30">
+              <td className="py-1.5 pl-7 pr-3 text-left">
+                <span className="text-fg-primary">{p.name}</span>
+                <span className="ml-2 text-[10px] text-fg-tertiary tnum">
+                  {p.winners}W / {p.losers}L
+                  {p.scratches > 0 ? ` / ${p.scratches}S` : ''}
+                </span>
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono text-fg-primary tnum">
+                {p.trades}
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono tnum">
+                {p.win_rate == null ? (
+                  <span className="text-fg-tertiary">—</span>
+                ) : (
+                  <span className="text-gold">{percent(p.win_rate, 0)}</span>
+                )}
+              </td>
+              <td
+                className={`px-3 py-1.5 text-right font-mono font-medium tnum ${pnlClass(p.net_pnl)}`}
+              >
+                {signed(p.net_pnl)}
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono tnum">
+                {p.expectancy == null ? (
+                  <span className="text-fg-tertiary">—</span>
+                ) : (
+                  <span className={pnlClass(p.expectancy)}>
+                    {money(p.expectancy)}/trade
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-1.5 text-right font-mono tnum">
+                {p.pnl_ratio == null ? (
+                  <span className="text-fg-tertiary">—</span>
+                ) : (
+                  <span className="text-fg-primary">{formatPnlRatio(p.pnl_ratio)}</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -126,8 +277,10 @@ function TierRow({ row: r }: { row: TierPerformanceRow }) {
 // neutral wash + the grey N/A chip + a "not graded" label) so it reads as a
 // completeness footnote, NOT a 5th grade and NOT part of the A+ → C ranking.
 // Same columns/formatting as TierRow; the grade identity is muted (grey chip,
-// dimmer count / profit factor) while the MONEY stays honest (pnlClass net, gold
+// dimmer count / P/L ratio) while the MONEY stays honest (pnlClass net, gold
 // win%). Neutral throughout — a tally of trading without a setup, never a verdict.
+// Setups is "—": these trades have no playbook, so a setup count is meaningless.
+// Not expandable (no playbooks to break out).
 function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
   return (
     <tr className="border-t-2 border-border-strong bg-fg-muted/[0.05]">
@@ -137,6 +290,7 @@ function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
           <span className="text-[10px] text-fg-tertiary">not graded</span>
         </div>
       </td>
+      <td className="px-3 py-2 text-right font-mono text-fg-tertiary tnum">—</td>
       <td className="px-3 py-2 text-right font-mono text-fg-secondary tnum">
         {count}
       </td>
@@ -160,10 +314,10 @@ function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
         )}
       </td>
       <td className="px-3 py-2 text-right font-mono tnum">
-        {stats.profit_factor == null ? (
+        {stats.pnl_ratio == null ? (
           <span className="text-fg-tertiary">—</span>
         ) : (
-          <span className="text-fg-secondary">{stats.profit_factor.toFixed(2)}</span>
+          <span className="text-fg-secondary">{formatPnlRatio(stats.pnl_ratio)}</span>
         )}
       </td>
     </tr>

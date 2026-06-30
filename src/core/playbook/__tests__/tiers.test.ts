@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateTierPerformance } from '../tiers'
+import { aggregateTierPerformance, aggregatePlaybooksInTier } from '../tiers'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookTier } from '@shared/playbook-types'
 
@@ -135,5 +135,80 @@ describe('aggregateTierPerformance', () => {
     expect(out[0].win_rate).toBeNull()
     expect(out[0].expectancy).toBeNull()
     expect(out[0].profit_factor).toBeNull()
+  })
+})
+
+describe('aggregatePlaybooksInTier', () => {
+  it('groups a tier-trade-set by playbook, one row per distinct playbook', () => {
+    const rows = aggregatePlaybooksInTier([
+      winner({ playbook_id: 1, playbook_name: 'Break micropullback', playbook_tier: 'A+' }),
+      winner({ playbook_id: 1, playbook_name: 'Break micropullback', playbook_tier: 'A+' }),
+      winner({ playbook_id: 2, playbook_name: 'Break bullflag', playbook_tier: 'A+' }),
+    ])
+    expect(rows).toHaveLength(2)
+    const byId = new Map(rows.map((r) => [r.playbook_id, r]))
+    expect(byId.get(1)!.name).toBe('Break micropullback')
+    expect(byId.get(1)!.trades).toBe(2)
+    expect(byId.get(2)!.trades).toBe(1)
+  })
+
+  it('per-playbook net P&L sums to the parent tier net P&L (reconciliation invariant)', () => {
+    const trades = [
+      winner({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+', net_pnl: 200, gross_pnl: 200 }),
+      loser({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+', net_pnl: -50, gross_pnl: -50 }),
+      winner({ playbook_id: 2, playbook_name: 'B', playbook_tier: 'A+', net_pnl: 100, gross_pnl: 100 }),
+    ]
+    const tier = aggregateTierPerformance(trades)[0]
+    const playbooks = aggregatePlaybooksInTier(trades)
+    const sum = playbooks.reduce((a, r) => a + r.net_pnl, 0)
+    expect(sum).toBeCloseTo(tier.net_pnl, 6)
+    expect(sum).toBeCloseTo(250, 6)
+  })
+
+  it('per-playbook stats use computeOutcomeStats (win_rate, expectancy, pnl_ratio)', () => {
+    const rows = aggregatePlaybooksInTier([
+      winner({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+', net_pnl: 80, gross_pnl: 80 }),
+      loser({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+', net_pnl: -40, gross_pnl: -40 }),
+    ])
+    expect(rows[0].win_rate).toBeCloseTo(0.5, 6)
+    expect(rows[0].expectancy).toBeCloseTo(20, 6) // 0.5*80 - 0.5*40
+    expect(rows[0].pnl_ratio).toBeCloseTo(2, 6) // 80/40
+  })
+
+  it('sorts playbooks by net P&L descending', () => {
+    const rows = aggregatePlaybooksInTier([
+      winner({ playbook_id: 1, playbook_name: 'Small', playbook_tier: 'A+', net_pnl: 50, gross_pnl: 50 }),
+      winner({ playbook_id: 2, playbook_name: 'Big', playbook_tier: 'A+', net_pnl: 500, gross_pnl: 500 }),
+    ])
+    expect(rows.map((r) => r.name)).toEqual(['Big', 'Small'])
+  })
+
+  it('skips trades with no playbook_id (mirrors the tier table null-tier skip)', () => {
+    const rows = aggregatePlaybooksInTier([
+      winner({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+' }),
+      winner({ playbook_id: null, playbook_name: null, playbook_tier: 'A+' }),
+    ])
+    expect(rows).toHaveLength(1)
+    expect(rows[0].playbook_id).toBe(1)
+  })
+})
+
+describe('aggregateTierPerformance — setups + pnl_ratio', () => {
+  it('setups = distinct playbook count in the tier', () => {
+    const out = aggregateTierPerformance([
+      winner({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+' }),
+      winner({ playbook_id: 1, playbook_name: 'A', playbook_tier: 'A+' }),
+      winner({ playbook_id: 2, playbook_name: 'B', playbook_tier: 'A+' }),
+    ])
+    expect(out[0].setups).toBe(2)
+    expect(out[0].playbooks).toHaveLength(2)
+  })
+
+  it('tier row pnl_ratio = avg_winner / |avg_loser|', () => {
+    const out = aggregateTierPerformance([
+      winner({ playbook_tier: 'A+', net_pnl: 80, gross_pnl: 80 }),
+      loser({ playbook_tier: 'A+', net_pnl: -40, gross_pnl: -40 }),
+    ])
+    expect(out[0].pnl_ratio).toBeCloseTo(2, 6)
   })
 })

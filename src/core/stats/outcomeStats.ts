@@ -31,6 +31,23 @@ export interface OutcomeStats {
   profit_factor: number | null
   avg_winner: number | null
   avg_loser: number | null
+  /** avg_winner / |avg_loser| — the P:L ratio (avg win vs avg loss), DISTINCT
+   *  from profit_factor (Σ wins / |Σ losses|). Null when there are no winners,
+   *  no losers, or avg_loser is 0. Render via formatPnlRatio. */
+  pnl_ratio: number | null
+}
+
+/** The P:L-ratio derive — avg_winner / |avg_loser|. Exported so a caller that
+ *  already holds the two averages shares ONE definition with computeOutcomeStats
+ *  (no second copy). Null when either average is null or avg_loser is 0 (no
+ *  divide-by-zero). Distinct from profit_factor. */
+export function pnlRatioFromAvgs(
+  avgWinner: number | null,
+  avgLoser: number | null,
+): number | null {
+  return avgWinner != null && avgLoser != null && avgLoser !== 0
+    ? avgWinner / Math.abs(avgLoser)
+    : null
 }
 
 /** Compute the Convention-A outcome stats for a set of trades. Only `net_pnl`
@@ -79,5 +96,6 @@ export function computeOutcomeStats(
     profit_factor,
     avg_winner,
     avg_loser,
+    pnl_ratio: pnlRatioFromAvgs(avg_winner, avg_loser),
   }
 }
