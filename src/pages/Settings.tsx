@@ -12,6 +12,7 @@ import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
+import HelpSection from '@/components/settings/HelpSection'
 import SettingsLayout from '@/components/settings/SettingsLayout'
 import { SETTINGS_CATEGORIES } from '@/components/settings/settingsCategories'
 import { ipc } from '@/lib/ipc'
@@ -845,13 +846,9 @@ export default function Settings() {
         <TrashSection />
         </CategoryPane>
 
-        {/* ── Help (placeholder this beat) ────────────────────────── */}
+        {/* ── Help ─────────────────────────────────────────────────── */}
         <CategoryPane active={activeCategory === 'help'}>
-          <Card title="Help" subtitle="Guides and community — coming in a later update.">
-            <p className="text-sm text-fg-tertiary">
-              Help articles and community links land here in a future update.
-            </p>
-          </Card>
+          <HelpSection />
         </CategoryPane>
 
         {/* ── About ───────────────────────────────────────────────── */}

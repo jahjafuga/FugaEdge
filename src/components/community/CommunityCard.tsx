@@ -2,8 +2,10 @@ import { ArrowUpRight, Bell, MessageCircle, Sparkles, Users } from 'lucide-react
 import { ipc } from '@/lib/ipc'
 import { DISCORD_INVITE_URL, hasCommunityLink } from '@/config/community'
 
-// COMMUNITY CARD — shared by Settings and the Onboarding final step.
-// Gold left-accent stripe, FugaEdge-tinted body, Discord brand purple
+// COMMUNITY CARD — the Discord hero, mounted in Settings > Help. A compact
+// variant exists for a future onboarding step (not mounted there yet).
+// Gold left-accent stripe + subtle gold glow (card-glow-gold bloom + a soft
+// outer gold halo), FugaEdge-tinted body, Discord brand purple
 // reserved for the icon stroke only (per the spec). Hides itself when
 // the invite URL is empty — single guard at the top.
 //
@@ -27,7 +29,8 @@ export default function CommunityCard({ compact = false }: CommunityCardProps) {
 
   return (
     <div
-      className="flex flex-col gap-3 rounded-lg border border-border-subtle border-l-2 border-l-gold bg-bg-2 p-4 shadow-sm sm:flex-row sm:items-stretch sm:gap-4"
+      className="card-glow-gold flex flex-col gap-3 rounded-lg border border-border-subtle border-l-2 border-l-gold bg-bg-2 p-4 sm:flex-row sm:items-stretch sm:gap-4"
+      style={{ boxShadow: '0 1px 2px rgb(0 0 0 / 0.25), 0 0 26px -8px rgb(var(--gold) / 0.20)' }}
     >
       <div className="flex shrink-0 items-start gap-3 sm:flex-col sm:items-center sm:justify-center sm:gap-2 sm:border-r sm:border-border-subtle sm:pr-4">
         <span
