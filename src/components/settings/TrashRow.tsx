@@ -34,7 +34,7 @@ export default function TrashRow({
   const actionsDisabled = busy || disabled
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-2 px-3 py-2.5">
+    <div className="flex items-center gap-3 px-3 py-2">
       <input
         type="checkbox"
         aria-label={`Select ${trade.symbol} ${longDate(trade.date)}`}

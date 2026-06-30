@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { Archive, ArchiveRestore, X } from 'lucide-react'
+import { Archive, ArchiveRestore, Plus, Trash2 } from 'lucide-react'
 import type { JournalRule } from '@shared/journal-types'
 import { makeJournalRule } from '@/core/journal/rules'
 
@@ -92,14 +92,14 @@ export default function JournalRuleEditor({ rules, onChange }: JournalRuleEditor
               title="Remove permanently (archive instead to keep history)"
               className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-loss hover:text-loss"
             >
-              <X size={13} strokeWidth={2} />
+              <Trash2 size={13} strokeWidth={2} />
             </button>
           </li>
         ))}
       </ul>
 
       <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-1 px-3 py-2 focus-within:border-gold">
-        <span className="font-mono text-xs text-fg-tertiary">+</span>
+        <Plus size={12} strokeWidth={2.5} className="text-fg-tertiary" />
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

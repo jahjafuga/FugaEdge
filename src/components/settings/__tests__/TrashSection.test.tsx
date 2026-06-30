@@ -95,7 +95,6 @@ async function renderOpen(trades: TradeListRow[]) {
   } else {
     await screen.findByText(trades[0].symbol)
   }
-  fireEvent.click(screen.getByRole('button', { name: /Trash/i }))
 }
 
 const dialog = () => screen.getByRole('dialog')

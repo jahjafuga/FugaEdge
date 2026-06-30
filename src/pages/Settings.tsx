@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle, ArrowUpRight, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import RuleList from '@/components/settings/RuleList'
 import JournalRuleEditor from '@/components/settings/JournalRuleEditor'
-import SettingsAccordion from '@/components/settings/SettingsAccordion'
 import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEditor'
 import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEditor'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
@@ -13,6 +12,8 @@ import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
+import SettingsLayout from '@/components/settings/SettingsLayout'
+import { SETTINGS_CATEGORIES } from '@/components/settings/settingsCategories'
 import { ipc } from '@/lib/ipc'
 import { useAppVersion } from '@/lib/useAppVersion'
 import { rulesEqual } from '@/core/journal/rules'
@@ -61,6 +62,21 @@ interface ExportStatus {
   result: ExportResult
 }
 
+const ACTIVE_CATEGORY_KEY = 'fuga.settings.activeCategory'
+
+// Read the persisted active category (renderer-side, mirroring the accordion
+// localStorage convention). Falls back to the first category. Guarded so a
+// blocked localStorage (private window / future web port) degrades gracefully.
+function readActiveCategory(): string {
+  try {
+    const v = window.localStorage.getItem(ACTIVE_CATEGORY_KEY)
+    if (v && SETTINGS_CATEGORIES.some((c) => c.id === v)) return v
+  } catch {
+    // ignore
+  }
+  return SETTINGS_CATEGORIES[0].id
+}
+
 export default function Settings() {
   const [payload, setPayload] = useState<SettingsPayload | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -76,6 +92,9 @@ export default function Settings() {
   const [exporting, setExporting] = useState<ExportKind | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
+
+  // Active settings category (left rail). Persisted renderer-side; default first.
+  const [activeCategory, setActiveCategory] = useState<string>(readActiveCategory)
 
   // Force checkbox is a local pre-press input. The rest of the refresh state
   // (running / progress / result / error) lives in the module-level
@@ -113,6 +132,15 @@ export default function Settings() {
       cancelled = true
     }
   }, [])
+
+  // Persist the active rail category (renderer-side; mirrors the accordion keys).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ACTIVE_CATEGORY_KEY, activeCategory)
+    } catch {
+      // ignore — see readActiveCategory
+    }
+  }, [activeCategory])
 
   const handleSave = useCallback(async () => {
     if (saving || !editor || !snapshot) return
@@ -233,15 +261,91 @@ export default function Settings() {
   const dirty = isDirty(snapshot, editor)
 
   return (
-    <PageShell title="Settings" subtitle="Account size, max daily loss, playbooks, data export.">
-      <div className="space-y-5">
+    <PageShell title="Settings">
+      <SettingsLayout
+        categories={SETTINGS_CATEGORIES}
+        activeId={activeCategory}
+        onSelect={setActiveCategory}
+        savebar={
+          dirty ? (
+            // A compact, self-contained floating action group anchored bottom-right
+            // — no full-width bar. The wrapper is a transparent positioner
+            // (pointer-events-none so the empty area never blocks content beneath);
+            // the soft rounded cluster carries the only surface.
+            <div className="pointer-events-none sticky bottom-4 z-10 mt-6 flex justify-end">
+              <div className="pointer-events-auto inline-flex items-center gap-3 rounded-xl border border-border-subtle bg-bg-2/90 py-2 pl-4 pr-2 backdrop-blur-sm">
+                <span className="text-xs text-fg-tertiary">
+                  {savedAt ? 'Unsaved changes since last save' : 'Unsaved changes'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!dirty || saving}
+                  className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {saving ? 'Saving…' : dirty ? 'Save settings' : 'No changes'}
+                </button>
+              </div>
+            </div>
+          ) : null
+        }
+      >
+        {/* ── General ─────────────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'general'}>
         <Card
           title="Appearance"
           subtitle="Light mode keeps the gold/green/red accents identical — only surfaces and text invert."
         >
           <ThemePicker />
         </Card>
+        <Card
+          title="Walkthrough"
+          subtitle="Replay the first-time setup or the in-app product tour. Useful if you want to revisit either or test the flow."
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem(ONBOARDING_FLAG_KEY)
+                window.localStorage.setItem(ONBOARDING_FORCE_KEY, 'true')
+                // Land on /dashboard so the modal can sit over the
+                // expected first-launch route, not Settings.
+                window.location.hash = '#/dashboard'
+                window.location.reload()
+              }}
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+            >
+              <RotateCcw size={14} strokeWidth={2} />
+              Restart onboarding
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem(TOUR_FLAG_KEY)
+                window.localStorage.setItem(TOUR_FORCE_KEY, 'true')
+                // Tour steps 2-4 anchor on Dashboard-only widgets — force
+                // the route so the tour doesn't auto-skip half its
+                // steps when launched from Settings.
+                window.location.hash = '#/dashboard'
+                window.location.reload()
+              }}
+              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
+            >
+              <RotateCcw size={14} strokeWidth={2} />
+              Restart tour
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-fg-tertiary">
+            Clears the local <span className="font-mono">{ONBOARDING_FLAG_KEY}</span> /{' '}
+            <span className="font-mono">{TOUR_FLAG_KEY}</span> flag and reloads the app.
+            Your account size, max-loss alert, and any seeded playbooks stay — only the
+            overlay triggers reset.
+          </p>
+        </Card>
+        </CategoryPane>
 
+        {/* ── Trading ─────────────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'trading'}>
         <Card title="Risk management" subtitle="Drives the dashboard's max-loss banner and sizing references.">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <NumberField
@@ -268,67 +372,110 @@ export default function Settings() {
             />
           </div>
         </Card>
+        <DailyTargetSection />
+        <DnaSettingsSection />
+        </CategoryPane>
 
-        <SettingsAccordion
-          storageKey="journalRules"
-          title="Journal rules"
-          subtitle="Shown on the Journal page as a checklist. Order is preserved."
-          count={editor.journal_rules.length}
-        >
-          <JournalRuleEditor
-            rules={editor.journal_rules}
-            onChange={(next) =>
-              setEditor((prev) => (prev ? { ...prev, journal_rules: next } : prev))
+        {/* ── Journal ─────────────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'journal'}>
+        <div className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                Journal rules
+              </div>
+              <div className="mt-1 text-sm text-fg-secondary">
+                Shown on the Journal page as a checklist. Order is preserved.
+              </div>
+            </div>
+          </div>
+          <Card
+            title="Rules"
+            hover={false}
+            right={
+              <span className="font-mono tnum text-fg-secondary">
+                {editor.journal_rules.length}
+              </span>
             }
-          />
-        </SettingsAccordion>
+          >
+            <JournalRuleEditor
+              rules={editor.journal_rules}
+              onChange={(next) =>
+                setEditor((prev) => (prev ? { ...prev, journal_rules: next } : prev))
+              }
+            />
+          </Card>
+        </div>
 
         <MistakesVocabularyEditor />
 
         <CatalystVocabularyEditor />
 
-        <SettingsAccordion
-          storageKey="dayTags"
-          title="Day note tags"
-          subtitle="Per-day labels shown on the Calendar (FOMC, Earnings, Choppy, etc.). Click a calendar day to toggle which ones apply."
-          count={editor.day_tag_list.length}
-        >
-          <RuleList
-            rules={editor.day_tag_list}
-            onChange={(next) =>
-              setEditor((prev) =>
-                prev ? { ...prev, day_tag_list: next } : prev,
-              )
+        <div className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                Day note tags
+              </div>
+              <div className="mt-1 text-sm text-fg-secondary">
+                Per-day labels shown on the Calendar (FOMC, Earnings, Choppy, etc.). Click a calendar day to toggle which ones apply.
+              </div>
+            </div>
+          </div>
+          <Card
+            title="Day tags"
+            hover={false}
+            right={
+              <span className="font-mono tnum text-fg-secondary">
+                {editor.day_tag_list.length}
+              </span>
             }
-          />
-        </SettingsAccordion>
+          >
+            <RuleList
+              rules={editor.day_tag_list}
+              onChange={(next) =>
+                setEditor((prev) =>
+                  prev ? { ...prev, day_tag_list: next } : prev,
+                )
+              }
+            />
+          </Card>
+        </div>
 
-        <SettingsAccordion
-          storageKey="dailyRuleBreaks"
-          title="Daily Rule Breaks"
-          subtitle="Day-level rule breaks — your discipline-violation labels."
-          count={editor.daily_rule_break_list.length}
-        >
-          <RuleList
-            rules={editor.daily_rule_break_list}
-            onChange={(next) =>
-              setEditor((prev) =>
-                prev ? { ...prev, daily_rule_break_list: next } : prev,
-              )
+        <div className="space-y-3">
+          <div className="flex items-end justify-between gap-4">
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+                Daily Rule Breaks
+              </div>
+              <div className="mt-1 text-sm text-fg-secondary">
+                Day-level rule breaks — your discipline-violation labels.
+              </div>
+            </div>
+          </div>
+          <Card
+            title="Rule breaks"
+            hover={false}
+            right={
+              <span className="font-mono tnum text-fg-secondary">
+                {editor.daily_rule_break_list.length}
+              </span>
             }
-          />
-        </SettingsAccordion>
+          >
+            <RuleList
+              rules={editor.daily_rule_break_list}
+              onChange={(next) =>
+                setEditor((prev) =>
+                  prev ? { ...prev, daily_rule_break_list: next } : prev,
+                )
+              }
+            />
+          </Card>
+        </div>
+        </CategoryPane>
 
-        {/* v0.2.5 EdgeIQ Trader DNA — self-contained, relocatable (owns its own
-            load + save of the 7 dna_* keys; the future remodel moves this line
-            + the component file as one piece). */}
-        <DnaSettingsSection />
-
-        {/* Daily profit target — self-contained (own settingsGet/Save of just
-            daily_profit_target); a sibling section, distinct from the Profile
-            Goals feature. Relocatable as one file in the future Settings remodel. */}
-        <DailyTargetSection />
-
+        {/* ── Market data ─────────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'market'}>
         <Card
           title="Market data"
           subtitle="Massive.com REST API. Powers the Reports volume analysis and the Momentum EMA9 distance."
@@ -615,7 +762,10 @@ export default function Settings() {
             })
           }}
         />
+        </CategoryPane>
 
+        {/* ── Data & storage ──────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'data'}>
         <Card title="Data" subtitle="Export and back up your local database.">
           <div className="space-y-4">
             <div>
@@ -695,74 +845,33 @@ export default function Settings() {
         {/* v0.2.3 P5 — soft-deleted trades live here: restore or permanently
             remove. Sits next to the Data card as a data-lifecycle surface. */}
         <TrashSection />
+        </CategoryPane>
 
-        <Card
-          title="Walkthrough"
-          subtitle="Replay the first-time setup or the in-app product tour. Useful if you want to revisit either or test the flow."
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                window.localStorage.removeItem(ONBOARDING_FLAG_KEY)
-                window.localStorage.setItem(ONBOARDING_FORCE_KEY, 'true')
-                // Land on /dashboard so the modal can sit over the
-                // expected first-launch route, not Settings.
-                window.location.hash = '#/dashboard'
-                window.location.reload()
-              }}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
-            >
-              <RotateCcw size={14} strokeWidth={2} />
-              Restart onboarding
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                window.localStorage.removeItem(TOUR_FLAG_KEY)
-                window.localStorage.setItem(TOUR_FORCE_KEY, 'true')
-                // Tour steps 2-4 anchor on Dashboard-only widgets — force
-                // the route so the tour doesn't auto-skip half its
-                // steps when launched from Settings.
-                window.location.hash = '#/dashboard'
-                window.location.reload()
-              }}
-              className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-3 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold"
-            >
-              <RotateCcw size={14} strokeWidth={2} />
-              Restart tour
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-fg-tertiary">
-            Clears the local <span className="font-mono">{ONBOARDING_FLAG_KEY}</span> /{' '}
-            <span className="font-mono">{TOUR_FLAG_KEY}</span> flag and reloads the app.
-            Your account size, max-loss alert, and any seeded playbooks stay — only the
-            overlay triggers reset.
-          </p>
-        </Card>
+        {/* ── Help (placeholder this beat) ────────────────────────── */}
+        <CategoryPane active={activeCategory === 'help'}>
+          <Card title="Help" subtitle="Guides and community — coming in a later update.">
+            <p className="text-sm text-fg-tertiary">
+              Help articles and community links land here in a future update.
+            </p>
+          </Card>
+        </CategoryPane>
 
+        {/* ── About ───────────────────────────────────────────────── */}
+        <CategoryPane active={activeCategory === 'about'}>
         <Card title="About" subtitle="FugaEdge build information.">
           <AboutPanel />
         </Card>
-
-        <div className="savebar-glass sticky bottom-0 -mx-6 mt-2 flex items-center justify-end gap-3 rounded-t-xl px-6 py-3">
-          {savedAt && !dirty && (
-            <span className="text-[10px] uppercase tracking-wider text-win">
-              saved
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!dirty || saving}
-            className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : dirty ? 'Save settings' : 'No changes'}
-          </button>
-        </div>
-      </div>
+        </CategoryPane>
+      </SettingsLayout>
     </PageShell>
   )
+}
+
+// One category pane. ALL panes stay MOUNTED (so self-contained section drafts —
+// DNA / Daily target — survive a category switch); visibility is a CSS toggle,
+// never an unmount. Pure presentational.
+function CategoryPane({ active, children }: { active: boolean; children: ReactNode }) {
+  return <div className={active ? 'space-y-5' : 'hidden'}>{children}</div>
 }
 
 function AboutPanel() {

@@ -257,7 +257,7 @@ export default function MistakesVocabularyEditor() {
                   ) : (
                     <ul className="divide-y divide-border/40 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-1/40">
                       {active.map((d, i) => (
-                        <li key={d.id} className="px-2 py-1.5">
+                        <li key={d.id} className="px-3 py-2">
                           <div className="flex items-center gap-2">
                             <div className="flex flex-col">
                               <button
@@ -384,7 +384,7 @@ export default function MistakesVocabularyEditor() {
                       </div>
                       <ul className="divide-y divide-border/40 overflow-hidden rounded-md border border-border-subtle/40 bg-bg-1/20">
                         {archived.map((d) => (
-                          <li key={d.id} className="px-2 py-1.5">
+                          <li key={d.id} className="px-3 py-2">
                             <div className="flex items-center gap-2">
                               <span className="flex-1 truncate px-2 text-sm text-fg-tertiary">
                                 {d.name}

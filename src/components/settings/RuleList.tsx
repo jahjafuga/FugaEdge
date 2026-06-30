@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 
 // Generic string-list editor (add / edit-in-place / remove). Used for plain
 // string lists like day tags. Journal RULES use JournalRuleEditor (the id-stable
@@ -44,7 +45,7 @@ export default function RuleList({ rules, onChange }: RuleListProps) {
           </li>
         )}
         {rules.map((r, i) => (
-          <li key={i} className="flex items-center gap-3 px-3 py-2">
+          <li key={i} className="flex items-center gap-2 px-3 py-2">
             <input
               value={r}
               onChange={(e) => updateAt(i, e.target.value)}
@@ -54,16 +55,16 @@ export default function RuleList({ rules, onChange }: RuleListProps) {
               type="button"
               onClick={() => remove(i)}
               aria-label="Remove rule"
-              className="flex h-7 w-7 items-center justify-center rounded-sm border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-loss hover:text-loss"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-loss hover:text-loss"
             >
-              ×
+              <Trash2 size={13} strokeWidth={2} />
             </button>
           </li>
         ))}
       </ul>
 
       <div className="flex items-center gap-2 rounded-md border border-border-subtle bg-bg-1 px-3 py-2 focus-within:border-gold">
-        <span className="font-mono text-xs text-fg-tertiary">+</span>
+        <Plus size={12} strokeWidth={2.5} className="text-fg-tertiary" />
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

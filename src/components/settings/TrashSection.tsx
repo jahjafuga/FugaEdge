@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { TradeListRow } from '@shared/trades-types'
 import { ipc } from '@/lib/ipc'
 import { signed, pnlClass, longDate } from '@/lib/format'
-import SettingsAccordion from '@/components/settings/SettingsAccordion'
+import Card from '@/components/ui/Card'
 import TypeToConfirmModal from '@/components/ui/TypeToConfirmModal'
 import TrashRow from './TrashRow'
 import TrashBulkActionBar from './TrashBulkActionBar'
@@ -182,13 +182,26 @@ export default function TrashSection() {
   const confirmCount = isBulk ? selectedCount : 1
 
   return (
-    <SettingsAccordion
-      storageKey="trash"
-      title="Trash"
-      subtitle="Restore deleted trades or remove them permanently. Deleted trades stay here for 30 days."
-      count={trash?.length}
-    >
-      <div className="space-y-3">
+    <div className="space-y-3">
+      <div className="flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Trash
+          </div>
+          <div className="mt-1 text-sm text-fg-secondary">
+            Restore deleted trades or remove them permanently. Deleted trades stay here for 30 days.
+          </div>
+        </div>
+      </div>
+
+      <Card
+        title="Trash"
+        hover={false}
+        right={
+          <span className="font-mono tnum text-fg-secondary">{trash?.length ?? 0}</span>
+        }
+      >
+        <div className="space-y-3">
         {err && (
           <div className="rounded-md border border-loss/40 bg-loss-soft px-3 py-2 text-xs text-fg-secondary">
             Failed to load Trash: {err}
@@ -203,7 +216,7 @@ export default function TrashSection() {
         {trash === null && !err ? (
           <div className="text-sm text-fg-tertiary">Loading…</div>
         ) : sorted.length === 0 ? (
-          <div className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-8 text-center text-sm text-fg-tertiary">
+          <div className="rounded-md border border-border-subtle/60 bg-bg-1/40 px-4 py-8 text-center text-sm text-fg-tertiary">
             No deleted trades
           </div>
         ) : (
@@ -220,7 +233,7 @@ export default function TrashSection() {
               }}
               onClear={clearSelection}
             />
-            <div className="space-y-2">
+            <div className="divide-y divide-border/40 overflow-hidden rounded-md border border-border-subtle/60 bg-bg-1/40">
               {sorted.map((trade) => (
                 <TrashRow
                   key={trade.id}
@@ -242,7 +255,8 @@ export default function TrashSection() {
             </div>
           </>
         )}
-      </div>
+        </div>
+      </Card>
 
       {deleteForever && (
         <TypeToConfirmModal
@@ -323,7 +337,7 @@ export default function TrashSection() {
           }
         />
       )}
-    </SettingsAccordion>
+    </div>
   )
 }
 
