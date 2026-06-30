@@ -37,7 +37,8 @@ export default function ImportSummary({
                   f.format === 'xlsx' ||
                   f.format === 'ocean_one' ||
                   f.format === 'tradezero' ||
-                  f.format === 'tradezero_summary'
+                  f.format === 'tradezero_summary' ||
+                  f.format === 'lightspeed'
                     ? `${int(f.rowCount)} trades`
                     : null}
                 </span>
@@ -111,7 +112,8 @@ function FormatPill({ format }: { format: FileInfo['format'] }) {
     format === 'xlsx' ||
     format === 'ocean_one' ||
     format === 'tradezero' ||
-    format === 'tradezero_summary'
+    format === 'tradezero_summary' ||
+    format === 'lightspeed'
   ) {
     return (
       <span className="rounded bg-info/15 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-info">

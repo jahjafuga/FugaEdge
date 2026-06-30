@@ -18,6 +18,7 @@ import { parseTradesWindowCsv } from './parse-trades-window'
 import { parseDailySummaryCsv } from './parse-daily-summary'
 import { parseWebullMobileCsv } from './parse-webull-mobile'
 import { parseTradeZeroCsv } from './parse-tradezero'
+import { parseLightspeedCsv } from './parse-lightspeed'
 import { parseTradeZeroSummaryCsv } from './parse-tradezero-summary'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
@@ -401,6 +402,34 @@ export function registerImportIpc(): void {
           fileInfos.push({
             filename: f.filename,
             format: 'tradezero',
+            filenameDateParsed: false,
+            inferredDate: '',
+            rowCount: parsed.executions.length,
+          })
+          for (const t of parsed.trace) {
+            if (t.outcome === 'skipped') {
+              console.info(
+                `[FJ import]   ${f.filename} row ${t.row} skipped: ${t.reason}` +
+                  (t.symbol ? ` symbol=${t.symbol}` : ''),
+              )
+            }
+          }
+        } else if (fmt === 'lightspeed') {
+          executionFilesPresent = true
+          const parsed = parseLightspeedCsv(f.text, f.filename)
+          skippedExecutions += parsed.skipped
+          allExecutions.push(...parsed.executions)
+          issues.push(
+            ...csvParseIssues(f.filename, 'lightspeed', {
+              kept: parsed.executions.length,
+              skipped: parsed.skipped,
+              malformedRows: parsed.warnings.length,
+              requiresDate: false,
+            }),
+          )
+          fileInfos.push({
+            filename: f.filename,
+            format: 'lightspeed',
             filenameDateParsed: false,
             inferredDate: '',
             rowCount: parsed.executions.length,

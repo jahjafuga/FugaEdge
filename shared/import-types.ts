@@ -196,6 +196,7 @@ export type CsvFormat =
   | 'daily-summary'
   | 'tradezero'
   | 'tradezero_summary'
+  | 'lightspeed'
   | 'unknown'
 
 export interface FileInfo {

@@ -8,6 +8,7 @@ export type CsvFormat =
   | 'daily-summary'
   | 'tradezero'
   | 'tradezero_summary'
+  | 'lightspeed'
   | 'unknown'
 
 // Sniffs the first row(s) to decide which DAS Trader export this is.
@@ -84,6 +85,14 @@ export function detectFormat(csvText: string): CsvFormat {
   // Account-led export can't false-match.
   if (first === 'account' && has('t/d') && has('exec time')) {
     return 'tradezero'
+  }
+
+  // Lightspeed blotter — execution-level CSV, first column "Account Number".
+  // Distinct from TradeZero (exact "account") via the full "account number"
+  // header; paired with CUSIP + Trade Number, which no other supported shape
+  // carries. PapaParse sniffing handles both the quoted and unquoted dialects.
+  if (first === 'account number' && has('cusip') && has('trade number')) {
+    return 'lightspeed'
   }
 
   // TradeZero daily-summary export — first column is "Trade Type". No other
