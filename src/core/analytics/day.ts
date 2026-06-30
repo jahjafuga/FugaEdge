@@ -3,6 +3,7 @@ import type { ExitDelta } from '@shared/analytics-types'
 import type { DayMetrics } from '@shared/day-types'
 import { formatEastern } from '@/lib/format'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { avgShareSize } from '@/core/performance/avgShareSize'
 
 interface ComputeDayMetricsInput {
   date: string
@@ -276,6 +277,7 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     sessionLastTradeTime: latestClose ? toEasternHHMM(latestClose) : null,
     symbolBreakdown,
     totalShares,
+    avgShareSize: avgShareSize(trades),
     totalDollarVolume,
     mostUsedPlaybook,
     moneyLeftOnTable,
@@ -319,6 +321,7 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     sessionLastTradeTime: null,
     symbolBreakdown: [],
     totalShares: 0,
+    avgShareSize: null,
     totalDollarVolume: 0,
     mostUsedPlaybook: null,
     moneyLeftOnTable: null,

@@ -104,7 +104,7 @@ export default function OverviewTab({ detail }: { detail: DayDetail }) {
       </Card>
 
       {/* Count strip. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card title="Trades">
           <div className="font-mono text-2xl font-semibold text-fg-primary tnum">
             {int(m.tradeCount)}
@@ -120,6 +120,15 @@ export default function OverviewTab({ detail }: { detail: DayDetail }) {
           </div>
           <div className="mt-1 text-xs text-fg-tertiary tnum">
             {int(m.totalShares)} shares
+          </div>
+        </Card>
+
+        <Card title="Avg share size">
+          <div className="font-mono text-2xl font-semibold text-fg-primary tnum">
+            {m.avgShareSize == null ? '—' : int(Math.round(m.avgShareSize))}
+          </div>
+          <div className="mt-1 text-xs text-fg-tertiary tnum">
+            per trade
           </div>
         </Card>
       </div>

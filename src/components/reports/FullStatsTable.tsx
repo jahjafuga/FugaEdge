@@ -69,6 +69,16 @@ export default function FullStatsTable({ stats }: FullStatsTableProps) {
           hint: 'P&L between −$2 and +$2.',
         },
         { label: 'Trading days', value: <Mono>{int(stats.trading_days)}</Mono> },
+        {
+          label: 'Avg share size',
+          value:
+            stats.avg_share_size == null ? (
+              <span className="font-mono text-fg-tertiary">{DASH}</span>
+            ) : (
+              <Mono>{int(Math.round(stats.avg_share_size))}</Mono>
+            ),
+          hint: 'Mean position size per trade — the larger of shares bought vs sold.',
+        },
       ],
     },
     {

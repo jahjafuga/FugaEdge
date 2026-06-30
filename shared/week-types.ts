@@ -31,6 +31,9 @@ export interface WeekMetrics {
   avgRMultiple: number | null
   // Σ per-trade notional (shares_bought·avg_buy + shares_sold·avg_sell).
   totalDollarVolume: number
+  // Mean per-trade position size (max of the two legs); null when no position.
+  // The "Avg share size" stat (djsevans87) — see core/performance/avgShareSize.
+  avgShareSize: number | null
   // netPnl ÷ total shares traded (bought + sold); null when no shares.
   avgPerShareGainLoss: number | null
   // Mean MFE / MAE in $/share over the week's trades that have intraday data;

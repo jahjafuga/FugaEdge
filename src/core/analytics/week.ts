@@ -2,6 +2,7 @@ import type { TradeListRow } from '@shared/trades-types'
 import type { WeekMetrics } from '@shared/week-types'
 import type { ExitDelta } from '@shared/analytics-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { avgShareSize } from '@/core/performance/avgShareSize'
 
 interface ComputeWeekMetricsInput {
   /** Trades already scoped to the week (the repo filters by trades.date). */
@@ -262,6 +263,7 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     worstLoss,
     avgRMultiple,
     totalDollarVolume,
+    avgShareSize: avgShareSize(trades),
     avgPerShareGainLoss,
     avgMfeDollars,
     avgMaeDollars,

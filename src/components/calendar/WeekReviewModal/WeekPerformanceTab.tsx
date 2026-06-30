@@ -66,6 +66,11 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
         },
         { label: 'Notional volume', value: <span className="font-mono text-fg-primary">{money(m.totalDollarVolume)}</span> },
         {
+          label: 'Avg share size',
+          value: m.avgShareSize == null ? <Dash /> : <span className="font-mono text-fg-primary">{int(Math.round(m.avgShareSize))}</span>,
+          hint: 'Mean position size per trade — the larger of shares bought vs sold.',
+        },
+        {
           label: 'Profit factor',
           value: <span className="font-mono text-gold">{formatProfitFactor(m.profitFactor)}</span>,
           hint:

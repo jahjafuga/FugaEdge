@@ -28,6 +28,9 @@ export interface DayMetrics {
    *  Overview "what did I trade today" breakdown and best/worst-symbol summary. */
   symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   totalShares: number
+  // Mean per-trade position size (max of the two legs); null when no trade has a
+  // position. The "Avg share size" stat (djsevans87) — see core/performance/avgShareSize.
+  avgShareSize: number | null
   totalDollarVolume: number
   mostUsedPlaybook: { playbook: string; tradeCount: number; winRate: number | null } | null
   // Day-scoped derivation of Deep Analytics → Execution's "money left on table"
