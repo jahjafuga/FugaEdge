@@ -49,7 +49,6 @@ function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (saved.polygon_api_key !== current.polygon_api_key) return true
   if (saved.fmp_api_key !== current.fmp_api_key) return true
   if (!rulesEqual(saved.journal_rules, current.journal_rules)) return true
-  if (!arraysEqual(saved.mistake_list, current.mistake_list)) return true
   if (!arraysEqual(saved.day_tag_list, current.day_tag_list)) return true
   if (!arraysEqual(saved.daily_rule_break_list, current.daily_rule_break_list)) return true
   return false
@@ -158,7 +157,6 @@ export default function Settings() {
         max_daily_loss: editor.max_daily_loss,
         account_size: editor.account_size,
         journal_rules: editor.journal_rules,
-        mistake_list: editor.mistake_list,
         day_tag_list: editor.day_tag_list,
         daily_rule_break_list: editor.daily_rule_break_list,
         polygon_api_key: editor.polygon_api_key,

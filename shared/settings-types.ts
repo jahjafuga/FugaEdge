@@ -12,7 +12,6 @@ export interface SettingsValues {
    *  from the active checklist). Migrated from the legacy string[] by
    *  migrate-journal-rules-to-objects (Beat 2). */
   journal_rules: JournalRule[]
-  mistake_list: string[]
   day_tag_list: string[]
   /** Daily Rule Breaks (djsevans87) — day-level discipline-violation labels,
    *  the rule-break sibling of day_tag_list. Phase 1 is the configurable list

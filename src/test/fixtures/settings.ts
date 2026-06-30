@@ -10,7 +10,6 @@ export function makeSettingsValues(overrides: Partial<SettingsValues> = {}): Set
     daily_profit_target: 0,
     account_size: 25000,
     journal_rules: [],
-    mistake_list: [],
     day_tag_list: [],
     daily_rule_break_list: [],
     polygon_api_key: '',

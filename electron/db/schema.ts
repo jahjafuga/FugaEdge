@@ -572,10 +572,6 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('polygon_api_key', '');
 -- fresh install, user pastes in Settings → Market data → FMP API key card.
 INSERT OR IGNORE INTO settings (key, value) VALUES ('fmp_api_key', '');
 INSERT OR IGNORE INTO settings (key, value) VALUES (
-  'mistake_list',
-  '["Chased extended entry","FOMO entry","Revenge trade","Sized too big","Took profit too early","Cut winner too early","Held loser too long","Ignored stop loss","Traded outside playbook","Forced trade on choppy day"]'
-);
-INSERT OR IGNORE INTO settings (key, value) VALUES (
   'day_tag_list',
   '["FOMC","CPI","Earnings","News","Halt","Choppy","Trending","Holiday"]'
 );

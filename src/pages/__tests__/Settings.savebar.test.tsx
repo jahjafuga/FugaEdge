@@ -53,12 +53,11 @@ vi.mock('@/lib/ipc', () => ({
 
 const m = vi.mocked(ipc)
 
-// The 8 keys handleSave is allowed to persist (Settings.tsx:129-138).
-const EIGHT_KEYS = [
+// The 7 keys handleSave is allowed to persist (Settings.tsx handleSave).
+const SEVEN_KEYS = [
   'max_daily_loss',
   'account_size',
   'journal_rules',
-  'mistake_list',
   'day_tag_list',
   'daily_rule_break_list',
   'polygon_api_key',
@@ -93,8 +92,8 @@ beforeEach(() => {
   m.dailyChangeOnBackfillProgress.mockReturnValue(() => {})
 })
 
-describe('Settings savebar — 8-key contract (RED-lock #1)', () => {
-  it('persists EXACTLY the 8 page-managed keys, and none of the excluded ones', async () => {
+describe('Settings savebar — 7-key contract (RED-lock #1)', () => {
+  it('persists EXACTLY the 7 page-managed keys, and none of the excluded ones', async () => {
     // max_daily_loss = 777 is a unique display value across all number fields.
     m.settingsGet.mockResolvedValue(makeSettingsPayload({ max_daily_loss: 777 }))
     m.settingsSave.mockResolvedValue(makeSettingsPayload({ max_daily_loss: 800 }))
@@ -108,7 +107,7 @@ describe('Settings savebar — 8-key contract (RED-lock #1)', () => {
     await waitFor(() => expect(m.settingsSave).toHaveBeenCalledTimes(1))
     const arg = m.settingsSave.mock.calls[0][0] as Record<string, unknown>
 
-    expect(Object.keys(arg).sort()).toEqual(EIGHT_KEYS)
+    expect(Object.keys(arg).sort()).toEqual(SEVEN_KEYS)
     for (const k of EXCLUDED) expect(arg).not.toHaveProperty(k)
     expect(arg.max_daily_loss).toBe(800)
   })

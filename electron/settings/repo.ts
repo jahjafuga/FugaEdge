@@ -11,7 +11,6 @@ const KEYS = {
   dailyProfitTarget: 'daily_profit_target',
   accountSize: 'account_size',
   journalRules: 'journal_rules',
-  mistakeList: 'mistake_list',
   dayTagList: 'day_tag_list',
   dailyRuleBreakList: 'daily_rule_break_list',
   polygonApiKey: 'polygon_api_key',
@@ -39,7 +38,6 @@ const DEFAULTS: SettingsValues = {
   daily_profit_target: 0,
   account_size: 25000,
   journal_rules: [],
-  mistake_list: [],
   day_tag_list: [],
   daily_rule_break_list: [],
   polygon_api_key: '',
@@ -115,7 +113,6 @@ export function getSettings(): SettingsPayload {
     daily_profit_target: parseNumber(map[KEYS.dailyProfitTarget], DEFAULTS.daily_profit_target),
     account_size: parseNumber(map[KEYS.accountSize], DEFAULTS.account_size),
     journal_rules: parseJournalRules(map[KEYS.journalRules]),
-    mistake_list: parseStringArray(map[KEYS.mistakeList]),
     day_tag_list: parseStringArray(map[KEYS.dayTagList]),
     daily_rule_break_list: parseStringArray(map[KEYS.dailyRuleBreakList]),
     polygon_api_key: (map[KEYS.polygonApiKey] ?? '').trim(),
@@ -188,12 +185,6 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
         KEYS.journalRules,
         JSON.stringify(cleanJournalRules(input.journal_rules)),
       )
-    }
-    if (input.mistake_list != null) {
-      const clean = input.mistake_list
-        .map((m) => String(m).trim())
-        .filter(Boolean)
-      upsert.run(KEYS.mistakeList, JSON.stringify(clean))
     }
     if (input.day_tag_list != null) {
       const clean = input.day_tag_list
