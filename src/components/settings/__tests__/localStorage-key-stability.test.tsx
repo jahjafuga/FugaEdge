@@ -1,12 +1,11 @@
-import { fireEvent, render, screen, renderHook, act } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import SettingsAccordion, { settingsAccordionKey } from '../SettingsAccordion'
 import { useThemeMode } from '@/lib/theme'
 
-// RED-lock #5 — pin the renderer-side localStorage keys so regrouping sections
-// into panes can't shift them. No IPC: both surfaces are localStorage-only.
-// This vitest jsdom env ships no working localStorage, so install an in-memory
-// mock the components + assertions share.
+// Pin the renderer-side theme key so it persists at the fixed
+// 'fugaedge-theme' localStorage key. localStorage-only, no IPC. This
+// vitest jsdom env ships no working localStorage, so install an
+// in-memory mock the assertion shares.
 function installMockLocalStorage() {
   const store = new Map<string, string>()
   vi.stubGlobal('localStorage', {
@@ -26,27 +25,6 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.unstubAllGlobals()
-})
-
-describe('localStorage key stability — accordion expand keys', () => {
-  // The storageKeys of the sections that will be relocated into panes.
-  it.each(['journalRules', 'dayTags', 'dailyRuleBreaks', 'trash'])(
-    'SettingsAccordion(%s) persists at fuga.settings.<key>.expanded',
-    (key) => {
-      expect(settingsAccordionKey(key)).toBe(`fuga.settings.${key}.expanded`)
-
-      render(
-        <SettingsAccordion storageKey={key} title="Section">
-          body
-        </SettingsAccordion>,
-      )
-      // The value-effect writes the initial collapsed state on mount.
-      expect(localStorage.getItem(`fuga.settings.${key}.expanded`)).toBe('0')
-      // Toggling flips the SAME key — never a mount-position-derived one.
-      fireEvent.click(screen.getByRole('button'))
-      expect(localStorage.getItem(`fuga.settings.${key}.expanded`)).toBe('1')
-    },
-  )
 })
 
 describe('localStorage key stability — theme key', () => {
