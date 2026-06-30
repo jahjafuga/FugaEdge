@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import type { MonthCalendar } from '@shared/dashboard-types'
 import { signed } from '@/lib/format'
+import { marketHolidayName } from '@/core/market/holidays'
 
 interface MonthCalendarPreviewProps {
   month: MonthCalendar
@@ -59,13 +60,20 @@ export default function MonthCalendarPreview({ month }: MonthCalendarPreviewProp
           if (!cell) return <div key={i} className="aspect-square" />
           const dayKey = pad(cell.day)
           const stats = byDate.get(dayKey)
-          const tone = !stats
-            ? 'bg-bg-1 border-border-subtle text-fg-muted'
-            : stats.net_pnl > 0
+          // Auto market-holiday (computed NYSE full closures, pure/offline) —
+          // mirrors the Calendar's marker. Traded days WIN, so the holiday tone
+          // only shows when the day has no P&L of its own.
+          const holidayName = stats ? null : marketHolidayName(cell.iso)
+          const isHol = holidayName !== null
+          const tone = stats
+            ? stats.net_pnl > 0
               ? 'bg-win-soft border-win/25 text-win'
               : stats.net_pnl < 0
                 ? 'bg-loss-soft border-loss/25 text-loss'
                 : 'bg-bg-2 border-border-subtle text-fg-tertiary'
+            : isHol
+              ? 'bg-fg-muted/[0.08] border-fg-muted/30 text-fg-tertiary'
+              : 'bg-bg-1 border-border-subtle text-fg-muted'
           return (
             <div
               key={i}
@@ -73,15 +81,19 @@ export default function MonthCalendarPreview({ month }: MonthCalendarPreviewProp
               title={
                 stats
                   ? `${cell.iso} · ${signed(stats.net_pnl)} · ${stats.trade_count} ${stats.trade_count === 1 ? 'trade' : 'trades'}`
-                  : cell.iso
+                  : isHol
+                    ? `${cell.iso} · ${holidayName} (market closed)`
+                    : cell.iso
               }
             >
               <span className="font-mono text-[10px] leading-none">{cell.day}</span>
-              {stats && (
+              {stats ? (
                 <span className="w-full truncate text-right font-mono text-[10px] leading-none tnum">
                   {compact(stats.net_pnl)}
                 </span>
-              )}
+              ) : isHol ? (
+                <span aria-hidden className="mb-0.5 h-1 w-1 self-center rounded-full bg-fg-muted/70" />
+              ) : null}
             </div>
           )
         })}

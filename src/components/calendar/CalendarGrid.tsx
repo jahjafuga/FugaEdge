@@ -2,6 +2,7 @@ import { CalendarOff, Pencil } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
 import { int, money, percent, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
+import { marketHolidayName } from '@/core/market/holidays'
 import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
 import closedSign from '@/assets/closed-sign.svg'
 import WeeklyPanel from './WeeklyPanel'
@@ -172,7 +173,12 @@ function DayCell({
   const pnl = stats?.net_pnl ?? 0
   const hasJournal = !!stats?.has_journal
   const noTrade = !!stats?.no_trade_day
-  const isHoliday = !!stats?.is_holiday
+  // Auto market-holiday: the computed NYSE full-closure schedule (pure, offline)
+  // ORs onto the manual journal-derived is_holiday, so the closed sign shows on
+  // every market holiday WITHOUT the user marking a sit-out. Traded days still
+  // win — the hero below stays mutually exclusive (has ? P&L : isHoliday ? closed).
+  const computedHolidayName = cell.inMonth ? marketHolidayName(cell.date) : null
+  const isHoliday = !!stats?.is_holiday || computedHolidayName !== null
   const sentiment = stats?.sentiment ?? null
   // On a holiday cell the centered closed sign + "MARKET CLOSED" already convey
   // the sit-out, so drop the redundant no-trade-day dot from the corner cluster
@@ -336,7 +342,7 @@ function DayCell({
           <img
             src={closedSign}
             alt="Market holiday"
-            title="Holiday (market closed)"
+            title={computedHolidayName ? `${computedHolidayName} (market closed)` : 'Holiday (market closed)'}
             className="h-[65px] w-[65px]"
           />
         ) : null}
