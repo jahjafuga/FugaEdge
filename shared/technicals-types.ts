@@ -58,6 +58,10 @@ export interface TradeWithTechnicalsRow {
   side: 'long' | 'short'
   net_pnl: number
   open_time: string // ISO-8601 UTC entry timestamp
+  /** Origin export shape; 'summary' trips (fake 09:30 anchor) are excluded from
+   *  the Time-of-Day matrix via isSummaryTrip. Optional so partial-row fixtures
+   *  needn't declare it; the production SELECT always populates it. */
+  source_format?: string | null
   playbook_id: number | null
   playbook_name: string | null
   technicals: TradeTechnicalsRow | null

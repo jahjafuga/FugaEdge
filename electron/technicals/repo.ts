@@ -321,6 +321,7 @@ export interface TradeWithTechnicalsDbRow {
   side: 'long' | 'short'
   net_pnl: number
   open_time: string
+  source_format: string | null
   playbook_id: number | null
   playbook_name: string | null
 
@@ -418,6 +419,7 @@ export function mapTradeWithTechnicalsDbRow(
     side: row.side,
     net_pnl: row.net_pnl,
     open_time: row.open_time,
+    source_format: row.source_format,
     playbook_id: row.playbook_id,
     playbook_name: row.playbook_name,
     technicals,
@@ -454,6 +456,7 @@ export function listTradesWithTechnicals(
     .prepare(`
       SELECT
         t.id, t.symbol, t.date, t.side, t.net_pnl, t.open_time,
+        t.source_format,
         t.playbook_id, p.name AS playbook_name,
         tt.trade_id AS tt_trade_id,
         tt.tf_1m_macd_line, tt.tf_1m_signal_line, tt.tf_1m_histogram,

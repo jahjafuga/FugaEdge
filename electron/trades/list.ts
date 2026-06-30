@@ -27,6 +27,7 @@ interface TradeRowDb {
   total_fees: number
   commission: number | null
   net_pnl: number
+  source_format: string | null
   executions_json: string
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
@@ -201,6 +202,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
+        t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
@@ -260,6 +262,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       total_fees: r.total_fees,
       commission: r.commission,
       net_pnl: r.net_pnl,
+      source_format: r.source_format,
       executions: parseExecutions(r.executions_json),
       entry_timeframe: parseTimeframe(r.entry_timeframe),
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
@@ -309,6 +312,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.id, t.date, t.symbol, t.side, t.open_time, t.close_time, t.is_open,
         t.shares_bought, t.avg_buy_price, t.shares_sold, t.avg_sell_price,
         t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
+        t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
@@ -366,6 +370,7 @@ export function getTrade(id: number): TradeListRow | null {
     total_fees: row.total_fees,
     commission: row.commission,
     net_pnl: row.net_pnl,
+    source_format: row.source_format,
     executions: parseExecutions(row.executions_json),
     entry_timeframe: parseTimeframe(row.entry_timeframe),
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,

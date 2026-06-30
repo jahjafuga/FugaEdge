@@ -29,6 +29,14 @@ export interface TradeListRow {
    *  many existing TradeListRow test fixtures don't each have to declare it. */
   commission?: number | null
   net_pnl: number
+  /** Origin export shape ('execution' | 'summary' | …). A 'summary' trip (the
+   *  TradeZero daily-summary import) carries a nominal 09:30 timestamp, not real
+   *  fill times — it's excluded from time-of-day analytics via isSummaryTrip,
+   *  but counts everywhere else. Optional only so the many existing partial-row
+   *  test fixtures don't each have to declare it; every production SELECT
+   *  populates it, and isSummaryTrip treats undefined as a real (non-summary)
+   *  trip — the safe default. */
+  source_format?: string | null
   executions: RoundTripExecution[]
   note: TradeNote | null
   entry_timeframe: EntryTimeframe | null

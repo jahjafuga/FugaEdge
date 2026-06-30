@@ -10,6 +10,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import { parseDate } from './dateUtils'
 import { utcToEasternParts } from '@/lib/format'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 import {
   calendarDayPnLMap,
   computeDailyPnL,
@@ -466,6 +467,10 @@ function dimensionKey(
     case 'dow':
       return dayOfWeek(t.date)
     case 'hour': {
+      // Phase 3 — summary trips (fake 09:30 anchor) are excluded from the HOUR
+      // dimension ONLY; they ride the existing notShown path. Every other
+      // dimension in this switch still counts them. Keyed on source_format.
+      if (isSummaryTrip(t)) return null
       // open_time is true UTC (Day 8.5 Commit B) — bucket by Eastern hour.
       const p = utcToEasternParts(t.open_time)
       return p ? `${p.hour}:00` : null

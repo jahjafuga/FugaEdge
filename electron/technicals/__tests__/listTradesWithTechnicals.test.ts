@@ -65,6 +65,7 @@ const FULL_JOINED_ROW: TradeWithTechnicalsDbRow = {
   side: 'long',
   net_pnl: 250.5,
   open_time: '2026-05-15T13:45:00.000Z',
+  source_format: 'execution',
   playbook_id: 7,
   playbook_name: 'Bull Flag',
 

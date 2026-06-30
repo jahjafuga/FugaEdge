@@ -12,6 +12,7 @@
 // decided (an hour of only scratches).
 
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 import { utcToEasternParts } from '@/lib/format'
 import type { DateRange } from './types'
 
@@ -20,6 +21,10 @@ export interface TradeForHourly {
   date: string
   open_time: string
   net_pnl: number
+  /** Origin export shape; 'summary' trips are excluded from the hour buckets
+   *  (fake 09:30 anchor). Optional — TradeListRow (which carries it) satisfies
+   *  this shape. See isSummaryTrip. */
+  source_format?: string | null
 }
 
 export interface HourMetrics {
@@ -66,6 +71,7 @@ function finalize(acc: HourAcc): HourMetrics {
 export function bucketTradesByHour(trades: TradeForHourly[]): Map<number, HourMetrics> {
   const acc = new Map<number, HourAcc>()
   for (const t of trades) {
+    if (isSummaryTrip(t)) continue // Phase 3 — fake 09:30 anchor; excluded from hour buckets
     const parts = utcToEasternParts(t.open_time)
     if (!parts) continue
     let cur = acc.get(parts.hour)

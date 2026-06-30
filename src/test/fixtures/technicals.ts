@@ -61,6 +61,7 @@ export function makeRow(
     net_pnl: overrides.net_pnl ?? 100,
     // Default 09:45 ET (EDT, UTC-4) → the 9:30-10:00 time-of-day bucket.
     open_time: overrides.open_time ?? '2026-05-15T13:45:00.000Z',
+    source_format: 'execution',
     playbook_id: null,
     playbook_name: null,
     technicals:

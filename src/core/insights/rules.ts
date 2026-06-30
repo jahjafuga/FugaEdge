@@ -14,6 +14,7 @@ import type { TradeListRow } from '@shared/trades-types'
 import type { InsightInput, InsightResult } from './types'
 import { utcToEasternParts } from '@/lib/format'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 import {
   aggregate,
   dowName,
@@ -292,8 +293,11 @@ export function runPlaybookPerformance(input: InsightInput): InsightResult | nul
 // what happens after 11:00.
 
 export function runTimeOfDay(input: InsightInput): InsightResult | null {
+  // Phase 3 — exclude summary trips (fake 09:30 anchor) so the "best hour"
+  // insight can't fabricate a 9:30 peak. Keyed on source_format, NOT the 0s-hold.
+  const trades = input.trades.filter((t) => !isSummaryTrip(t))
   const byHour = new Map<number, TradeListRow[]>()
-  for (const t of input.trades) {
+  for (const t of trades) {
     const h = entryHour(t)
     if (h == null) continue
     const arr = byHour.get(h)
@@ -306,7 +310,7 @@ export function runTimeOfDay(input: InsightInput): InsightResult | null {
   let openPnl = 0
   let totalPnl = 0
   const after11: TradeListRow[] = []
-  for (const t of input.trades) {
+  for (const t of trades) {
     const h = entryHour(t)
     if (h == null) continue
     totalPnl += t.net_pnl

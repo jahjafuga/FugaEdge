@@ -5,6 +5,7 @@ import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
 import { computeDrawdown } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 import {
   EMA9_DISTANCE_BUCKET_LABELS,
   ema9DistanceLabel,
@@ -52,6 +53,7 @@ interface TradeRow {
   gross_pnl: number
   total_fees: number
   net_pnl: number
+  source_format: string | null
   executions_json: string
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
@@ -270,6 +272,7 @@ function bucketWindow(iso: string): string | null {
 function computeVolumeByTimeOfDay(rows: TradeRow[]): VolumeByTimeBucket[] {
   const map = new Map<string, VolumeByTimeBucket>()
   for (const t of rows) {
+    if (isSummaryTrip(t)) continue // Phase 3 — fake 09:30 anchor, no real fill time
     const key = bucketWindow(t.open_time)
     if (!key) continue
     let b = map.get(key)
@@ -888,6 +891,7 @@ export function getAnalytics(): AnalyticsData {
              mn.tags AS mistake_tags_json,
              t.planned_risk, t.planned_stop_loss_price, t.float_shares,
              t.catalyst_type,
+             t.source_format,
              sm.sentiment AS sentiment
       FROM trades t
       LEFT JOIN session_meta sm ON sm.date = t.date

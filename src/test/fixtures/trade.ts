@@ -22,6 +22,7 @@ export function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     gross_pnl: 100,
     total_fees: 2,
     net_pnl: 98,
+    source_format: 'execution',
     executions: [],
     note: null,
     entry_timeframe: null,

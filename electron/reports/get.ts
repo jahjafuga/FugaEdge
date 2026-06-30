@@ -11,6 +11,7 @@ import type {
   VolumeAnalysis,
 } from '@shared/reports-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 
 // computeFullStats + its pure helpers moved to src/core/performance/fullStats so
 // the renderer-side Compare can run them per-period. Re-exported here so existing
@@ -31,6 +32,7 @@ interface TradeForReport {
   net_pnl: number
   gross_pnl: number
   total_fees: number
+  source_format: string | null
   mae: number | null
   mfe: number | null
   country: string | null
@@ -415,6 +417,7 @@ export function getReports(): ReportsData {
         avg_buy_price, avg_sell_price,
         shares_bought, shares_sold,
         net_pnl, gross_pnl, total_fees,
+        source_format,
         mae, mfe,
         country, region
       FROM trades
@@ -459,7 +462,13 @@ export function getReports(): ReportsData {
   )
 
   // Hour
-  const byHourMap = groupBy(trades, (t) => hourFromTime(t.open_time))
+  // Phase 3 — summary trips carry a fake 09:30 anchor; exclude them from the
+  // hour breakdown ONLY (keyed on source_format). They still count in every
+  // other report bucket below.
+  const byHourMap = groupBy(
+    trades.filter((t) => !isSummaryTrip(t)),
+    (t) => hourFromTime(t.open_time),
+  )
   const byHour = sortByOrder(
     Array.from(byHourMap.entries()).map(([hour, ts]) =>
       computeStats(ts, `${hour < 10 ? '0' + hour : hour}:00`, hour),

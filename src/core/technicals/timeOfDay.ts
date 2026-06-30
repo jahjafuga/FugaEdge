@@ -20,6 +20,7 @@ import type { Timeframe } from './headerStrip'
 import { classifyMacdBucket, type BucketKey } from './macdBuckets'
 import type { BucketStats } from './types'
 import { utcToEasternParts } from '@/lib/format'
+import { isSummaryTrip } from '@/core/classify/summaryTrip'
 
 /** The five entry-time buckets (§I), ordered earliest → latest. */
 export type TimeOfDayKey = 'pre930' | 't0930' | 't1000' | 't1100' | 't1200'
@@ -97,6 +98,10 @@ export function computeTimeOfDay(
   rows: TradeWithTechnicalsRow[],
   timeframe: Timeframe,
 ): TimeOfDayStats {
+  // Phase 3 — summary trips carry a fake 09:30 anchor; drop them entirely up front
+  // so they pollute neither the cells nor the `excluded` count. Keyed on
+  // source_format, never the 0s-hold heuristic.
+  rows = rows.filter((r) => !isSummaryTrip(r))
   let excluded = 0
   let denominator = 0
 
@@ -182,6 +187,7 @@ export function rowsForTimeOfDayCell(
 ): TradeWithTechnicalsRow[] {
   return rows.filter(
     (row) =>
+      !isSummaryTrip(row) &&
       classifyTimeOfDay(row) === timeKey &&
       classifyMacdBucket(row, timeframe) === macdKey,
   )
