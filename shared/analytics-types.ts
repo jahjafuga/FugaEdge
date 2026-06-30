@@ -138,6 +138,23 @@ export interface RuleBreaksAnalytics {
   clean_green_rate: number | null  // green clean days / clean days
 }
 
+/** "Gave back profits" (djsevans87) — goal-TRIGGERED giveback rollup. Over days
+ *  where the day's ordered cumulative net P&L crossed the configured daily goal
+ *  AND then gave some back (peak-after-cross > final). Computed from CLOSED trades
+ *  in close_time order — NOT intraday ticks. Based on the user's CURRENT daily
+ *  goal applied across the whole range (the goal has no history). */
+export interface GivebackStats {
+  /** Count of days that crossed the goal then gave some back (giveback > 0). */
+  days: number
+  /** Σ (peak-after-cross − final) over those days, in dollars (always >= 0). */
+  total_giveback: number
+  /** Mean (giveback / peak) over those days; null when days === 0. */
+  avg_pct_off_top: number | null
+  /** False when the daily goal is unset (target <= 0) — drives the card's
+   *  "set a goal" empty state. */
+  goal_set: boolean
+}
+
 export interface RBucket {
   key: string         // '≤ -3R', '-3 to -2R', etc.
   range: [number, number]   // inclusive lower, exclusive upper (Infinity allowed)
@@ -263,6 +280,9 @@ export interface AnalyticsData {
   /** Phase 3 (djsevans87) — per-day rule-break rollup (the day-level sibling of
    *  `mistakes`). */
   ruleBreaks: RuleBreaksAnalytics
+  /** "Gave back profits" (djsevans87) — goal-triggered giveback rollup, sibling
+   *  of `ruleBreaks`. */
+  giveback: GivebackStats
   r: RAnalytics
   float: FloatAnalytics
   sentiment: SentimentAnalytics

@@ -2,6 +2,7 @@ import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
+import { computeGiveback } from '@/core/analytics/giveback'
 import { computeDrawdown } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
@@ -46,6 +47,7 @@ interface TradeRow {
   symbol: string
   side: 'long' | 'short'
   open_time: string
+  close_time: string | null
   shares_bought: number
   shares_sold: number
   avg_buy_price: number
@@ -882,7 +884,7 @@ export function getAnalytics(): AnalyticsData {
   const db = openDatabase()
   const rows = db
     .prepare(`
-      SELECT t.id, t.date, t.symbol, t.side, t.open_time,
+      SELECT t.id, t.date, t.symbol, t.side, t.open_time, t.close_time,
              t.shares_bought, t.shares_sold,
              t.avg_buy_price, t.avg_sell_price,
              t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
@@ -964,6 +966,30 @@ export function getAnalytics(): AnalyticsData {
   )
   const ruleBreaks = computeRuleBreaks(ruleBreaksByDate, netPnlByDate)
 
+  // "Gave back profits" (djsevans87) — goal-triggered giveback over each day's
+  // CLOSED trades in close_time order. Mirrors the rule-breaks marshalling above:
+  // getAnalytics reads the inputs directly off `db` (the same direct-query style as
+  // the ruleBreaks / discipline blocks); the pure computeGiveback does the high-
+  // water-mark walk. Open trades (close_time null) are excluded — the walk is over
+  // realized P&L only. close_time is ISO-8601 UTC, so a lexicographic sort is
+  // chronological. daily_profit_target is the KV setting (absent / non-finite /
+  // <= 0 ⇒ no goal), read the same way getSettings parses it.
+  const targetRow = db
+    .prepare(`SELECT value FROM settings WHERE key = 'daily_profit_target'`)
+    .get() as { value: string } | undefined
+  const parsedTarget = targetRow ? Number.parseFloat(targetRow.value) : 0
+  const dailyProfitTarget = Number.isFinite(parsedTarget) ? parsedTarget : 0
+  const closedByCloseTime = rows
+    .filter((r) => r.close_time != null)
+    .sort((a, b) => (a.close_time! < b.close_time! ? -1 : a.close_time! > b.close_time! ? 1 : 0))
+  const tradesByDate = new Map<string, { net_pnl: number }[]>()
+  for (const r of closedByCloseTime) {
+    const arr = tradesByDate.get(r.date)
+    if (arr) arr.push({ net_pnl: r.net_pnl })
+    else tradesByDate.set(r.date, [{ net_pnl: r.net_pnl }])
+  }
+  const giveback = computeGiveback(tradesByDate, dailyProfitTarget)
+
   return {
     trade_count: rows.length,
     equity,
@@ -978,6 +1004,7 @@ export function getAnalytics(): AnalyticsData {
     momentum: computeMomentum(rows),
     mistakes: computeMistakes(rows),
     ruleBreaks,
+    giveback,
     r: computeRAnalytics(rows),
     float: computeFloatAnalytics(rows),
     sentiment: computeSentimentAnalytics(rows),

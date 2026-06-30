@@ -3,8 +3,12 @@ import SectionHeader from '@/components/ui/SectionHeader'
 import MistakesCard from '@/components/analytics/MistakesCard'
 import RuleBreaksCard from '@/components/analytics/RuleBreaksCard'
 import SentimentBreakdownCard from '@/components/analytics/SentimentBreakdownCard'
-import { int } from '@/lib/format'
-import type { AnalyticsData } from '@shared/analytics-types'
+import Tooltip from '@/components/ui/Tooltip'
+import { Info } from 'lucide-react'
+import { int, money, percent } from '@/lib/format'
+import type { AnalyticsData, GivebackStats } from '@shared/analytics-types'
+
+const DASH = '—'
 
 interface PsychologyTabProps {
   data: AnalyticsData
@@ -106,6 +110,8 @@ export default function PsychologyTab({ data }: PsychologyTabProps) {
 
       <RuleBreaksCard data={data.ruleBreaks} />
 
+      <GivebackCard data={data.giveback} />
+
       <Card title="Revenge / fatigue" subtitle="Surfaces from the Insights engine — check the dashboard banner.">
         <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4 text-xs text-fg-secondary">
           Revenge-trading and trade-of-day fatigue patterns are detected after
@@ -138,6 +144,77 @@ function DisciplineRow({
     <div className="flex items-baseline justify-between gap-3 py-1.5">
       <span className="text-xs text-fg-secondary">{label}</span>
       <span className={`font-mono text-sm ${color}`}>{value}</span>
+    </div>
+  )
+}
+
+// "Gave back profits" (djsevans87) — the goal-triggered giveback rollup, sibling
+// of RuleBreaksCard. Three stats; an em-dash (never a fabricated zero) when there
+// are no giveback days, and a "set a goal" empty state when the daily goal is
+// unset. The honest tooltip carries the current-goal-retroactive caveat.
+function GivebackCard({ data }: { data: GivebackStats }) {
+  return (
+    <Card
+      title="Gave back profits"
+      subtitle="Days you crossed your daily goal, then surrendered some before the close."
+      hover
+      right={
+        <Tooltip
+          content={
+            <>
+              Goal-triggered: a day counts only when your cumulative P&L crossed
+              your configured daily goal and then gave some back. "Off the top" is
+              the giveback as a share of that day's peak, computed from the day's
+              closed trades in order. Uses your CURRENT daily goal applied across
+              the whole range — the goal isn't stored per day, so past days aren't
+              historically exact.
+            </>
+          }
+        >
+          <Info size={14} strokeWidth={2} aria-hidden="true" className="cursor-help text-fg-tertiary" />
+        </Tooltip>
+      }
+    >
+      {!data.goal_set ? (
+        <div className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-xs text-fg-secondary">
+          <div className="mb-1 uppercase tracking-wider text-gold">No daily goal set</div>
+          Set a daily profit goal in Settings to track how often you hit it and
+          gave some back.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <GivebackStat label="Days gave back" value={int(data.days)} tone="neutral" />
+          <GivebackStat
+            label="Total given back"
+            value={data.days > 0 ? money(data.total_giveback) : DASH}
+            tone="loss"
+          />
+          <GivebackStat
+            label="Avg off the top"
+            value={data.avg_pct_off_top == null ? DASH : percent(data.avg_pct_off_top, 1)}
+            tone="gold"
+          />
+        </div>
+      )}
+    </Card>
+  )
+}
+
+function GivebackStat({
+  label,
+  value,
+  tone,
+}: {
+  label: string
+  value: string
+  tone: 'neutral' | 'loss' | 'gold'
+}) {
+  const color =
+    tone === 'loss' ? 'text-loss' : tone === 'gold' ? 'text-gold' : 'text-fg-primary'
+  return (
+    <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4">
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
+      <div className={`mt-1.5 font-mono text-2xl font-medium ${color}`}>{value}</div>
     </div>
   )
 }
