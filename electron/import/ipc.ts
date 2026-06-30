@@ -23,7 +23,7 @@ import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { parseFilenameDate } from './parse-filename'
-import { annotateFeeStatus, annotateTripStatus, commit } from './repo'
+import { annotateFeeStatus, annotateTripStatus, commit, markSummariesSuperseded } from './repo'
 import { formatCommitLog } from './format-commit-log'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
@@ -541,7 +541,13 @@ export function registerImportIpc(): void {
       // Merge fill-built trips with round-trip-native parser output (Ocean One).
       // annotateTripStatus marks new vs duplicate uniformly across both.
       const computedTrips = buildRoundTrips(allExecutions)
-      const trips = annotateTripStatus([...computedTrips, ...directTrips])
+      // Phase 2 guard: after the hash dedup, drop any incoming SUMMARY trip whose
+      // (symbol, date) is covered by an execution (DB or same batch) — summary
+      // yields to executions. The reverse (execution superseding a pre-existing
+      // DB summary) is enforced destructively in commit().
+      const { trips, superseded: supersededTrips } = markSummariesSuperseded(
+        annotateTripStatus([...computedTrips, ...directTrips]),
+      )
       // Fees status depends on day_fees lookup; only annotate the ones that
       // already have a date.
       const feesWithDate = allFees.filter((f) => f.date)
@@ -588,6 +594,7 @@ export function registerImportIpc(): void {
         totalTrips: trips.length,
         newTrips,
         duplicateTrips,
+        supersededTrips,
         openTrips,
         totalFeeRows: fees.length,
         newFeeRows,

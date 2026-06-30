@@ -65,6 +65,9 @@ export default function ImportSummary({
         <Stat label="Round trips" value={summary.totalTrips} tone="muted" />
         <Stat label="New" value={summary.newTrips} tone="new" />
         <Stat label="Duplicate" value={summary.duplicateTrips} tone="dup" />
+        {summary.supersededTrips > 0 && (
+          <Stat label="Superseded by executions" value={summary.supersededTrips} tone="dup" />
+        )}
         {summary.openTrips > 0 && (
           <Stat label="Open" value={summary.openTrips} tone="warn" />
         )}

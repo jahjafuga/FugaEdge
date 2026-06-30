@@ -258,6 +258,10 @@ export interface PreviewSummary {
   totalTrips: number
   newTrips: number
   duplicateTrips: number
+  /** TradeZero File 2 Phase 2 — incoming summary trips dropped because an
+   *  execution covers their (symbol, date). A SUBSET of duplicateTrips,
+   *  surfaced separately so the user sees WHY the summary row was skipped. */
+  supersededTrips: number
   openTrips: number
   totalFeeRows: number
   newFeeRows: number
@@ -311,6 +315,10 @@ export interface CommitResult {
    *  from skippedTrips — a resurrect brings a trashed trade back, a skip is an
    *  ordinary live duplicate. */
   resurrectedTrips: number
+  /** TradeZero File 2 Phase 2 (case b) — stale DB summary rows hard-deleted at
+   *  commit because an authoritative execution arrived for the same
+   *  (symbol, date). 0 in the common case. */
+  supersededTrips: number
   insertedFees: number
   replacedFees: number
   affectedDates: string[]

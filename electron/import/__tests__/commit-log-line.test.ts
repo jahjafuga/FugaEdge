@@ -11,6 +11,7 @@ const out: CommitOutcome = {
   insertedTrips: 3,
   skippedTrips: 1,
   resurrectedTrips: 2,
+  supersededTrips: 0,
   insertedFees: 4,
   replacedFees: 0,
   affectedDates: ['2026-01-05', '2026-01-06'],

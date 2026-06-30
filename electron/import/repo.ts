@@ -27,6 +27,49 @@ export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   })
 }
 
+// TradeZero File 2 Phase 2 — incoming summary YIELDS to executions. A summary
+// trip's synthetic-fill hashes can never match a real execution's, so the hash
+// dedup above can't catch summary/execution overlap. This marks an incoming
+// summary trip 'duplicate' (commit then skips it via the status==='duplicate'
+// guard) when a non-summary "authoritative" trip covers its exact (symbol,date)
+// — from EITHER the DB (executions saved earlier — Scenario 2) OR the same
+// incoming batch (Scenario 1). PURE status logic, NO deletion. The destructive
+// other half (an execution superseding a pre-existing DB summary) lives in
+// commit(). Returns the annotated trips + the count of summaries marked.
+export function markSummariesSuperseded(trips: RoundTrip[]): {
+  trips: RoundTrip[]
+  superseded: number
+} {
+  const db = openDatabase()
+  // (symbol,date) keys with authoritative coverage already LIVE in the DB.
+  const covered = new Set(
+    (
+      db
+        .prepare(
+          "SELECT DISTINCT symbol, date FROM trades WHERE source_format != 'summary' AND deleted_at IS NULL",
+        )
+        .all() as { symbol: string; date: string }[]
+    ).map((r) => `${r.symbol}|${r.date}`),
+  )
+  // ...plus authoritative coverage arriving in THIS batch (same-batch overlap).
+  for (const t of trips) {
+    if ((t.source_format ?? 'execution') !== 'summary') covered.add(`${t.symbol}|${t.date}`)
+  }
+  let superseded = 0
+  const annotated = trips.map((t) => {
+    if (
+      t.source_format === 'summary' &&
+      t.status === 'new' &&
+      covered.has(`${t.symbol}|${t.date}`)
+    ) {
+      superseded++
+      return { ...t, status: 'duplicate' as const }
+    }
+    return t
+  })
+  return { trips: annotated, superseded }
+}
+
 export function annotateFeeStatus(fees: DaySummaryFeeRow[]): DaySummaryFeeRow[] {
   const db = openDatabase()
   const existsStmt = db.prepare(
@@ -56,6 +99,10 @@ export interface CommitOutcome {
   insertedTrips: number
   skippedTrips: number
   resurrectedTrips: number
+  /** TradeZero File 2 Phase 2 (case b) — stale DB summary rows HARD-DELETED
+   *  because an authoritative (non-summary) trip arrived for the same
+   *  (symbol, date). 0 in the common case. */
+  supersededTrips: number
   insertedFees: number
   replacedFees: number
   affectedDates: string[]
@@ -188,6 +235,18 @@ export function commit(
     'DELETE FROM trades WHERE symbol = ? AND date = ? AND is_open = 1',
   )
 
+  // TradeZero File 2 Phase 2 (case b) — an authoritative (non-summary) trip
+  // supersedes any stale DB summary for its exact (symbol, date): that summary
+  // was a stand-in for the real fills, now replaced, so it is HARD-DELETED
+  // (mirrors purgeOpen above). The predicate is deliberately NARROW —
+  // source_format='summary' AND matching (symbol,date) AND deleted_at IS NULL —
+  // so it can NEVER touch an execution, a hand-entered trip, or a summary for a
+  // (symbol,date) with no execution coverage. Runs in the same transaction as
+  // the inserts below, so executions-insert + stale-summary-purge are atomic.
+  const supersedeSummary = db.prepare(
+    "DELETE FROM trades WHERE symbol = ? AND date = ? AND source_format = 'summary' AND deleted_at IS NULL",
+  )
+
   // v0.2.1 uses INSERT OR IGNORE rather than multi-target ON CONFLICT — the
   // bundled SQLite (3.49.2 via better-sqlite3 11.10) rejects ON CONFLICT
   // when one of the targets is a partial unique index (see
@@ -267,6 +326,7 @@ export function commit(
   let insertedTrips = 0
   let skippedTrips = 0
   let resurrectedTrips = 0
+  let supersededTrips = 0
   let insertedFees = 0
   let replacedFees = 0
   const dates = new Set<string>()
@@ -279,6 +339,21 @@ export function commit(
     for (const key of purgeKeys) {
       const [symbol, date] = key.split('|')
       purgeOpen.run(symbol, date)
+    }
+
+    // case b — purge any stale DB summary superseded by an incoming AUTHORITATIVE
+    // (non-summary) trip for the same (symbol, date). A summary trip never
+    // triggers this (it only yields, never supersedes). Idempotent: the DELETE
+    // matches nothing when no stale summary exists.
+    const authKeys = new Set<string>()
+    for (const t of trips) {
+      if (t.status !== 'duplicate' && (t.source_format ?? 'execution') !== 'summary') {
+        authKeys.add(`${t.symbol}|${t.date}`)
+      }
+    }
+    for (const key of authKeys) {
+      const [symbol, date] = key.split('|')
+      supersededTrips += supersedeSummary.run(symbol, date).changes
     }
 
     for (const t of trips) {
@@ -416,6 +491,7 @@ export function commit(
     insertedTrips,
     skippedTrips,
     resurrectedTrips,
+    supersededTrips,
     insertedFees,
     replacedFees,
     affectedDates: Array.from(dates).sort(),
