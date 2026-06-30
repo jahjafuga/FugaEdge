@@ -477,10 +477,17 @@ export function runSymbolExtremes(input: InsightInput): InsightResult[] {
 }
 
 // ── 10b. DAY OF WEEK ─────────────────────────────────────────────────────
-// Best / worst weekday by net P&L. Requires 5+ trades on each day. dowName (the
-// weekday formatter) now lives in ./helpers — shared with the KPI strip.
+// Best / worst weekday by net P&L (5+ trades on each day). Emits up to TWO
+// SEPARATE insights — a positive "strongest day" and a negative "weakest day" —
+// exactly like runSymbolExtremes. Splitting them keeps a profitable best day
+// from inheriting the worst day's tone: the old single-object form took its tone
+// from the worst day while its title/metric came from the best day, so a green
+// Monday won the leak slot the moment any day went red (v0.2.5 leak inversion).
+// Each insight carries its OWN metric + tone, and a priority from its OWN
+// magnitude. The weakest-day card is emitted ONLY when that day is a genuine net
+// loss — no manufactured leak when every day is green. dowName lives in ./helpers.
 
-export function runDayOfWeek(input: InsightInput): InsightResult | null {
+export function runDayOfWeek(input: InsightInput): InsightResult[] {
   const buckets = groupBy(input.trades, (t) => dowName(t.date))
   type Row = { day: string; agg: ReturnType<typeof aggregate> }
   const rows: Row[] = []
@@ -488,29 +495,49 @@ export function runDayOfWeek(input: InsightInput): InsightResult | null {
     if (group.length < 5) continue
     rows.push({ day, agg: aggregate(group) })
   }
-  if (rows.length < 2) return null
+  if (rows.length < 2) return []
   rows.sort((a, b) => b.agg.net_pnl - a.agg.net_pnl)
   const best = rows[0]
   const worst = rows[rows.length - 1]
-  const gap = best.agg.net_pnl - worst.agg.net_pnl
-  if (gap < 150) return null
-  const tone: InsightResult['tone'] = worst.agg.net_pnl < 0 ? 'negative' : 'positive'
-  const action =
-    worst.agg.net_pnl < 0
-      ? ` ${worst.day}s lose ${fmtMoney(worst.agg.net_pnl)} — check what's different about your prep that day.`
-      : ''
-  return {
-    id: 'day-of-week',
-    n: best.agg.trade_count + worst.agg.trade_count,
-    rule: 'day-of-week',
-    tone,
-    title: `${best.day}s are your strongest day`,
-    body:
-      `${fmtMoney(best.agg.net_pnl)} net, ${fmtPct(best.agg.win_rate ?? 0)} win rate ` +
-      `over ${best.agg.trade_count} trades.${action}`,
-    metric: fmtMoney(best.agg.net_pnl),
-    priority: gap + rows.length * 10,
+  // Preserve the existing flat-week floor — below it the weekday signal is noise.
+  if (best.agg.net_pnl - worst.agg.net_pnl < 150) return []
+
+  const out: InsightResult[] = []
+
+  // Strongest day — the edge. Only a genuinely positive day is an edge.
+  if (best.agg.net_pnl > 0) {
+    out.push({
+      id: 'day-of-week-best',
+      n: best.agg.trade_count,
+      rule: 'day-of-week-best',
+      tone: 'positive',
+      title: `${best.day}s are your strongest day`,
+      body:
+        `${fmtMoney(best.agg.net_pnl)} net, ${fmtPct(best.agg.win_rate ?? 0)} win rate ` +
+        `over ${best.agg.trade_count} trades. Lean into your ${best.day} routine.`,
+      metric: fmtMoney(best.agg.net_pnl),
+      priority: Math.abs(best.agg.net_pnl) + best.agg.trade_count * 10,
+    })
   }
+
+  // Weakest day — the leak. ONLY when it's a genuine net loss; its metric is the
+  // real negative, so it can never feed a positive value into the leak slot.
+  if (worst.agg.net_pnl < 0) {
+    out.push({
+      id: 'day-of-week-worst',
+      n: worst.agg.trade_count,
+      rule: 'day-of-week-worst',
+      tone: 'negative',
+      title: `${worst.day}s are your weakest day`,
+      body:
+        `${fmtMoney(worst.agg.net_pnl)} net, ${fmtPct(worst.agg.win_rate ?? 0)} win rate ` +
+        `over ${worst.agg.trade_count} trades. Check what's different about your prep that day.`,
+      metric: fmtMoney(worst.agg.net_pnl),
+      priority: Math.abs(worst.agg.net_pnl) + worst.agg.trade_count * 10,
+    })
+  }
+
+  return out
 }
 
 // ── 10c. EXPECTANCY ──────────────────────────────────────────────────────

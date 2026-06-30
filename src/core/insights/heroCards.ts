@@ -82,6 +82,17 @@ function isMoneyMetric(metric: string | undefined): boolean {
   return metric !== undefined && metric.includes('$')
 }
 
+/** Signed value of a MONEY metric ("+$1,280" → 1280, "−$47" → -47), or null when
+ *  the metric isn't a money figure (%/×/R keep their native framing). Recognizes
+ *  fmtMoney's Unicode minus (−), an ASCII '-', and accounting parens. */
+function moneyMetricValue(metric: string | undefined): number | null {
+  if (!isMoneyMetric(metric)) return null
+  const negative = /[-−(]/.test(metric!)
+  const v = parseFloat(metric!.replace(/[^0-9.]/g, ''))
+  if (!Number.isFinite(v)) return null
+  return negative ? -v : v
+}
+
 export function selectHeroCards(
   insights: InsightResult[],
   opts: SelectHeroOptions = {},
@@ -90,7 +101,18 @@ export function selectHeroCards(
 
   const pick = (tone: InsightResult['tone']): InsightResult | null => {
     const qualifying = insights
-      .filter((i) => i.tone === tone && i.n >= minHeroN)
+      .filter((i) => {
+        if (i.tone !== tone || i.n < minHeroN) return false
+        // Defense-in-depth (v0.2.5 leak-slot inversion fix): a 'negative'-toned
+        // insight whose money metric is actually POSITIVE is mislabeled and must
+        // never win the leak slot (or feed Focus). Non-money (%/×/R) leaks keep
+        // their native framing — the guard applies only to dollar metrics.
+        if (tone === 'negative') {
+          const v = moneyMetricValue(i.metric)
+          if (v !== null && v > 0) return false
+        }
+        return true
+      })
       .sort(
         (a, b) =>
           b.priority - a.priority || // "biggest" = highest priority

@@ -43,7 +43,6 @@ const SINGLE_RULES: SingleRule[] = [
   runMistakePattern,
   // runFloatSweetSpot, // DISABLED for v0.2.0 — re-enable in v0.3.0 with point-in-time float.
   runDisciplineStreakMilestone,
-  runDayOfWeek,
   runExpectancy,
   runRewardRiskRatio,
   runHoldTimeFlipped,
@@ -57,6 +56,9 @@ const MULTI_RULES: MultiRule[] = [
   runCatalystStrength,
   runCatalystWeakness,
   runSymbolExtremes,
+  // Best/worst weekday — two separate insights (a positive strongest day and a
+  // negative weakest day), so it's a multi-emit rule like symbol extremes.
+  runDayOfWeek,
   runMistakeInLosers,
 ]
 
