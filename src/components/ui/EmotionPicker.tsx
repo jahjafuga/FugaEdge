@@ -19,7 +19,7 @@ export default function EmotionPicker({ value, onChange }: EmotionPickerProps) {
             className={`flex h-7 w-7 items-center justify-center rounded border font-mono text-xs transition-all duration-150 ease-smooth ${
               active
                 ? 'border-gold bg-gold/15 text-gold'
-                : 'border-border text-subtle hover:border-gold/60 hover:text-text'
+                : 'border-border text-fg-tertiary hover:border-gold/60 hover:text-fg-primary'
             }`}
           >
             {n}
@@ -30,7 +30,7 @@ export default function EmotionPicker({ value, onChange }: EmotionPickerProps) {
         <button
           type="button"
           onClick={() => onChange(null)}
-          className="ml-1 text-[10px] uppercase tracking-wider text-muted transition-colors hover:text-text"
+          className="ml-1 text-[10px] uppercase tracking-wider text-fg-muted transition-colors hover:text-fg-primary"
         >
           clear
         </button>
