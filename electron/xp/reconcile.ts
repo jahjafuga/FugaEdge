@@ -10,14 +10,17 @@
 // scoped hook variants emit exactly the full sweep's slice.
 
 import { FRESH_WINDOW_DAYS } from '@/core/xp/awards'
+import { computeMaxLossIntents } from '@/core/xp/discipline'
 import { computeAwardIntents } from '@/core/xp/engine'
 import type { XpAwardIntent } from '@shared/xp-types'
+import { getSettings } from '../settings/repo'
 import {
   assembleExistingEvents,
   assembleSessionFacts,
   assembleTradeFacts,
   lookupTradeDates,
 } from './facts'
+import { netPnlByDate } from './pnl-facts'
 import { insertXpEvents } from './repo'
 
 export interface XpReconcileResult {
@@ -62,7 +65,20 @@ function reconcile(dates: string[] | undefined, nowIso: string): XpReconcileResu
   const trades = assembleTradeFacts(freshWindowStart(nowIso), dates)
   const existing = assembleExistingEvents()
   const intents = computeAwardIntents({ nowIso, sessions, trades, existing })
-  const insertedByType = insertGroupedByType(intents)
+
+  // §A2 EXCEPTION — the maxloss_respected discipline award (see ./pnl-facts).
+  // Parallel + additive: computeAwardIntents above stays P&L-blind; this branch
+  // reads the day's realized P&L (contained in pnl-facts.ts) and the self-set
+  // limit to award PAST days that stayed within it. Same INSERT OR IGNORE path.
+  const existingKeys = new Set(existing.map((e) => e.idempotency_key))
+  const disciplineIntents = computeMaxLossIntents(
+    netPnlByDate(dates),
+    getSettings().values.max_daily_loss,
+    existingKeys,
+    nowIso,
+  )
+
+  const insertedByType = insertGroupedByType([...intents, ...disciplineIntents])
   return { insertedByType, durationMs: Date.now() - t0 }
 }
 

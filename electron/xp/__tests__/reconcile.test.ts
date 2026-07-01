@@ -67,11 +67,25 @@ vi.mock('../repo', () => ({
   },
 }))
 
+// The §A2 discipline branch's collaborators (parallel to the P&L-blind engine).
+// getSettings supplies the self-set limit; netPnlByDate is the contained P&L
+// reader — defaults to empty so the existing orchestration cases stay inert, and
+// one case below feeds it a qualifying past day to exercise the branch.
+vi.mock('../../settings/repo', () => ({
+  getSettings: () => ({ values: { max_daily_loss: 20 } }),
+}))
+vi.mock('../pnl-facts', () => ({
+  netPnlByDate: vi.fn(() => new Map()),
+}))
+
 import {
   reconcileXpForDates,
   runXpReconcile,
   xpReconcileForTradeIds,
 } from '../reconcile'
+import { netPnlByDate } from '../pnl-facts'
+
+const mockNetPnl = vi.mocked(netPnlByDate)
 
 const NOW = '2026-06-12T20:00:00.000Z'
 
@@ -107,6 +121,8 @@ beforeEach(() => {
   store.log = []
   store.sessionCalls = []
   store.tradeCalls = []
+  mockNetPnl.mockReset()
+  mockNetPnl.mockReturnValue(new Map())
 })
 
 describe('runXpReconcile (L10 — single-pass full sweep)', () => {
@@ -150,6 +166,16 @@ describe('runXpReconcile (L10 — single-pass full sweep)', () => {
     expect(store.log.filter((l) => l === 'repo:insert')).toHaveLength(
       insertCallsAfterFirst,
     )
+  })
+
+  it('awards maxloss_respected for a PAST day that stayed within the limit', () => {
+    // A closed past day (NOW = 2026-06-12) with a small loss inside the $20 limit.
+    mockNetPnl.mockReturnValue(
+      new Map([['2026-06-10', { netPnl: -10, tradeCount: 2 }]]),
+    )
+    const result = runXpReconcile({ nowIso: NOW })
+    expect(result.insertedByType.maxloss_respected).toBe(1)
+    expect([...store.insertedKeys]).toContain('maxloss_respected:2026-06-10')
   })
 })
 

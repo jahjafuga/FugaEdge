@@ -2,6 +2,13 @@
 // Event names are EXACTLY the spec §A2 award table (post-D19: equity goals
 // award zero XP, so there is no goal_milestone type). NO event type may ever
 // reference P&L sign, trade count, position size, or dollar/equity targets.
+//
+// EXCEPTION (2026-07-01, by founder decision): the 'maxloss_respected'
+// discipline award reads a day's realized net P&L to check a self-set daily
+// loss limit. This is the single, contained §A2 exception (staying within a
+// self-set limit is a controllable process act, not a P&L outcome). It lives
+// entirely in electron/xp/pnl-facts.ts; facts.ts and every other award remain
+// P&L-blind, and the facts.ts allowlist guard is untouched.
 
 export type XpEventType =
   | 'session_journaled'
@@ -11,6 +18,7 @@ export type XpEventType =
   | 'daily_streak_bonus'
   | 'weekly_review_completed'
   | 'goal_completed' // process goals only (D19)
+  | 'maxloss_respected' // §A2 exception (see the header note)
 
 /** A persisted ledger row. */
 export interface XpEvent {

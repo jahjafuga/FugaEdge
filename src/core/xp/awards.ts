@@ -15,6 +15,8 @@ export const XP_AWARDS = {
   daily_streak_bonus: { xp: 25, capPerDate: 1 },
   weekly_review_completed: { xp: 175 },
   goal_completed: { xp: 1000 },
+  // §A2 EXCEPTION (see xp-types.ts) — the one P&L-referencing award.
+  maxloss_respected: { xp: 25, capPerDate: 1 },
 } as const satisfies Record<XpEventType, { xp: number; capPerDate?: number }>
 
 /** L6/L7 — the D4 fresh window, in UTC calendar days (day 7 in, day 8 out). */
