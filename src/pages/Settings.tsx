@@ -13,10 +13,10 @@ import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
 import HelpSection from '@/components/settings/HelpSection'
+import AboutSection from '@/components/settings/AboutSection'
 import SettingsLayout from '@/components/settings/SettingsLayout'
 import { SETTINGS_CATEGORIES } from '@/components/settings/settingsCategories'
 import { ipc } from '@/lib/ipc'
-import { useAppVersion } from '@/lib/useAppVersion'
 import { rulesEqual } from '@/core/journal/rules'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
@@ -853,9 +853,7 @@ export default function Settings() {
 
         {/* ── About ───────────────────────────────────────────────── */}
         <CategoryPane active={activeCategory === 'about'}>
-        <Card title="About" subtitle="FugaEdge build information.">
-          <AboutPanel />
-        </Card>
+          <AboutSection />
         </CategoryPane>
       </SettingsLayout>
     </PageShell>
@@ -867,18 +865,6 @@ export default function Settings() {
 // never an unmount. Pure presentational.
 function CategoryPane({ active, children }: { active: boolean; children: ReactNode }) {
   return <div className={active ? 'space-y-5' : 'hidden'}>{children}</div>
-}
-
-function AboutPanel() {
-  const version = useAppVersion()
-  return (
-    <div className="space-y-1">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-        Version
-      </div>
-      <div className="font-mono text-sm text-fg-primary">v{version}</div>
-    </div>
-  )
 }
 
 function NumberField({
