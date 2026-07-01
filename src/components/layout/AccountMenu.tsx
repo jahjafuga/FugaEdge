@@ -37,8 +37,10 @@ export default function AccountMenu() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const { pathname } = useLocation()
 
-  // Fetch the profile once on mount (D24 — no push channel needed; a single
-  // window can't be on /profile and mutating identity simultaneously).
+  // Profile — refetched on route change (mirrors the XP summary below) so the
+  // toolbar avatar reflects a photo or name changed on the Profile tab. The
+  // TopBar mounts once and never remounts, so a mount-only fetch would show a
+  // stale avatar all session. Cancelled-guard + keep-last-good-on-failure.
   useEffect(() => {
     let cancelled = false
     ipc
@@ -47,13 +49,13 @@ export default function AccountMenu() {
         if (!cancelled) setProfile(p)
       })
       .catch(() => {
-        // Leave null → the glyph fallback shows. A profile-read hiccup must
-        // never block the chrome from rendering.
+        // Non-blocking — keep the last good profile; a read hiccup must never
+        // blank the chrome or flicker the avatar to its fallback.
       })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [pathname])
 
   // XP summary — refetched on every route change so the toolbar ring stays
   // fresh. Fires on mount (initial pathname) and whenever pathname changes;
