@@ -12,6 +12,7 @@ import { Lock, Star } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import type { BadgeAward, BadgeTier } from '@shared/identity-types'
 import { BADGE_CATALOG, type BadgeDef } from '@/core/badges/catalog'
+import BadgeCrest from './BadgeCrest'
 import { badgeIcon } from './badgeIcons'
 import { metalFor, METAL } from './tierMetal'
 import { profileStrings as S } from '../strings'
@@ -153,15 +154,22 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                         isFeatured ? m.featured : s.earned ? m.earned : LOCKED_TILE
                       } ${s.earned ? 'cursor-pointer' : 'cursor-default'}`}
                     >
-                      <span
-                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          s.earned ? m.disc : LOCKED_DISC
-                        }`}
-                      >
-                        <Icon
-                          className={`h-4 w-4 ${s.earned ? m.icon : LOCKED_ICON}`}
-                          strokeWidth={1.75}
-                        />
+                      <span className="relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
+                        {s.earned && (
+                          <BadgeCrest
+                            className={`pointer-events-none absolute inset-0 h-full w-full ${m.crest}`}
+                          />
+                        )}
+                        <span
+                          className={`relative flex items-center justify-center rounded-full ${
+                            s.earned ? `h-6 w-6 ${m.coin}` : `h-8 w-8 ${LOCKED_DISC}`
+                          }`}
+                        >
+                          <Icon
+                            className={`h-4 w-4 ${s.earned ? m.icon : LOCKED_ICON}`}
+                            strokeWidth={1.75}
+                          />
+                        </span>
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold text-fg-primary">

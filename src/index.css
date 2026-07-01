@@ -70,6 +70,12 @@
     --copper-text: 184 115 51;   /* matches --copper in dark mode */
     --silver: 188 195 204;       /* #bcc3cc */
     --silver-text: 188 195 204;  /* matches --silver in dark mode */
+    /* Metallic light/dim variants for the badge "coin" gradients (badge card
+       richness) — mirror gold's --gold-hover/--gold-dim. Theme-independent. */
+    --copper-light: 212 145 90;  /* #d4915a */
+    --copper-dim: 138 86 38;     /* #8a5626 */
+    --silver-light: 221 226 232; /* #dde2e8 */
+    --silver-dim: 139 147 160;   /* #8b93a0 */
     /* Violet used as TEXT color — themed, mirrors --gold-text. EdgeIQ flagship
        accent (§11.3). On light backgrounds the bright --accent-violet reads
        low-contrast, so light mode shifts text-violet to a darker violet;
@@ -581,6 +587,28 @@
   :root.light .card-glow-red    { background-image: none; border-color: rgb(var(--glow-red)    / 0.45); }
   :root.light .card-glow-gold   { background-image: none; border-color: rgb(var(--glow-gold)   / 0.45); }
   :root.light .card-glow-purple { background-image: none; border-color: rgb(var(--glow-purple) / 0.45); }
+
+  /* Badge tier "coin" disc (earned/featured, badge card richness) — a struck-
+     metal medallion: radial sheen highlight + recessed inset depth + a thin tier
+     ring. The hex crest (BadgeCrest.tsx) frames it. Earned-only; locked discs
+     stay the plain grey circle. On-brand: our tier tokens + gradients, no art. */
+  .badge-coin-copper {
+    background: radial-gradient(circle at 33% 28%, rgb(var(--copper-light) / 0.70), rgb(var(--copper) / 0.30) 56%, rgb(var(--copper-dim) / 0.42));
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.40), inset 0 -1px 1px rgb(var(--copper-light) / 0.30), 0 0 0 1px rgb(var(--copper) / 0.55);
+  }
+  .badge-coin-silver {
+    background: radial-gradient(circle at 33% 28%, rgb(var(--silver-light) / 0.70), rgb(var(--silver) / 0.30) 56%, rgb(var(--silver-dim) / 0.42));
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.40), inset 0 -1px 1px rgb(var(--silver-light) / 0.30), 0 0 0 1px rgb(var(--silver) / 0.55);
+  }
+  .badge-coin-gold {
+    background: radial-gradient(circle at 33% 28%, rgb(var(--gold-hover) / 0.75), rgb(var(--gold) / 0.32) 56%, rgb(var(--gold-dim) / 0.45));
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.40), inset 0 -1px 1px rgb(var(--gold-hover) / 0.35), 0 0 0 1px rgb(var(--gold) / 0.60), 0 0 9px rgb(var(--glow-gold) / 0.40);
+  }
+  /* Badge tier card sheen (earned/featured) — a subtle brushed-metal diagonal
+     over the flat base tint. */
+  .badge-sheen-copper { background-image: linear-gradient(135deg, rgb(var(--copper-light) / 0.10), transparent 55%); }
+  .badge-sheen-silver { background-image: linear-gradient(135deg, rgb(var(--silver-light) / 0.10), transparent 55%); }
+  .badge-sheen-gold   { background-image: linear-gradient(135deg, rgb(var(--gold-hover) / 0.10), transparent 55%); }
 
   /* Phase 2 — the ONE app-wide aurora (Option A): a single static SVG mounted
      behind the whole grid (AppLayout's grid <div>, relative + isolate). It is

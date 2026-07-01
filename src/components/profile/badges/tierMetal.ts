@@ -21,35 +21,45 @@ export interface MetalClasses {
   icon: string
   label: string
   star: string
+  /** Struck-coin disc background + depth (wall tile, earned-only). */
+  coin: string
+  /** Hex crest stroke color (wall tile, earned-only). */
+  crest: string
 }
 
 export const METAL: Record<Metal, MetalClasses> = {
   copper: {
-    earned: 'border-copper/40 bg-copper/[0.06] hover:border-copper/70 disabled:hover:border-copper/40',
-    featured: 'border-copper bg-copper/[0.12] shadow-sm',
+    earned: 'border-copper/40 bg-copper/[0.05] hover:border-copper/70 disabled:hover:border-copper/40 badge-sheen-copper',
+    featured: 'border-copper bg-copper/[0.10] shadow-sm badge-sheen-copper',
     disc: 'bg-copper/[0.16]',
     discFeatured: 'bg-copper/[0.18]',
     icon: 'text-copper',
     label: 'text-copper/80',
     star: 'fill-copper text-copper',
+    coin: 'badge-coin-copper',
+    crest: 'text-copper/60',
   },
   silver: {
-    earned: 'border-silver/50 bg-silver/[0.07] hover:border-silver/80 disabled:hover:border-silver/50',
-    featured: 'border-silver bg-silver/[0.14] shadow-sm',
+    earned: 'border-silver/50 bg-silver/[0.06] hover:border-silver/80 disabled:hover:border-silver/50 badge-sheen-silver',
+    featured: 'border-silver bg-silver/[0.12] shadow-sm badge-sheen-silver',
     disc: 'bg-silver/[0.18]',
     discFeatured: 'bg-silver/[0.20]',
     icon: 'text-silver',
     label: 'text-silver/80',
     star: 'fill-silver text-silver',
+    coin: 'badge-coin-silver',
+    crest: 'text-silver/60',
   },
   gold: {
-    earned: 'border-gold/50 bg-gold/[0.08] hover:border-gold/80 disabled:hover:border-gold/50 card-glow-gold',
-    featured: 'border-gold bg-gold/[0.12] shadow-sm card-glow-gold',
+    earned: 'border-gold/50 bg-gold/[0.07] hover:border-gold/80 disabled:hover:border-gold/50 card-glow-gold badge-sheen-gold',
+    featured: 'border-gold bg-gold/[0.12] shadow-sm card-glow-gold badge-sheen-gold',
     disc: 'bg-gold/[0.16]',
     discFeatured: 'bg-gold/[0.18]',
     icon: 'text-gold',
     label: 'text-gold/80',
     star: 'fill-gold text-gold',
+    coin: 'badge-coin-gold',
+    crest: 'text-gold/60',
   },
 }
 
