@@ -8,8 +8,6 @@
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import { buildWeeklyReviewIntent } from '@/core/xp/engine'
-import { levelProgress } from '@/core/xp/curve'
-import { displayProgress } from '@/core/xp/floor'
 import { computeStreak } from '@/core/xp/streak'
 import { todayDateISO } from '@/core/session/today'
 import type {
@@ -18,13 +16,8 @@ import type {
   XpSummary,
 } from '@shared/xp-types'
 import { listTradeDates } from './facts'
-import {
-  getLevelFloor,
-  getXpTotal,
-  insertXpEvents,
-  listIdempotencyKeys,
-  setLevelFloor,
-} from './repo'
+import { displayedLevel } from './level'
+import { insertXpEvents, listIdempotencyKeys } from './repo'
 
 export function registerXpIpc(): void {
   ipcMain.handle(
@@ -66,18 +59,9 @@ export function registerXpIpc(): void {
   // convention (todayDateISO); statelessness makes the midnight boundary
   // self-healing (A2/D24).
   ipcMain.handle(IPC.XP_SUMMARY_GET, (): XpSummary => {
-    const totalXp = getXpTotal()
-    const raw = levelProgress(totalXp)
-    // Never-demote floor: seed on first read, then raise monotonically as the
-    // user levels up. Under a fixed curve raw.level only rises, so floor ===
-    // raw.level and displayProgress is a passthrough — DORMANT until a future
-    // curve change could put the floor above the XP-computed level.
-    let floor = getLevelFloor()
-    if (floor == null || raw.level > floor) {
-      floor = raw.level
-      setLevelFloor(floor)
-    }
-    const { level, intoLevel, neededForNext } = displayProgress(raw, floor)
+    // The floored level (raw curve level lifted by the never-demote floor) is
+    // shared with the badge minter via displayedLevel — one seed/bump owner.
+    const { totalXp, level, intoLevel, neededForNext } = displayedLevel()
     const prefix = 'streak:'
     const journaledDates = listIdempotencyKeys(prefix).map((k) =>
       k.slice(prefix.length),
