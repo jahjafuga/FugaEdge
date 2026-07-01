@@ -26,7 +26,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'sentiment',
-    anchor: 'sentiment',
+    anchor: 'market-sentiment',
     title: 'Rate the market 1-5',
     body:
       '5 = 3+ stocks running 100%+ (hot), 1 = nothing running (cold). Track ' +
@@ -34,7 +34,7 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'edge-intelligence',
-    anchor: 'edge-intelligence',
+    anchor: 'nav-intelligence',
     title: 'Patterns surface automatically',
     body:
       "We analyze your trades for catalysts that work, setups that don't, " +
@@ -47,9 +47,9 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Your account menu',
     body:
       'Profile, Settings, and importing trades all live here, top-right. ' +
-      'Import takes your DAS Trader CSVs — the Trades.csv and the daily summary — ' +
-      'and we auto-fetch shares outstanding, EMA9 distance, and intraday bars from Massive. ' +
-      'Lightspeed and Webull support coming soon.',
+      'Import reads DAS Trader, Webull, Lightspeed, ThinkorSwim, Ocean One, ' +
+      'and TradeZero exports. We auto-fetch shares outstanding, EMA9 distance, ' +
+      'and intraday bars from Massive, plus float, sector, and industry from FMP.',
   },
   {
     id: 'trades',
@@ -89,10 +89,10 @@ export const TOUR_STEPS: TourStep[] = [
   },
   {
     id: 'reports',
-    anchor: 'nav-reports',
+    anchor: 'nav-analytics',
     title: 'Period vs period analysis',
     body:
-      'Compare this week vs last week, this month vs last year, or any ' +
+      'Analytics compares this week vs last week, this month vs last year, or any ' +
       'custom range. See exactly what\'s improving and what\'s regressing. ' +
       'This is where you find your real edge.',
   },
