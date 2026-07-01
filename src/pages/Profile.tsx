@@ -5,17 +5,21 @@
 // Score. Data is fetched on route mount (D24 — no push channel; a single-
 // window app cannot be on /profile and mutating trades simultaneously).
 // NO P&L anywhere on this page, by design and by smoke.
+//
+// Profile redesign (Slice 1) — identity/avatar/level/XP unified into the
+// ProfileHero band at the top; the standalone Level card is dissolved into it.
+// The card below the hero is the editable identity FORM; Streak is enriched.
+// All cards use the card-premium idiom. Presentation/layout only — no change
+// to data wiring or XP/level/streak logic.
 
 import { useEffect, useState } from 'react'
-import { Snowflake } from 'lucide-react'
+import { Flame, Snowflake } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
-import AnimatedNumber from '@/components/ui/AnimatedNumber'
 import { ipc } from '@/lib/ipc'
 import type { Profile as ProfileRow } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
 import type { TradingStyle } from '@/core/onboarding/types'
-import AvatarPicker from '@/components/profile/AvatarPicker'
-import LevelRing from '@/components/profile/LevelRing'
+import ProfileHero from '@/components/profile/ProfileHero'
 import GoalsSection from '@/components/profile/goals/GoalsSection'
 import BadgeWall from '@/components/profile/badges/BadgeWall'
 import { profileStrings as S } from '@/components/profile/strings'
@@ -109,22 +113,25 @@ export default function Profile() {
           {error}
         </div>
       )}
-      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
-        {/* ── Identity card ─────────────────────────────────────────── */}
-        <section className="rounded-lg border border-border-subtle bg-bg-2 p-6">
-          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
-            {S.identity.heading}
-          </h2>
-          {profile && draft ? (
-            <div className="flex flex-col gap-6 sm:flex-row">
-              <AvatarPicker
-                profile={profile}
-                onUpdated={(p) => {
-                  setProfile(p)
-                  setDraft((d) => d ?? draftFrom(p))
-                }}
-              />
-              <div className="flex-1 space-y-3">
+
+      {profile && summary && draft ? (
+        <>
+          <ProfileHero
+            profile={profile}
+            summary={summary}
+            onAvatarUpdated={(p) => {
+              setProfile(p)
+              setDraft((d) => d ?? draftFrom(p))
+            }}
+          />
+
+          <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_360px]">
+            {/* ── Identity — the editable form (the hero above is the display) ── */}
+            <section className="card-premium p-6">
+              <h2 className="mb-5 text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
+                {S.identity.heading}
+              </h2>
+              <div className="space-y-3">
                 <label className="block">
                   <span className="mb-1 block text-xs text-fg-tertiary">
                     {S.identity.displayNameLabel}
@@ -133,9 +140,7 @@ export default function Profile() {
                     type="text"
                     value={draft.display_name}
                     placeholder={S.identity.displayNamePlaceholder}
-                    onChange={(e) =>
-                      setDraft({ ...draft, display_name: e.target.value })
-                    }
+                    onChange={(e) => setDraft({ ...draft, display_name: e.target.value })}
                     className="w-full rounded-md border border-border-subtle bg-bg-1 px-3 py-1.5 text-sm"
                   />
                 </label>
@@ -210,103 +215,71 @@ export default function Profile() {
                     <span className="text-xs text-fg-tertiary">{S.identity.saved}</span>
                   )}
                 </div>
-                {profile.member_since && (
-                  <p className="pt-2 text-xs text-fg-tertiary">
-                    {S.memberSinceLabel}{' '}
-                    <span className="font-mono">{profile.member_since}</span>
-                  </p>
-                )}
               </div>
-            </div>
-          ) : (
-            <div className="h-40 animate-pulse rounded-md bg-bg-3" />
-          )}
-        </section>
+            </section>
 
-        {/* ── Level + streak column ─────────────────────────────────── */}
-        <div className="space-y-4">
-          <section className="rounded-lg border border-border-subtle bg-bg-2 p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
-              {S.level.heading}
-            </h2>
-            {summary ? (
-              <div className="flex items-center gap-5">
-                <LevelRing
-                  level={summary.level}
-                  intoLevel={summary.intoLevel}
-                  neededForNext={summary.neededForNext}
-                />
-                <div>
-                  <AnimatedNumber
-                    value={summary.totalXp}
-                    format={(n) =>
-                      n === null ? '—' : `${Math.round(n).toLocaleString()}`
-                    }
-                    className="font-mono text-3xl font-bold text-gold"
-                  />
-                  <span className="ml-1 text-sm text-fg-tertiary">
-                    {S.level.xpUnit}
-                  </span>
-                  <p className="mt-1 text-xs text-fg-tertiary">
-                    {summary.neededForNext > 0 ? (
-                      <>
-                        <span className="font-mono">
-                          {summary.neededForNext.toLocaleString()}
-                        </span>{' '}
-                        {S.level.xpUnit} {S.level.toNextTemplate}
-                      </>
-                    ) : (
-                      S.level.maxLevel
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="h-32 animate-pulse rounded-md bg-bg-3" />
-            )}
-          </section>
-
-          <section className="rounded-lg border border-border-subtle bg-bg-2 p-6">
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
-              {S.streak.heading}
-            </h2>
-            {summary ? (
-              summary.currentStreak > 0 || summary.longestStreak > 0 ? (
-                <div className="space-y-3">
+            {/* ── Journaling streak — enriched cluster ─────────────────── */}
+            <section className="card-premium p-6">
+              <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
+                {S.streak.heading}
+              </h2>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-gold/30 bg-gold/[0.08]">
+                    <Flame
+                      className={`h-6 w-6 ${
+                        summary.currentStreak > 0 ? 'text-gold' : 'text-fg-muted'
+                      }`}
+                      strokeWidth={1.75}
+                    />
+                  </div>
                   <div>
-                    <span className="font-mono text-3xl font-bold text-gold">
+                    <div className="font-mono text-3xl font-bold leading-none text-gold">
                       {summary.currentStreak}
-                    </span>{' '}
-                    <span className="text-sm text-fg-tertiary">
+                    </div>
+                    <div className="mt-1 text-xs text-fg-tertiary">
                       {summary.currentStreak === 1
                         ? S.streak.dayUnitSingular
-                        : S.streak.dayUnit}
+                        : S.streak.dayUnit}{' '}
+                      current
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2 border-t border-border-subtle pt-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-fg-tertiary">{S.streak.longestLabel}</span>
+                    <span className="font-mono text-fg-primary">
+                      {streakDays(summary.longestStreak)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-fg-tertiary">{S.streak.longestLabel}</span>
-                    <span className="font-mono">{streakDays(summary.longestStreak)}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
                     <span className="text-fg-tertiary">{S.streak.freezesLabel}</span>
-                    <span className="inline-flex items-center gap-1 font-mono">
+                    <span className="inline-flex items-center gap-1 font-mono text-fg-primary">
                       {summary.freezesBanked}
                       <Snowflake className="h-3.5 w-3.5 text-info" />
                     </span>
                   </div>
-                  <p className="text-xs text-fg-muted">{S.streak.freezeHint}</p>
                 </div>
-              ) : (
-                <p className="text-sm text-fg-muted">{S.streak.emptyHint}</p>
-              )
-            ) : (
-              <div className="h-24 animate-pulse rounded-md bg-bg-3" />
-            )}
-          </section>
+                <p className="text-xs text-fg-muted">
+                  {summary.currentStreak > 0 || summary.longestStreak > 0
+                    ? S.streak.freezeHint
+                    : S.streak.emptyHint}
+                </p>
+              </div>
+            </section>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div className="h-44 animate-pulse rounded-2xl bg-bg-3" />
+          <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+            <div className="h-72 animate-pulse rounded-2xl bg-bg-3" />
+            <div className="h-72 animate-pulse rounded-2xl bg-bg-3" />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* ── Goals (S5's L18 increment — full-width below the S4 grid) ── */}
+      {/* ── Goals (S5's L18 increment — full-width below the hero grid) ── */}
       <GoalsSection />
 
       {/* ── Badges (S6's L18 increment — the wall + featured-3 picker) ── */}

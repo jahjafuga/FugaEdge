@@ -3,6 +3,7 @@
 // an otherwise MASTER-conformant page; the register itself is documented in
 // the Phase B Session 6 MASTER.md amendment (D24/A4).
 
+import type { ReactNode } from 'react'
 import { ringFraction } from './helpers'
 import { profileStrings } from './strings'
 
@@ -12,6 +13,9 @@ interface LevelRingProps {
   neededForNext: number
   /** Outer square size in px. */
   size?: number
+  /** When set, renders in the ring center (e.g. the hero avatar) instead of the
+   *  default LVL + level number. Presentation only — the ring math is unchanged. */
+  center?: ReactNode
 }
 
 export default function LevelRing({
@@ -19,6 +23,7 @@ export default function LevelRing({
   intoLevel,
   neededForNext,
   size = 132,
+  center,
 }: LevelRingProps) {
   const stroke = 10
   const r = (size - stroke) / 2
@@ -53,12 +58,16 @@ export default function LevelRing({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
-          {profileStrings.level.ringLabel}
-        </span>
-        <span className="font-mono text-3xl font-bold leading-none text-gold">
-          {level}
-        </span>
+        {center ?? (
+          <>
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-fg-tertiary">
+              {profileStrings.level.ringLabel}
+            </span>
+            <span className="font-mono text-3xl font-bold leading-none text-gold">
+              {level}
+            </span>
+          </>
+        )}
       </div>
     </div>
   )

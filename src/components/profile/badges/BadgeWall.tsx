@@ -53,7 +53,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
 
   if (!awards) {
     return (
-      <section className="mt-4 rounded-lg border border-border-subtle bg-bg-2 p-6">
+      <section className="mt-4 card-premium p-6">
         <div className="h-40 animate-pulse rounded-md bg-bg-3" />
       </section>
     )
@@ -80,7 +80,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
   }
 
   return (
-    <section className="mt-4 rounded-lg border border-border-subtle bg-bg-2 p-6">
+    <section className="mt-4 card-premium p-6">
       <div className="mb-5 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
           {B.heading}

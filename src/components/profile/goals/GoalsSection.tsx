@@ -69,7 +69,7 @@ export default function GoalsSection() {
     : []
 
   return (
-    <section className="mt-4 rounded-lg border border-border-subtle bg-bg-2 p-6">
+    <section className="mt-4 card-premium p-6">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
           {G.heading}

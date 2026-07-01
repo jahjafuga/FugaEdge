@@ -5,8 +5,13 @@
 // initials disc from display_name (or a neutral icon when unnamed).
 // Renderer-native file input per the AttachmentManager precedent; CSP
 // img-src already allows data: URLs.
+//
+// Profile redesign (Slice 1) — added the `hero` variant: the disc itself is the
+// trigger with a hover camera overlay (no text link), for the hero identity
+// band. The upload pipeline (processAvatarFile → profileUpdate) is unchanged.
 
 import { useRef, useState } from 'react'
+import { Camera, Loader2 } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import Avatar from '@/components/ui/Avatar'
 import type { Profile } from '@shared/identity-types'
@@ -51,9 +56,19 @@ export async function processAvatarFile(file: File): Promise<string> {
 interface AvatarPickerProps {
   profile: Profile
   onUpdated: (profile: Profile) => void
+  /** Disc diameter in px. Default 112 (the identity size). */
+  size?: number
+  /** Hero variant: the disc is the trigger with a hover camera overlay and no
+   *  text link. Same upload flow (processAvatarFile → profileUpdate). */
+  hero?: boolean
 }
 
-export default function AvatarPicker({ profile, onUpdated }: AvatarPickerProps) {
+export default function AvatarPicker({
+  profile,
+  onUpdated,
+  size = 112,
+  hero = false,
+}: AvatarPickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -78,36 +93,79 @@ export default function AvatarPicker({ profile, onUpdated }: AvatarPickerProps) 
     }
   }
 
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files?.[0]
+        if (file) void handleFile(file)
+        e.target.value = ''
+      }}
+    />
+  )
+
+  const label = profile.avatar_data
+    ? profileStrings.avatar.change
+    : profileStrings.avatar.add
+
+  if (hero) {
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          title={label}
+          aria-label={label}
+          className="group relative block rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-gold/50"
+        >
+          <Avatar
+            avatarData={profile.avatar_data}
+            initials={initials}
+            size={size}
+            testId="avatar-disc"
+          />
+          <span
+            className={`absolute inset-0 flex items-center justify-center rounded-full bg-black/45 text-white transition-opacity duration-150 ${
+              busy ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            {busy ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Camera className="h-5 w-5" strokeWidth={2} />
+            )}
+          </span>
+        </button>
+        {fileInput}
+        {error && (
+          <p className="absolute left-1/2 top-full mt-1 w-44 -translate-x-1/2 text-center text-[10px] text-danger">
+            {error}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col items-center gap-2">
       <Avatar
         avatarData={profile.avatar_data}
         initials={initials}
-        size={112}
+        size={size}
         testId="avatar-disc"
       />
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) void handleFile(file)
-          e.target.value = ''
-        }}
-      />
+      {fileInput}
       <button
         type="button"
         className="text-xs text-fg-tertiary underline-offset-2 hover:text-fg-primary hover:underline"
         disabled={busy}
         onClick={() => inputRef.current?.click()}
       >
-        {busy
-          ? profileStrings.avatar.processing
-          : profile.avatar_data
-            ? profileStrings.avatar.change
-            : profileStrings.avatar.add}
+        {busy ? profileStrings.avatar.processing : label}
       </button>
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
