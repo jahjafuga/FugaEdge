@@ -9,7 +9,8 @@ import PreviewTable from '@/components/import/PreviewTable'
 import FeesPreviewTable from '@/components/import/FeesPreviewTable'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
-import type { PreviewResult, CommitResult, PreviewInputFile } from '@shared/import-types'
+import { deriveFeesBannerVariant } from '@/core/import/feesBannerVariant'
+import type { PreviewResult, CommitResult, PreviewInputFile, SourceBroker } from '@shared/import-types'
 
 type Phase =
   | { kind: 'idle' }
@@ -288,6 +289,11 @@ function PreviewPanel({
   const blockingNeedsDate = data.needsDate && !dateOverride
   const blockedByPaper = accountType === 'paper'
 
+  const feesBannerBrokers = data.trips
+    .map((t) => t.source_broker)
+    .filter((b): b is SourceBroker => Boolean(b))
+  const feesBannerVariant = deriveFeesBannerVariant(feesBannerBrokers)
+
   return (
     <div className="space-y-5">
       <ImportSummary files={data.files} dateRange={data.dateRange} summary={data.summary} />
@@ -326,10 +332,25 @@ function PreviewPanel({
             Fees not included
           </div>
           <div className="mt-1">
-            This import has no fee data. Drop your DAS{' '}
-            <span className="font-mono">Account Report</span> CSV alongside this file
-            to capture per-round-trip fees, or proceed without — trips will save with
-            fees marked &ldquo;not reported&rdquo;.
+            {feesBannerVariant === 'das' ? (
+              <>
+                This import has no fee data. Drop your DAS{' '}
+                <span className="font-mono">Account Report</span> CSV alongside your
+                trades to capture per-round-trip fees, or proceed without — trips save
+                with fees marked &ldquo;not reported&rdquo;.
+              </>
+            ) : feesBannerVariant === 'thinkorswim' ? (
+              <>
+                ThinkorSwim&rsquo;s export doesn&rsquo;t include commissions or fees, so
+                there&rsquo;s no fee data to capture. Your trips import fully and save
+                with fees marked &ldquo;not reported&rdquo;.
+              </>
+            ) : (
+              <>
+                This import doesn&rsquo;t include fee data. Your trips import fully and
+                save with fees marked &ldquo;not reported&rdquo;.
+              </>
+            )}
           </div>
         </div>
       )}
