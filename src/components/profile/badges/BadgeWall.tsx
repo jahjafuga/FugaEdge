@@ -127,17 +127,10 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
     (n, d) => n + d.grades.filter((g) => earnedKeys.has(`${d.id}|${g.tier ?? ''}`)).length,
     0,
   )
-  const featuredStates = featured
-    .map((id) => states.find((s) => s.def.id === id))
-    .filter((s): s is DefState => Boolean(s))
-
   function toggleFeatured(defId: string) {
-    if (featured.includes(defId)) {
-      onSetFeatured(featured.filter((id) => id !== defId))
-    } else if (featured.length < 3) {
-      onSetFeatured([...featured, defId])
-    }
-    // cap reached → ignored; the chip is non-interactive + the hint explains.
+    // Single-select pin: clicking the pinned badge clears it; any other earned
+    // badge replaces the pin. featured is always [] or [id].
+    onSetFeatured(featured.includes(defId) ? [] : [defId])
   }
 
   // Per-category grade counts — consistent with the overall earned/total header.
@@ -165,41 +158,8 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
         </span>
       </div>
 
-      {/* Featured shelf — the ≤3 picked, the strongest treatment (trophy shelf). */}
-      <div className="mb-6">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
-          {B.featuredHeading}
-        </h3>
-        {featuredStates.length === 0 ? (
-          <p className="text-sm text-fg-muted">{B.emptyFeatured}</p>
-        ) : (
-          <div className="flex flex-wrap gap-3">
-            {featuredStates.map((s) => {
-              const Icon = badgeIcon(s.def.icon)
-              const m = METAL[metalFor(s.highestTier)]
-              return (
-                <div
-                  key={s.def.id}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 ${m.featured}`}
-                >
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.discFeatured}`}>
-                    <Icon className={`h-4 w-4 ${m.icon}`} strokeWidth={1.75} />
-                  </span>
-                  <span className="text-sm font-semibold text-fg-primary">{s.def.name}</span>
-                  {s.highestTier && (
-                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${m.label}`}>
-                      {B.tierLabels[s.highestTier]}
-                    </span>
-                  )}
-                  <Star aria-hidden className={`h-3.5 w-3.5 shrink-0 ${m.star}`} strokeWidth={1.75} />
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* The catalog, grouped by category — each a labeled board section. */}
+      {/* The catalog, grouped by category — each a labeled board section. Tapping
+          an earned tile pins it as the single featured badge (the Star marks it). */}
       <div className="space-y-6">
         {CATEGORY_ORDER.map((category) => {
           const group = states.filter((s) => s.def.category === category)
@@ -219,26 +179,23 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                 {group.map((s) => {
                   const Icon = badgeIcon(s.def.icon)
                   const isFeatured = featured.includes(s.def.id)
-                  const capBlocked = !isFeatured && featured.length >= 3
                   const m = METAL[metalFor(s.highestTier)]
                   return (
                     <button
                       key={s.def.id}
                       type="button"
                       data-earned={s.earned}
-                      disabled={!s.earned || capBlocked}
+                      disabled={!s.earned}
                       aria-pressed={isFeatured}
                       title={
                         s.earned
-                          ? capBlocked
-                            ? B.capReached
-                            : s.def.description
+                          ? s.def.description
                           : `${B.locked} — ${s.def.description}`
                       }
                       onClick={() => toggleFeatured(s.def.id)}
                       className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
                         isFeatured ? m.featured : s.earned ? m.earned : LOCKED_TILE
-                      } ${s.earned && !capBlocked ? 'cursor-pointer' : 'cursor-default'}`}
+                      } ${s.earned ? 'cursor-pointer' : 'cursor-default'}`}
                     >
                       <span
                         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${

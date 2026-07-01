@@ -98,26 +98,45 @@ describe('profile repo', () => {
     const before = getOrCreateProfile()
     const updated = updateProfile({
       display_name: 'Lao',
-      featured_badges: ['streak', 'journaler'],
+      featured_badges: ['streak'],
     })
     expect(updated.display_name).toBe('Lao')
-    expect(updated.featured_badges).toEqual(['streak', 'journaler'])
+    expect(updated.featured_badges).toEqual(['streak'])
     expect(updated.handle).toBeNull() // untouched
     expect(updated.member_since).toBe(before.member_since) // untouched
     expect(updated.updated_at).not.toBeNull()
   })
 
-  it('R4 — rejects featured_badges over the cap of 3 (loud, not a silent truncate)', () => {
+  it('featured is single-select — rejects >1 (2 or 3 throws, loud not truncate)', () => {
     getOrCreateProfile()
-    expect(() =>
-      updateProfile({ featured_badges: ['a', 'b', 'c', 'd'] }),
-    ).toThrow(/cap of 3/)
+    expect(() => updateProfile({ featured_badges: ['a', 'b'] })).toThrow(/cap of 1/)
+    expect(() => updateProfile({ featured_badges: ['a', 'b', 'c'] })).toThrow(/cap of 1/)
   })
 
-  it('R4 — accepts exactly 3 featured badges', () => {
+  it('accepts exactly 1 featured badge', () => {
     getOrCreateProfile()
-    expect(
-      updateProfile({ featured_badges: ['a', 'b', 'c'] }).featured_badges,
-    ).toEqual(['a', 'b', 'c'])
+    expect(updateProfile({ featured_badges: ['a'] }).featured_badges).toEqual(['a'])
+  })
+
+  it('accepts 0 featured badges (unpinned)', () => {
+    getOrCreateProfile()
+    expect(updateProfile({ featured_badges: [] }).featured_badges).toEqual([])
+  })
+
+  it('parseFeatured slices a legacy 2-3 array to featured[0] on read', () => {
+    store.profileRow = {
+      id: 'x'.repeat(26),
+      display_name: null,
+      handle: null,
+      avatar_data: null,
+      trading_style: null,
+      markets: null,
+      bio: null,
+      featured_badges_json: '["a","b","c"]',
+      member_since: '2026-01-01',
+      created_at: null,
+      updated_at: null,
+    }
+    expect(getOrCreateProfile().featured_badges).toEqual(['a'])
   })
 })

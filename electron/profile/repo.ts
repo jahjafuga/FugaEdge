@@ -26,10 +26,12 @@ interface ProfileDbRow {
   updated_at: string | null
 }
 
+// Featured is single-select (Beat 1): at most ONE badge. Slice on READ so any
+// legacy 2-3 array harmlessly renders as featured[0] — no DB migration needed.
 function parseFeatured(raw: string): string[] {
   try {
     const arr = JSON.parse(raw)
-    return Array.isArray(arr) ? arr.map((s) => String(s)) : []
+    return (Array.isArray(arr) ? arr.map((s) => String(s)) : []).slice(0, 1)
   } catch {
     return []
   }
@@ -108,12 +110,12 @@ const UPDATABLE: Record<string, string> = {
 
 export function updateProfile(input: UpdateProfileInput): Profile {
   const db = openDatabase()
-  // R4 — defensive ≤3 cap on featured badges. REJECT (not truncate) so a UI
-  // bug that lets a 4th through surfaces loudly instead of silently dropping a
-  // selection. The picker also enforces the cap client-side.
-  if (input.featured_badges && input.featured_badges.length > 3) {
+  // Featured is SINGLE-SELECT (Beat 1): at most ONE badge. REJECT (not truncate)
+  // so a UI bug that lets a 2nd through surfaces loudly instead of silently
+  // dropping a selection. The grid pin also enforces single-select client-side.
+  if (input.featured_badges && input.featured_badges.length > 1) {
     throw new Error(
-      `updateProfile: featured_badges exceeds the cap of 3 (got ${input.featured_badges.length})`,
+      `updateProfile: featured_badges exceeds the cap of 1 (got ${input.featured_badges.length})`,
     )
   }
   const current = getOrCreateProfile()
