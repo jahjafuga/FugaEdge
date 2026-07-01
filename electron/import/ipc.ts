@@ -24,6 +24,7 @@ import { parseTradeZeroSummaryCsv } from './parse-tradezero-summary'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
+import { deriveFeesUnavailable } from '@/core/import/feesUnavailable'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, commit, markSummariesSuperseded } from './repo'
 import { formatCommitLog } from './format-commit-log'
@@ -658,10 +659,10 @@ export function registerImportIpc(): void {
       const newFeeRows = fees.filter((f) => f.status === 'new').length
       const replaceFeeRows = fees.length - newFeeRows
 
-      // Executions present but no companion fee file → UI banner suggests
-      // dropping the Account Report. Import still proceeds; trips carry
-      // fees_reported=false.
-      const feesUnavailable = executionFilesPresent && !feeFilesPresent
+      // Executions present, no companion fee file, AND no trip carries inline
+      // fees → UI banner suggests dropping the Account Report. Inline-fee
+      // brokers (Lightspeed, etc.) report fees, so the banner stays silent.
+      const feesUnavailable = deriveFeesUnavailable(executionFilesPresent, feeFilesPresent, trips)
 
       const allDates = [
         ...allExecutions.map((e) => e.date),
