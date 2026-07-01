@@ -7,10 +7,8 @@
 // progress is a deferred arc). Tapping an earned badge features it (cap 3,
 // UI-enforced; updateProfile rejects >3 defensively).
 
-import { useEffect, useState } from 'react'
 import { Lock, Star } from 'lucide-react'
-import { ipc } from '@/lib/ipc'
-import type { BadgeAward, BadgeTier } from '@shared/identity-types'
+import type { BadgeAward, BadgeTier, NewlyMinted } from '@shared/identity-types'
 import { BADGE_CATALOG, type BadgeDef } from '@/core/badges/catalog'
 import BadgeCrest from './BadgeCrest'
 import { badgeIcon } from './badgeIcons'
@@ -59,25 +57,29 @@ const LOCKED_ICON = 'text-fg-tertiary'
 interface BadgeWallProps {
   featured: string[]
   onSetFeatured: (next: string[]) => void
+  /** Fed by the Profile page's single mint:true fetch — one mint, one awards
+   *  source (no self-fetch race with Profile's mint). */
+  awards: BadgeAward[]
+  /** Grades minted THIS Profile open — the tiles to pulse (staggered cascade). */
+  newlyMinted: NewlyMinted[]
 }
 
-export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
+export default function BadgeWall({
+  featured,
+  onSetFeatured,
+  awards,
+  newlyMinted,
+}: BadgeWallProps) {
   const B = S.badges
-  const [awards, setAwards] = useState<BadgeAward[] | null>(null)
-
-  useEffect(() => {
-    ipc.badgesList().then(setAwards).catch(() => setAwards([]))
-  }, [])
-
-  if (!awards) {
-    return (
-      <section className="mt-4 card-premium p-6">
-        <div className="h-40 animate-pulse rounded-md bg-bg-3" />
-      </section>
-    )
-  }
 
   const earnedKeys = new Set(awards.map((a) => `${a.badge_id}|${a.tier ?? ''}`))
+  // Which catalog badges have a grade newly minted this open (-> pulse), plus a
+  // stable cascade index across that set for the staggered animation-delay.
+  const newlyMintedIds = new Set(newlyMinted.map((n) => n.badge_id))
+  const cascadeIndex = new Map<string, number>()
+  BADGE_CATALOG.forEach((d) => {
+    if (newlyMintedIds.has(d.id)) cascadeIndex.set(d.id, cascadeIndex.size)
+  })
   const states = BADGE_CATALOG.map((def) => evaluate(def, earnedKeys))
   const totalGrades = BADGE_CATALOG.reduce((n, d) => n + d.grades.length, 0)
   const earnedGrades = BADGE_CATALOG.reduce(
@@ -136,6 +138,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                 {group.map((s) => {
                   const Icon = badgeIcon(s.def.icon)
                   const isFeatured = featured.includes(s.def.id)
+                  const isNewlyMinted = s.earned && newlyMintedIds.has(s.def.id)
                   const m = METAL[metalFor(s.highestTier)]
                   return (
                     <button
@@ -150,10 +153,26 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                           : `${B.locked} — ${s.def.description}`
                       }
                       onClick={() => toggleFeatured(s.def.id)}
-                      className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
+                      className={`group relative flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
                         isFeatured ? m.featured : s.earned ? m.earned : LOCKED_TILE
                       } ${s.earned ? 'cursor-pointer' : 'cursor-default'}`}
                     >
+                      {/* Hover shine sweep (featured only) — clipped inner layer,
+                          separate from the non-clipped pulse below. */}
+                      {isFeatured && (
+                        <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+                          <span className="badge-shine-sweep absolute inset-0 -translate-x-[120%] transition-transform duration-700 ease-out group-hover:translate-x-[120%]" />
+                        </span>
+                      )}
+                      {/* On-earn pulse (this tile just minted) — a gold bloom on a
+                          NON-clipped layer (it scales past the tile); staggered. */}
+                      {isNewlyMinted && (
+                        <span
+                          className="badge-earn-pulse"
+                          style={{ animationDelay: `${(cascadeIndex.get(s.def.id) ?? 0) * 80}ms` }}
+                          aria-hidden
+                        />
+                      )}
                       <span className="relative mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center">
                         {s.earned && (
                           <BadgeCrest

@@ -113,3 +113,17 @@ export interface AwardBadgeInput {
   tier: BadgeTier | null
   source_ref?: string | null
 }
+
+/** A grade that was JUST inserted this mint (awardBadge returned inserted:true)
+ *  — the one-shot on-earn celebration signal. */
+export interface NewlyMinted {
+  badge_id: string
+  tier: BadgeTier | null
+}
+
+/** The BADGES_LIST result: the full award set + the grades minted THIS call
+ *  (newlyMinted is [] on a read-only call, i.e. opts.mint falsy). */
+export interface BadgesListResult {
+  awards: BadgeAward[]
+  newlyMinted: NewlyMinted[]
+}

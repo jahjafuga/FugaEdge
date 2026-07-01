@@ -86,7 +86,7 @@ export default function AccountMenu() {
     ipc
       .badgesList()
       .then((a) => {
-        if (!cancelled) setAwards(a)
+        if (!cancelled) setAwards(a.awards)
       })
       .catch(() => {})
     return () => {

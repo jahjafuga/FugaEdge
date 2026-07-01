@@ -57,7 +57,7 @@ beforeEach(() => {
   xpSummaryGet.mockReset()
   xpSummaryGet.mockResolvedValue(makeSummary())
   badgesList.mockReset()
-  badgesList.mockResolvedValue([])
+  badgesList.mockResolvedValue({ awards: [], newlyMinted: [] })
 })
 
 const trigger = () => screen.findByRole('button', { name: /account menu/i })

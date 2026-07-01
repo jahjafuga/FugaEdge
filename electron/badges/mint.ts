@@ -11,6 +11,7 @@ import { earnedGrades } from '@/core/badges/earned'
 import { computeStreak } from '@/core/xp/streak'
 import { todayDateISO } from '@/core/session/today'
 import type { XpEventType } from '@shared/xp-types'
+import type { NewlyMinted } from '@shared/identity-types'
 import { listTradeDates } from '../xp/facts'
 import { displayedLevel } from '../xp/level'
 import { listIdempotencyKeys, listXpEvents } from '../xp/repo'
@@ -25,9 +26,10 @@ import { awardBadge } from './repo'
 const STREAK_PREFIX = 'streak:'
 
 /** Evaluate every threshold badge against the current stats and INSERT OR IGNORE
- *  each earned grade. Idempotent (already-minted grades are skipped) and
- *  display-only (no XP path touched). Safe to run on every read. */
-export function mintEarnedBadges(): void {
+ *  each earned grade. Returns the grades that were NEWLY inserted this call (the
+ *  one-shot on-earn signal) — [] on a re-run since INSERT OR IGNORE skips them.
+ *  Idempotent + display-only (no XP path touched). Safe to run on every read. */
+export function mintEarnedBadges(): NewlyMinted[] {
   const events = listXpEvents()
   const count = (t: XpEventType) =>
     events.reduce((n, e) => (e.event_type === t ? n + 1 : n), 0)
@@ -59,7 +61,14 @@ export function mintEarnedBadges(): void {
     greenStreakLongest: longestGreenStreak(),
   })
 
+  const newlyMinted: NewlyMinted[] = []
   for (const grade of earned) {
-    awardBadge({ badge_id: grade.badge_id, tier: grade.tier, source_ref: null })
+    const { inserted } = awardBadge({
+      badge_id: grade.badge_id,
+      tier: grade.tier,
+      source_ref: null,
+    })
+    if (inserted) newlyMinted.push({ badge_id: grade.badge_id, tier: grade.tier })
   }
+  return newlyMinted
 }

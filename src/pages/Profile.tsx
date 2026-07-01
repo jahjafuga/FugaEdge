@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react'
 import { Flame, Snowflake } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import { ipc } from '@/lib/ipc'
-import type { Profile as ProfileRow, BadgeAward } from '@shared/identity-types'
+import type { Profile as ProfileRow, BadgeAward, NewlyMinted } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
 import type { TradingStyle } from '@/core/onboarding/types'
 import ProfileHero from '@/components/profile/ProfileHero'
@@ -49,6 +49,7 @@ export default function Profile() {
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [summary, setSummary] = useState<XpSummary | null>(null)
   const [awards, setAwards] = useState<BadgeAward[]>([])
+  const [newlyMinted, setNewlyMinted] = useState<NewlyMinted[]>([])
   const [draft, setDraft] = useState<IdentityDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
@@ -56,13 +57,14 @@ export default function Profile() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([ipc.profileGet(), ipc.xpSummaryGet(), ipc.badgesList()])
+    Promise.all([ipc.profileGet(), ipc.xpSummaryGet(), ipc.badgesList({ mint: true })])
       .then(([p, s, a]) => {
         if (cancelled) return
         setProfile(p)
         setDraft(draftFrom(p))
         setSummary(s)
-        setAwards(a)
+        setAwards(a.awards)
+        setNewlyMinted(a.newlyMinted)
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -290,6 +292,8 @@ export default function Profile() {
       <BadgeWall
         featured={profile?.featured_badges ?? []}
         onSetFeatured={(next) => void setFeatured(next)}
+        awards={awards}
+        newlyMinted={newlyMinted}
       />
     </PageShell>
   )

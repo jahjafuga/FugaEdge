@@ -628,6 +628,53 @@
     box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.40), inset 0 -1px 1px rgb(var(--gold-hover) / 0.35), 0 0 0 1px rgb(var(--gold) / 0.60), 0 0 9px rgb(var(--glow-gold) / 0.40);
   }
 
+  /* On-earn celebration pulse (Direction 3 finale) — a one-shot gold bloom the
+     eye catches when a badge tile mints, adapted from .celebration-flash at tile
+     scale. Fires per newly-minted tile with a staggered inline animation-delay
+     (the cascade). One-shot by construction: a re-open returns no newlyMinted,
+     so the layer is never rendered again. Lives on a NON-clipped overlay (it
+     scales past the tile). GOLD for all tiers (the brand's celebration color). */
+  @keyframes badge-earn-pulse {
+    0% {
+      transform: translate(-50%, -50%) scale(0.5);
+      opacity: 0;
+    }
+    30% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(1.9);
+      opacity: 0;
+    }
+  }
+  .badge-earn-pulse {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    height: 3rem;
+    width: 3rem;
+    border-radius: 9999px;
+    background: radial-gradient(circle, rgb(var(--gold) / 0.55), transparent 70%);
+    opacity: 0;
+    pointer-events: none;
+    animation: badge-earn-pulse 700ms ease-out 1 both;
+  }
+  /* Hover shine sweep (featured tile only) — a low-alpha gold gloss translating
+     across on :hover, clipped by an overflow-hidden inner wrapper (BadgeWall).
+     Just the gradient here; the translate + transition ride Tailwind's
+     group-hover on the element itself. */
+  .badge-shine-sweep {
+    background: linear-gradient(105deg, transparent 40%, rgb(var(--gold-hover) / 0.16) 50%, transparent 60%);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .badge-earn-pulse {
+      animation: none;
+    }
+    .badge-shine-sweep {
+      transition: none;
+    }
+  }
+
   /* Phase 2 — the ONE app-wide aurora (Option A): a single static SVG mounted
      behind the whole grid (AppLayout's grid <div>, relative + isolate). It is
      the continuous background for the WHOLE app — the frosted rail blurs it and
