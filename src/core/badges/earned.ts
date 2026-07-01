@@ -21,6 +21,22 @@ export interface BadgeStats {
   longestStreak: number
   /** The DISPLAYED (floored) level — displayProgress(...).level, never raw. */
   flooredLevel: number
+  // Arc 1 Beat 1 — execution ladders + Annotator. All plain counts; the rule
+  // stays blind to what they measure. Trade-fact reading is walled in
+  // electron/badges/execution-facts.ts; annotation + risk-respected are ledger
+  // counts assembled in mint.ts.
+  /** Profitable trading days (daily_summary total_pnl > 0). */
+  greenDays: number
+  /** Winning trades (net_pnl above the scratch epsilon). */
+  winningTrades: number
+  /** Days the trader stayed within max-loss (maxloss_respected ledger events). */
+  maxLossRespectedDays: number
+  /** Trades on sub-20M-float runners. */
+  lowFloatTrades: number
+  /** Longest run of consecutive profitable days. */
+  greenStreakLongest: number
+  /** Fully-annotated trades (trade_fully_annotated ledger events). */
+  annotationCount: number
 }
 
 export interface EarnedGrade {
@@ -42,6 +58,13 @@ const COUNT_FOR: Readonly<Record<string, (s: BadgeStats) => number>> = {
   'level-50': (s) => s.flooredLevel,
   'level-75': (s) => s.flooredLevel,
   'level-99': (s) => s.flooredLevel,
+  // Arc 1 Beat 1 — execution ladders + Annotator.
+  green_days: (s) => s.greenDays,
+  winners: (s) => s.winningTrades,
+  risk_respected: (s) => s.maxLossRespectedDays,
+  low_float_hunter: (s) => s.lowFloatTrades,
+  green_streak: (s) => s.greenStreakLongest,
+  annotator: (s) => s.annotationCount,
 }
 
 export function earnedGrades(stats: BadgeStats): EarnedGrade[] {

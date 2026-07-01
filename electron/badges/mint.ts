@@ -3,8 +3,9 @@
 // idempotent) and NEVER calls insertXpEvents — a badge grants no XP, so there is
 // no XP -> level -> badge -> XP loop. Runs when the wall's awards are fetched
 // (badges/ipc.ts), mirroring how challenge badges mint at read time
-// (goals/engine.ts L27). Stats come from the append-only ledger + computeStreak;
-// milestones read the FLOORED level via the shared displayedLevel helper.
+// (goals/engine.ts L27). Stats come from the append-only ledger + computeStreak
+// + walled trade facts (execution-facts.ts); milestones read the FLOORED level
+// via the shared displayedLevel helper.
 
 import { earnedGrades } from '@/core/badges/earned'
 import { computeStreak } from '@/core/xp/streak'
@@ -13,6 +14,12 @@ import type { XpEventType } from '@shared/xp-types'
 import { listTradeDates } from '../xp/facts'
 import { displayedLevel } from '../xp/level'
 import { listIdempotencyKeys, listXpEvents } from '../xp/repo'
+import {
+  countGreenDays,
+  countLowFloatTrades,
+  countWinningTrades,
+  longestGreenStreak,
+} from './execution-facts'
 import { awardBadge } from './repo'
 
 const STREAK_PREFIX = 'streak:'
@@ -41,6 +48,15 @@ export function mintEarnedBadges(): void {
     disciplinedCount: count('disciplined_entry'),
     longestStreak: longest,
     flooredLevel: displayedLevel().level,
+    // Arc 1 Beat 1 — ledger counts (annotation + risk-respected, like the other
+    // process badges) + walled execution facts (green days/streak, winners, low
+    // float). Still display-only: no insertXpEvents below.
+    annotationCount: count('trade_fully_annotated'),
+    maxLossRespectedDays: count('maxloss_respected'),
+    greenDays: countGreenDays(),
+    winningTrades: countWinningTrades(),
+    lowFloatTrades: countLowFloatTrades(),
+    greenStreakLongest: longestGreenStreak(),
   })
 
   for (const grade of earned) {

@@ -13,6 +13,12 @@ const ZERO: BadgeStats = {
   disciplinedCount: 0,
   longestStreak: 0,
   flooredLevel: 0,
+  greenDays: 0,
+  winningTrades: 0,
+  maxLossRespectedDays: 0,
+  lowFloatTrades: 0,
+  greenStreakLongest: 0,
+  annotationCount: 0,
 }
 const has = (
   g: ReturnType<typeof earnedGrades>,
@@ -72,6 +78,7 @@ describe('earnedGrades', () => {
 
   it('condition + challenge badges are never auto-minted (even at max stats)', () => {
     const g = earnedGrades({
+      ...ZERO,
       sessionCount: 999,
       archiveCount: 999,
       reviewCount: 999,
@@ -86,5 +93,50 @@ describe('earnedGrades', () => {
 
   it('zero stats earn nothing', () => {
     expect(earnedGrades(ZERO)).toEqual([])
+  })
+})
+
+// Arc 1 Beat 1 — the 5 execution ladders + Annotator promotion. All process-
+// framed counts; the rule stays blind (it only sees plain numbers).
+describe('earnedGrades — execution + annotator ladders', () => {
+  const run = (over: Partial<BadgeStats>) => earnedGrades({ ...ZERO, ...over })
+
+  it('green_days: 11 earns copper (>=5), not silver; 25 -> +silver; 4 -> none', () => {
+    expect(has(run({ greenDays: 11 }), 'green_days', 'copper')).toBe(true)
+    expect(has(run({ greenDays: 11 }), 'green_days', 'silver')).toBe(false)
+    expect(has(run({ greenDays: 25 }), 'green_days', 'silver')).toBe(true)
+    expect(run({ greenDays: 4 }).filter((x) => x.badge_id === 'green_days')).toHaveLength(0)
+  })
+
+  it('winners: 42 earns copper (>=25), not silver; 100 -> +silver', () => {
+    expect(has(run({ winningTrades: 42 }), 'winners', 'copper')).toBe(true)
+    expect(has(run({ winningTrades: 42 }), 'winners', 'silver')).toBe(false)
+    expect(has(run({ winningTrades: 100 }), 'winners', 'silver')).toBe(true)
+  })
+
+  it('risk_respected: 15 earns copper (>=10); 50 -> +silver', () => {
+    expect(has(run({ maxLossRespectedDays: 15 }), 'risk_respected', 'copper')).toBe(true)
+    expect(has(run({ maxLossRespectedDays: 15 }), 'risk_respected', 'silver')).toBe(false)
+    expect(has(run({ maxLossRespectedDays: 50 }), 'risk_respected', 'silver')).toBe(true)
+  })
+
+  it('low_float_hunter: 97 -> copper; 100 -> +silver; 400 -> +gold; 24 -> none', () => {
+    expect(has(run({ lowFloatTrades: 97 }), 'low_float_hunter', 'copper')).toBe(true)
+    expect(has(run({ lowFloatTrades: 97 }), 'low_float_hunter', 'silver')).toBe(false)
+    expect(has(run({ lowFloatTrades: 100 }), 'low_float_hunter', 'silver')).toBe(true)
+    expect(has(run({ lowFloatTrades: 400 }), 'low_float_hunter', 'gold')).toBe(true)
+    expect(run({ lowFloatTrades: 24 }).filter((x) => x.badge_id === 'low_float_hunter')).toHaveLength(0)
+  })
+
+  it('green_streak: 3 -> copper; 7 -> +silver; 2 -> none', () => {
+    expect(has(run({ greenStreakLongest: 3 }), 'green_streak', 'copper')).toBe(true)
+    expect(has(run({ greenStreakLongest: 7 }), 'green_streak', 'silver')).toBe(true)
+    expect(run({ greenStreakLongest: 2 }).filter((x) => x.badge_id === 'green_streak')).toHaveLength(0)
+  })
+
+  it('annotator: 100 -> copper; 500 -> +silver; 99 -> none', () => {
+    expect(has(run({ annotationCount: 100 }), 'annotator', 'copper')).toBe(true)
+    expect(has(run({ annotationCount: 500 }), 'annotator', 'silver')).toBe(true)
+    expect(run({ annotationCount: 99 }).filter((x) => x.badge_id === 'annotator')).toHaveLength(0)
   })
 })
