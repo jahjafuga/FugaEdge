@@ -138,5 +138,10 @@ export const profileStrings = {
       string,
       string
     >,
+    categoryLabels: {
+      process: 'Process',
+      milestone: 'Milestones',
+      challenge: 'Challenges',
+    } as Record<string, string>,
   },
 } as const

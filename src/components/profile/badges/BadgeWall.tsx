@@ -1,12 +1,14 @@
-// v0.2.5 Phase B Session 6 (R3/R4) — the badge wall + featured-3 picker. The
-// flagship visual surface (D26): renders the WHOLE catalog — earned in gold,
-// locked dimmed with a threshold hint — so it reads as a goal board from day
-// one, even though only challenge badges can be earned this session
-// (threshold-minting is a deferred beat, recorded in D27). Tapping an earned
-// badge features it (cap 3, UI-enforced; updateProfile rejects >3 defensively).
+// v0.2.5 Phase B Session 6 (R3/R4) — the badge wall + featured-3 picker.
+// Renders the WHOLE catalog GROUPED by category (Process / Milestones /
+// Challenges), each with a per-group earned count so it reads as a board with
+// "areas to complete". Earned badges read as gold achievements; LOCKED badges
+// read as aspirational TARGETS — a defined, full-opacity tile with a legible
+// monochrome icon + the threshold goal (never a fake progress bar; per-badge
+// progress is a deferred arc). Tapping an earned badge features it (cap 3,
+// UI-enforced; updateProfile rejects >3 defensively).
 
 import { useEffect, useState } from 'react'
-import { Star } from 'lucide-react'
+import { Lock, Star } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import type { BadgeAward, BadgeTier } from '@shared/identity-types'
 import { BADGE_CATALOG, type BadgeDef } from '@/core/badges/catalog'
@@ -37,6 +39,13 @@ function evaluate(def: BadgeDef, earnedKeys: Set<string>): DefState {
       : S.badges.locked
   return { def, earned, highestTier, lockedHint }
 }
+
+// The board's sections, in order. Labels live in strings (D16).
+const CATEGORY_ORDER: ReadonlyArray<BadgeDef['category']> = [
+  'process',
+  'milestone',
+  'challenge',
+]
 
 interface BadgeWallProps {
   featured: string[]
@@ -79,6 +88,20 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
     // cap reached → ignored; the chip is non-interactive + the hint explains.
   }
 
+  // Per-category grade counts — consistent with the overall earned/total header.
+  function gradeCount(category: BadgeDef['category']): { earned: number; total: number } {
+    let earned = 0
+    let total = 0
+    for (const d of BADGE_CATALOG) {
+      if (d.category !== category) continue
+      for (const g of d.grades) {
+        total++
+        if (earnedKeys.has(`${d.id}|${g.tier ?? ''}`)) earned++
+      }
+    }
+    return { earned, total }
+  }
+
   return (
     <section className="mt-4 card-premium p-6">
       <div className="mb-5 flex items-baseline justify-between">
@@ -90,7 +113,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
         </span>
       </div>
 
-      {/* Featured strip — the ≤3 picked, rendered prominently. */}
+      {/* Featured shelf — the ≤3 picked, the strongest treatment (trophy shelf). */}
       <div className="mb-6">
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">
           {B.featuredHeading}
@@ -104,13 +127,18 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
               return (
                 <div
                   key={s.def.id}
-                  className="inline-flex items-center gap-2 rounded-md border border-gold/40 bg-gold/[0.08] px-3 py-2"
+                  className="inline-flex items-center gap-2 rounded-lg border border-gold bg-gold/[0.12] px-3 py-2 shadow-sm"
                 >
-                  <Icon className="h-5 w-5 shrink-0 text-gold" strokeWidth={1.75} />
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold/[0.18]">
+                    <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
+                  </span>
                   <span className="text-sm font-semibold text-fg-primary">{s.def.name}</span>
                   {s.highestTier && (
-                    <span className="text-xs text-fg-tertiary">{B.tierLabels[s.highestTier]}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gold/80">
+                      {B.tierLabels[s.highestTier]}
+                    </span>
                   )}
+                  <Star aria-hidden className="h-3.5 w-3.5 shrink-0 fill-gold text-gold" strokeWidth={1.75} />
                 </div>
               )
             })}
@@ -118,55 +146,92 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
         )}
       </div>
 
-      {/* The full catalog grid — earned (gold, tappable) + locked (dimmed). */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-        {states.map((s) => {
-          const Icon = badgeIcon(s.def.icon)
-          const isFeatured = featured.includes(s.def.id)
-          const capBlocked = !isFeatured && featured.length >= 3
+      {/* The catalog, grouped by category — each a labeled board section. */}
+      <div className="space-y-6">
+        {CATEGORY_ORDER.map((category) => {
+          const group = states.filter((s) => s.def.category === category)
+          if (group.length === 0) return null
+          const { earned, total } = gradeCount(category)
           return (
-            <button
-              key={s.def.id}
-              type="button"
-              data-earned={s.earned}
-              disabled={!s.earned || capBlocked}
-              aria-pressed={isFeatured}
-              title={
-                s.earned
-                  ? capBlocked
-                    ? B.capReached
-                    : s.def.description
-                  : `${B.locked} — ${s.def.description}`
-              }
-              onClick={() => toggleFeatured(s.def.id)}
-              className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
-                isFeatured
-                  ? 'border-gold bg-gold/[0.10]'
-                  : s.earned
-                    ? 'border-border-subtle bg-bg-4 hover:border-gold-dim disabled:hover:border-border-subtle'
-                    : 'border-border-subtle bg-bg-1 opacity-55'
-              } ${s.earned && !capBlocked ? 'cursor-pointer' : 'cursor-default'}`}
-            >
-              <Icon
-                className={`mt-0.5 h-5 w-5 shrink-0 ${s.earned ? 'text-gold' : 'text-fg-muted'}`}
-                strokeWidth={1.75}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-fg-primary">
-                  {s.def.name}
+            <div key={category}>
+              <div className="mb-2 flex items-baseline justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-secondary">
+                  {B.categoryLabels[category]}
+                </h3>
+                <span className="font-mono text-[11px] text-fg-tertiary">
+                  {earned} / {total}
                 </span>
-                <span className="mt-0.5 block truncate font-mono text-xs text-fg-tertiary">
-                  {s.earned ? (s.highestTier ? B.tierLabels[s.highestTier] : B.earnedWord) : s.lockedHint}
-                </span>
-              </span>
-              {isFeatured && (
-                <Star aria-hidden className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 fill-gold text-gold" strokeWidth={1.75} />
-              )}
-            </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                {group.map((s) => {
+                  const Icon = badgeIcon(s.def.icon)
+                  const isFeatured = featured.includes(s.def.id)
+                  const capBlocked = !isFeatured && featured.length >= 3
+                  return (
+                    <button
+                      key={s.def.id}
+                      type="button"
+                      data-earned={s.earned}
+                      disabled={!s.earned || capBlocked}
+                      aria-pressed={isFeatured}
+                      title={
+                        s.earned
+                          ? capBlocked
+                            ? B.capReached
+                            : s.def.description
+                          : `${B.locked} — ${s.def.description}`
+                      }
+                      onClick={() => toggleFeatured(s.def.id)}
+                      className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
+                        isFeatured
+                          ? 'border-gold bg-gold/[0.12] shadow-sm'
+                          : s.earned
+                            ? 'border-gold/40 bg-gold/[0.06] hover:border-gold/70 disabled:hover:border-gold/40'
+                            : 'border-border-subtle bg-bg-3'
+                      } ${s.earned && !capBlocked ? 'cursor-pointer' : 'cursor-default'}`}
+                    >
+                      <span
+                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                          s.earned ? 'bg-gold/[0.16]' : 'bg-bg-1'
+                        }`}
+                      >
+                        <Icon
+                          className={`h-4 w-4 ${s.earned ? 'text-gold' : 'text-fg-tertiary'}`}
+                          strokeWidth={1.75}
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-fg-primary">
+                          {s.def.name}
+                        </span>
+                        <span className="mt-0.5 flex items-center gap-1 font-mono text-xs text-fg-tertiary">
+                          {!s.earned && <Lock className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden />}
+                          <span className="truncate">
+                            {s.earned
+                              ? s.highestTier
+                                ? B.tierLabels[s.highestTier]
+                                : B.earnedWord
+                              : s.lockedHint}
+                          </span>
+                        </span>
+                      </span>
+                      {isFeatured && (
+                        <Star
+                          aria-hidden
+                          className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 fill-gold text-gold"
+                          strokeWidth={1.75}
+                        />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           )
         })}
       </div>
-      <p className="mt-3 text-xs text-fg-muted">{B.pickHint}</p>
+
+      <p className="mt-4 text-xs text-fg-muted">{B.pickHint}</p>
     </section>
   )
 }
