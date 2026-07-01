@@ -117,7 +117,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm"
     >
       <div
-        className="w-full max-w-[600px] rounded-xl border border-border-subtle bg-bg-2 p-6 shadow-lg"
+        className="w-full max-w-[600px] card-premium bg-bg-2 p-6 shadow-lg"
       >
         {/* Header */}
         <header className="flex flex-col items-center text-center">
@@ -269,7 +269,7 @@ function BulletRow({
   text: string
 }) {
   return (
-    <li className="flex items-center gap-3 rounded-md border border-border-subtle bg-bg-3 px-3 py-2 text-sm text-fg-secondary">
+    <li className="flex items-center gap-3 rounded-[var(--card-radius)] border border-border bg-bg-3 shadow-md px-3 py-2 text-sm text-fg-secondary">
       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gold/40 bg-gold/[0.08] text-gold">
         <Icon size={14} strokeWidth={2} />
       </span>
@@ -419,10 +419,10 @@ function StyleCard({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex flex-col items-start gap-2 rounded-md border px-3 py-2.5 text-left transition-colors duration-150 ${
+      className={`flex flex-col items-start gap-2 rounded-[var(--card-radius)] border shadow-md px-3 py-2.5 text-left transition-colors duration-150 ${
         active
           ? 'border-gold/60 bg-gold/[0.08]'
-          : 'border-border-subtle bg-bg-3 hover:border-gold/40'
+          : 'border-border bg-bg-3 hover:border-gold/40'
       }`}
     >
       <span className="text-sm font-medium text-fg-primary">{title}</span>
@@ -497,13 +497,13 @@ function ImportStep({ onError }: { onError: (msg: string | null) => void }) {
       </p>
 
       {importing && (
-        <div className="rounded-md border border-gold/40 bg-gold/[0.08] px-3 py-2 text-xs text-fg-secondary">
+        <div className="rounded-[var(--card-radius)] border border-gold/40 bg-gold/[0.08] shadow-md px-3 py-2 text-xs text-fg-secondary">
           Importing… you can wait or click "Get started" — the import will
           continue in the background.
         </div>
       )}
       {importedCount != null && !importing && (
-        <div className="rounded-md border border-win/40 bg-win/[0.08] px-3 py-2 text-xs text-win">
+        <div className="rounded-[var(--card-radius)] border border-win/40 bg-win/[0.08] shadow-md px-3 py-2 text-xs text-win">
           <Upload size={12} strokeWidth={2} className="-mt-0.5 mr-1 inline" />
           Imported {importedCount} {importedCount === 1 ? 'row' : 'rows'}. Click "Get
           started" to open the dashboard.

@@ -123,7 +123,7 @@ function ProviderKey({
   disabled: boolean
 }) {
   return (
-    <div>
+    <div className="rounded-[var(--card-radius)] border border-border bg-bg-3 shadow-md p-3">
       <button
         type="button"
         onClick={() => void ipc.openExternal(signupUrl)}
