@@ -26,10 +26,6 @@ export default function QualityTab({ data }: QualityTabProps) {
       <Card title="Hold time" subtitle="Average duration from open to close." hover>
         <HoldTimeBars stats={fs} />
       </Card>
-
-      <Card title="Execution quality" subtitle="Adverse and favorable excursion." hover>
-        <MaeMfe stats={fs} />
-      </Card>
     </div>
   )
 }
@@ -352,56 +348,6 @@ function HoldTimeBars({ stats }: { stats: FullStats }) {
           </div>
         </div>
       ))}
-    </div>
-  )
-}
-
-// ── MAE / MFE ───────────────────────────────────────────────────────────────
-
-function MaeMfe({ stats }: { stats: FullStats }) {
-  // Both are always null today (we don't have intraday market data). Surface
-  // the structure with a clear explanation so the slot is visible.
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <ExcursionRow
-        label="Average MAE"
-        full="Maximum Adverse Excursion"
-        value={stats.avg_mae}
-        kind="adverse"
-      />
-      <ExcursionRow
-        label="Average MFE"
-        full="Maximum Favorable Excursion"
-        value={stats.avg_mfe}
-        kind="favorable"
-      />
-    </div>
-  )
-}
-
-function ExcursionRow({
-  label,
-  full,
-  value,
-  kind,
-}: {
-  label: string
-  full: string
-  value: number | null
-  kind: 'adverse' | 'favorable'
-}) {
-  return (
-    <div className="rounded-md border border-border-subtle/40 bg-bg-1/30 p-4">
-      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
-      <div className="mt-1 font-mono text-2xl text-fg-tertiary">
-        {value == null ? '—' : money(value)}
-      </div>
-      <div className="mt-2 text-[11px] text-fg-secondary">{full}</div>
-      <div className="mt-2 text-[11px] text-fg-tertiary">
-        Requires intraday market data — Massive's daily aggregates don't cover{' '}
-        {kind === 'adverse' ? 'how far against' : 'how far in favor'} the trade
-        went between your fills. Wire up 1-minute bars to populate this.
-      </div>
     </div>
   )
 }
