@@ -180,7 +180,7 @@ export default function Analytics() {
         <span>
           <span className="font-mono text-text">{int(data.trade_count)}</span>{' '}
           round trip{data.trade_count === 1 ? '' : 's'} analyzed —{' '}
-          {TABS.filter((t) => t.key !== 'overview').length} tabs of deep stats.
+          {TABS.length} tabs of deep stats.
         </span>
       }
     >
