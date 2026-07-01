@@ -161,7 +161,7 @@ export default function AccountMenu() {
             badge icon in its tier color, top-right, z above the ring. */}
         {emblem && EmblemIcon && (
           <span
-            className={`absolute right-0 top-0 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full border bg-bg-1 shadow-sm ${tierColor(emblem.tier).ring}`}
+            className={`absolute right-0 top-0 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-bg-1 shadow-sm ${tierColor(emblem.tier).coin}`}
             aria-hidden
           >
             <EmblemIcon className={`h-3 w-3 ${tierColor(emblem.tier).icon}`} strokeWidth={2} />

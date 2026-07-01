@@ -68,7 +68,7 @@ export default function ProfileHero({
               sitting ON the ring like a notification badge (z above the ring). */}
           {EmblemIcon && emblemColor && (
             <div
-              className={`absolute right-1 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-bg-1 shadow-sm ${emblemColor.ring}`}
+              className={`absolute right-1 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-bg-1 shadow-sm ${emblemColor.coin}`}
               aria-hidden
             >
               <EmblemIcon className={`h-5 w-5 ${emblemColor.icon}`} strokeWidth={1.75} />

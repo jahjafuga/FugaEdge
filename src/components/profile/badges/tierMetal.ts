@@ -63,18 +63,20 @@ export const METAL: Record<Metal, MetalClasses> = {
   },
 }
 
-/** Emblem-only palette per tier — the icon color, a container border tint, and a
- *  solid dot fill. Simpler than METAL's full tile set; the avatar emblem (hero)
- *  and the toolbar dot use just these. */
+/** Emblem-only palette per tier — the icon color, a container border tint, a
+ *  solid dot fill, and the OPAQUE metallic coin class (badge-emblem-coin-*, the
+ *  wall coin made opaque so the avatar photo can't bleed through). The avatar
+ *  emblems (hero + toolbar) read these; the coin needs an opaque bg-bg-1 base. */
 export function tierColor(tier: BadgeTier | null): {
   icon: string
   ring: string
   dot: string
+  coin: string
 } {
   const m = metalFor(tier)
-  if (m === 'copper') return { icon: 'text-copper', ring: 'border-copper/70', dot: 'bg-copper' }
-  if (m === 'silver') return { icon: 'text-silver', ring: 'border-silver/70', dot: 'bg-silver' }
-  return { icon: 'text-gold', ring: 'border-gold/70', dot: 'bg-gold' }
+  if (m === 'copper') return { icon: 'text-copper', ring: 'border-copper/70', dot: 'bg-copper', coin: 'badge-emblem-coin-copper' }
+  if (m === 'silver') return { icon: 'text-silver', ring: 'border-silver/70', dot: 'bg-silver', coin: 'badge-emblem-coin-silver' }
+  return { icon: 'text-gold', ring: 'border-gold/70', dot: 'bg-gold', coin: 'badge-emblem-coin-gold' }
 }
 
 export interface FeaturedEmblem {
