@@ -13,7 +13,7 @@
 // text — equity amounts live only in the numeric Target field. Hand-rolled
 // controls only: the D17 dependency budget is closed.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Modal from '@/components/ui/Modal'
 import { ipc } from '@/lib/ipc'
 import type { Goal, GoalKind } from '@shared/identity-types'
@@ -33,6 +33,9 @@ interface GoalCreateModalProps {
   open: boolean
   onClose: () => void
   onCreated: (goal: Goal) => void
+  /** When the modal opens, pre-select this preset (from a Challenges empty-state
+   *  starter card). null/undefined opens it untouched (the "New challenge" path). */
+  initialPresetId?: string | null
 }
 
 // Settings-idiom field: border-subtle at rest, gold-dim focus, no UA outline.
@@ -44,6 +47,7 @@ export default function GoalCreateModal({
   open,
   onClose,
   onCreated,
+  initialPresetId,
 }: GoalCreateModalProps) {
   const C = S.goals.create
   const [kind, setKind] = useState<GoalKind>('process')
@@ -105,6 +109,17 @@ export default function GoalCreateModal({
       )
     }
   }
+
+  // Pre-fill from a Challenges empty-state starter: when the modal opens with an
+  // initialPresetId, apply that preset (reuses applyPreset). Fires on the open
+  // edge; a null/absent id (the "New challenge" path) opens it untouched.
+  useEffect(() => {
+    if (open && initialPresetId) {
+      const p = GOAL_PRESETS.find((x) => x.id === initialPresetId)
+      if (p) applyPreset(p)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialPresetId])
 
   // Clearing the selected preset and stopping the delta auto-compute are
   // COUPLED (2026-06-13 fix): once an edit diverges from the prefill, a delta
