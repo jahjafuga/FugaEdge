@@ -8,6 +8,8 @@
 import AnimatedNumber from '@/components/ui/AnimatedNumber'
 import AvatarPicker from './AvatarPicker'
 import LevelRing from './LevelRing'
+import { badgeIcon } from './badges/badgeIcons'
+import { tierColor, type FeaturedEmblem } from './badges/tierMetal'
 import { profileStrings as S } from './strings'
 import type { Profile } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
@@ -16,6 +18,8 @@ import type { TradingStyle } from '@/core/onboarding/types'
 interface ProfileHeroProps {
   profile: Profile
   summary: XpSummary
+  /** The single pinned badge's emblem (icon + tier), or null when none. */
+  emblem?: FeaturedEmblem | null
   /** Avatar upload completed — parent updates its profile (and seeds the draft). */
   onAvatarUpdated: (profile: Profile) => void
 }
@@ -26,8 +30,11 @@ const AVATAR = 112
 export default function ProfileHero({
   profile,
   summary,
+  emblem,
   onAvatarUpdated,
 }: ProfileHeroProps) {
+  const EmblemIcon = emblem ? badgeIcon(emblem.icon) : null
+  const emblemColor = emblem ? tierColor(emblem.tier) : null
   const name = profile.display_name?.trim() || S.identity.unnamed
   const handle = profile.handle?.trim()
   const styleLabel = profile.trading_style
@@ -57,6 +64,16 @@ export default function ProfileHero({
           <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-full border border-gold/40 bg-bg-1 px-2.5 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-gold shadow-sm">
             {S.level.ringLabel} {summary.level}
           </span>
+          {/* Featured-badge emblem (Beat 2) — the single pinned badge, top-right,
+              sitting ON the ring like a notification badge (z above the ring). */}
+          {EmblemIcon && emblemColor && (
+            <div
+              className={`absolute right-1 top-1 z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 bg-bg-1 shadow-sm ${emblemColor.ring}`}
+              aria-hidden
+            >
+              <EmblemIcon className={`h-5 w-5 ${emblemColor.icon}`} strokeWidth={1.75} />
+            </div>
+          )}
         </div>
 
         {/* Identity + XP */}

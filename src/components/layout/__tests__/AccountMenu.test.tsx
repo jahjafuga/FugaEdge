@@ -12,13 +12,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Profile } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
 
-vi.mock('@/lib/ipc', () => ({ ipc: { profileGet: vi.fn(), xpSummaryGet: vi.fn() } }))
+vi.mock('@/lib/ipc', () => ({ ipc: { profileGet: vi.fn(), xpSummaryGet: vi.fn(), badgesList: vi.fn() } }))
 
 import AccountMenu from '../AccountMenu'
 import { ipc } from '@/lib/ipc'
 
 const profileGet = vi.mocked(ipc.profileGet)
 const xpSummaryGet = vi.mocked(ipc.xpSummaryGet)
+const badgesList = vi.mocked(ipc.badgesList)
 
 function makeProfile(over: Partial<Profile> = {}): Profile {
   return {
@@ -55,6 +56,8 @@ beforeEach(() => {
   profileGet.mockResolvedValue(makeProfile())
   xpSummaryGet.mockReset()
   xpSummaryGet.mockResolvedValue(makeSummary())
+  badgesList.mockReset()
+  badgesList.mockResolvedValue([])
 })
 
 const trigger = () => screen.findByRole('button', { name: /account menu/i })

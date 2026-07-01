@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Download, Settings as SettingsIcon, User } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
-import type { Profile } from '@shared/identity-types'
+import type { BadgeAward, Profile } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
 import { initialsFrom } from '@/components/profile/helpers'
+import { badgeIcon } from '@/components/profile/badges/badgeIcons'
+import { featuredEmblem, tierColor } from '@/components/profile/badges/tierMetal'
 import Avatar from '@/components/ui/Avatar'
 import LevelRing from '@/components/profile/LevelRing'
 
@@ -34,6 +36,7 @@ export default function AccountMenu() {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [summary, setSummary] = useState<XpSummary | null>(null)
+  const [awards, setAwards] = useState<BadgeAward[]>([])
   const wrapRef = useRef<HTMLDivElement>(null)
   const { pathname } = useLocation()
 
@@ -76,6 +79,21 @@ export default function AccountMenu() {
     }
   }, [pathname])
 
+  // Featured-badge awards — refetched on route change (mirrors profile/summary)
+  // so the toolbar emblem dot tracks a pin made on the Profile tab.
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .badgesList()
+      .then((a) => {
+        if (!cancelled) setAwards(a)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
+
   // Click-outside closes (mirrors PlaybookPicker).
   useEffect(() => {
     if (!open) return
@@ -100,6 +118,8 @@ export default function AccountMenu() {
   const initials = initialsFrom(profile?.display_name ?? null)
   const displayName = profile?.display_name?.trim() || 'Add your name'
   const handle = profile?.handle?.trim()
+  const emblem = featuredEmblem(profile?.featured_badges ?? [], awards)
+  const EmblemIcon = emblem ? badgeIcon(emblem.icon) : null
 
   const avatar = (
     <Avatar avatarData={profile?.avatar_data ?? null} initials={initials} size={AVATAR} />
@@ -135,6 +155,16 @@ export default function AccountMenu() {
             style={{ width: RING, height: RING }}
           >
             {avatar}
+          </span>
+        )}
+        {/* Featured-badge emblem (Beat 2) — a mini emblem at toolbar scale: the
+            badge icon in its tier color, top-right, z above the ring. */}
+        {emblem && EmblemIcon && (
+          <span
+            className={`absolute right-0 top-0 z-10 flex h-[18px] w-[18px] items-center justify-center rounded-full border bg-bg-1 shadow-sm ${tierColor(emblem.tier).ring}`}
+            aria-hidden
+          >
+            <EmblemIcon className={`h-3 w-3 ${tierColor(emblem.tier).icon}`} strokeWidth={2} />
           </span>
         )}
       </button>

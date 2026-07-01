@@ -13,6 +13,7 @@ import { ipc } from '@/lib/ipc'
 import type { BadgeAward, BadgeTier } from '@shared/identity-types'
 import { BADGE_CATALOG, type BadgeDef } from '@/core/badges/catalog'
 import { badgeIcon } from './badgeIcons'
+import { metalFor, METAL } from './tierMetal'
 import { profileStrings as S } from '../strings'
 
 interface DefState {
@@ -47,54 +48,9 @@ const CATEGORY_ORDER: ReadonlyArray<BadgeDef['category']> = [
   'challenge',
 ]
 
-// Per-tier visual escalation (Reading 1) — copper/silver/gold read as game
-// rarities. LITERAL Tailwind strings (no interpolation, so the JIT keeps them);
-// only gold carries the shine (card-glow-gold). Untiered badges (tier null —
-// milestones, challenges, single-grade) map to gold, the top achievement metal.
-// State branching is unchanged; only the colour each earned/featured branch
-// emits now varies by tier. Locked stays neutral grey, tier-independent.
-type Metal = 'copper' | 'silver' | 'gold'
-function metalFor(tier: BadgeTier | null): Metal {
-  return tier === 'copper' ? 'copper' : tier === 'silver' ? 'silver' : 'gold'
-}
-interface MetalClasses {
-  earned: string
-  featured: string
-  disc: string
-  discFeatured: string
-  icon: string
-  label: string
-  star: string
-}
-const METAL: Record<Metal, MetalClasses> = {
-  copper: {
-    earned: 'border-copper/40 bg-copper/[0.06] hover:border-copper/70 disabled:hover:border-copper/40',
-    featured: 'border-copper bg-copper/[0.12] shadow-sm',
-    disc: 'bg-copper/[0.16]',
-    discFeatured: 'bg-copper/[0.18]',
-    icon: 'text-copper',
-    label: 'text-copper/80',
-    star: 'fill-copper text-copper',
-  },
-  silver: {
-    earned: 'border-silver/50 bg-silver/[0.07] hover:border-silver/80 disabled:hover:border-silver/50',
-    featured: 'border-silver bg-silver/[0.14] shadow-sm',
-    disc: 'bg-silver/[0.18]',
-    discFeatured: 'bg-silver/[0.20]',
-    icon: 'text-silver',
-    label: 'text-silver/80',
-    star: 'fill-silver text-silver',
-  },
-  gold: {
-    earned: 'border-gold/50 bg-gold/[0.08] hover:border-gold/80 disabled:hover:border-gold/50 card-glow-gold',
-    featured: 'border-gold bg-gold/[0.12] shadow-sm card-glow-gold',
-    disc: 'bg-gold/[0.16]',
-    discFeatured: 'bg-gold/[0.18]',
-    icon: 'text-gold',
-    label: 'text-gold/80',
-    star: 'fill-gold text-gold',
-  },
-}
+// Tier-metal styling (metalFor + METAL, the copper/silver/gold classes) is
+// shared with the avatar emblem — see ./tierMetal. The locked treatment stays
+// here (wall-specific, tier-independent neutral grey).
 const LOCKED_TILE = 'border-border-subtle bg-bg-3'
 const LOCKED_DISC = 'bg-bg-1'
 const LOCKED_ICON = 'text-fg-tertiary'

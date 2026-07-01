@@ -16,10 +16,11 @@ import { useEffect, useState } from 'react'
 import { Flame, Snowflake } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import { ipc } from '@/lib/ipc'
-import type { Profile as ProfileRow } from '@shared/identity-types'
+import type { Profile as ProfileRow, BadgeAward } from '@shared/identity-types'
 import type { XpSummary } from '@shared/xp-types'
 import type { TradingStyle } from '@/core/onboarding/types'
 import ProfileHero from '@/components/profile/ProfileHero'
+import { featuredEmblem } from '@/components/profile/badges/tierMetal'
 import GoalsSection from '@/components/profile/goals/GoalsSection'
 import BadgeWall from '@/components/profile/badges/BadgeWall'
 import { profileStrings as S } from '@/components/profile/strings'
@@ -47,6 +48,7 @@ const STYLE_VALUES: Array<TradingStyle | ''> = ['', 'small-cap', 'large-cap', 'm
 export default function Profile() {
   const [profile, setProfile] = useState<ProfileRow | null>(null)
   const [summary, setSummary] = useState<XpSummary | null>(null)
+  const [awards, setAwards] = useState<BadgeAward[]>([])
   const [draft, setDraft] = useState<IdentityDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedFlash, setSavedFlash] = useState(false)
@@ -54,12 +56,13 @@ export default function Profile() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([ipc.profileGet(), ipc.xpSummaryGet()])
-      .then(([p, s]) => {
+    Promise.all([ipc.profileGet(), ipc.xpSummaryGet(), ipc.badgesList()])
+      .then(([p, s, a]) => {
         if (cancelled) return
         setProfile(p)
         setDraft(draftFrom(p))
         setSummary(s)
+        setAwards(a)
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
@@ -119,6 +122,7 @@ export default function Profile() {
           <ProfileHero
             profile={profile}
             summary={summary}
+            emblem={featuredEmblem(profile.featured_badges, awards)}
             onAvatarUpdated={(p) => {
               setProfile(p)
               setDraft((d) => d ?? draftFrom(p))
