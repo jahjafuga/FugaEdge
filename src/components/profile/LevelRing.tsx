@@ -13,6 +13,9 @@ interface LevelRingProps {
   neededForNext: number
   /** Outer square size in px. */
   size?: number
+  /** Ring stroke width in px. Default 10 (the Profile hero); use ~3 for a
+   *  toolbar-size ring. Presentation only — the ring math is unchanged. */
+  stroke?: number
   /** When set, renders in the ring center (e.g. the hero avatar) instead of the
    *  default LVL + level number. Presentation only — the ring math is unchanged. */
   center?: ReactNode
@@ -23,9 +26,9 @@ export default function LevelRing({
   intoLevel,
   neededForNext,
   size = 132,
+  stroke = 10,
   center,
 }: LevelRingProps) {
-  const stroke = 10
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const fraction = ringFraction(intoLevel, neededForNext, level)

@@ -10,13 +10,15 @@ import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Profile } from '@shared/identity-types'
+import type { XpSummary } from '@shared/xp-types'
 
-vi.mock('@/lib/ipc', () => ({ ipc: { profileGet: vi.fn() } }))
+vi.mock('@/lib/ipc', () => ({ ipc: { profileGet: vi.fn(), xpSummaryGet: vi.fn() } }))
 
 import AccountMenu from '../AccountMenu'
 import { ipc } from '@/lib/ipc'
 
 const profileGet = vi.mocked(ipc.profileGet)
+const xpSummaryGet = vi.mocked(ipc.xpSummaryGet)
 
 function makeProfile(over: Partial<Profile> = {}): Profile {
   return {
@@ -35,9 +37,24 @@ function makeProfile(over: Partial<Profile> = {}): Profile {
   }
 }
 
+function makeSummary(over: Partial<XpSummary> = {}): XpSummary {
+  return {
+    totalXp: 1234,
+    level: 5,
+    intoLevel: 200,
+    neededForNext: 300,
+    currentStreak: 3,
+    longestStreak: 7,
+    freezesBanked: 1,
+    ...over,
+  }
+}
+
 beforeEach(() => {
   profileGet.mockReset()
   profileGet.mockResolvedValue(makeProfile())
+  xpSummaryGet.mockReset()
+  xpSummaryGet.mockResolvedValue(makeSummary())
 })
 
 const trigger = () => screen.findByRole('button', { name: /account menu/i })

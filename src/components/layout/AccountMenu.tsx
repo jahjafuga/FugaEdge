@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Download, Settings as SettingsIcon, User } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
 import type { Profile } from '@shared/identity-types'
+import type { XpSummary } from '@shared/xp-types'
 import { initialsFrom } from '@/components/profile/helpers'
 import Avatar from '@/components/ui/Avatar'
+import LevelRing from '@/components/profile/LevelRing'
 
 // Top-right account menu — the avatar opens a dropdown to Profile / Settings /
 // Import (route links to the existing pages). Mirrors PlaybookPicker's open +
-// click-outside mechanics, and adds the Escape + ARIA the picker lacks. The
-// profile is fetched once on mount (the same ipc.profileGet() the Profile page
-// uses); until it resolves the avatar shows its honest glyph fallback — never a
-// broken image, never fabricated data. Pure routing — no IPC beyond the read.
+// click-outside mechanics, and adds the Escape + ARIA the picker lacks.
+//
+// The avatar now carries the level-progress ring (games-style), reusing the
+// Profile hero's LevelRing + ringFraction at a small stroke. The profile is
+// fetched once on mount (D24 — no push channel), but the XP summary is
+// REFETCHED ON ROUTE CHANGE: the TopBar mounts once and never remounts, so a
+// mount-only XP fetch would go stale all session as XP is earned. Until XP
+// loads (or on a read hiccup) the avatar renders WITHOUT a ring — never a fake
+// 0% arc that reads as real progress.
 
 const ITEMS = [
   { to: '/profile', label: 'Profile', Icon: User },
@@ -19,10 +26,16 @@ const ITEMS = [
   { to: '/import', label: 'Import', Icon: Download },
 ] as const
 
+// Ring geometry — a thin toolbar ring around the established 40px avatar.
+const AVATAR = 40
+const RING = 48
+
 export default function AccountMenu() {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [summary, setSummary] = useState<XpSummary | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const { pathname } = useLocation()
 
   // Fetch the profile once on mount (D24 — no push channel needed; a single
   // window can't be on /profile and mutating identity simultaneously).
@@ -41,6 +54,25 @@ export default function AccountMenu() {
       cancelled = true
     }
   }, [])
+
+  // XP summary — refetched on every route change so the toolbar ring stays
+  // fresh. Fires on mount (initial pathname) and whenever pathname changes;
+  // a failure leaves the last good summary in place (no flicker to no-ring on
+  // a transient nav read).
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .xpSummaryGet()
+      .then((s) => {
+        if (!cancelled) setSummary(s)
+      })
+      .catch(() => {
+        // Non-blocking — keep the last ring; just skip this cycle.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [pathname])
 
   // Click-outside closes (mirrors PlaybookPicker).
   useEffect(() => {
@@ -67,20 +99,42 @@ export default function AccountMenu() {
   const displayName = profile?.display_name?.trim() || 'Add your name'
   const handle = profile?.handle?.trim()
 
+  const avatar = (
+    <Avatar avatarData={profile?.avatar_data ?? null} initials={initials} size={AVATAR} />
+  )
+
   return (
     <div ref={wrapRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        // Tour anchor — the import step re-anchors here (Phase 1). After Beat 2
-        // strips the rail's Import row, this is the only nav-import element.
+        // Tour anchor — the import step anchors here (the only nav-import element).
         data-tour="nav-import"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account menu"
-        className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-full outline-none transition duration-150 ease-out-soft hover:ring-2 hover:ring-gold/40 focus-visible:ring-2 focus-visible:ring-gold/50"
+        // The gold progress arc IS the ring, so the old gold hover-ring would
+        // clash — hover grows the disc instead; focus keeps a gold ring set off
+        // by a gap so it reads as focus, not part of the arc.
+        className="relative inline-flex cursor-pointer items-center justify-center rounded-full outline-none transition-transform duration-150 ease-out-soft hover:scale-105 focus-visible:ring-2 focus-visible:ring-gold/50 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
       >
-        <Avatar avatarData={profile?.avatar_data ?? null} initials={initials} size={40} />
+        {summary ? (
+          <LevelRing
+            level={summary.level}
+            intoLevel={summary.intoLevel}
+            neededForNext={summary.neededForNext}
+            size={RING}
+            stroke={3}
+            center={avatar}
+          />
+        ) : (
+          <span
+            className="inline-flex items-center justify-center"
+            style={{ width: RING, height: RING }}
+          >
+            {avatar}
+          </span>
+        )}
       </button>
 
       {open && (
