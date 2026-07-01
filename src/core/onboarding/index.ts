@@ -16,6 +16,7 @@ export {
   isPlausibleApiKey,
   shouldShowOnboarding,
 } from './state'
+export { buildOnboardingKeySave, type OnboardingKeySave } from './keySave'
 export {
   LARGE_CAP_TEMPLATES,
   SMALL_CAP_TEMPLATES,

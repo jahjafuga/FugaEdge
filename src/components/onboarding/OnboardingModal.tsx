@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import BrandMark from '@/components/layout/BrandMark'
 import DropZone from '@/components/import/DropZone'
-import ApiKeyEntry from '@/components/settings/ApiKeyEntry'
+import ApiKeysStep from '@/components/onboarding/ApiKeysStep'
 import { ipc } from '@/lib/ipc'
 import {
   DEFAULT_ACCOUNT_SIZE,
@@ -150,7 +150,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             />
           )}
           {state.step === 4 && (
-            <ApiKeyEntry onSaved={commitAndClose} />
+            <ApiKeysStep onComplete={commitAndClose} />
           )}
         </div>
 
