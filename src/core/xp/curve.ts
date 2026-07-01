@@ -6,17 +6,21 @@
 // 99 ≈ 3.6 years for a dedicated daily user. totalXp(L) is an exact integer and
 // xp/11 recovers the perfect square (L−1)² exactly (correctly-rounded division),
 // so sqrt(xp/11) stays exact in IEEE-754 at every threshold — no epsilon games
-// at level boundaries. NOTE: both functions must share the same coefficient (11)
-// or the inverse breaks; the curve.test.ts inverse-property loop guards this.
+// at level boundaries. NOTE: both functions read the single XP_CURVE_K below, so
+// the coefficient cannot desync; the curve.test.ts inverse-property loop guards it.
 
 export const LEVEL_CAP = 99
 
+/** Level-curve coefficient: totalXp(L) = XP_CURVE_K*(L-1)^2. Both totalXpForLevel
+ *  and levelForXp MUST use this same K or level boundaries desync. */
+const XP_CURVE_K = 11
+
 export function totalXpForLevel(level: number): number {
-  return 11 * (level - 1) ** 2
+  return XP_CURVE_K * (level - 1) ** 2
 }
 
 export function levelForXp(xp: number): number {
-  return Math.min(LEVEL_CAP, Math.floor(1 + Math.sqrt(xp / 11)))
+  return Math.min(LEVEL_CAP, Math.floor(1 + Math.sqrt(xp / XP_CURVE_K)))
 }
 
 export interface LevelProgress {
