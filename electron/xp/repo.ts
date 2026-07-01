@@ -73,3 +73,31 @@ export function listXpEvents(opts: { sinceIso?: string } = {}): XpEvent[] {
     .prepare(`SELECT ${COLUMNS} FROM xp_events ORDER BY id ASC`)
     .all() as XpEvent[]
 }
+
+// ── Level floor (never-demote durability) ─────────────────────────────────
+// A kv row in the existing settings table — the LEVEL integer of the highest
+// level ever reached. Mirrors the settings single-row read + upsert idiom
+// (data-health/repo.ts); additive, no schema migration. The pure rule lives in
+// @/core/xp/floor; this is the storage only.
+
+const LEVEL_FLOOR_KEY = 'xp_level_floor'
+
+/** The stored highest-level floor, or null if never seeded. */
+export function getLevelFloor(): number | null {
+  const db = openDatabase()
+  const row = db
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .get(LEVEL_FLOOR_KEY) as { value: string } | undefined
+  if (!row) return null
+  const n = Number.parseInt(row.value, 10)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Persist the level floor (upsert). Callers only ever raise it (monotonic). */
+export function setLevelFloor(level: number): void {
+  const db = openDatabase()
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(LEVEL_FLOOR_KEY, String(level))
+}
