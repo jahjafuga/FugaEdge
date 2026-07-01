@@ -47,6 +47,58 @@ const CATEGORY_ORDER: ReadonlyArray<BadgeDef['category']> = [
   'challenge',
 ]
 
+// Per-tier visual escalation (Reading 1) — copper/silver/gold read as game
+// rarities. LITERAL Tailwind strings (no interpolation, so the JIT keeps them);
+// only gold carries the shine (card-glow-gold). Untiered badges (tier null —
+// milestones, challenges, single-grade) map to gold, the top achievement metal.
+// State branching is unchanged; only the colour each earned/featured branch
+// emits now varies by tier. Locked stays neutral grey, tier-independent.
+type Metal = 'copper' | 'silver' | 'gold'
+function metalFor(tier: BadgeTier | null): Metal {
+  return tier === 'copper' ? 'copper' : tier === 'silver' ? 'silver' : 'gold'
+}
+interface MetalClasses {
+  earned: string
+  featured: string
+  disc: string
+  discFeatured: string
+  icon: string
+  label: string
+  star: string
+}
+const METAL: Record<Metal, MetalClasses> = {
+  copper: {
+    earned: 'border-copper/40 bg-copper/[0.06] hover:border-copper/70 disabled:hover:border-copper/40',
+    featured: 'border-copper bg-copper/[0.12] shadow-sm',
+    disc: 'bg-copper/[0.16]',
+    discFeatured: 'bg-copper/[0.18]',
+    icon: 'text-copper',
+    label: 'text-copper/80',
+    star: 'fill-copper text-copper',
+  },
+  silver: {
+    earned: 'border-silver/50 bg-silver/[0.07] hover:border-silver/80 disabled:hover:border-silver/50',
+    featured: 'border-silver bg-silver/[0.14] shadow-sm',
+    disc: 'bg-silver/[0.18]',
+    discFeatured: 'bg-silver/[0.20]',
+    icon: 'text-silver',
+    label: 'text-silver/80',
+    star: 'fill-silver text-silver',
+  },
+  gold: {
+    earned: 'border-gold/50 bg-gold/[0.08] hover:border-gold/80 disabled:hover:border-gold/50 card-glow-gold',
+    featured: 'border-gold bg-gold/[0.12] shadow-sm card-glow-gold',
+    disc: 'bg-gold/[0.16]',
+    discFeatured: 'bg-gold/[0.18]',
+    icon: 'text-gold',
+    label: 'text-gold/80',
+    star: 'fill-gold text-gold',
+  },
+}
+const LOCKED_TILE = 'border-border-subtle bg-bg-3'
+const LOCKED_DISC = 'bg-bg-1'
+const LOCKED_ICON = 'text-fg-tertiary'
+
 interface BadgeWallProps {
   featured: string[]
   onSetFeatured: (next: string[]) => void
@@ -124,21 +176,22 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
           <div className="flex flex-wrap gap-3">
             {featuredStates.map((s) => {
               const Icon = badgeIcon(s.def.icon)
+              const m = METAL[metalFor(s.highestTier)]
               return (
                 <div
                   key={s.def.id}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gold bg-gold/[0.12] px-3 py-2 shadow-sm"
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 ${m.featured}`}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold/[0.18]">
-                    <Icon className="h-4 w-4 text-gold" strokeWidth={1.75} />
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${m.discFeatured}`}>
+                    <Icon className={`h-4 w-4 ${m.icon}`} strokeWidth={1.75} />
                   </span>
                   <span className="text-sm font-semibold text-fg-primary">{s.def.name}</span>
                   {s.highestTier && (
-                    <span className="text-[10px] font-semibold uppercase tracking-wide text-gold/80">
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide ${m.label}`}>
                       {B.tierLabels[s.highestTier]}
                     </span>
                   )}
-                  <Star aria-hidden className="h-3.5 w-3.5 shrink-0 fill-gold text-gold" strokeWidth={1.75} />
+                  <Star aria-hidden className={`h-3.5 w-3.5 shrink-0 ${m.star}`} strokeWidth={1.75} />
                 </div>
               )
             })}
@@ -167,6 +220,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                   const Icon = badgeIcon(s.def.icon)
                   const isFeatured = featured.includes(s.def.id)
                   const capBlocked = !isFeatured && featured.length >= 3
+                  const m = METAL[metalFor(s.highestTier)]
                   return (
                     <button
                       key={s.def.id}
@@ -183,20 +237,16 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                       }
                       onClick={() => toggleFeatured(s.def.id)}
                       className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
-                        isFeatured
-                          ? 'border-gold bg-gold/[0.12] shadow-sm'
-                          : s.earned
-                            ? 'border-gold/40 bg-gold/[0.06] hover:border-gold/70 disabled:hover:border-gold/40'
-                            : 'border-border-subtle bg-bg-3'
+                        isFeatured ? m.featured : s.earned ? m.earned : LOCKED_TILE
                       } ${s.earned && !capBlocked ? 'cursor-pointer' : 'cursor-default'}`}
                     >
                       <span
                         className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                          s.earned ? 'bg-gold/[0.16]' : 'bg-bg-1'
+                          s.earned ? m.disc : LOCKED_DISC
                         }`}
                       >
                         <Icon
-                          className={`h-4 w-4 ${s.earned ? 'text-gold' : 'text-fg-tertiary'}`}
+                          className={`h-4 w-4 ${s.earned ? m.icon : LOCKED_ICON}`}
                           strokeWidth={1.75}
                         />
                       </span>
@@ -218,7 +268,7 @@ export default function BadgeWall({ featured, onSetFeatured }: BadgeWallProps) {
                       {isFeatured && (
                         <Star
                           aria-hidden
-                          className="ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 fill-gold text-gold"
+                          className={`ml-auto mt-0.5 h-3.5 w-3.5 shrink-0 ${m.star}`}
                           strokeWidth={1.75}
                         />
                       )}

@@ -61,6 +61,10 @@ const config: Config = {
           800: '#5a410c',
           900: '#3d2c08',
         },
+        // Badge tier metals (rarity escalation) — mirror gold: bg/border via
+        // colors, text via the textColor override below (themed for light).
+        copper: 'rgb(var(--copper) / <alpha-value>)',
+        silver: 'rgb(var(--silver) / <alpha-value>)',
         // P&L semantics (locked, theme-independent)
         win: {
           DEFAULT: 'rgb(var(--win) / <alpha-value>)',
@@ -170,6 +174,8 @@ const config: Config = {
         gold: 'rgb(var(--gold-text) / <alpha-value>)',
         violet: 'rgb(var(--violet-text) / <alpha-value>)',
         win:  'rgb(var(--win-text) / <alpha-value>)',
+        copper: 'rgb(var(--copper-text) / <alpha-value>)',
+        silver: 'rgb(var(--silver-text) / <alpha-value>)',
       },
       transitionTimingFunction: {
         'out-soft': 'cubic-bezier(0.2, 0, 0, 1)',

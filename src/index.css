@@ -63,6 +63,13 @@
        --gold reads as low-contrast (~2.6:1), so light mode shifts text-gold
        to a darker brass for ~3.9:1. Backgrounds still use --gold. */
     --gold-text: 212 175 55;     /* matches --gold in dark mode */
+    /* Badge tier metals — bg/border theme-independent like --gold; the -text
+       variants darken in light mode for icon contrast on white (mirrors
+       --gold-text). Copper = warm bronze, silver = cool metallic grey. */
+    --copper: 184 115 51;        /* #b87333 */
+    --copper-text: 184 115 51;   /* matches --copper in dark mode */
+    --silver: 188 195 204;       /* #bcc3cc */
+    --silver-text: 188 195 204;  /* matches --silver in dark mode */
     /* Violet used as TEXT color — themed, mirrors --gold-text. EdgeIQ flagship
        accent (§11.3). On light backgrounds the bright --accent-violet reads
        low-contrast, so light mode shifts text-violet to a darker violet;
@@ -200,6 +207,9 @@
     /* Darker gold for text-on-white contrast — accent BACKGROUNDS stay at
        the original --gold value, only text-gold uses this. */
     --gold-text: 184 150 46;     /* #b8962e — ~3.9:1 on #ffffff */
+    /* Tier-metal text darkened for on-white contrast (mirrors --gold-text). */
+    --copper-text: 154 95 40;    /* #9a5f28 — ~4.4:1 on #ffffff */
+    --silver-text: 100 116 139;  /* #64748b — slate-500, ~4.6:1 on #ffffff */
     /* Darker violet for text-on-white contrast — accent BACKGROUNDS stay at
        --accent-violet; only text-violet uses this. Tailwind violet-700. */
     --violet-text: 124 58 237;   /* #7C3AED — ~5:1 on #ffffff */
