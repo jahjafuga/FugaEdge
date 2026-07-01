@@ -1,6 +1,6 @@
 import type { TourStep } from './types'
 
-// The 10-step tour. Order matters — the renderer walks the array
+// The 12-step tour. Order matters — the renderer walks the array
 // sequentially, auto-skipping steps whose anchors aren't currently in
 // the DOM (e.g. dashboard-only anchors when launched from another
 // route). The "chart-tab" step has no anchor and renders centered.
@@ -11,9 +11,9 @@ export const TOUR_STEPS: TourStep[] = [
     anchor: 'sidebar',
     title: 'Your workspace',
     body:
-      'Everything lives in one place — Dashboard, Trades, Calendar, Reports, ' +
-      'Playbook, Analytics, Journal, Import, Settings. Collapse it anytime ' +
-      'with Ctrl+B for more chart space.',
+      'Everything lives in one place — Dashboard, Trades, Calendar, Playbook, ' +
+      'Analytics, EdgeIQ, and Journal. Collapse the rail anytime with Ctrl+B ' +
+      'for more chart space.',
   },
   {
     id: 'today-session',
@@ -88,13 +88,31 @@ export const TOUR_STEPS: TourStep[] = [
       '— edit, add, or archive any.',
   },
   {
-    id: 'reports',
-    anchor: 'nav-analytics',
-    title: 'Period vs period analysis',
+    id: 'calendar',
+    anchor: 'nav-calendar',
+    title: 'Your month at a glance',
     body:
-      'Analytics compares this week vs last week, this month vs last year, or any ' +
-      'custom range. See exactly what\'s improving and what\'s regressing. ' +
-      'This is where you find your real edge.',
+      'Every market day, colored by P&L — green days, red days, and no-trade ' +
+      'days. Click any day to drill into its trades and journal. Your weekly ' +
+      'and monthly rhythms jump out fast.',
+  },
+  {
+    id: 'analytics',
+    anchor: 'nav-analytics',
+    title: 'Break down your edge',
+    body:
+      'Analytics breaks your results down by setup, time of day, and ' +
+      'technicals — and compares any period against another, this week vs ' +
+      'last or this month vs last year. This is where you find your real edge.',
+  },
+  {
+    id: 'journal',
+    anchor: 'nav-journal',
+    title: 'Reflect and review',
+    body:
+      "Close every session here: what you saw, what you'd do differently, by " +
+      'voice or text. Entries attach to the day and feed your review. The ' +
+      'traders who journal are the ones who improve.',
   },
   {
     id: 'theme',
