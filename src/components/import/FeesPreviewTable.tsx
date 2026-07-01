@@ -10,13 +10,13 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
   if (fees.length === 0) return null
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-panel">
+    <div className="card-premium overflow-hidden">
       <div className="flex items-baseline justify-between border-b border-border/60 px-5 py-3">
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted">
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
             Daily summary fees
           </div>
-          <div className="mt-0.5 text-sm text-subtle">
+          <div className="mt-0.5 text-sm text-fg-tertiary">
             Applied pro-rata across round trips of the same symbol on the same date.
           </div>
         </div>
@@ -24,7 +24,7 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
       <div className="max-h-[360px] overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-bg-header">
-            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-fg-tertiary">
               <Th align="left">Status</Th>
               <Th align="left">Date</Th>
               <Th align="left">Symbol</Th>
@@ -56,17 +56,17 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
                     )}
                   </Td>
                   <Td>
-                    <span className="font-mono text-xs text-subtle">
+                    <span className="font-mono text-xs text-fg-tertiary">
                       {hasDate ? longDate(effectiveDate) : (
                         <span className="text-red">no date</span>
                       )}
                     </span>
                   </Td>
                   <Td>
-                    <span className="font-mono font-medium text-text">{f.symbol}</span>
+                    <span className="font-mono font-medium text-fg-primary">{f.symbol}</span>
                   </Td>
                   <Td align="right">
-                    <span className={`font-mono ${f.matchedTrips === 0 ? 'text-red' : 'text-text'}`}>
+                    <span className={`font-mono ${f.matchedTrips === 0 ? 'text-red' : 'text-fg-secondary'}`}>
                       {int(f.matchedTrips)}
                     </span>
                   </Td>
@@ -130,5 +130,5 @@ function Td({
 }
 
 function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-muted">{children}</span>
+  return <span className="font-mono text-fg-tertiary">{children}</span>
 }

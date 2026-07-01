@@ -117,8 +117,9 @@ const config: Config = {
         'accent-ink': '#0d0f14',
 
         // Legacy aliases — fixed hex values, kept for backwards-compat with
-        // any code that hasn't been migrated. After the recent cleanup pass
-        // these are unreferenced in the components/ tree. They do NOT theme.
+        // any code that hasn't been migrated. They do NOT theme (no light
+        // variant), so the ~16 files still referencing them render
+        // dark-on-light in light mode - a pending systemic sweep.
         bgTop: '#06080c',
         bgBot: '#0d1117',
         sidebarTop: '#06080c',

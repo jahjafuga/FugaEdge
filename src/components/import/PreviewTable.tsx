@@ -11,7 +11,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
 
   if (trips.length === 0) {
     return (
-      <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-muted">
+      <div className="card-premium px-6 py-12 text-center text-sm text-fg-tertiary">
         No round trips computed from this file.
       </div>
     )
@@ -26,11 +26,11 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
     })
 
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-panel">
+    <div className="card-premium overflow-hidden">
       <div className="max-h-[480px] overflow-auto">
         <table className="w-full border-collapse text-sm">
           <thead className="sticky top-0 z-10 bg-bg-header">
-            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted">
+            <tr className="border-b border-border text-[10px] uppercase tracking-wider text-fg-tertiary">
               <Th align="left">Status</Th>
               <Th align="left">Date</Th>
               <Th align="left">Open</Th>
@@ -52,7 +52,7 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                 <Fragment key={t.exec_hash}>
                   <tr
                     onClick={() => toggle(i)}
-                    className={`cursor-pointer border-b border-border/40 last:border-b-0 hover:bg-white/[0.02] ${
+                    className={`cursor-pointer border-b border-border/40 last:border-b-0 hover:bg-fg-primary/[0.03] ${
                       t.status === 'duplicate' ? 'opacity-50' : ''
                     }`}
                   >
@@ -66,18 +66,18 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                       )}
                     </Td>
                     <Td>
-                      <span className="font-mono text-xs text-subtle">{longDate(t.date)}</span>
+                      <span className="font-mono text-xs text-fg-tertiary">{longDate(t.date)}</span>
                     </Td>
                     <Td>
-                      <span className="font-mono text-xs text-text">{formatEastern(t.open_time)}</span>
+                      <span className="font-mono text-xs text-fg-secondary">{formatEastern(t.open_time)}</span>
                     </Td>
                     <Td>
-                      <span className="font-mono text-xs text-text">
+                      <span className="font-mono text-xs text-fg-secondary">
                         {t.close_time ? formatEastern(t.close_time) : '—'}
                       </span>
                     </Td>
                     <Td>
-                      <span className="font-mono font-medium text-text">{t.symbol}</span>
+                      <span className="font-mono font-medium text-fg-primary">{t.symbol}</span>
                     </Td>
                     <Td>
                       <span
@@ -89,19 +89,19 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                       </span>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-text">{int(t.shares_bought)}</span>
+                      <span className="font-mono text-fg-secondary">{int(t.shares_bought)}</span>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-subtle">{price(t.avg_buy_price)}</span>
+                      <span className="font-mono text-fg-tertiary">{price(t.avg_buy_price)}</span>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-text">{int(t.shares_sold)}</span>
+                      <span className="font-mono text-fg-secondary">{int(t.shares_sold)}</span>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-subtle">{price(t.avg_sell_price)}</span>
+                      <span className="font-mono text-fg-tertiary">{price(t.avg_sell_price)}</span>
                     </Td>
                     <Td align="right">
-                      <span className="font-mono text-muted">{int(t.executions.length)}</span>
+                      <span className="font-mono text-fg-tertiary">{int(t.executions.length)}</span>
                     </Td>
                     <Td align="right">
                       <span className={`font-mono font-medium ${pnlClass(t.gross_pnl)}`}>
@@ -113,19 +113,19 @@ export default function PreviewTable({ trips }: PreviewTableProps) {
                   {isExpanded && (
                     <tr className="border-b border-border/40">
                       <td colSpan={12} className="bg-bg/40 px-6 py-3">
-                        <div className="text-[10px] uppercase tracking-wider text-muted">
+                        <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
                           {t.executions.length} fill{t.executions.length === 1 ? '' : 's'}
                         </div>
                         <div className="mt-2 grid grid-cols-[80px_60px_60px_80px_1fr] gap-x-4 gap-y-1 font-mono text-xs">
                           {t.executions.map((e) => (
                             <div key={`${e.trade_id}-${e.order_id}-${e.time}`} className="contents">
-                              <div className="text-muted">{formatEastern(e.time)}</div>
+                              <div className="text-fg-tertiary">{formatEastern(e.time)}</div>
                               <div className={e.side === 'B' ? 'text-win' : 'text-red'}>
                                 {e.side}
                               </div>
-                              <div className="text-text text-right">{int(e.qty)}</div>
-                              <div className="text-subtle text-right">{price(e.price)}</div>
-                              <div className="text-muted text-right">
+                              <div className="text-fg-secondary text-right">{int(e.qty)}</div>
+                              <div className="text-fg-tertiary text-right">{price(e.price)}</div>
+                              <div className="text-fg-tertiary text-right">
                                 {money(e.qty * e.price)}
                               </div>
                             </div>
@@ -156,7 +156,7 @@ function Pill({
       ? 'bg-win/15 text-win'
       : tone === 'warn'
         ? 'bg-red/15 text-red'
-        : 'bg-white/[0.05] text-muted'
+        : 'bg-fg-primary/[0.05] text-fg-tertiary'
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${cls}`}

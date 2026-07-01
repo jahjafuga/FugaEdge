@@ -119,9 +119,9 @@ export default function Import() {
       )}
 
       {phase.kind === 'parsing' && (
-        <div className="rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+        <div className="card-premium px-6 py-12 text-center text-sm text-fg-tertiary">
           Parsing{' '}
-          <span className="font-mono text-text">
+          <span className="font-mono text-fg-secondary">
             {phase.filenames.join(', ')}
           </span>
           …
@@ -140,7 +140,7 @@ export default function Import() {
       )}
 
       {phase.kind === 'committing' && (
-        <div className="flex flex-col items-center justify-center rounded-md border border-border bg-panel px-6 py-12 text-center text-sm text-subtle">
+        <div className="flex flex-col items-center justify-center card-premium px-6 py-12 text-center text-sm text-fg-tertiary">
           <Loader2 size={24} strokeWidth={1.75} className="mb-3 animate-spin text-gold/70" />
           Saving to database…
         </div>
@@ -156,7 +156,7 @@ export default function Import() {
 
       {phase.kind === 'error' && (
         <div className="space-y-4">
-          <div role="alert" className="flex items-start gap-3 rounded-lg border border-loss/40 bg-loss-soft p-4 text-sm text-fg-secondary">
+          <div role="alert" className="flex items-start gap-3 rounded-[var(--card-radius)] border border-loss/40 bg-loss-soft p-4 shadow-card text-sm text-fg-secondary">
             <AlertCircle size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-loss" />
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider text-loss">
@@ -212,11 +212,11 @@ function DoneView({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-win/40 bg-win/[0.06] p-5">
+      <div className="rounded-[var(--card-radius)] border border-win/40 bg-win/[0.06] p-5 shadow-card">
         <div className="text-[10px] uppercase tracking-wider text-win">
           Import complete
         </div>
-        <div className="mt-2 text-base text-text">
+        <div className="mt-2 text-base text-fg-secondary">
           Saved{' '}
           <span className="font-mono text-win">{int(result.insertedTrips)}</span>{' '}
           round trip{result.insertedTrips === 1 ? '' : 's'} and{' '}
@@ -230,7 +230,7 @@ function DoneView({
           {result.skippedTrips > 0 && (
             <>
               {' '}
-              <span className="text-subtle">
+              <span className="text-fg-tertiary">
                 Skipped {int(result.skippedTrips)} duplicate
                 {result.skippedTrips === 1 ? '' : 's'}.
               </span>
@@ -239,7 +239,7 @@ function DoneView({
           {!result.countryApiKeyMissing && result.countriesUnknown > 0 && (
             <>
               {' '}
-              <span className="text-subtle">
+              <span className="text-fg-tertiary">
                 <span className="font-mono">{int(result.countriesUnknown)}</span>{' '}
                 ticker{result.countriesUnknown === 1 ? '' : 's'} couldn&apos;t
                 auto-detect country — run Backfill in Settings.
@@ -299,7 +299,7 @@ function PreviewPanel({
       <ImportSummary files={data.files} dateRange={data.dateRange} summary={data.summary} />
 
       {data.needsDate && (
-        <div className="flex items-end gap-4 rounded-md border border-gold/40 bg-gold/[0.05] p-4">
+        <div className="flex items-end gap-4 rounded-[var(--card-radius)] border border-gold/40 bg-gold/[0.05] p-4">
           <div className="flex-1">
             <div className="text-[10px] uppercase tracking-wider text-gold">
               Date required
@@ -310,7 +310,7 @@ function PreviewPanel({
             </div>
           </div>
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted">
+            <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
               Trade date
             </div>
             <input
@@ -325,7 +325,7 @@ function PreviewPanel({
 
       {data.feesUnavailable && (
         <div
-          className="rounded-md border border-gold/30 bg-gold/[0.04] p-4 text-sm text-fg-secondary"
+          className="rounded-[var(--card-radius)] border border-gold/30 bg-gold/[0.04] p-4 text-sm text-fg-secondary"
           role="status"
         >
           <div className="text-[10px] uppercase tracking-wider text-gold">
@@ -364,7 +364,7 @@ function PreviewPanel({
         <FeesPreviewTable fees={data.fees} dateOverride={dateOverride} />
       )}
 
-      <div className="rounded-md border border-border/60 bg-bg-3 px-4 py-3">
+      <div className="card-premium px-4 py-3">
         <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
           Account type
         </div>
@@ -403,11 +403,11 @@ function PreviewPanel({
       {/* Sticky so Cancel + the primary action stay visible regardless of
           how far the preview content scrolls — on laptop screens the bar
           otherwise falls below the fold. */}
-      <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-border/60 bg-bg-0 py-3">
+      <div className="sticky bottom-0 z-10 flex items-center justify-between card-premium px-4 py-3">
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-border bg-transparent px-4 py-2 text-sm text-subtle transition-colors duration-150 hover:border-muted hover:text-text"
+          className="rounded-md border border-border bg-transparent px-4 py-2 text-sm text-fg-tertiary transition-colors duration-150 hover:border-border-strong hover:text-fg-primary"
         >
           Cancel
         </button>

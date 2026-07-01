@@ -19,16 +19,16 @@ export default function ImportSummary({
     : '—'
 
   return (
-    <div className="rounded-md border border-border bg-panel p-5 space-y-4">
+    <div className="card-premium p-5 space-y-4">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_auto]">
         <div className="space-y-2">
-          <div className="text-[10px] uppercase tracking-wider text-muted">Files</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Files</div>
           <ul className="space-y-1.5">
             {files.map((f) => (
               <li key={f.filename} className="flex items-center gap-3 text-sm">
                 <FormatPill format={f.format} />
-                <span className="font-mono text-text">{f.filename}</span>
-                <span className="text-xs text-muted">
+                <span className="font-mono text-fg-secondary">{f.filename}</span>
+                <span className="text-xs text-fg-tertiary">
                   {f.format === 'executions' ? `${int(f.rowCount)} fills` : null}
                   {f.format === 'daily-summary' ? `${int(f.rowCount)} symbols` : null}
                   {f.format === 'tradehistory' ||
@@ -45,7 +45,7 @@ export default function ImportSummary({
                     : null}
                 </span>
                 {f.format === 'daily-summary' && f.inferredDate && (
-                  <span className="text-xs text-subtle">
+                  <span className="text-xs text-fg-tertiary">
                     · {longDate(f.inferredDate)}{' '}
                     {f.filenameDateParsed && (
                       <span className="text-gold/80">(from filename)</span>
@@ -58,8 +58,8 @@ export default function ImportSummary({
         </div>
 
         <div>
-          <div className="text-[10px] uppercase tracking-wider text-muted">Date range</div>
-          <div className="mt-1 font-mono text-sm text-text">{rangeLabel}</div>
+          <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">Date range</div>
+          <div className="mt-1 font-mono text-sm text-fg-secondary">{rangeLabel}</div>
         </div>
       </div>
 
@@ -148,10 +148,10 @@ function Stat({
         ? 'text-gold'
         : tone === 'warn'
           ? 'text-red'
-          : 'text-text'
+          : 'text-fg-primary'
   return (
     <div className="min-w-[80px]">
-      <div className="text-[10px] uppercase tracking-wider text-muted">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       <div className={`mt-1 font-mono text-lg ${color}`}>{int(value)}</div>
     </div>
   )
