@@ -1,7 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/lib/theme'
-import AccountMenu from './AccountMenu'
+import ProfileMenu from './ProfileMenu'
 
 const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/dashboard': { crumb: 'Dashboard',  title: 'Performance Overview' },
@@ -42,7 +42,7 @@ export default function TopBar() {
 
       <div className="flex items-center gap-3">
         <ThemeToggle />
-        <AccountMenu />
+        <ProfileMenu />
       </div>
     </header>
   )

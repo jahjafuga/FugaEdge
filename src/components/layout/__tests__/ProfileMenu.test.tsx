@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 //
-// The top-right account menu. Mirrors PlaybookPicker's open/click-outside and
-// adds Escape + ARIA. ipc.profileGet is mocked; the dropdown is wrapped in a
-// MemoryRouter so the <Link> items resolve. Covers: trigger, open/close, the
-// three route links, item-click close, Escape close, click-outside close, and
-// the header name/handle (+ the "Add your name" fallback).
+// The top-right PROFILE menu (Beat 3 rename — formerly AccountMenu). Mirrors
+// PlaybookPicker's open/click-outside and adds Escape + ARIA. ipc.profileGet
+// is mocked; the dropdown is wrapped in a MemoryRouter so the <Link> items
+// resolve. Covers: trigger, open/close, the three route links, item-click
+// close, Escape close, click-outside close, and the header name/handle (+ the
+// "Add your name" fallback).
 
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,7 +15,7 @@ import type { XpSummary } from '@shared/xp-types'
 
 vi.mock('@/lib/ipc', () => ({ ipc: { profileGet: vi.fn(), xpSummaryGet: vi.fn(), badgesList: vi.fn() } }))
 
-import AccountMenu from '../AccountMenu'
+import ProfileMenu from '../ProfileMenu'
 import { ipc } from '@/lib/ipc'
 
 const profileGet = vi.mocked(ipc.profileGet)
@@ -60,11 +61,11 @@ beforeEach(() => {
   badgesList.mockResolvedValue({ awards: [], newlyMinted: [] })
 })
 
-const trigger = () => screen.findByRole('button', { name: /account menu/i })
+const trigger = () => screen.findByRole('button', { name: /profile menu/i })
 
-describe('AccountMenu', () => {
+describe('ProfileMenu', () => {
   it('renders the trigger, closed initially', async () => {
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     const btn = await trigger()
     expect(btn.getAttribute('aria-expanded')).toBe('false')
     expect(btn.getAttribute('aria-haspopup')).toBe('menu')
@@ -72,7 +73,7 @@ describe('AccountMenu', () => {
   })
 
   it('opens with Profile / Settings / Import links pointing at the right routes', async () => {
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     fireEvent.click(await trigger())
     const menu = screen.getByRole('menu')
     expect(within(menu).getByRole('menuitem', { name: /profile/i }).getAttribute('href')).toBe('/profile')
@@ -81,14 +82,14 @@ describe('AccountMenu', () => {
   })
 
   it('closes when a menu item is clicked', async () => {
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     fireEvent.click(await trigger())
     fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: /profile/i }))
     expect(screen.queryByRole('menu')).toBeNull()
   })
 
   it('closes on Escape', async () => {
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     fireEvent.click(await trigger())
     expect(screen.getByRole('menu')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
@@ -99,7 +100,7 @@ describe('AccountMenu', () => {
     render(
       <MemoryRouter>
         <div>
-          <AccountMenu />
+          <ProfileMenu />
           <button type="button">outside</button>
         </div>
       </MemoryRouter>,
@@ -111,7 +112,7 @@ describe('AccountMenu', () => {
   })
 
   it('shows the loaded name + @handle in the header', async () => {
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     fireEvent.click(await trigger())
     const menu = screen.getByRole('menu')
     expect(within(menu).getByText('Jah Fuga')).toBeTruthy()
@@ -120,7 +121,7 @@ describe('AccountMenu', () => {
 
   it('falls back to "Add your name" when display_name is null', async () => {
     profileGet.mockResolvedValue(makeProfile({ display_name: null, handle: null }))
-    render(<MemoryRouter><AccountMenu /></MemoryRouter>)
+    render(<MemoryRouter><ProfileMenu /></MemoryRouter>)
     fireEvent.click(await trigger())
     expect(within(screen.getByRole('menu')).getByText(/add your name/i)).toBeTruthy()
   })

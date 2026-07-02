@@ -9,6 +9,7 @@ import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEd
 import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEditor'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
+import TradingAccountsCard from '@/components/settings/TradingAccountsCard'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
@@ -371,6 +372,10 @@ export default function Settings() {
             />
           </div>
         </Card>
+        {/* Multi-account Beat 3 — the trading-account registry. Mutates via
+            its own accounts IPC (the vocabulary-editor precedent), NOT the
+            settings save-bar. */}
+        <TradingAccountsCard />
         <DailyTargetSection />
         <DnaSettingsSection />
         </CategoryPane>

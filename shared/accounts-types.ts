@@ -1,7 +1,7 @@
 // Multi-account Beat 1 — shared trading-account types (spec: accounts are
 // first-class entities). "Trading accounts" in user-facing copy; `accounts`
-// as the code namespace (the top-right AccountMenu is the PROFILE menu — its
-// rename lands in Beat 3, not here).
+// as the code namespace (the top-right menu is the PROFILE menu — renamed
+// AccountMenu → ProfileMenu in Beat 3).
 
 /** The account-type vocabulary. Validated by the repo (not a DB CHECK) so a
  *  future type addition doesn't hard-fail older binaries. `sim` is the

@@ -4,7 +4,7 @@
 // return the fresh ordered list so the future switcher / Settings UI
 // refreshes in one round-trip. "Trading accounts" is the user-facing name
 // (naming law); `accounts` is the code namespace — distinct from the
-// top-right profile AccountMenu (its rename lands in Beat 3).
+// top-right ProfileMenu (renamed from AccountMenu in Beat 3).
 
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'

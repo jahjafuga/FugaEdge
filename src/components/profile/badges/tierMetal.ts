@@ -1,5 +1,5 @@
 // Shared badge tier-metal styling — extracted from BadgeWall so the avatar
-// emblem (ProfileHero / AccountMenu) reuses the copper/silver/gold color without
+// emblem (ProfileHero / ProfileMenu) reuses the copper/silver/gold color without
 // duplicating it. Untiered badges (tier null — milestones, challenges, single-
 // grade) map to gold, the top achievement metal. LITERAL Tailwind strings (no
 // interpolation, so the JIT keeps them); only gold carries the shine.

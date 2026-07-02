@@ -1,7 +1,7 @@
 // Multi-account Beat 1 — trading-accounts repo (the badges-repo shape:
 // openDatabase + prepared statements, ULID ids, ISO-8601 UTC timestamps).
 // "Trading accounts" in user-facing copy; `accounts` is the code namespace —
-// distinct from the top-right profile AccountMenu (rename lands Beat 3).
+// distinct from the top-right ProfileMenu (renamed from AccountMenu, Beat 3).
 //
 // Invariants owned here (DB enforces, repo translates to friendly errors):
 //   - names are unique (idx_accounts_name)

@@ -10,9 +10,11 @@ import { featuredEmblem, tierColor } from '@/components/profile/badges/tierMetal
 import Avatar from '@/components/ui/Avatar'
 import LevelRing from '@/components/profile/LevelRing'
 
-// Top-right account menu — the avatar opens a dropdown to Profile / Settings /
-// Import (route links to the existing pages). Mirrors PlaybookPicker's open +
-// click-outside mechanics, and adds the Escape + ARIA the picker lacks.
+// Top-right PROFILE menu (multi-account Beat 3 rename — formerly AccountMenu;
+// "account" now means a trading account) — the avatar opens a dropdown to
+// Profile / Settings / Import (route links to the existing pages). Mirrors
+// PlaybookPicker's open + click-outside mechanics, and adds the Escape + ARIA
+// the picker lacks.
 //
 // The avatar now carries the level-progress ring (games-style), reusing the
 // Profile hero's LevelRing + ringFraction at a small stroke. The profile is
@@ -32,7 +34,7 @@ const ITEMS = [
 const AVATAR = 40
 const RING = 48
 
-export default function AccountMenu() {
+export default function ProfileMenu() {
   const [open, setOpen] = useState(false)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [summary, setSummary] = useState<XpSummary | null>(null)
@@ -134,7 +136,7 @@ export default function AccountMenu() {
         data-tour="nav-import"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label="Account menu"
+        aria-label="Profile menu"
         // The gold progress arc IS the ring, so the old gold hover-ring would
         // clash — hover grows the disc instead; focus keeps a gold ring set off
         // by a gap so it reads as focus, not part of the arc.
@@ -172,7 +174,7 @@ export default function AccountMenu() {
       {open && (
         <div
           role="menu"
-          aria-label="Account"
+          aria-label="Profile"
           className="absolute right-0 top-full z-50 mt-1 w-56 overflow-hidden rounded-md border border-border bg-bg-2/95 shadow-lg backdrop-blur"
         >
           <div className="flex items-center gap-3 border-b border-border-subtle px-3 py-3">

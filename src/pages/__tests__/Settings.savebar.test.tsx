@@ -27,6 +27,8 @@ vi.mock('@/lib/ipc', () => ({
     catalystDefDelete: vi.fn(),
     catalystDefReorder: vi.fn(),
     catalystDefUnarchive: vi.fn(),
+    // Beat 3 — TradingAccountsCard mounts inside Settings and lists on mount.
+    accountsList: vi.fn(async () => []),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     tradesRestoreBulk: vi.fn(),

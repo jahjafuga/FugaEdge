@@ -29,7 +29,7 @@ interface NavItem {
 }
 
 // Primary destinations only. Profile / Settings / Import moved to the top-right
-// account menu (TopBar / AccountMenu) — the rail is just the workspace pages.
+// profile menu (TopBar / ProfileMenu) — the rail is just the workspace pages.
 const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/trades',    label: 'Trades',    Icon: ListOrdered },

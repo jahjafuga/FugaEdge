@@ -15,6 +15,8 @@ vi.mock('@/lib/ipc', () => ({
     mistakeDefsGet: vi.fn(),
     catalystDefsGet: vi.fn(),
     tradesList: vi.fn(),
+    // Beat 3 — TradingAccountsCard mounts inside Settings and lists on mount.
+    accountsList: vi.fn(async () => []),
     countryOnBackfillProgress: vi.fn(() => () => {}),
     floatOnBackfillProgress: vi.fn(() => () => {}),
     profileOnBackfillProgress: vi.fn(() => () => {}),

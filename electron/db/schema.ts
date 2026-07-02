@@ -570,7 +570,7 @@ CREATE TABLE IF NOT EXISTS xp_events (
 
 -- ── Multi-account Beat 1 — trading-account registry (first-class entities) ──
 -- The user's TRADING accounts ("Ocean One", "Schwab Roth IRA") — not the
--- top-right profile menu (that stays AccountMenu until its Beat 3 rename).
+-- top-right profile menu (ProfileMenu — renamed from AccountMenu in Beat 3).
 -- Lands via CREATE TABLE IF NOT EXISTS per the identity-tables precedent
 -- above: fresh installs and upgrades both get it, no migration module, NO
 -- version bump (L1). ids are ULIDs minted by the repo

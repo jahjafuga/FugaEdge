@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AlertCircle, Loader2 } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import BrokerExportGuide from '@/components/import/BrokerExportGuide'
@@ -7,9 +7,13 @@ import ImportSummary from '@/components/import/ImportSummary'
 import ImportIssues from '@/components/import/ImportIssues'
 import PreviewTable from '@/components/import/PreviewTable'
 import FeesPreviewTable from '@/components/import/FeesPreviewTable'
+import AccountPickerCard from '@/components/import/AccountPickerCard'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import { deriveFeesBannerVariant } from '@/core/import/feesBannerVariant'
+import { defaultAccountId, isSimSelected } from '@/core/import/account-picker'
+import { accountStrings } from '@/components/accounts/strings'
+import type { Account } from '@shared/accounts-types'
 import type { PreviewResult, CommitResult, PreviewInputFile, SourceBroker } from '@shared/import-types'
 
 type Phase =
@@ -24,6 +28,29 @@ export default function Import() {
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' })
   const [guideOpen, setGuideOpen] = useState(false)
 
+  // Multi-account Beat 3 — the trading-account picker. Loaded once on mount;
+  // the DEFAULT account preselects. The engine (Beat 2) resolves the default
+  // main-side anyway, so a failed load degrades to identical behavior with
+  // the picker hidden.
+  const [accounts, setAccounts] = useState<Account[]>([])
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .accountsList()
+      .then((list) => {
+        if (cancelled) return
+        setAccounts(list)
+        setSelectedAccountId(defaultAccountId(list))
+      })
+      .catch(() => {
+        // Non-blocking — imports still land in the default account.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleFiles = useCallback(
     async (files: { name: string; text?: string; bytes?: Uint8Array }[]) => {
       setPhase({ kind: 'parsing', filenames: files.map((f) => f.name) })
@@ -33,7 +60,7 @@ export default function Import() {
           text: f.text,
           bytes: f.bytes,
         }))
-        const data = await ipc.importPreview(inputs)
+        const data = await ipc.importPreview(inputs, undefined, selectedAccountId ?? undefined)
         // Seed the date override. A dateless TradeZero summary file must NOT
         // silently default to today — that would stamp the trades with the wrong
         // date and quietly mis-date the journal. When a summary is present and no
@@ -50,7 +77,7 @@ export default function Import() {
         setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
       }
     },
-    [],
+    [selectedAccountId],
   )
 
   const reset = useCallback(() => setPhase({ kind: 'idle' }), [])
@@ -63,13 +90,41 @@ export default function Import() {
         trips: phase.data.trips,
         fees: phase.data.fees,
         feeDateOverride: phase.dateOverride,
+        // Beat 3 — the picker's choice; the engine stamps every inserted trip
+        // and fee row with it (absent -> default, resolved main-side).
+        account_id: selectedAccountId ?? undefined,
       })
       console.log('[renderer commit received]', { at: new Date().toISOString() })
       setPhase({ kind: 'done', result })
     } catch (e) {
       setPhase({ kind: 'error', message: e instanceof Error ? e.message : String(e) })
     }
-  }, [phase])
+  }, [phase, selectedAccountId])
+
+  // PREVIEW HONESTY (Beat 3) — changing the picker re-annotates the SAME
+  // staged files against the chosen account, mirroring handleDateChange's
+  // re-preview shape: the duplicate/new badges must tell the truth for the
+  // account this import will land in (Beat 2's gate is per-account). The
+  // date is re-passed only when a TradeZero summary is present (it bakes the
+  // date into trip hashes); keep-current-on-failure.
+  const handleAccountChange = useCallback(
+    async (id: string) => {
+      setSelectedAccountId(id)
+      if (phase.kind !== 'preview') return
+      const hasSummary = phase.data.files.some((f) => f.format === 'tradezero_summary')
+      try {
+        const data = await ipc.importPreview(
+          phase.inputs,
+          hasSummary ? phase.dateOverride || undefined : undefined,
+          id,
+        )
+        setPhase((p) => (p.kind === 'preview' ? { ...p, data } : p))
+      } catch (e) {
+        console.error('[import] account re-preview failed', e)
+      }
+    },
+    [phase],
+  )
 
   // Re-preview when the date changes for a batch containing a TradeZero summary
   // file: a summary trip bakes the date into its dedup hashes at parse time, so
@@ -132,6 +187,9 @@ export default function Import() {
         <PreviewPanel
           data={phase.data}
           dateOverride={phase.dateOverride}
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
+          onAccountChange={(id) => void handleAccountChange(id)}
           onDateChange={handleDateChange}
           onCancel={reset}
           onConfirm={commit}
@@ -265,6 +323,9 @@ function DoneView({
 function PreviewPanel({
   data,
   dateOverride,
+  accounts,
+  selectedAccountId,
+  onAccountChange,
   onDateChange,
   onCancel,
   onConfirm,
@@ -272,22 +333,24 @@ function PreviewPanel({
 }: {
   data: PreviewResult
   dateOverride: string
+  accounts: Account[]
+  selectedAccountId: string | null
+  onAccountChange: (id: string) => void
   onDateChange: (d: string) => void
   onCancel: () => void
   onConfirm: () => void
   onShowGuide: () => void
 }) {
-  // Per-batch UI gate (Track C / Decision 11). v0.2.0 disables Import on
-  // 'paper' so the value never reaches IPC — the toggle's only effect is
-  // the button cascade below. v0.3.0 ticket [[paper-account-import-and-filtering]]
-  // wires this end-to-end once the aggregation paths can filter paper trades
-  // out of real-account stats.
-  const [accountType, setAccountType] = useState<'real' | 'paper'>('real')
+  // Per-batch account gate (Beat 3 — supersedes the v0.2.0 Real/Paper toggle;
+  // the old [[paper-account-import-and-filtering]] ticket folds into account
+  // TYPES). A sim-typed selection blocks Import: practice trades stay out of
+  // live stats until per-account filtering (Beat 4+) walls them off. The
+  // picker itself drives PREVIEW HONESTY via onAccountChange.
+  const blockedBySim = isSimSelected(accounts, selectedAccountId)
 
   const hasUsableContent =
     data.summary.newTrips > 0 || data.summary.newFeeRows > 0 || data.summary.replaceFeeRows > 0
   const blockingNeedsDate = data.needsDate && !dateOverride
-  const blockedByPaper = accountType === 'paper'
 
   const feesBannerBrokers = data.trips
     .map((t) => t.source_broker)
@@ -364,41 +427,13 @@ function PreviewPanel({
         <FeesPreviewTable fees={data.fees} dateOverride={dateOverride} />
       )}
 
-      <div className="card-premium px-4 py-3">
-        <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">
-          Account type
-        </div>
-        <div className="mt-2 flex flex-col gap-1.5">
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-secondary">
-            <input
-              type="radio"
-              name="account-type"
-              value="real"
-              checked={accountType === 'real'}
-              onChange={() => setAccountType('real')}
-              className="accent-gold"
-            />
-            Real account
-          </label>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-fg-secondary">
-            <input
-              type="radio"
-              name="account-type"
-              value="paper"
-              checked={accountType === 'paper'}
-              onChange={() => setAccountType('paper')}
-              className="accent-gold"
-            />
-            Paper / simulated
-          </label>
-        </div>
-        {blockedByPaper && (
-          <p className="mt-3 text-xs text-fg-tertiary">
-            Paper-account imports arrive in v0.3.0 — they&rsquo;ll be tracked
-            separately from your real-account stats.
-          </p>
-        )}
-      </div>
+      {accounts.length > 0 && (
+        <AccountPickerCard
+          accounts={accounts}
+          value={selectedAccountId}
+          onChange={onAccountChange}
+        />
+      )}
 
       {/* Sticky so Cancel + the primary action stay visible regardless of
           how far the preview content scrolls — on laptop screens the bar
@@ -414,15 +449,15 @@ function PreviewPanel({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!hasUsableContent || blockingNeedsDate || blockedByPaper}
+          disabled={!hasUsableContent || blockingNeedsDate || blockedBySim}
           className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
         >
           {blockingNeedsDate
             ? 'Pick a date to continue'
             : !hasUsableContent
               ? 'Nothing new to import'
-              : blockedByPaper
-                ? 'Paper imports arrive in v0.3.0'
+              : blockedBySim
+                ? accountStrings.picker.blockedButton
                 : confirmLabel(data)}
         </button>
       </div>
