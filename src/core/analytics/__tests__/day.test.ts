@@ -8,6 +8,7 @@ import { computeDayMetrics } from '../day'
 // src/core/performance/__tests__/metrics.test.ts.
 function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: 0,
     date: '2026-05-15',
     symbol: 'TEST',

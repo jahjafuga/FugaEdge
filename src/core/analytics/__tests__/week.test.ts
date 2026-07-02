@@ -7,6 +7,7 @@ import { computeWeekMetrics } from '../week'
 // the day.test.ts pattern.
 function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: 0,
     date: '2026-05-11',
     symbol: 'TEST',

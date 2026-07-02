@@ -22,6 +22,7 @@ const CONFIG: DnaConfig = {
 let nextId = 1
 function mk(over: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: nextId++,
     date: '2026-06-01',
     symbol: 'AAA',

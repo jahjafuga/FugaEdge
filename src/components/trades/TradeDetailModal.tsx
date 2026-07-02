@@ -33,6 +33,8 @@ import Card from '@/components/ui/Card'
 import Tooltip from '@/components/ui/Tooltip'
 import { blendedFillAvg, computeExecutionStats } from '@/core/trades/executionStats'
 import { type TradeNavPosition } from '@/core/trades/tradeNavigation'
+import { useAccountScope } from '@/lib/accountScope'
+import { accountOwner } from '@/core/trades/accountIndicator'
 
 // Lazy-loaded: pulls in the lightweight-charts library (~110 KB) only when
 // the user actually clicks the Chart tab. Keeps the Trades chunk slim.
@@ -263,6 +265,10 @@ export default function TradeDetailModal({
 }
 
 function ModalHeader({ trade, onClose, navPosition, onNavigate }: { trade: TradeListRow; onClose: () => void; navPosition?: TradeNavPosition; onNavigate?: (id: number) => void }) {
+  // Multi-account slice — the detail names its owning account under EVERY
+  // scope (muted dot + name; unknown/deleted ids render nothing).
+  const { accounts } = useAccountScope()
+  const owner = accountOwner(accounts, trade.account_id)
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
       {/* Left zone: prev/next nav (TradesTable only) + the trade identity, wrapped
@@ -313,6 +319,16 @@ function ModalHeader({ trade, onClose, navPosition, onNavigate }: { trade: Trade
             {trade.playbook_name && (
               <span className="rounded-sm bg-gold/10 px-1.5 py-0.5 text-[10px] font-medium text-gold">
                 {trade.playbook_name}
+              </span>
+            )}
+            {owner && (
+              <span className="inline-flex items-center gap-1.5 rounded-sm border border-border-subtle px-1.5 py-0.5 text-[10px] text-fg-tertiary">
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: owner.color ?? 'var(--fg-muted, #8a8a8a)' }}
+                />
+                {owner.name}
               </span>
             )}
           </div>

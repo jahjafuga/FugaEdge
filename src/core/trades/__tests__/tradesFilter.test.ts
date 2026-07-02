@@ -6,6 +6,7 @@ import type { MistakeAxis } from '@shared/mistakes-types'
 
 function trade(over: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: 1, date: '2026-05-14', symbol: 'XYZ', side: 'long',
     open_time: '2026-05-14T09:30:00', close_time: '2026-05-14T09:35:00',
     is_open: false,

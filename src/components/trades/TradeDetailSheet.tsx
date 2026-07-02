@@ -15,6 +15,8 @@ import type {
 } from '@shared/technicals-types'
 import type { Timeframe } from '@/core/technicals/headerStrip'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
+import { accountOwner } from '@/core/trades/accountIndicator'
 import {
   compactShares,
   duration,
@@ -142,6 +144,10 @@ function SheetHeader({
   trade: TradeListRow | null
   onClose: () => void
 }) {
+  // Multi-account slice — the detail names its owning account under EVERY
+  // scope (muted dot + name; unknown ids render nothing).
+  const { accounts } = useAccountScope()
+  const owner = trade ? accountOwner(accounts, trade.account_id) : null
   return (
     <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
       <div className="min-w-0">
@@ -166,6 +172,16 @@ function SheetHeader({
               {trade.deleted_at && (
                 <span className="rounded-sm bg-loss-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-loss">
                   In Trash
+                </span>
+              )}
+              {owner && (
+                <span className="inline-flex items-center gap-1.5 rounded-sm border border-border-subtle px-1.5 py-0.5 text-[10px] text-fg-tertiary">
+                  <span
+                    aria-hidden
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ backgroundColor: owner.color ?? 'var(--fg-muted, #8a8a8a)' }}
+                  />
+                  {owner.name}
                 </span>
               )}
             </div>

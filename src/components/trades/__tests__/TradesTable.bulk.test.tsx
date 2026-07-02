@@ -27,6 +27,7 @@ function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
   const id = overrides.id ?? nextId++
   return {
     id,
+    account_id: 'ACCT-MAIN',
     date: '2026-05-20',
     symbol: 'AAA',
     side: 'long',

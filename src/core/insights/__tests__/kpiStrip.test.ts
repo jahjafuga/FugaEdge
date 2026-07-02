@@ -6,6 +6,7 @@ import { computeKpiStrip } from '../kpiStrip'
 // cares about (date / symbol / playbook_name / net_pnl / r_multiple).
 function mk(over: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: 1, date: '2026-06-01', symbol: 'AAA', side: 'long',
     open_time: '2026-06-01T13:30:00Z', close_time: '2026-06-01T13:35:00Z',
     is_open: false,

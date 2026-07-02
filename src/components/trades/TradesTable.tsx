@@ -39,6 +39,10 @@ import BulkSetMistakesModal from './BulkSetMistakesModal'
 
 interface TradesTableProps {
   trades: TradeListRow[]
+  /** Multi-account slice — resolves a row's owning account (name + color)
+   *  UNDER SCOPE 'all' only; null hides the indicator (single-account lists
+   *  are homogeneous). Provided by the Trades page from the scope context. */
+  accountFor?: (t: TradeListRow) => { name: string; color: string | null } | null
   onSaveNote: (input: UpdateNoteInput) => Promise<void>
   onSaveTimeframe: (input: UpdateTimeframeInput) => Promise<void>
   onSavePlaybook: (input: SetPlaybookOnTradeInput) => Promise<void>
@@ -191,6 +195,7 @@ const TradesTableRow = memo(function TradesTableRow({
 
 export default function TradesTable({
   trades,
+  accountFor,
   onSaveNote,
   onSaveTimeframe,
   onSavePlaybook,
@@ -398,11 +403,24 @@ export default function TradesTable({
         id: 'symbol',
         header: 'Symbol',
         size: COLUMN_WIDTHS.symbol,
-        cell: (info) => (
-          <span className="font-mono font-semibold text-fg-primary">
-            {info.getValue()}
-          </span>
-        ),
+        cell: (info) => {
+          // Under 'all' the row carries its owning-account dot (tooltip =
+          // the account name) — the lightest treatment the cell affords.
+          const owner = accountFor?.(info.row.original) ?? null
+          return (
+            <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-fg-primary">
+              {info.getValue()}
+              {owner && (
+                <span
+                  title={owner.name}
+                  aria-label={`Account: ${owner.name}`}
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: owner.color ?? 'var(--fg-muted, #8a8a8a)' }}
+                />
+              )}
+            </span>
+          )
+        },
       }),
       col.accessor((r) => r.playbook_name ?? '', {
         id: 'playbook',
@@ -545,6 +563,7 @@ export default function TradesTable({
     if (showSparkline) base.push(sparkColumn)
     return base
   }, [
+    accountFor,
     showFloatColumn,
     showCountryColumn,
     showCatalystColumn,

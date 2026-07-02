@@ -29,6 +29,7 @@ import {
 // shares_bought, shares_sold — plus id for readable fixtures.
 function tradeRow(overrides: Partial<TradeListRow>): TradeListRow {
   return {
+    account_id: 'ACCT-MAIN',
     id: 0,
     date: '2026-05-11',
     symbol: 'TEST',

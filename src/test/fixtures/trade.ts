@@ -52,6 +52,7 @@ export function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     attachment_count: 0,
     secondary_tag_count: 0,
     deleted_at: null,
+    account_id: 'ACCT-MAIN',
     ...overrides,
   }
 }

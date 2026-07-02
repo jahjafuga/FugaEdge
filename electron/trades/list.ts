@@ -60,6 +60,7 @@ interface TradeRowDb {
   // already ORDER BY axis, sort_position. NULL when the trade has no junction rows.
   mistake_tags_json: string | null
   deleted_at: string | null
+  account_id: string
 }
 
 function rowRisk(row: TradeRowDb) {
@@ -203,13 +204,14 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
     conds.push('t.date <= ?')
     params.push(opts.from, opts.to)
   }
-  if (opts.accountScope) {
-    // Bare account_id is unambiguous here — trades is the only joined table
-    // carrying the column.
-    const sf = scopeFilter(opts.accountScope)
-    conds.push(sf.clause)
-    params.push(...sf.params)
-  }
+  // Trades-page slice ALIGNMENT: absent resolves through the seam as 'all'
+  // (the non-sim wall) — consistent with the dashboard/calendar handlers.
+  // Vacuously identical today (sim imports blocked ⇒ no sim rows); the wall
+  // becomes load-bearing the day they unlock. Bare account_id is unambiguous
+  // here — trades is the only joined table carrying the column.
+  const sf = scopeFilter(opts.accountScope ?? 'all')
+  conds.push(sf.clause)
+  params.push(...sf.params)
   const where = `WHERE ${conds.join(' AND ')}`
   const rows = db
     .prepare(`
@@ -225,7 +227,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
-        t.deleted_at,
+        t.deleted_at, t.account_id,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
         COALESCE(tp.n, 0) AS secondary_tag_count,
@@ -309,6 +311,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       secondary_tag_count: r.secondary_tag_count ?? 0,
       mistake_link_count: r.mistake_link_count ?? 0,
       deleted_at: r.deleted_at,
+      account_id: r.account_id,
     }
   })
 }
@@ -335,7 +338,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
-        t.deleted_at,
+        t.deleted_at, t.account_id,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
         COALESCE(tp.n, 0) AS secondary_tag_count,
@@ -417,5 +420,6 @@ export function getTrade(id: number): TradeListRow | null {
     secondary_tag_count: row.secondary_tag_count ?? 0,
     mistake_link_count: row.mistake_link_count ?? 0,
     deleted_at: row.deleted_at,
+    account_id: row.account_id,
   }
 }

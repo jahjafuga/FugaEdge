@@ -145,6 +145,10 @@ export interface TradeListRow {
    *  List reads exclude deleted rows; getTrade returns them so the modal /
    *  Trash UI can render the deleted state. */
   deleted_at: string | null
+  /** Multi-account — the ASSIGNED trading account (accounts.id ULID; NOT NULL
+   *  in the DB since the Beat 2 rebuild). Drives the All-scope per-row
+   *  account indicator and the detail header's owning-account label. */
+  account_id: string
 }
 
 export interface UpdateTimeframeInput {

@@ -17,6 +17,8 @@ import TradeChartCard from '@/components/trades/TradeChartCard'
 import TradeChartTile from '@/components/trades/TradeChartTile'
 import MigrationCollisionsBanner from '@/components/data-health/MigrationCollisionsBanner'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
+import { accountIndicatorFor } from '@/core/trades/accountIndicator'
 import { int } from '@/lib/format'
 import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
 import { normalizeIso } from '@/core/country/source'
@@ -42,6 +44,10 @@ const CATALYST_COL_STORAGE_KEY = 'trades.showCatalystColumn'
 const MISTAKES_COL_STORAGE_KEY = 'trades.showMistakesColumn'
 
 export default function Trades() {
+  // Multi-account slice — the switcher's scope: the list fetch carries it
+  // (re-fetch on change), and under 'all' each row resolves its owning
+  // account for the indicator.
+  const { scope, accounts } = useAccountScope()
   const [trades, setTrades] = useState<TradeListRow[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [view, setView] = useState<TradesView>('table')
@@ -106,7 +112,7 @@ export default function Trades() {
   useEffect(() => {
     let cancelled = false
     ipc
-      .tradesList()
+      .tradesList({ accountScope: scope })
       .then((list) => {
         if (!cancelled) setTrades(list)
       })
@@ -116,7 +122,13 @@ export default function Trades() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
+
+  // Per-row account indicator — live ONLY under 'all' (null hides it).
+  const accountFor = useCallback(
+    (t: TradeListRow) => accountIndicatorFor(scope, accounts, t.account_id),
+    [scope, accounts],
+  )
 
   const handleSaveNote = useCallback(async (input: UpdateNoteInput) => {
     const updated = await ipc.tradeNoteSave(input)
@@ -440,6 +452,7 @@ export default function Trades() {
         ) : view === 'table' ? (
           <TradesTable
             trades={filtered}
+            accountFor={accountFor}
             onSaveNote={handleSaveNote}
             onSaveTimeframe={handleSaveTimeframe}
             onSavePlaybook={handleSavePlaybook}
