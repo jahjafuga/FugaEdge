@@ -16,3 +16,10 @@ export function scopeFilter(scope: AccountScope): { clause: string; params: stri
   if (scope === 'all') return { clause: SIM_WALL, params: [] }
   return { clause: 'account_id = ?', params: [scope.accountId] }
 }
+
+// Analytics slice — the stable per-scope suffix for memoized read handlers'
+// TTL-cache keys (analytics/reports). Without a per-scope key, a switcher
+// flip within the TTL would serve the previous scope's payload.
+export function scopeCacheKey(scope: AccountScope): string {
+  return scope === 'all' ? 'all' : `acct:${scope.accountId}`
+}

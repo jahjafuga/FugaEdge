@@ -14,6 +14,7 @@ import SymbolsTab from '@/components/analytics/tabs/SymbolsTab'
 import AnalyticsQualityTab from '@/components/analytics/tabs/AnalyticsQualityTab'
 import TechnicalsTab from '@/components/analytics/tabs/TechnicalsTab'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { int } from '@/lib/format'
 import type { DateRange } from '@/core/performance'
 import type { AnalyticsData } from '@shared/analytics-types'
@@ -72,6 +73,9 @@ function rangeFromParams(from: string | null, to: string | null): DateRange | un
 
 export default function Analytics() {
   const [params] = useSearchParams()
+  // Multi-account slice — the switcher's scope; all three fetches below
+  // carry it and re-fire on change (no reload).
+  const { scope } = useAccountScope()
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [reports, setReports] = useState<ReportsData | null>(null)
   const [trades, setTrades] = useState<TradeListRow[]>([])
@@ -98,9 +102,9 @@ export default function Analytics() {
     // it alongside analytics + reports; a failure on tradesList shouldn't
     // block the rest of the page so we swallow to [].
     Promise.all([
-      ipc.analyticsGet(),
-      ipc.reportsGet().catch(() => null),
-      ipc.tradesList().catch(() => [] as TradeListRow[]),
+      ipc.analyticsGet(scope),
+      ipc.reportsGet(scope).catch(() => null),
+      ipc.tradesList({ accountScope: scope }).catch(() => [] as TradeListRow[]),
     ])
       .then(([analytics, reportsData, tradesList]) => {
         if (cancelled) return
@@ -114,7 +118,7 @@ export default function Analytics() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
 
   if (err) {
     return (

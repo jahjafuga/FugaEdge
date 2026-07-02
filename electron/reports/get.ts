@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import { getAllMarketRows, type MarketRow } from '../market/repo'
 import { buildEquityCurve, computeDrawdown } from '@/core/performance/equity'
 import { computeFullStats } from '@/core/performance/fullStats'
@@ -408,8 +410,12 @@ export function buildByCountry(trades: TradeForReport[]): {
   return { buckets: out, notShown: trades.length - shown }
 }
 
-export function getReports(): ReportsData {
+export function getReports(scope: AccountScope = 'all'): ReportsData {
   const db = openDatabase()
+  // Multi-account slice — the ONE trades read the whole payload rolls up
+  // from. The market_data enrichment below is symbol-keyed reference data
+  // (no account dimension) and stays unscoped.
+  const sf = scopeFilter(scope)
   const trades = db
     .prepare(`
       SELECT
@@ -421,9 +427,9 @@ export function getReports(): ReportsData {
         mae, mfe,
         country, region
       FROM trades
-      WHERE deleted_at IS NULL
+      WHERE deleted_at IS NULL AND ${sf.clause}
     `)
-    .all() as TradeForReport[]
+    .all(...sf.params) as TradeForReport[]
 
   // v0.2.3 Stage B — enrich each trade with sector/industry from market_data
   // (keyed by symbol; these columns live in market_data, not on `trades`, so

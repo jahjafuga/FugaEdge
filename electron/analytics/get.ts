@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
@@ -880,8 +882,14 @@ function parseRuleBreaks(raw: string | null | undefined): string[] {
   }
 }
 
-export function getAnalytics(): AnalyticsData {
+export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
   const db = openDatabase()
+  // Multi-account slice — the ONE trades read every downstream aggregation
+  // (equity, streaks, giveback, setups, Psychology) is pure compute over;
+  // scoping it here scopes the whole payload. The journal / session_meta
+  // discipline + rule-break reads below are day-level metadata with no
+  // account column and stay GLOBAL (the calendar ruling).
+  const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
       SELECT t.id, t.date, t.symbol, t.side, t.open_time, t.close_time,
@@ -907,9 +915,9 @@ export function getAnalytics(): AnalyticsData {
         JOIN mistake_def md ON md.id = jm.mistake_def_id
         GROUP BY jm.trade_id
       ) mn ON mn.trade_id = t.id
-      WHERE t.deleted_at IS NULL
+      WHERE t.deleted_at IS NULL AND ${sf.clause}
     `)
-    .all() as TradeRow[]
+    .all(...sf.params) as TradeRow[]
 
   const equity = computeEquity(rows)
   // Drawdown comes from the SAME pure, guarded computeDrawdown the Reports

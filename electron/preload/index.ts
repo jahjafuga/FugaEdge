@@ -252,8 +252,10 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_TAGS_SAVE, input),
   weekNotesSave: (input: SaveWeekNotesInput): Promise<WeekNotesResult> =>
     ipcRenderer.invoke(IPC.WEEK_NOTES_SAVE, input),
-  reportsGet: (): Promise<ReportsData> => ipcRenderer.invoke(IPC.REPORTS_GET),
-  analyticsGet: (): Promise<AnalyticsData> => ipcRenderer.invoke(IPC.ANALYTICS_GET),
+  reportsGet: (scope?: AccountScope): Promise<ReportsData> =>
+    ipcRenderer.invoke(IPC.REPORTS_GET, { scope }),
+  analyticsGet: (scope?: AccountScope): Promise<AnalyticsData> =>
+    ipcRenderer.invoke(IPC.ANALYTICS_GET, { scope }),
   journalGet: (date: string): Promise<JournalDay> =>
     ipcRenderer.invoke(IPC.JOURNAL_GET, { date }),
   journalSave: (input: SaveJournalInput): Promise<JournalDay> =>
