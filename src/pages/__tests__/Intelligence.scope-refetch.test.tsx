@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 //
-// Multi-account (Insights slice, Option A — narrow) — the Intelligence page
-// inside the scope provider: a switcher flip re-fires the insights assembly
-// (the four insights-fed cards re-tell the scoped story), while the
-// technicals-backed Edge Score fetch does NOT react — the EXPECTED STILLNESS
-// of the ruled boundary (ScoreCard/RadarCard + WorkedLeakedSummary join the
-// Technicals slice, which also enumerates electron/day).
+// Multi-account — the Intelligence page inside the scope provider: a switcher
+// flip re-fires the insights assembly (the four insights-fed cards re-tell
+// the scoped story) AND, since Technicals beat 1, the Edge Score fetch — the
+// Insights slice's expected-stillness pin RETIRED by that beat's ruling
+// (ScoreCard/RadarCard joined the switcher; the fetch now carries the scope).
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -57,8 +56,8 @@ beforeEach(() => {
   m.accountsList.mockResolvedValue([])
 })
 
-describe('Intelligence — scope-aware insights, boundary-still technicals', () => {
-  it("the insights fetch follows the switcher; the Edge Score fetch does not (ruled boundary)", async () => {
+describe('Intelligence — scope-aware insights AND Edge Score (beat-1 inversion)', () => {
+  it('the insights fetch and the Edge Score fetch both follow the switcher', async () => {
     render(
       <MemoryRouter>
         <AccountScopeProvider>
@@ -69,7 +68,11 @@ describe('Intelligence — scope-aware insights, boundary-still technicals', () 
     )
     await waitFor(() => expect(m.tradesList).toHaveBeenCalled())
     expect(m.tradesList).toHaveBeenCalledWith({ accountScope: 'all' })
-    await waitFor(() => expect(m.listTradesWithTechnicals).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(m.listTradesWithTechnicals).toHaveBeenCalledWith(
+        expect.objectContaining({ accountScope: 'all' }),
+      ),
+    )
 
     fireEvent.click(screen.getByText('probe-pick-b'))
     await waitFor(() =>
@@ -77,7 +80,12 @@ describe('Intelligence — scope-aware insights, boundary-still technicals', () 
         accountScope: { accountId: 'ACCT-B' },
       }),
     )
-    // EXPECTED STILLNESS — the technicals fetch fired once and only once.
-    expect(m.listTradesWithTechnicals).toHaveBeenCalledTimes(1)
+    // THE INVERSION (Technicals beat 1) — the Edge Score fetch re-fires with
+    // the new scope; the Insights slice's stillness pin is retired.
+    await waitFor(() =>
+      expect(m.listTradesWithTechnicals).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accountScope: { accountId: 'ACCT-B' } }),
+      ),
+    )
   })
 })

@@ -14,6 +14,7 @@
 // number end to end.
 
 import { openDatabase } from '../db/database'
+import { scopeFilter } from '../accounts/scope'
 import type { TradeTechnicals } from '@/core/technicals/computeTradeTechnicals'
 import type {
   ListTradesWithTechnicalsOptions,
@@ -451,6 +452,13 @@ export function listTradesWithTechnicals(
     conds.push('t.date <= ?')
     params.push(opts.from, opts.to)
   }
+  // Multi-account (Technicals slice) — the seam clause rides the trades side
+  // of the join; absent resolves 'all' (the non-sim wall). This killed the
+  // channel's latent sim leak. Bare account_id is unambiguous — trades is
+  // the only joined table carrying the column.
+  const sf = scopeFilter(opts.accountScope ?? 'all')
+  conds.push(sf.clause)
+  params.push(...sf.params)
   const where = `WHERE ${conds.join(' AND ')}`
   const rows = db
     .prepare(`

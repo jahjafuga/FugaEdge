@@ -4,6 +4,7 @@ import { computeEdgeScore, type EdgeScoreResult } from '@/core/score/edgeScore'
 import { todayDateISO } from '@/core/session/today'
 import { rangeDays, type TimeRange } from '@shared/dashboard-types'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
+import type { AccountScope } from '@shared/accounts-types'
 
 // useEdgeScore — fetches trades-with-technicals over the selected date range and
 // runs the pure Edge Score engine. It owns its OWN fetch
@@ -12,21 +13,37 @@ import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 // plain data and returns a plain result, per ARCHITECTURE.md.
 //
 // Range change = a refetch (the fetch is server-windowed). The fetched rows are
-// TAGGED with the range they were fetched for and used ONLY while that tag
-// matches the current range — so during a range change the prior range's rows
-// are ignored (the Score/radar show loading) and never render a stale result
-// against the new-range label. Same desync class as the Session↔Week toggle
-// crash, headed off here.
+// TAGGED with the (range, scope) they were fetched for and used ONLY while that
+// tag matches the current pair — so during a range OR scope change the prior
+// fetch's rows are ignored (the Score/radar show loading) and never render a
+// stale result against the new label. Same desync class as the Session↔Week
+// toggle crash, headed off here.
+//
+// Multi-account (Technicals slice, beat 1) — scope is an EXPLICIT OPTIONAL
+// PARAM (absent -> 'all' through the seam), NOT internal useAccountScope
+// consumption: EdgeIqDebriefCard calls this hook AND dayRepo, and internal
+// consumption would scope its Edge Score while its day metrics stay global —
+// a mixed-scope card. Callers that follow the switcher pass the scope in.
 export interface UseEdgeScoreResult {
   result: EdgeScoreResult | null
   loading: boolean
   error: string | null
 }
 
-export function useEdgeScore(range: TimeRange): UseEdgeScoreResult {
-  const [state, setState] = useState<{ range: TimeRange; rows: TradeWithTechnicalsRow[] } | null>(
-    null,
-  )
+function sameScope(a: AccountScope, b: AccountScope): boolean {
+  if (a === 'all' || b === 'all') return a === b
+  return a.accountId === b.accountId
+}
+
+export function useEdgeScore(
+  range: TimeRange,
+  scope: AccountScope = 'all',
+): UseEdgeScoreResult {
+  const [state, setState] = useState<{
+    range: TimeRange
+    scope: AccountScope
+    rows: TradeWithTechnicalsRow[]
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -44,9 +61,9 @@ export function useEdgeScore(range: TimeRange): UseEdgeScoreResult {
       from = todayDateISO(fromD)
     }
     ipc
-      .listTradesWithTechnicals({ from, to })
+      .listTradesWithTechnicals({ from, to, accountScope: scope })
       .then((r) => {
-        if (!cancelled) setState({ range, rows: r })
+        if (!cancelled) setState({ range, scope, rows: r })
       })
       .catch((e: Error) => {
         if (!cancelled) setError(e.message)
@@ -54,11 +71,15 @@ export function useEdgeScore(range: TimeRange): UseEdgeScoreResult {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [range, scope])
 
-  // Use rows ONLY when they were fetched for the CURRENT range; during a range
-  // change the prior fetch's rows are stale → treated as loading (skeleton).
-  const rows = state && state.range === range ? state.rows : null
+  // Use rows ONLY when they were fetched for the CURRENT (range, scope) pair;
+  // during a range or scope change the prior fetch's rows are stale → treated
+  // as loading (skeleton).
+  const rows =
+    state && state.range === range && sameScope(state.scope, scope)
+      ? state.rows
+      : null
   const result = useMemo(() => (rows ? computeEdgeScore(rows) : null), [rows])
   return { result, loading: rows === null && error === null, error }
 }

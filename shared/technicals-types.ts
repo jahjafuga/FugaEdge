@@ -4,6 +4,8 @@
 // (TradeWithTechnicalsDbRow) stays in electron/technicals/repo.ts since
 // only the data layer needs it.
 
+import type { AccountScope } from './accounts-types'
+
 // Per-timeframe indicator snapshot at the bar containing the first entry
 // fill. Canonical declaration lives in
 // src/core/technicals/computeTradeTechnicals.ts; inlined here because
@@ -76,4 +78,8 @@ export interface ListTradesWithTechnicalsOptions {
    *  silently ignored (no date filter applied). */
   from?: string
   to?: string
+  /** Multi-account (Technicals slice) — the account scope; absent resolves
+   *  through the seam as 'all' (every non-sim account). Scoping rides the
+   *  trades side of the LEFT JOIN — trade_technicals stays trade-keyed. */
+  accountScope?: AccountScope
 }

@@ -12,6 +12,7 @@ import EdgeIqMark from '@/components/icons/EdgeIqMark'
 import { useInsights } from '@/lib/useInsights'
 import { useEdgeScore } from '@/lib/useEdgeScore'
 import { useDnaConfig } from '@/lib/useDnaConfig'
+import { useAccountScope } from '@/lib/accountScope'
 import { computeDnaAdherence } from '@/core/dna/adherence'
 import { RANGE_LABEL, type TimeRange } from '@shared/dashboard-types'
 
@@ -28,8 +29,11 @@ import { RANGE_LABEL, type TimeRange } from '@shared/dashboard-types'
 // RadarCard, so technicals aren't double-fetched.
 export default function Intelligence() {
   const [range, setRange] = useState<TimeRange>('90d')
+  // Multi-account (Technicals slice, beat 1) — the page passes the switcher's
+  // scope into the Edge Score fetch explicitly (the ruled param shape).
+  const { scope } = useAccountScope()
   const insightsData = useInsights(range)
-  const edgeScore = useEdgeScore(range)
+  const edgeScore = useEdgeScore(range, scope)
   const dnaConfig = useDnaConfig()
   const dna = useMemo(
     () =>
@@ -54,11 +58,8 @@ export default function Intelligence() {
         </div>
         <HeroCards insights={insightsData.insights} loading={insightsData.loading} />
         <TradingCoachCard insights={insightsData.insights} loading={insightsData.loading} />
-        {/* Multi-account RULED BOUNDARY (Option A) — the Edge Score + radar
-            ride the technicals channel (useEdgeScore -> listTradesWithTechnicals)
-            and stay WHOLLY GLOBAL this slice: inert-but-alive under switcher
-            flips. They join the Technicals slice, which also enumerates the
-            day-detail channel (electron/day). */}
+        {/* Edge Score + radar stats follow the account switcher (Technicals
+            slice, beat 1). */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_3fr]">
           <ScoreCard {...edgeScore} rangeLabel={RANGE_LABEL[range]} />
           <RadarCard {...edgeScore} />

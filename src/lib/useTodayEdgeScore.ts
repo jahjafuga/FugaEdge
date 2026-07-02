@@ -3,6 +3,7 @@ import { ipc } from '@/lib/ipc'
 import { computeEdgeScore, type EdgeScoreResult } from '@/core/score/edgeScore'
 import { todayDateISO } from '@/core/session/today'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
+import type { AccountScope } from '@shared/accounts-types'
 
 // v0.2.5 EdgeIQ daily-debrief — the TODAY-scoped Edge Score. A focused sibling
 // of useEdgeScore: instead of a selectable range it pins the window to a single
@@ -23,7 +24,14 @@ export interface UseTodayEdgeScoreResult {
   error: string | null
 }
 
-export function useTodayEdgeScore(): UseTodayEdgeScoreResult {
+export function useTodayEdgeScore(scope: AccountScope = 'all'): UseTodayEdgeScoreResult {
+  // Multi-account (Technicals slice, beat 1) — scope is an explicit optional
+  // param (absent -> 'all' through the seam), same ruling as useEdgeScore.
+  // FLAGGED DESYNC EXPOSURE: unlike useEdgeScore this hook has no fetch tag
+  // (its window never changed pre-scope), so a caller passing a CHANGING
+  // scope would render prior-scope rows until the new fetch lands. Its only
+  // caller (EdgeIqDebriefCard) is argless this beat; beat 2 must add the
+  // (scope) tag when it wires the card to the switcher.
   const [rows, setRows] = useState<TradeWithTechnicalsRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,7 +40,7 @@ export function useTodayEdgeScore(): UseTodayEdgeScoreResult {
     setError(null)
     const today = todayDateISO(new Date())
     ipc
-      .listTradesWithTechnicals({ from: today, to: today })
+      .listTradesWithTechnicals({ from: today, to: today, accountScope: scope })
       .then((r) => {
         if (!cancelled) setRows(r)
       })
@@ -42,7 +50,7 @@ export function useTodayEdgeScore(): UseTodayEdgeScoreResult {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
 
   const result = useMemo(() => (rows ? computeEdgeScore(rows) : null), [rows])
   return { result, loading: rows === null && error === null, error }

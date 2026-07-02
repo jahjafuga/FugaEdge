@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { distinctPlaybooks } from '@/core/performance/filters'
 import { computeHeaderStrip } from '@/core/technicals/headerStrip'
 import { computeMacdBuckets } from '@/core/technicals/macdBuckets'
@@ -41,6 +42,11 @@ import TimeOfDayMatrix from './technicals/TimeOfDayMatrix'
 import UnclassifiedChip from './technicals/UnclassifiedChip'
 
 export default function TechnicalsTab() {
+  // Multi-account (Technicals slice, beat 1) — the tab follows the switcher:
+  // the fetch carries the scope and re-fires on change (setRows(null) at the
+  // effect top is the tab's existing stale guard). Counts change with scope;
+  // the analysed/excluded arithmetic itself is the separate parked bug.
+  const { scope } = useAccountScope()
   // Existing filter state — unchanged from Commit 5.
   const [filters, setFilters] = useState<TechnicalsFilters>(() => ({
     datePreset: '30d',
@@ -65,8 +71,8 @@ export default function TechnicalsTab() {
     setErr(null)
 
     const opts = filters.range
-      ? { from: filters.range.from, to: filters.range.to }
-      : {}
+      ? { from: filters.range.from, to: filters.range.to, accountScope: scope }
+      : { accountScope: scope }
 
     ipc
       .listTradesWithTechnicals(opts)
@@ -84,7 +90,7 @@ export default function TechnicalsTab() {
     return () => {
       cancelled = true
     }
-  }, [filters.range])
+  }, [filters.range, scope])
 
   // Playbook dropdown options — distinct names across the fetched set.
   const playbookOptions = useMemo(
