@@ -1,6 +1,8 @@
 import { openDatabase } from '../db/database'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { orderByIds } from '@/lib/orderByIds'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import type { EntryTimeframe, TradeListRow, TradeNote } from '@shared/trades-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
 import type { RoundTripExecution } from '@shared/import-types'
@@ -175,6 +177,12 @@ export interface ListTradesOptions {
    *  NULL). true → only soft-deleted trades (deleted_at IS NOT NULL), backing
    *  the Settings → Trash card. */
   deleted?: boolean
+  /** Multi-account (Calendar slice) — OPTIONAL account scope. The distinction
+   *  is load-bearing: ABSENT means legacy UNSCOPED (every existing caller —
+   *  Trades page, Journal, insights — stays byte-identical), NOT the 'all'
+   *  wall. Callers opt in per surface as their slice lands; the Calendar
+   *  compare strip is the first. */
+  accountScope?: AccountScope
 }
 
 export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
@@ -194,6 +202,13 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
     conds.push('t.date >= ?')
     conds.push('t.date <= ?')
     params.push(opts.from, opts.to)
+  }
+  if (opts.accountScope) {
+    // Bare account_id is unambiguous here — trades is the only joined table
+    // carrying the column.
+    const sf = scopeFilter(opts.accountScope)
+    conds.push(sf.clause)
+    params.push(...sf.params)
   }
   const where = `WHERE ${conds.join(' AND ')}`
   const rows = db

@@ -138,8 +138,11 @@ const api = {
     ipcRenderer.invoke(IPC.IMPORT_COMMIT, input),
   dashboardGet: (range?: TimeRange, scope?: AccountScope): Promise<DashboardData> =>
     ipcRenderer.invoke(IPC.DASHBOARD_GET, { range, scope }),
-  tradesList: (opts?: { date?: string; deleted?: boolean }): Promise<TradeListRow[]> =>
-    ipcRenderer.invoke(IPC.TRADES_LIST, opts),
+  tradesList: (opts?: {
+    date?: string
+    deleted?: boolean
+    accountScope?: AccountScope
+  }): Promise<TradeListRow[]> => ipcRenderer.invoke(IPC.TRADES_LIST, opts),
   getTrade: (input: { trade_id: number }): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_GET, input),
   listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions): Promise<TradeWithTechnicalsRow[]> =>
@@ -241,10 +244,10 @@ const api = {
     ipcRenderer.invoke(IPC.ATTACHMENTS_ADD, input),
   attachmentsDelete: (id: number): Promise<AttachmentRecord | null> =>
     ipcRenderer.invoke(IPC.ATTACHMENTS_DELETE, id),
-  calendarGet: (year: number, month: number): Promise<CalendarMonth> =>
-    ipcRenderer.invoke(IPC.CALENDAR_GET, { year, month }),
-  calendarYearGet: (year: number): Promise<CalendarYear> =>
-    ipcRenderer.invoke(IPC.CALENDAR_YEAR_GET, { year }),
+  calendarGet: (year: number, month: number, scope?: AccountScope): Promise<CalendarMonth> =>
+    ipcRenderer.invoke(IPC.CALENDAR_GET, { year, month, scope }),
+  calendarYearGet: (year: number, scope?: AccountScope): Promise<CalendarYear> =>
+    ipcRenderer.invoke(IPC.CALENDAR_YEAR_GET, { year, scope }),
   dayTagsSave: (input: SaveDayTagsInput): Promise<DayTagsResult> =>
     ipcRenderer.invoke(IPC.DAY_TAGS_SAVE, input),
   weekNotesSave: (input: SaveWeekNotesInput): Promise<WeekNotesResult> =>

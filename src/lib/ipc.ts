@@ -58,7 +58,7 @@ export const ipc = {
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange, scope?: AccountScope) =>
     window.api.dashboardGet(range, scope),
-  tradesList: (opts?: { date?: string; deleted?: boolean }) =>
+  tradesList: (opts?: { date?: string; deleted?: boolean; accountScope?: AccountScope }) =>
     window.api.tradesList(opts),
   getTrade: (input: { trade_id: number }) => window.api.getTrade(input),
   listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions) =>
@@ -114,8 +114,10 @@ export const ipc = {
   attachmentsList: (tradeId: number) => window.api.attachmentsList(tradeId),
   attachmentsAdd: (input: AddAttachmentsInput) => window.api.attachmentsAdd(input),
   attachmentsDelete: (id: number) => window.api.attachmentsDelete(id),
-  calendarGet: (year: number, month: number) => window.api.calendarGet(year, month),
-  calendarYearGet: (year: number) => window.api.calendarYearGet(year),
+  calendarGet: (year: number, month: number, scope?: AccountScope) =>
+    window.api.calendarGet(year, month, scope),
+  calendarYearGet: (year: number, scope?: AccountScope) =>
+    window.api.calendarYearGet(year, scope),
   dayTagsSave: (input: SaveDayTagsInput) => window.api.dayTagsSave(input),
   weekNotesSave: (input: SaveWeekNotesInput) => window.api.weekNotesSave(input),
   reportsGet: () => window.api.reportsGet(),

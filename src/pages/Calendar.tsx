@@ -11,6 +11,7 @@ import DayDetailModal from '@/components/calendar/DayDetailModal'
 import WeekReviewModal from '@/components/calendar/WeekReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import type { CalendarMonth, CalendarYear } from '@shared/calendar-types'
 
 function todayISO(): string {
@@ -31,6 +32,9 @@ function stepMonth(y: number, m: number, delta: number): { y: number; m: number 
 export default function Calendar() {
   const today = useMemo(todayISO, [])
   const realNow = useMemo(() => ym(new Date()), [])
+  // Multi-account slice — the switcher's scope; every fetch below carries it
+  // and re-fires on change (no reload).
+  const { scope } = useAccountScope()
 
   const [view, setView] = useState<{ y: number; m: number }>(realNow)
   const [data, setData] = useState<CalendarMonth | null>(null)
@@ -78,7 +82,7 @@ export default function Calendar() {
     let cancelled = false
     setYearData(null)
     ipc
-      .calendarYearGet(yearView)
+      .calendarYearGet(yearView, scope)
       .then((d) => {
         if (!cancelled) setYearData(d)
       })
@@ -88,7 +92,7 @@ export default function Calendar() {
     return () => {
       cancelled = true
     }
-  }, [yearView, calMode])
+  }, [yearView, calMode, scope])
 
   // Scoped aurora calm: while the YEAR grid is showing, dim the app-wide aurora
   // (index.css `body.cal-year-view .app-aurora`) — it would otherwise streak
@@ -108,7 +112,7 @@ export default function Calendar() {
     let cancelled = false
     setData(null)
     ipc
-      .calendarGet(view.y, view.m)
+      .calendarGet(view.y, view.m, scope)
       .then((d) => {
         if (cancelled) return
         if (!initialized) {
@@ -131,7 +135,7 @@ export default function Calendar() {
     return () => {
       cancelled = true
     }
-  }, [view.y, view.m, initialized])
+  }, [view.y, view.m, initialized, scope])
 
   // Clear selection when navigating to a different month.
   useEffect(() => {
@@ -338,7 +342,7 @@ export default function Calendar() {
               // Re-fetch the month so the cell picks up the new journal mark
               // and the pencil icon appears immediately.
               ipc
-                .calendarGet(view.y, view.m)
+                .calendarGet(view.y, view.m, scope)
                 .then((d) => setData(d))
                 .catch((e: Error) => setErr(e.message))
             }}

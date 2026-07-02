@@ -1,6 +1,8 @@
 import { openDatabase } from '../db/database'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import type {
   CalendarDay,
   CalendarMonth,
@@ -26,16 +28,24 @@ function parseTags(raw: string | null | undefined): string[] {
   return []
 }
 
-function readRange(db: ReturnType<typeof openDatabase>): CalendarRange {
+function readRange(
+  db: ReturnType<typeof openDatabase>,
+  scope: AccountScope,
+): CalendarRange {
+  // Multi-account slice — the nav bounds + months-with-trades dots tell the
+  // SCOPE's story (an account's calendar spans only its own trading history).
+  const sf = scopeFilter(scope)
   const bounds = db
-    .prepare('SELECT MIN(date) AS earliest, MAX(date) AS latest FROM trades WHERE deleted_at IS NULL')
-    .get() as { earliest: string | null; latest: string | null }
+    .prepare(
+      `SELECT MIN(date) AS earliest, MAX(date) AS latest FROM trades WHERE deleted_at IS NULL AND ${sf.clause}`,
+    )
+    .get(...sf.params) as { earliest: string | null; latest: string | null }
 
   const months = db
     .prepare(
-      "SELECT DISTINCT substr(date, 1, 7) AS m FROM trades WHERE deleted_at IS NULL ORDER BY m ASC",
+      `SELECT DISTINCT substr(date, 1, 7) AS m FROM trades WHERE deleted_at IS NULL AND ${sf.clause} ORDER BY m ASC`,
     )
-    .all() as { m: string }[]
+    .all(...sf.params) as { m: string }[]
 
   return {
     earliest: bounds.earliest ?? null,
@@ -65,8 +75,13 @@ function readMonthDays(
   db: ReturnType<typeof openDatabase>,
   year: number,
   month: number,
+  scope: AccountScope,
 ): CalendarDay[] {
   const like = `${year}-${pad(month)}-%`
+  // Multi-account slice — ONLY the trades CTE scopes: journal / session_meta
+  // day metadata (tags, sentiment, no-trade + holiday marks) has no account
+  // dimension and stays visible under every scope by design.
+  const sf = scopeFilter(scope)
   // UNION dates from trades AND journal-with-tags, then LEFT JOIN both back
   // so no-trade days that have tags (FOMC, Earnings, etc.) still appear.
   const rows = db
@@ -89,7 +104,7 @@ function readMonthDays(
           AVG(CASE WHEN ${sqlIsWin()} THEN net_pnl END)  AS avg_winner,
           AVG(CASE WHEN ${sqlIsLoss()} THEN net_pnl END) AS avg_loser
         FROM trades
-        WHERE date LIKE ? AND deleted_at IS NULL
+        WHERE date LIKE ? AND deleted_at IS NULL AND ${sf.clause}
         GROUP BY date
       ),
       jr AS (
@@ -165,9 +180,19 @@ function readMonthDays(
       ORDER BY d.date ASC
     `)
     // tr CTE's FOUR win/loss CASE `?` (winners + losers counts, then avg_winner
-    // + avg_loser) precede all three `date LIKE ?`, so the epsilons lead in that
-    // order: +eps (win count), -eps (loss count), +eps (avg win), -eps (avg loss).
-    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, SCRATCH_EPSILON, -SCRATCH_EPSILON, like, like, like) as DayRowDb[]
+    // + avg_loser) precede the binds in textual order: tr's `date LIKE ?`, then
+    // the scope's binds (single-account id; none for the 'all' wall), then the
+    // jr and sm `date LIKE ?`s.
+    .all(
+      SCRATCH_EPSILON,
+      -SCRATCH_EPSILON,
+      SCRATCH_EPSILON,
+      -SCRATCH_EPSILON,
+      like,
+      ...sf.params,
+      like,
+      like,
+    ) as DayRowDb[]
 
   return rows.map((r) => ({
     date: r.date,
@@ -221,14 +246,18 @@ function summarize(
   }
 }
 
-export function getCalendarMonth(year: number, month: number): CalendarMonth {
+export function getCalendarMonth(
+  year: number,
+  month: number,
+  scope: AccountScope = 'all',
+): CalendarMonth {
   const db = openDatabase()
-  const days = readMonthDays(db, year, month)
+  const days = readMonthDays(db, year, month, scope)
   return {
     stats: summarize(year, month, days),
     days,
-    range: readRange(db),
-    weeks: getWeeklySummaries(year, month),
+    range: readRange(db, scope),
+    weeks: getWeeklySummaries(year, month, scope),
   }
 }
 
@@ -257,8 +286,10 @@ interface YearMonthRowDb {
 function readYearMonths(
   db: ReturnType<typeof openDatabase>,
   year: number,
+  scope: AccountScope,
 ): Map<number, CalendarYearMonth> {
   const like = `${year}-%`
+  const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
       SELECT
@@ -273,14 +304,21 @@ function readYearMonths(
         AVG(CASE WHEN ${sqlIsWin()} THEN net_pnl END)   AS avg_winner,
         AVG(CASE WHEN ${sqlIsLoss()} THEN net_pnl END)  AS avg_loser
       FROM trades
-      WHERE date LIKE ? AND deleted_at IS NULL
+      WHERE date LIKE ? AND deleted_at IS NULL AND ${sf.clause}
       GROUP BY ym
       ORDER BY ym
     `)
     // FOUR win/loss CASE `?` (winners, losers, then avg_winner, avg_loser)
-    // precede the single `date LIKE ?` — same epsilon order as readMonthDays:
-    // +eps (win count), -eps (loss count), +eps (avg win), -eps (avg loss), like.
-    .all(SCRATCH_EPSILON, -SCRATCH_EPSILON, SCRATCH_EPSILON, -SCRATCH_EPSILON, like) as YearMonthRowDb[]
+    // precede `date LIKE ?`, then the scope binds — same epsilon order as
+    // readMonthDays.
+    .all(
+      SCRATCH_EPSILON,
+      -SCRATCH_EPSILON,
+      SCRATCH_EPSILON,
+      -SCRATCH_EPSILON,
+      like,
+      ...sf.params,
+    ) as YearMonthRowDb[]
 
   const byMonth = new Map<number, CalendarYearMonth>()
   for (const r of rows) {
@@ -324,9 +362,9 @@ function emptyMonth(year: number, month: number): CalendarYearMonth {
 // runs the roll-up, attaches the shared range). Always returns 12 tiles in
 // calendar order (Jan..Dec) so the grid is stable regardless of which months
 // were traded.
-export function getCalendarYear(year: number): CalendarYear {
+export function getCalendarYear(year: number, scope: AccountScope = 'all'): CalendarYear {
   const db = openDatabase()
-  const byMonth = readYearMonths(db, year)
+  const byMonth = readYearMonths(db, year, scope)
   const months: CalendarYearMonth[] = []
   for (let m = 1; m <= 12; m++) {
     months.push(byMonth.get(m) ?? emptyMonth(year, m))
@@ -334,6 +372,6 @@ export function getCalendarYear(year: number): CalendarYear {
   return {
     year,
     months,
-    range: readRange(db),
+    range: readRange(db, scope),
   }
 }

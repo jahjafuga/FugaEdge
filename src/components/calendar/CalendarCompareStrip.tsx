@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowDown, ArrowRight, ArrowUp, GitCompareArrows } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { percent, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
@@ -54,6 +55,9 @@ export default function CalendarCompareStrip({ dataVersion = 0 }: CalendarCompar
 
   const [trades, setTrades] = useState<TradeListRow[] | null>(null)
   const [loading, setLoading] = useState(false)
+  // Multi-account slice — the strip's periods compare THE SCOPE's trades
+  // (opt-in accountScope on the channel; re-fetch on switcher change).
+  const { scope } = useAccountScope()
 
   // Only fetch trades when the card is active — keeps the calendar's first
   // paint fast for users who don't use this feature.
@@ -62,7 +66,7 @@ export default function CalendarCompareStrip({ dataVersion = 0 }: CalendarCompar
     let cancelled = false
     setLoading(true)
     ipc
-      .tradesList()
+      .tradesList({ accountScope: scope })
       .then((rows) => {
         if (cancelled) return
         setTrades(rows.filter((t) => !t.is_open))
@@ -77,7 +81,7 @@ export default function CalendarCompareStrip({ dataVersion = 0 }: CalendarCompar
     return () => {
       cancelled = true
     }
-  }, [mode, dataVersion])
+  }, [mode, dataVersion, scope])
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, mode)

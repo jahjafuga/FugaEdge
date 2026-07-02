@@ -1,5 +1,7 @@
 import { openDatabase } from '../db/database'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
+import type { AccountScope } from '@shared/accounts-types'
+import { scopeFilter } from '../accounts/scope'
 import { isWin, isLoss } from '@/core/classify/outcome'
 
 function pad(n: number): string {
@@ -189,20 +191,28 @@ function computeOne(
 // (preceding partial week + month + trailing partial week) and walks each
 // row inline. Daily-P&L map across ALL trades is used for the streak so it
 // can reach back beyond the visible window.
-export function getWeeklySummaries(year: number, month: number): WeeklySummary[] {
+export function getWeeklySummaries(
+  year: number,
+  month: number,
+  scope: AccountScope = 'all',
+): WeeklySummary[] {
   const db = openDatabase()
   const monthPrefix = `${year}-${pad(month)}`
   const weekStarts = gridWeekStarts(year, month)
   const rangeStart = weekStarts[0]
   const rangeEnd = addDaysStr(weekStarts[weekStarts.length - 1], 6)
 
+  // Multi-account slice — the P&L inputs (trades + the streak's daily map)
+  // scope; journals + week notes are day/week metadata with no account
+  // dimension and stay global.
+  const sf = scopeFilter(scope)
   const trades = db
     .prepare(`
       SELECT date, symbol, net_pnl, gross_pnl, total_fees
       FROM trades
-      WHERE date >= ? AND date <= ? AND deleted_at IS NULL
+      WHERE date >= ? AND date <= ? AND deleted_at IS NULL AND ${sf.clause}
     `)
-    .all(rangeStart, rangeEnd) as TradeForWeek[]
+    .all(rangeStart, rangeEnd, ...sf.params) as TradeForWeek[]
 
   const journals = db
     .prepare(`
@@ -226,8 +236,10 @@ export function getWeeklySummaries(year: number, month: number): WeeklySummary[]
   // dates outside the visible range (so a streak that started weeks ago is
   // counted correctly). Cheap aggregation in one shot.
   const dailyRows = db
-    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL GROUP BY date')
-    .all() as { date: string; pnl: number }[]
+    .prepare(
+      `SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL AND ${sf.clause} GROUP BY date`,
+    )
+    .all(...sf.params) as { date: string; pnl: number }[]
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)
 
@@ -238,18 +250,22 @@ export function getWeeklySummaries(year: number, month: number): WeeklySummary[]
 
 // Re-exported here so the route layer can also fetch a single week's trade
 // list for the weekly-review modal.
-export function listTradesForWeek(weekStart: string): CalendarDay['date'][] {
+export function listTradesForWeek(
+  weekStart: string,
+  scope: AccountScope = 'all',
+): CalendarDay['date'][] {
   // Just returns the dates the trades fall on; the renderer already has a
   // listTrades({ date }) IPC that can be called per-day for the modal.
   // (Kept simple to avoid duplicating the round-trip schema here.)
   const db = openDatabase()
   const end = addDaysStr(weekStart, 6)
+  const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
       SELECT DISTINCT date FROM trades
-      WHERE date >= ? AND date <= ? AND deleted_at IS NULL
+      WHERE date >= ? AND date <= ? AND deleted_at IS NULL AND ${sf.clause}
       ORDER BY date ASC
     `)
-    .all(weekStart, end) as { date: string }[]
+    .all(weekStart, end, ...sf.params) as { date: string }[]
   return rows.map((r) => r.date)
 }
