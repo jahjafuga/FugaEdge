@@ -317,9 +317,14 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
 }
 
 // All trades whose Eastern trading day falls in [from, to] (inclusive).
-// Backs the Weekly Review modal's week range.
-export function listTradesInRange(from: string, to: string): TradeListRow[] {
-  return listTrades({ from, to })
+// Backs the Weekly Review modal's week range. Optional accountScope threads
+// to the seam (absent -> the channel's aligned 'all' default).
+export function listTradesInRange(
+  from: string,
+  to: string,
+  accountScope?: AccountScope,
+): TradeListRow[] {
+  return listTrades({ from, to, accountScope })
 }
 
 export function getTrade(id: number): TradeListRow | null {

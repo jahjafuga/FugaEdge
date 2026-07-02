@@ -4,6 +4,7 @@ import { Check, X, Target, ArrowRight, Sparkles } from 'lucide-react'
 import EdgeIqMark from '@/components/icons/EdgeIqMark'
 import { useTodayEdgeScore } from '@/lib/useTodayEdgeScore'
 import { useEdgeScore } from '@/lib/useEdgeScore'
+import { useAccountScope } from '@/lib/accountScope'
 import { dayRepo } from '@/data/dayRepo'
 import { todayDateISO } from '@/core/session/today'
 import { tierForScore, type ScoreTier } from '@/core/score/tier'
@@ -30,13 +31,9 @@ import type { DayMetrics } from '@shared/day-types'
 // empty/clean when the day is quiet. Today's most-used playbook (a descriptive
 // daily fact, not an edge claim) sits above them.
 //
-// Multi-account RULED BOUNDARY (Insights slice, Option A) — this card stays
-// WHOLLY GLOBAL for now: every figure rides the technicals channel
-// (useTodayEdgeScore / useEdgeScore) or the day-detail path (dayRepo), both
-// outside the insights assembly. NO half-scoping (Option C rejected). It joins
-// the switcher with the Technicals slice, which also enumerates electron/day
-// (stored-shape gate there) — that slice is where "Dashboard fully
-// scope-coherent" lands.
+// Multi-account (Technicals slice, beat 2) — this card follows the switcher:
+// it consumes the scope ONCE and moves all three sources together (today's
+// score, the 30-day fallback, the day metrics) — never a mixed-scope card.
 
 interface ScoreView {
   value: number
@@ -47,14 +44,15 @@ interface ScoreView {
 }
 
 export default function EdgeIqDebriefCard() {
-  const today = useTodayEdgeScore()
-  const recent = useEdgeScore('30d') // fallback when today is too thin to score
+  const { scope } = useAccountScope()
+  const today = useTodayEdgeScore(scope)
+  const recent = useEdgeScore('30d', scope) // fallback when today is too thin to score
   const [day, setDay] = useState<DayMetrics | null | undefined>(undefined)
 
   useEffect(() => {
     let cancelled = false
     dayRepo
-      .getDayDetail(todayDateISO(new Date()))
+      .getDayDetail(todayDateISO(new Date()), { accountScope: scope })
       .then((d) => {
         if (!cancelled) setDay(d.metrics)
       })
@@ -64,7 +62,7 @@ export default function EdgeIqDebriefCard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
 
   const loading = today.loading || day === undefined
   const n = today.result?.n ?? 0

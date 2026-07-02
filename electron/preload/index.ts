@@ -427,14 +427,14 @@ const api = {
     ipcRenderer.invoke(IPC.DATA_HEALTH_GET),
   dataHealthAcknowledgeCollisions: (): Promise<DataHealth> =>
     ipcRenderer.invoke(IPC.DATA_HEALTH_ACKNOWLEDGE_COLLISIONS),
-  dayDetailGet: (date: string): Promise<DayDetail> =>
-    ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date),
+  dayDetailGet: (date: string, opts?: { accountScope?: AccountScope }): Promise<DayDetail> =>
+    ipcRenderer.invoke(IPC.DAY_GET_DETAIL, date, opts),
   dayNoteSave: (date: string, body: string): Promise<void> =>
     ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
   ruleBreaksSave: (date: string, breaks: string[]): Promise<RuleBreaksResult> =>
     ipcRenderer.invoke(IPC.DAY_RULE_BREAKS_SAVE, { date, breaks }),
-  weekDetailGet: (weekStart: string): Promise<WeekDetail> =>
-    ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart),
+  weekDetailGet: (weekStart: string, opts?: { accountScope?: AccountScope }): Promise<WeekDetail> =>
+    ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart, opts),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload

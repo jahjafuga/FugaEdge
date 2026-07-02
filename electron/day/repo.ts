@@ -1,6 +1,7 @@
 import { computeDayMetrics } from '@/core/analytics/day'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import type { DayDetail } from '@shared/day-types'
+import type { AccountScope } from '@shared/accounts-types'
 import { listTrades } from '../trades/list'
 import { getSessionMeta } from '../session/repo'
 import { readRuleBreaks } from './ruleBreaks'
@@ -14,8 +15,14 @@ import { readRuleBreaks } from './ruleBreaks'
 //
 // Day 4: the day-level note and mistake tags both live on session_meta
 // (notes + day_mistakes_json) — reused, no new tables.
-export function getDayDetail(date: string): DayDetail {
-  const trades = listTrades({ date })
+export function getDayDetail(
+  date: string,
+  opts?: { accountScope?: AccountScope },
+): DayDetail {
+  // Multi-account (Technicals slice, beat 2) — the day's TRADES scope (via
+  // the trades channel's seam; absent -> its aligned 'all' default). The day
+  // METADATA (session_meta note, journal rule-breaks) is GLOBAL by ruling.
+  const trades = listTrades({ date, accountScope: opts?.accountScope })
   const metrics = computeDayMetrics({ date, trades, exitDeltas: computeExitDeltas(trades) })
   const meta = getSessionMeta(date)
 

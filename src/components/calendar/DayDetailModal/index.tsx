@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import type { DayDetail } from '@shared/day-types'
 import { dayRepo } from '@/data/dayRepo'
+import { useAccountScope } from '@/lib/accountScope'
 import { longDate, money, signed, pnlClass } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
@@ -48,16 +49,20 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
   // avgRMultiple / firstTradePnl.rMultiple). No loading-flash — keep current
   // detail on screen until fresh lands, so the stacked modal doesn't unmount
   // mid-edit.
+  // Multi-account (Technicals slice, beat 2) — the day drill-down follows
+  // the switcher; a flip while the modal is open re-fetches to the new scope.
+  const { scope } = useAccountScope()
+
   const reload = useCallback(async () => {
     if (!date) return
     try {
-      const fresh = await dayRepo.getDayDetail(date)
+      const fresh = await dayRepo.getDayDetail(date, { accountScope: scope })
       setDetail(fresh)
     } catch {
       // A refresh-after-save failure keeps the last-good detail on screen;
       // the initial-load effect owns hard-error surfacing.
     }
-  }, [date])
+  }, [date, scope])
 
   const stack = useTradeStack({ trades: detail?.trades, reload })
 
@@ -75,7 +80,7 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     setError(null)
     setDetail(null)
     dayRepo
-      .getDayDetail(date)
+      .getDayDetail(date, { accountScope: scope })
       .then((d) => {
         if (!cancelled) {
           setDetail(d)
@@ -90,7 +95,7 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     return () => {
       cancelled = true
     }
-  }, [date])
+  }, [date, scope])
 
   if (!date) return null
 

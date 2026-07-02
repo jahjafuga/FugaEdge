@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import type { WeekDetail } from '@shared/week-types'
 import { weekRepo } from '@/data/weekRepo'
+import { useAccountScope } from '@/lib/accountScope'
 import { longDate, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
@@ -44,14 +45,18 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Multi-account (Technicals slice, beat 2) — the weekly review follows the
+  // switcher; a flip while the modal is open re-fetches to the new scope.
+  const { scope } = useAccountScope()
+
   const reload = useCallback(async () => {
     if (!weekStart) return
     try {
-      setDetail(await weekRepo.getWeekDetail(weekStart))
+      setDetail(await weekRepo.getWeekDetail(weekStart, { accountScope: scope }))
     } catch {
       // refresh-after-save failure keeps last-good detail; initial load owns errors
     }
-  }, [weekStart])
+  }, [weekStart, scope])
 
   const stack = useTradeStack({ trades: detail?.trades, reload })
 
@@ -69,7 +74,7 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
     setError(null)
     setDetail(null)
     weekRepo
-      .getWeekDetail(weekStart)
+      .getWeekDetail(weekStart, { accountScope: scope })
       .then((d) => {
         if (!cancelled) setDetail(d)
       })
@@ -82,7 +87,7 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
     return () => {
       cancelled = true
     }
-  }, [weekStart])
+  }, [weekStart, scope])
 
   if (!weekStart) return null
 

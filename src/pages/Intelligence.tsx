@@ -70,9 +70,8 @@ export default function Intelligence() {
           requireCatalyst={dnaConfig.config?.dna_require_catalyst ?? false}
           rangeLabel={RANGE_LABEL[range]}
         />
-        {/* Multi-account RULED BOUNDARY (Option A) — worked/leaked rides the
-            day/week-detail path and stays WHOLLY GLOBAL this slice; joins the
-            Technicals slice alongside the electron/day enumeration. */}
+        {/* Worked/leaked follows the account switcher (Technicals slice,
+            beat 2). */}
         <WorkedLeakedSummary />
         <EdgeStatStrip data={insightsData.kpis} loading={insightsData.loading} />
       </div>

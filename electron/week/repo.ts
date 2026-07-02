@@ -1,5 +1,7 @@
 import { openDatabase } from '../db/database'
 import { listTradesInRange } from '../trades/list'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import type { WeekDetail, WeekJournalEntry } from '@shared/week-types'
@@ -15,15 +17,28 @@ function addDaysStr(date: string, days: number): string {
 // the calendar grid row is anchored on; the week is [weekStart, weekStart+6]
 // (Sun–Sat), filtered by trades.date (the Eastern trading day — never
 // open_time, so no TZ conversion at query time).
-export function getWeekDetail(weekStart: string): WeekDetail {
+export function getWeekDetail(
+  weekStart: string,
+  opts?: { accountScope?: AccountScope },
+): WeekDetail {
   const db = openDatabase()
   const weekEnd = addDaysStr(weekStart, 6)
-  const trades = listTradesInRange(weekStart, weekEnd)
+  // Multi-account (Technicals slice, beat 2) — the trades AND the streak map
+  // ride the same scope (this healed the split-brain where the trades rode
+  // the wall while the map was legacy-unfiltered). The map feeds the
+  // green/red-day P&L streak — NOT the showing-up identity streak, which is
+  // GLOBAL and lives elsewhere. Week metadata (week_notes, journal) stays
+  // global below.
+  const scope = opts?.accountScope ?? 'all'
+  const trades = listTradesInRange(weekStart, weekEnd, scope)
 
-  // All-trades daily net P&L so the streak can reach back beyond this week.
+  // Scoped daily net P&L so the streak can reach back beyond this week.
+  const sf = scopeFilter(scope)
   const dailyRows = db
-    .prepare('SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL GROUP BY date')
-    .all() as { date: string; pnl: number }[]
+    .prepare(
+      `SELECT date, SUM(net_pnl) AS pnl FROM trades WHERE deleted_at IS NULL AND ${sf.clause} GROUP BY date`,
+    )
+    .all(...sf.params) as { date: string; pnl: number }[]
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)
 

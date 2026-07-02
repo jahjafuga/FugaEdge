@@ -30,7 +30,10 @@ export interface UseEdgeScoreResult {
   error: string | null
 }
 
-function sameScope(a: AccountScope, b: AccountScope): boolean {
+// Exported for useTodayEdgeScore's scope tag (beat 2). FLAG: a more neutral
+// long-term home would be src/lib/accountScope.tsx; not silently relocated —
+// the export-from-here shape is the ruled minimal move.
+export function sameScope(a: AccountScope, b: AccountScope): boolean {
   if (a === 'all' || b === 'all') return a === b
   return a.accountId === b.accountId
 }

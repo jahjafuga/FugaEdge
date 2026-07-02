@@ -3,6 +3,7 @@ import { TrendingUp, AlertTriangle } from 'lucide-react'
 import type { WeekMetrics } from '@shared/week-types'
 import type { DayMetrics } from '@shared/day-types'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { weekRepo } from '@/data/weekRepo'
 import { dayRepo } from '@/data/dayRepo'
 import { signed, shortDate } from '@/lib/format'
@@ -86,17 +87,26 @@ export function headerStats(m: Metrics, scope: Scope): HeaderStat[] {
 }
 
 export default function WorkedLeakedSummary() {
+  // Multi-account (Technicals slice, beat 2) — this summary follows the
+  // switcher: the anchor (latest traded session/week) AND the day/week
+  // detail both carry the account scope. `scope` below is the LOCAL
+  // session-vs-week lens; the account scope is aliased to avoid the
+  // collision.
+  const { scope: accountScope } = useAccountScope()
   const [scope, setScope] = useState<Scope>('week')
   const [anchor, setAnchor] = useState<{ session: string; week: string } | null>(null)
   const [noTrades, setNoTrades] = useState(false)
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // Derive the most-recent session + week anchors once.
+  // Derive the most-recent session + week anchors — per account scope (an
+  // account's latest traded day is its own).
   useEffect(() => {
     let cancelled = false
+    setNoTrades(false)
+    setAnchor(null)
     ipc
-      .tradesList()
+      .tradesList({ accountScope })
       .then((trades) => {
         if (cancelled) return
         if (trades.length === 0) {
@@ -110,24 +120,24 @@ export default function WorkedLeakedSummary() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [accountScope])
 
-  // Fetch the detail for the active scope (reuses the Weekly Review's data path).
+  // Fetch the detail for the active lens (reuses the Weekly Review's data path).
   useEffect(() => {
     if (!anchor) return
     let cancelled = false
     setMetrics(null)
     const fetched =
       scope === 'week'
-        ? weekRepo.getWeekDetail(anchor.week).then((d) => d.metrics)
-        : dayRepo.getDayDetail(anchor.session).then((d) => d.metrics)
+        ? weekRepo.getWeekDetail(anchor.week, { accountScope }).then((d) => d.metrics)
+        : dayRepo.getDayDetail(anchor.session, { accountScope }).then((d) => d.metrics)
     fetched
       .then((m) => !cancelled && setMetrics(m))
       .catch((e: Error) => !cancelled && setError(e.message))
     return () => {
       cancelled = true
     }
-  }, [anchor, scope])
+  }, [anchor, scope, accountScope])
 
   const data = useMemo(() => (metrics ? splitWorkedLeaked(metrics) : null), [metrics])
 
