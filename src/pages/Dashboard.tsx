@@ -63,11 +63,13 @@ export default function Dashboard() {
 
   // Fetch today's trades-with-fills only when 1D is active (Journal's pattern:
   // ipc.tradesList({date})). IntradayPnLChart builds its curve from .executions.
+  // Micro-slice coherence sweep — this was the page's one scope-blind fetch:
+  // the 1D intraday curve now follows the switcher like every other number.
   useEffect(() => {
     if (range !== '1d') return
     let cancelled = false
     ipc
-      .tradesList({ date: todayDateISO(new Date()) })
+      .tradesList({ date: todayDateISO(new Date()), accountScope: scope })
       .then((list) => {
         if (!cancelled) setTodaysTrades(list)
       })
@@ -77,7 +79,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [range, scope])
 
   if (err) {
     return (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import {
   countNoTradeDaysThisMonth,
   deriveTodayStatus,
@@ -31,6 +32,12 @@ interface UseTodaySessionResult {
 // and feeds them into the pure /src/core/session/today derivation. The
 // hook owns platform I/O; the rules are pure.
 export function useTodaySession(): UseTodaySessionResult {
+  // Multi-account micro-slice — Today's Session follows the switcher (a
+  // Dashboard card ignoring the scope while the page obeys is the
+  // two-calendars inconsistency class). Trades + the month calendar union
+  // carry it; sessionGet / sessionListAll / journalGet are day metadata and
+  // stay account-blind. No memoization on these paths.
+  const { scope } = useAccountScope()
   const [trades, setTrades] = useState<TradeListRow[]>([])
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [meta, setMeta] = useState<SessionMeta | null>(null)
@@ -52,11 +59,11 @@ export function useTodaySession(): UseTodaySessionResult {
     setLoading(true)
     setError(null)
     Promise.all([
-      ipc.tradesList({ date: today }),
+      ipc.tradesList({ date: today, accountScope: scope }),
       ipc.sessionGet(today),
       ipc.sessionListAll(),
       ipc.journalGet(today),
-      ipc.calendarGet(monthYear, monthIdx),
+      ipc.calendarGet(monthYear, monthIdx, scope),
     ])
       .then(([tradesList, todayMeta, allSessions, journalDay, month]) => {
         if (cancelled) return
@@ -78,7 +85,7 @@ export function useTodaySession(): UseTodaySessionResult {
     return () => {
       cancelled = true
     }
-  }, [today, monthYear, monthIdx, version])
+  }, [today, monthYear, monthIdx, version, scope])
 
   const refresh = useCallback(() => setVersion((v) => v + 1), [])
 
@@ -91,14 +98,14 @@ export function useTodaySession(): UseTodaySessionResult {
       // remount.
       const [refreshed, month] = await Promise.all([
         ipc.sessionListAll(),
-        ipc.calendarGet(monthYear, monthIdx),
+        ipc.calendarGet(monthYear, monthIdx, scope),
       ])
       setSessions(refreshed)
       setMonthNoTradeDates(
         month.days.filter((d) => d.no_trade_day).map((d) => d.date),
       )
     },
-    [monthYear, monthIdx],
+    [monthYear, monthIdx, scope],
   )
 
   const hasJournalEntry = hasJournalContent(journalEntry)

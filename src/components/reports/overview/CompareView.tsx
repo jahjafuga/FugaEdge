@@ -28,6 +28,8 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
+import { useAccountScope } from '@/lib/accountScope'
+import { accountStrings } from '@/components/accounts/strings'
 import Card from '@/components/ui/Card'
 import { duration, money, perShareGainLoss, perShareGainLossIsZero, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
@@ -661,6 +663,14 @@ function VerdictBlock({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetric
 // reviews first, then the two reference gauges (accuracy vs the 70% target,
 // P/L ratio vs the 2:1 target).
 function VerdictCard({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics; accountSize: number | null }) {
+  // Multi-account micro-slice — the % row's denominator is the APP-WIDE
+  // account size; under any single-account scope a scoped numerator over that
+  // base would fabricate per-account growth, so the row withholds its value
+  // (house em-dash) with the note. Self-expiring: revisited when Stage 3
+  // lands per-account balances. 'Account growth $' stays — it is the (already
+  // scoped) period net P&L by definition.
+  const { scope } = useAccountScope()
+  const scopedSingle = scope !== 'all'
   const headline: StatSpec[] = [
     { label: 'Net P&L',         a: a.netPnL,        b: b.netPnL,        format: 'money', higherIsBetter: true },
     { label: 'Avg daily P&L',   a: a.avgDailyPnL,   b: b.avgDailyPnL,   format: 'money', higherIsBetter: true },
@@ -680,7 +690,11 @@ function VerdictCard({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics
     // Phase 3 (djsevans87) — honestly labeled: net P&L rescaled by the STATIC
     // configured account_size (NOT true compounding growth). null accountSize
     // (never configured) -> netPnlPctOfAccount returns null -> em-dash.
-    { label: 'Net P&L (% of account size)', a: netPnlPctOfAccount(a.netPnL, accountSize), b: netPnlPctOfAccount(b.netPnL, accountSize), format: 'pct', higherIsBetter: true },
+    { label: 'Net P&L (% of account size)',
+      a: scopedSingle ? null : netPnlPctOfAccount(a.netPnL, accountSize),
+      b: scopedSingle ? null : netPnlPctOfAccount(b.netPnL, accountSize),
+      format: 'pct', higherIsBetter: true,
+      subLabel: scopedSingle ? accountStrings.compare.scopedGrowthNote : undefined },
   ]
   return (
     <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">

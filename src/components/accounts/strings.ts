@@ -33,6 +33,14 @@ export const accountStrings = {
     all: 'All accounts',
     archivedDivider: 'Archived',
   },
+  compare: {
+    /** The Account-growth %-row's sub-line under any single-account scope —
+     *  its denominator is the APP-WIDE account size, so a scoped numerator
+     *  would fabricate per-account growth. Self-expiring: revisited when
+     *  Stage 3 lands per-account balances. */
+    scopedGrowthNote:
+      'Measured against your app-wide account size. Per-account growth arrives with per-account balances.',
+  },
   card: {
     heading: 'Trading accounts',
     sub: 'The brokerage accounts your imports belong to.',
