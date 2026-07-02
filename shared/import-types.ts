@@ -308,6 +308,10 @@ export interface CommitInput {
   fees: DaySummaryFeeRow[]
   /** Applied to every fee row that lacks a date (filename couldn't be parsed). */
   feeDateOverride?: string
+  /** Multi-account Beat 2 — the trading account this import belongs to.
+   *  Absent = the default account (resolved main-side). Beat 3's import
+   *  picker populates it; no UI reads it yet. */
+  account_id?: string
 }
 
 export interface CommitResult {

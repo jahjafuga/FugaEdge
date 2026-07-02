@@ -39,12 +39,15 @@ function collectAffected(
   const pairs = new Set<string>()
   if (ids.length === 0) return { dates, pairs }
   const ph = ids.map(() => '?').join(',')
+  // Beat 2: pairs carry the account so the fee re-spread stays scoped to the
+  // owning account's pool (dates stay account-blind — daily_summary is
+  // deliberately out of Beat 2's scope).
   const rows = db
-    .prepare(`SELECT date, symbol FROM trades WHERE id IN (${ph})`)
-    .all(...ids) as { date: string; symbol: string }[]
+    .prepare(`SELECT date, symbol, account_id FROM trades WHERE id IN (${ph})`)
+    .all(...ids) as { date: string; symbol: string; account_id: string }[]
   for (const r of rows) {
     dates.add(r.date)
-    pairs.add(`${r.date}|${r.symbol}`)
+    pairs.add(`${r.date}|${r.symbol}|${r.account_id}`)
   }
   return { dates, pairs }
 }
@@ -53,8 +56,8 @@ function collectAffected(
 // caller's open transaction (recompute* use the same cached connection).
 function recompute({ dates, pairs }: Affected): void {
   for (const p of pairs) {
-    const [date, symbol] = p.split('|')
-    recomputeFeesForDateSymbol(date, symbol)
+    const [date, symbol, accountId] = p.split('|')
+    recomputeFeesForDateSymbol(date, symbol, accountId)
   }
   recomputeSummaryForDates(dates)
 }

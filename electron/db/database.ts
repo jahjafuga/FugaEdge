@@ -21,6 +21,8 @@ import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
 import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
 import { migrateAccountBackfill } from './migrate-account-backfill'
+import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
+import { migrateDayFeesAccount } from './migrate-day-fees-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -43,6 +45,9 @@ const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
 
 // Latch for the v0.2.5 sentiment-polarity migration's pre-migration backup (schema 28→29).
 const SENTIMENT_POLARITY_BACKUP_LATCH_KEY = 'sentiment_polarity_migration_backup_done'
+
+// Latch for the multi-account Beat 2 trades-rebuild pre-migration backup (schema 37→38).
+const TRADES_REBUILD_BACKUP_LATCH_KEY = 'trades_rebuild_dedup_backup_done'
 
 let db: Database.Database | null = null
 
@@ -588,6 +593,55 @@ function backupBeforeSentimentPolarityMigration(
   }
 }
 
+// Pre-rebuild backup for the multi-account Beat 2 trades-table rebuild.
+// Mirrors the sentiment-polarity helper: latch-checked, WAL-checkpointed,
+// db + sidecars copied, latch set after. The copy failure deliberately
+// propagates — the rebuild must never run without a safety net (the
+// migration catches the throw and aborts, so boot still survives).
+function backupBeforeTradesRebuildMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(TRADES_REBUILD_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `fugaedge.db.pre-multiacct-trades-rebuild-${ts}.bak`)
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(`[FE db] wal_checkpoint before trades-rebuild backup failed: ${e}`)
+  }
+
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] trades-rebuild pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(TRADES_REBUILD_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] trades-rebuild backup latch write failed: ${e}`)
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -984,10 +1038,23 @@ function migrateAfterSchema(
   // installs (which never run the migration) also get it. NULLs are
   // excluded by the WHERE clause, so legacy rows the migration couldn't
   // backfill don't violate the constraint.
-  conn.exec(
-    `CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_content_hash
-     ON trades(content_hash) WHERE content_hash IS NOT NULL`,
-  )
+  // Multi-account Beat 2: SUPERSEDED by idx_trades_content_hash_account once
+  // the trades rebuild has run — guarded so this legacy single-column index
+  // can never resurrect after the rebuild drops it. (On the one upgrade boot
+  // it is created and replaced moments later by the rebuild below — a
+  // harmless one-boot redundancy that keeps the pre-rebuild constraint alive
+  // for the content-hash backfill above.)
+  const compositeDedupExists = conn
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_trades_exec_hash_account'",
+    )
+    .get()
+  if (!compositeDedupExists) {
+    conn.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_content_hash
+       ON trades(content_hash) WHERE content_hash IS NOT NULL`,
+    )
+  }
   if (result.ran && result.historicalDuplicates > 0) {
     console.warn(
       `[FE db] content-hash migration completed with ` +
@@ -995,6 +1062,25 @@ function migrateAfterSchema(
         `see prior warn lines for trade IDs`,
     )
   }
+
+  // Multi-account Beat 2 (schema 38, Option A ratified) — rebuild trades to
+  // retire the inline exec_hash UNIQUE (an undroppable autoindex) in favor of
+  // per-account composite dedup uniques. Ordering is load-bearing: AFTER the
+  // account_id ALTER + migrateAccountBackfill (the NOT NULL copy needs every
+  // row assigned) and AFTER the content-hash backfill + legacy-index block
+  // above (whose index this rebuild drops and supersedes). Idempotent via the
+  // composite-index gate; fresh new-shape installs take a no-copy fast path;
+  // any failure rolls back and boot continues on the old table. See
+  // migrate-trades-rebuild-dedup.ts.
+  migrateTradesRebuildDedup(conn, {
+    backup: () => backupBeforeTradesRebuildMigration(conn, dbPath),
+  })
+
+  // Multi-account Beat 2 — day_fees rebuild: PK (date, symbol) →
+  // (date, symbol, account_id); existing rows assigned to the default
+  // account. Registered AFTER the trades rebuild per the beat's ordering.
+  // Shape-gated (column present → no-op). See migrate-day-fees-account.ts.
+  migrateDayFeesAccount(conn)
 
   // v0.2.2 Commit A — float-rename data move. The shares_outstanding
   // columns themselves are added by the additive ALTERs above; this call

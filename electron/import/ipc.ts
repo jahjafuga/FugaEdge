@@ -27,6 +27,7 @@ import { buildRoundTrips } from '@/core/import/build-round-trips'
 import { deriveFeesUnavailable } from '@/core/import/feesUnavailable'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, commit, markSummariesSuperseded } from './repo'
+import { getDefaultAccountId } from '../accounts/repo'
 import { formatCommitLog } from './format-commit-log'
 import { refreshIntraday } from '../market/intraday'
 import { bumpDataVersion } from '../lib/cache'
@@ -100,7 +101,17 @@ export function registerImportIpc(): void {
 
   ipcMain.handle(
     IPC.IMPORT_PREVIEW,
-    async (_e, files: PreviewInputFile[], previewDate?: string): Promise<PreviewResult> => {
+    async (
+      _e,
+      files: PreviewInputFile[],
+      previewDate?: string,
+      accountId?: string,
+    ): Promise<PreviewResult> => {
+      // Multi-account Beat 2 — the preview's dedup truth is per-account.
+      // Resolved EXACTLY ONCE here (absent -> the default account; null on a
+      // virgin DB) and passed to every scoped read below. Beat 3's picker
+      // supplies accountId; until then this is always the default.
+      const scopeAccountId = accountId ?? getDefaultAccountId() ?? undefined
       const fileInfos: FileInfo[] = []
       const allExecutions = []
       // Round-trip-native parser output (Ocean One): trips that arrive already
@@ -633,13 +644,14 @@ export function registerImportIpc(): void {
       // yields to executions. The reverse (execution superseding a pre-existing
       // DB summary) is enforced destructively in commit().
       const { trips, superseded: supersededTrips } = markSummariesSuperseded(
-        annotateTripStatus([...computedTrips, ...directTrips]),
+        annotateTripStatus([...computedTrips, ...directTrips], scopeAccountId),
+        scopeAccountId,
       )
       // Fees status depends on day_fees lookup; only annotate the ones that
       // already have a date.
       const feesWithDate = allFees.filter((f) => f.date)
       const feesWithoutDate = allFees.filter((f) => !f.date)
-      const fees = [...annotateFeeStatus(feesWithDate), ...feesWithoutDate]
+      const fees = [...annotateFeeStatus(feesWithDate, scopeAccountId), ...feesWithoutDate]
 
       // Bump matchedTrips for fees whose (date, symbol) is also coming in
       // from the executions file in this same batch.
@@ -714,7 +726,7 @@ export function registerImportIpc(): void {
 
   ipcMain.handle(
     IPC.IMPORT_COMMIT,
-    async (e, { trips, fees, feeDateOverride }: CommitInput): Promise<CommitResult> => {
+    async (e, { trips, fees, feeDateOverride, account_id }: CommitInput): Promise<CommitResult> => {
       // Day 7.5: snapshot the DB before any executions / round_trips are
       // written. Day 9: a backup failure is caught and returned as a
       // structured BACKUP_FAILED issue — a thrown error's custom fields don't
@@ -743,11 +755,11 @@ export function registerImportIpc(): void {
       const usableFees = finalFees.filter((f) => f.date)
       const droppedNoDate = finalFees.length - usableFees.length
 
-      const reAnnotatedFees = annotateFeeStatus(usableFees)
+      const reAnnotatedFees = annotateFeeStatus(usableFees, account_id)
       const toInsertTrips: RoundTrip[] = trips.filter((t) => t.status !== 'duplicate')
       let out: ReturnType<typeof commit>
       try {
-        out = commit(toInsertTrips, reAnnotatedFees, '')
+        out = commit(toInsertTrips, reAnnotatedFees, '', account_id)
       } catch (err) {
         console.error(
           `[FJ commit] commit failed and rolled back: ${

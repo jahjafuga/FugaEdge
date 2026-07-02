@@ -58,6 +58,11 @@ const mockDb = {
 vi.mock('../../db/database', () => ({ openDatabase: () => mockDb }))
 vi.mock('../apply-fees', () => ({ recomputeFeesForDateSymbol: feesSpy }))
 vi.mock('../../trades/recompute-summary', () => ({ recomputeSummaryForDates: summarySpy }))
+// Beat 2: commit resolves the account scope for the resurrect UPDATE; pin it.
+vi.mock('../../accounts/repo', () => ({
+  getDefaultAccountId: () => 'ACCT-TEST',
+  ensureDefaultAccountId: () => 'ACCT-TEST',
+}))
 
 import { commit } from '../repo'
 
@@ -103,9 +108,12 @@ describe('dedup resurrect rides the existing recompute loops', () => {
     )
     // The load-bearing guard: distinguishes a true resurrect from a live dup.
     expect(upd!.sql).toMatch(/AND\s+deleted_at\s+IS\s+NOT\s+NULL/i)
+    // Beat 2: the resurrect is account-scoped — only this account's twin.
+    expect(upd!.sql).toMatch(/AND\s+account_id\s*=\s*@account_id/i)
     expect(upd!.args[0]).toEqual({
       exec_hash: 'EH-RESURRECT',
       content_hash: 'CH-RESURRECT',
+      account_id: 'ACCT-TEST',
     })
   })
 
@@ -129,7 +137,7 @@ describe('dedup resurrect rides the existing recompute loops', () => {
   it('invokes recomputeFeesForDateSymbol EXACTLY ONCE for the resurrected pair', () => {
     commit([tripFixture()], [], 'test')
     expect(feesSpy).toHaveBeenCalledTimes(1)
-    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL')
+    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL', 'ACCT-TEST') // Beat 2: account-scoped
   })
 
   it('invokes recomputeSummaryForDates EXACTLY ONCE with a Set containing the date', () => {

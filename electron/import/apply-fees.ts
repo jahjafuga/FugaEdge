@@ -16,7 +16,15 @@ import {
 // fix context. This wrapper carries no clamping of its own; whatever the
 // pure function returns is what lands in trades.fee_*.
 
-export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
+// Multi-account Beat 2: the spread is ACCOUNT-SCOPED end to end — the trip
+// pool, the day_fees lookup, and therefore every allocation write touch only
+// the owning account's rows. Account A's fee file can never land on Account
+// B's trades sharing the same (date, symbol).
+export function recomputeFeesForDateSymbol(
+  date: string,
+  symbol: string,
+  accountId: string,
+): void {
   const db = openDatabase()
 
   const trips = db
@@ -30,8 +38,9 @@ export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
         -- AND Mode 2 (collision → the DAS pool's share denominator now shrinks back
         -- to DAS-only, restoring the colliding DAS trade's split).
         AND fees_reported = 0
+        AND account_id = ?
     `)
-    .all(date, symbol) as TripShare[]
+    .all(date, symbol, accountId) as TripShare[]
 
   if (trips.length === 0) {
     // Nothing to update. day_fees stays parked for when trades arrive later.
@@ -41,9 +50,9 @@ export function recomputeFeesForDateSymbol(date: string, symbol: string): void {
   const fees = db
     .prepare(`
       SELECT fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat
-      FROM day_fees WHERE date = ? AND symbol = ?
+      FROM day_fees WHERE date = ? AND symbol = ? AND account_id = ?
     `)
-    .get(date, symbol) as DayFees | undefined
+    .get(date, symbol, accountId) as DayFees | undefined
 
   const update = db.prepare(`
     UPDATE trades SET
@@ -69,12 +78,14 @@ export function recomputeFeesForDates(dates: string[]): void {
   const db = openDatabase()
   if (dates.length === 0) return
   const placeholders = dates.map(() => '?').join(',')
-  const pairs = db
+  // Beat 2: the replay enumerates (date, symbol, account) TRIPLES so each
+  // account's pool re-spreads independently.
+  const triples = db
     .prepare(`
-      SELECT DISTINCT date, symbol FROM trades WHERE date IN (${placeholders}) AND deleted_at IS NULL
+      SELECT DISTINCT date, symbol, account_id FROM trades WHERE date IN (${placeholders}) AND deleted_at IS NULL
     `)
-    .all(...dates) as { date: string; symbol: string }[]
-  for (const { date, symbol } of pairs) {
-    recomputeFeesForDateSymbol(date, symbol)
+    .all(...dates) as { date: string; symbol: string; account_id: string }[]
+  for (const { date, symbol, account_id } of triples) {
+    recomputeFeesForDateSymbol(date, symbol, account_id)
   }
 }

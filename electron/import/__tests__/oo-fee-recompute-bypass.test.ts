@@ -149,7 +149,7 @@ describe('recomputeFeesForDateSymbol bypasses authoritative-fee trips (EDIT 2)',
     trades = [
       row({ id: 1, fees_reported: 1, gross_pnl: 0.03, total_fees: 0.15, net_pnl: -0.12, pnl: -0.12 }),
     ]
-    recomputeFeesForDateSymbol('2026-05-18', 'LABT')
+    recomputeFeesForDateSymbol('2026-05-18', 'LABT', 'ACCT-TEST') // Beat 2: account param
     expect(byId(1).total_fees).toBe(0.15)
     expect(byId(1).net_pnl).toBe(-0.12)
   })
@@ -164,7 +164,7 @@ describe('recomputeFeesForDateSymbol bypasses authoritative-fee trips (EDIT 2)',
     dayFees = [
       { date: '2026-05-18', symbol: 'LABT', fee_ecn: 0, fee_sec: 0, fee_finra: 0, fee_htb: 0, fee_cat: 0.1 },
     ]
-    recomputeFeesForDateSymbol('2026-05-18', 'LABT')
+    recomputeFeesForDateSymbol('2026-05-18', 'LABT', 'ACCT-TEST') // Beat 2: account param
     // DAS gets the WHOLE 0.10 pool (denominator excludes OO's 200 shares).
     expect(byId(2).total_fees).toBe(0.1)
     expect(byId(2).fee_cat).toBe(0.1)
@@ -182,7 +182,7 @@ describe('recomputeFeesForDateSymbol bypasses authoritative-fee trips (EDIT 2)',
     dayFees = [
       { date: '2026-05-18', symbol: 'LABT', fee_ecn: 0, fee_sec: 0, fee_finra: 0, fee_htb: 0, fee_cat: 0.1 },
     ]
-    recomputeFeesForDateSymbol('2026-05-18', 'LABT')
+    recomputeFeesForDateSymbol('2026-05-18', 'LABT', 'ACCT-TEST') // Beat 2: account param
     // 200/200 share split → 0.05 each (residue on the last). Unchanged by the fix.
     expect(byId(1).total_fees).toBe(0.05)
     expect(byId(2).total_fees).toBe(0.05)

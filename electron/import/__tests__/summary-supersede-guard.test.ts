@@ -28,7 +28,9 @@ let dbExecutionRows: { symbol: string; date: string }[] = [] // SELECT DISTINCT 
 let dbSummaryKeys = new Set<string>() // `${symbol}|${date}` rows the supersede DELETE will hit
 let runLog: { sql: string; args: unknown[] }[] = []
 
-const SUPERSEDE_RE = /DELETE\s+FROM\s+trades\s+WHERE\s+symbol\s*=\s*\?\s+AND\s+date\s*=\s*\?\s+AND\s+source_format\s*=\s*'summary'/i
+// Beat 2: the supersede DELETE is account-scoped (… AND account_id = ?) —
+// the regex pins the scoped shape so an unscoped regression fails loudly.
+const SUPERSEDE_RE = /DELETE\s+FROM\s+trades\s+WHERE\s+symbol\s*=\s*\?\s+AND\s+date\s*=\s*\?\s+AND\s+source_format\s*=\s*'summary'\s+AND\s+deleted_at\s+IS\s+NULL\s+AND\s+account_id\s*=\s*\?/i
 
 const mockDb = {
   prepare(sql: string) {
@@ -62,6 +64,12 @@ const mockDb = {
 vi.mock('../../db/database', () => ({ openDatabase: () => mockDb }))
 vi.mock('../apply-fees', () => ({ recomputeFeesForDateSymbol: feesSpy }))
 vi.mock('../../trades/recompute-summary', () => ({ recomputeSummaryForDates: summarySpy }))
+// Beat 2: the gate/covered-set/commit resolve the account scope; pin it to a
+// stable id so the shim's account-blind routing keeps the same semantics.
+vi.mock('../../accounts/repo', () => ({
+  getDefaultAccountId: () => 'ACCT-TEST',
+  ensureDefaultAccountId: () => 'ACCT-TEST',
+}))
 
 import { markSummariesSuperseded, commit } from '../repo'
 
@@ -163,7 +171,7 @@ describe('commit() — execution supersedes a pre-existing DB summary (case b)',
     // Exactly one supersede DELETE, for (X, 2026-06-15), and it removed the row.
     const dels = supersedeDeletes()
     expect(dels).toHaveLength(1)
-    expect(dels[0].args).toEqual(['X', '2026-06-15'])
+    expect(dels[0].args).toEqual(['X', '2026-06-15', 'ACCT-TEST']) // Beat 2: account-scoped
     expect(out.supersededTrips).toBe(1)
     expect(dbSummaryKeys.has('X|2026-06-15')).toBe(false) // gone from the modelled DB
   })
@@ -187,7 +195,7 @@ describe('commit() — execution supersedes a pre-existing DB summary (case b)',
     const dels = supersedeDeletes()
     // Only ONE delete ran — for the incoming execution's key.
     expect(dels).toHaveLength(1)
-    expect(dels[0].args).toEqual(['X', '2026-06-15'])
+    expect(dels[0].args).toEqual(['X', '2026-06-15', 'ACCT-TEST']) // Beat 2: account-scoped
     expect(out.supersededTrips).toBe(1)
     // (Z,D2) summary never targeted; (Y,D) execution never targeted.
     expect(dbSummaryKeys.has('Z|2026-06-20')).toBe(true)
@@ -219,6 +227,6 @@ describe('commit() — execution supersedes a pre-existing DB summary (case b)',
     // The DELETE still RUNS (idempotent enforcement) but matches nothing.
     const dels = supersedeDeletes()
     expect(dels).toHaveLength(1)
-    expect(dels[0].args).toEqual(['NONE', '2026-06-15'])
+    expect(dels[0].args).toEqual(['NONE', '2026-06-15', 'ACCT-TEST']) // Beat 2: account-scoped
   })
 })

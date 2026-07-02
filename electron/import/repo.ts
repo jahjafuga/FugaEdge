@@ -2,16 +2,22 @@ import { openDatabase } from '../db/database'
 import type { DaySummaryFeeRow, RoundTrip } from '@shared/import-types'
 import { recomputeFeesForDateSymbol } from './apply-fees'
 import { recomputeSummaryForDates } from '../trades/recompute-summary'
-import { ensureDefaultAccountId } from '../accounts/repo'
+import { ensureDefaultAccountId, getDefaultAccountId } from '../accounts/repo'
 
-export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
+export function annotateTripStatus(trips: RoundTrip[], accountId?: string): RoundTrip[] {
   const db = openDatabase()
   // v0.2.1 dual-hash dedup. A trip is duplicate if EITHER hash matches an
   // existing row. exec_hash catches identical-ID re-imports (v0.1.6 contract);
   // content_hash catches cross-format overlap where the same logical fill
   // carries different per-fill IDs (scenarios b1/b2/b3 from the 2026-05-26
-  // dedup investigation). Both columns are indexed (UNIQUE on exec_hash,
-  // partial UNIQUE on content_hash), so the OR clause is sargable on either.
+  // dedup investigation). Both hashes are composite-unique per account
+  // (Beat 2 rebuild), so the OR clause stays sargable on either.
+  //
+  // Multi-account Beat 2: the gate is ACCOUNT-SCOPED — a duplicate is a
+  // same-account hash match; another account's identical row is NOT a
+  // duplicate (scoping, not re-hashing). accountId absent resolves the
+  // default (today's single-account behavior); a null default (virgin DB —
+  // no accounts means no trades) marks everything new without querying.
   //
   // v0.2.3: only LIVE rows count as duplicates. A soft-deleted trade no longer
   // blocks its own re-import — preview shows it as 'new', the INSERT OR IGNORE
@@ -19,11 +25,15 @@ export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   // branch resurrects it (clears deleted_at). The OR must be parenthesized:
   // AND binds tighter than OR, so without parens the filter would only apply
   // to the content_hash arm.
+  const scope = accountId ?? getDefaultAccountId()
+  if (scope == null) {
+    return trips.map((t) => ({ ...t, status: 'new' as const }))
+  }
   const stmt = db.prepare(
-    'SELECT 1 FROM trades WHERE (exec_hash = ? OR content_hash = ?) AND deleted_at IS NULL LIMIT 1',
+    'SELECT 1 FROM trades WHERE (exec_hash = ? OR content_hash = ?) AND account_id = ? AND deleted_at IS NULL LIMIT 1',
   )
   return trips.map((t) => {
-    const hit = stmt.get(t.exec_hash, t.content_hash)
+    const hit = stmt.get(t.exec_hash, t.content_hash, scope)
     return { ...t, status: hit ? ('duplicate' as const) : ('new' as const) }
   })
 }
@@ -37,20 +47,30 @@ export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
 // incoming batch (Scenario 1). PURE status logic, NO deletion. The destructive
 // other half (an execution superseding a pre-existing DB summary) lives in
 // commit(). Returns the annotated trips + the count of summaries marked.
-export function markSummariesSuperseded(trips: RoundTrip[]): {
+export function markSummariesSuperseded(
+  trips: RoundTrip[],
+  accountId?: string,
+): {
   trips: RoundTrip[]
   superseded: number
 } {
   const db = openDatabase()
-  // (symbol,date) keys with authoritative coverage already LIVE in the DB.
+  // (symbol,date) keys with authoritative coverage already LIVE in the DB —
+  // Beat 2: scoped to THIS account only (another account's executions must
+  // never swallow this account's incoming summary). Same-batch coverage below
+  // stays account-independent: one import = one account. A null scope (virgin
+  // DB) skips the DB set entirely.
+  const scope = accountId ?? getDefaultAccountId()
   const covered = new Set(
-    (
-      db
-        .prepare(
-          "SELECT DISTINCT symbol, date FROM trades WHERE source_format != 'summary' AND deleted_at IS NULL",
-        )
-        .all() as { symbol: string; date: string }[]
-    ).map((r) => `${r.symbol}|${r.date}`),
+    scope == null
+      ? []
+      : (
+          db
+            .prepare(
+              "SELECT DISTINCT symbol, date FROM trades WHERE source_format != 'summary' AND deleted_at IS NULL AND account_id = ?",
+            )
+            .all(scope) as { symbol: string; date: string }[]
+        ).map((r) => `${r.symbol}|${r.date}`),
   )
   // ...plus authoritative coverage arriving in THIS batch (same-batch overlap).
   for (const t of trips) {
@@ -71,17 +91,27 @@ export function markSummariesSuperseded(trips: RoundTrip[]): {
   return { trips: annotated, superseded }
 }
 
-export function annotateFeeStatus(fees: DaySummaryFeeRow[]): DaySummaryFeeRow[] {
+export function annotateFeeStatus(
+  fees: DaySummaryFeeRow[],
+  accountId?: string,
+): DaySummaryFeeRow[] {
   const db = openDatabase()
+  // Beat 2: fee-row status is per-account — day_fees is keyed
+  // (date, symbol, account_id) and another account's row is not "ours" to
+  // replace. A null scope (virgin DB) means nothing can exist yet.
+  const scope = accountId ?? getDefaultAccountId()
+  if (scope == null) {
+    return fees.map((f) => ({ ...f, status: 'new' as const, matchedTrips: 0 }))
+  }
   const existsStmt = db.prepare(
-    'SELECT 1 FROM day_fees WHERE date = ? AND symbol = ? LIMIT 1',
+    'SELECT 1 FROM day_fees WHERE date = ? AND symbol = ? AND account_id = ? LIMIT 1',
   )
   const tripCountStmt = db.prepare(
-    'SELECT COUNT(*) AS n FROM trades WHERE date = ? AND symbol = ?',
+    'SELECT COUNT(*) AS n FROM trades WHERE date = ? AND symbol = ? AND account_id = ?',
   )
   return fees.map((f) => {
-    const exists = existsStmt.get(f.date, f.symbol)
-    const tripCount = (tripCountStmt.get(f.date, f.symbol) as { n: number }).n
+    const exists = existsStmt.get(f.date, f.symbol, scope)
+    const tripCount = (tripCountStmt.get(f.date, f.symbol, scope) as { n: number }).n
     return {
       ...f,
       status: exists ? ('replace' as const) : ('new' as const),
@@ -243,8 +273,10 @@ export function commit(
   // working state (an unclosed position), so a trashed open row is not
   // preserved/resurrected the way a trashed CLOSED trip is; it is purged and
   // replaced. Intentional — do not add a deleted_at guard here.
+  // Beat 2: account-scoped — Account A's open working state survives
+  // Account B's import of the same (symbol, date).
   const purgeOpen = db.prepare(
-    'DELETE FROM trades WHERE symbol = ? AND date = ? AND is_open = 1',
+    'DELETE FROM trades WHERE symbol = ? AND date = ? AND is_open = 1 AND account_id = ?',
   )
 
   // TradeZero File 2 Phase 2 (case b) — an authoritative (non-summary) trip
@@ -255,8 +287,10 @@ export function commit(
   // so it can NEVER touch an execution, a hand-entered trip, or a summary for a
   // (symbol,date) with no execution coverage. Runs in the same transaction as
   // the inserts below, so executions-insert + stale-summary-purge are atomic.
+  // Beat 2: account-scoped — only THIS account's stale summary stand-ins are
+  // replaced by its own authoritative fills.
   const supersedeSummary = db.prepare(
-    "DELETE FROM trades WHERE symbol = ? AND date = ? AND source_format = 'summary' AND deleted_at IS NULL",
+    "DELETE FROM trades WHERE symbol = ? AND date = ? AND source_format = 'summary' AND deleted_at IS NULL AND account_id = ?",
   )
 
   // v0.2.1 uses INSERT OR IGNORE rather than multi-target ON CONFLICT — the
@@ -312,10 +346,12 @@ export function commit(
     )
   `)
 
+  // Beat 2: fee rows are keyed (date, symbol, account_id) — this import's
+  // rows land under its account and can only replace that account's rows.
   const upsertFees = db.prepare(`
-    INSERT INTO day_fees (date, symbol, fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees, source)
-    VALUES (@date, @symbol, @fee_ecn, @fee_sec, @fee_finra, @fee_htb, @fee_cat, @total_fees, @source)
-    ON CONFLICT(date, symbol) DO UPDATE SET
+    INSERT INTO day_fees (date, symbol, fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees, source, account_id)
+    VALUES (@date, @symbol, @fee_ecn, @fee_sec, @fee_finra, @fee_htb, @fee_cat, @total_fees, @source, @account_id)
+    ON CONFLICT(date, symbol, account_id) DO UPDATE SET
       fee_ecn    = excluded.fee_ecn,
       fee_sec    = excluded.fee_sec,
       fee_finra  = excluded.fee_finra,
@@ -333,8 +369,11 @@ export function commit(
   // so without the guard a LIVE duplicate would falsely count as a resurrect.
   // The guard makes info.changes the exact signal: > 0 ⇒ a trashed row was
   // revived, 0 ⇒ an ordinary live duplicate.
+  // Beat 2: account-scoped — revive only THIS account's soft-deleted twin;
+  // another account's trash is invisible here (its identical hashes are a
+  // legitimate separate row under the composite uniques).
   const resurrectTrip = db.prepare(
-    'UPDATE trades SET deleted_at = NULL WHERE (exec_hash = @exec_hash OR content_hash = @content_hash) AND deleted_at IS NOT NULL',
+    'UPDATE trades SET deleted_at = NULL WHERE (exec_hash = @exec_hash OR content_hash = @content_hash) AND account_id = @account_id AND deleted_at IS NOT NULL',
   )
 
   let insertedTrips = 0
@@ -352,7 +391,7 @@ export function commit(
     for (const t of trips) purgeKeys.add(`${t.symbol}|${t.date}`)
     for (const key of purgeKeys) {
       const [symbol, date] = key.split('|')
-      purgeOpen.run(symbol, date)
+      purgeOpen.run(symbol, date, resolvedAccountId)
     }
 
     // case b — purge any stale DB summary superseded by an incoming AUTHORITATIVE
@@ -367,7 +406,7 @@ export function commit(
     }
     for (const key of authKeys) {
       const [symbol, date] = key.split('|')
-      supersededTrips += supersedeSummary.run(symbol, date).changes
+      supersededTrips += supersedeSummary.run(symbol, date, resolvedAccountId).changes
     }
 
     for (const t of trips) {
@@ -452,6 +491,7 @@ export function commit(
         const revived = resurrectTrip.run({
           exec_hash: t.exec_hash,
           content_hash: t.content_hash,
+          account_id: resolvedAccountId,
         })
         if (revived.changes > 0) {
           resurrectedTrips++
@@ -475,6 +515,7 @@ export function commit(
         fee_cat: f.fee_cat,
         total_fees: f.total_fees,
         source,
+        account_id: resolvedAccountId,
       })
       if (wasReplace) replacedFees++
       else insertedFees++
@@ -487,7 +528,7 @@ export function commit(
     // round trip joining the pool — pro-rata gets redistributed.
     for (const p of pairs) {
       const [date, symbol] = p.split('|')
-      recomputeFeesForDateSymbol(date, symbol)
+      recomputeFeesForDateSymbol(date, symbol, resolvedAccountId)
     }
 
     recomputeSummaryForDates(dates)

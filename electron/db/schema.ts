@@ -112,10 +112,25 @@
 // Prior bump (19, Day 8.5 Commit B): timestamps flipped from bare-local
 // Eastern to true UTC. See migrate-tz-utc.ts.
 //
+// Bumped to 38 for multi-account Beat 2 — the trades-table rebuild that
+// retires the inline exec_hash UNIQUE (an undroppable sqlite_autoindex) in
+// favor of per-account composite dedup: UNIQUE(account_id, exec_hash) +
+// UNIQUE(account_id, content_hash) WHERE content_hash IS NOT NULL (the latter
+// supersedes the single-column idx_trades_content_hash). Fresh installs get
+// the new table shape natively below (exec_hash without inline UNIQUE,
+// account_id NOT NULL REFERENCES accounts(id)); upgrades run the guarded
+// one-transaction rebuild in migrate-trades-rebuild-dedup.ts (backup-latched,
+// foreign_key_check-proven, aborts to the old table on any failure). The
+// composite indexes are deliberately NOT declared here: SCHEMA_SQL executes
+// BEFORE the account_id ALTER on a legacy upgrade boot, and CREATE INDEX on a
+// missing column would brick that boot — the migration's fresh-shape fast
+// path creates them instead. The bump is release-tracking; the migration is
+// gated on the composite index's existence, not the version.
+//
 // Bumped to 37: journal-rules data-model scaffold. Registers
 // migrate-journal-rules-to-objects (string[] -> JournalRule[]) — a NO-OP this
 // beat (detect-and-log only); the data conversion lands in Beat 2.
-export const SCHEMA_VERSION = '37'
+export const SCHEMA_VERSION = '38'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -149,12 +164,17 @@ CREATE TABLE IF NOT EXISTS trades (
   commission      REAL,                                       -- Ocean One Comm: a display SLICE of total_fees (already folded in, NOT additive). NULL = not separately reported (renders em-dash, never a fabricated $0). Added via migrateAddCommission for upgraded DBs.
   net_pnl         REAL    NOT NULL DEFAULT 0,                 -- gross_pnl - total_fees
   executions_json TEXT    NOT NULL DEFAULT '[]',              -- raw fills, parent→children grouping
-  exec_hash       TEXT    NOT NULL UNIQUE,                    -- SHA-1 of sorted TradeID:OrderID
+  -- Multi-account Beat 2 (schema 38): exec_hash is NO LONGER inline-UNIQUE —
+  -- dedup uniqueness is per account via idx_trades_exec_hash_account
+  -- (account_id, exec_hash), created by migrate-trades-rebuild-dedup's
+  -- fresh-shape fast path (see the SCHEMA_VERSION 38 note for why it cannot
+  -- live in SCHEMA_SQL). Hash computation itself is unchanged.
+  exec_hash       TEXT    NOT NULL,                           -- SHA-1 of sorted TradeID:OrderID
   -- content_hash column is added in migrateAfterSchema (additive ALTER) so
-  -- existing v0.1.6/v0.2.0 rows can be backfilled idempotently. The partial
-  -- UNIQUE index "idx_trades_content_hash" (WHERE content_hash IS NOT NULL)
-  -- is also created in migrateAfterSchema after the migration sweep so
-  -- legacy NULL rows can coexist with the constraint.
+  -- existing v0.1.6/v0.2.0 rows can be backfilled idempotently. Its
+  -- uniqueness is likewise per account (idx_trades_content_hash_account,
+  -- partial over NOT NULL) — the old single-column idx_trades_content_hash
+  -- is superseded and guarded against resurrection in migrateAfterSchema.
   entry_timeframe TEXT,                                       -- user-input: '10s' | '1m' | '5m'
   entry_ema9_distance_pct REAL,                               -- backfilled from intraday_bars
   created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -162,7 +182,14 @@ CREATE TABLE IF NOT EXISTS trades (
   -- (recoverable). Readers filter on deleted_at IS NULL; getTrade() does NOT
   -- (it returns deleted rows so the UI can render them differently). Also
   -- added via the migrateAddDeletedAt ALTER for upgraded DBs.
-  deleted_at      TEXT
+  deleted_at      TEXT,
+  -- Multi-account Beat 1/2 — the ASSIGNED trading account (accounts.id
+  -- ULID; account_name above stays raw import evidence). NOT NULL on fresh
+  -- installs; upgraded DBs reach the same shape via the additive ALTER +
+  -- backfill + rebuild chain in migrateAfterSchema. The forward reference is
+  -- fine: SQLite resolves FK targets at DML time, not at CREATE time, so
+  -- accounts being declared later in this script is tolerated.
+  account_id      TEXT    NOT NULL REFERENCES accounts(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_date        ON trades(date);

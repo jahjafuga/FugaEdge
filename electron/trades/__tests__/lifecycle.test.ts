@@ -17,7 +17,7 @@ let runLog: { sql: string; args: unknown[] }[] = []
 let transactionCalls = 0
 // Configurable per test: rows returned by the `WHERE id IN` capture SELECT and
 // the trade_attachments SELECT.
-let affectedRows: { date: string; symbol: string }[] = []
+let affectedRows: { date: string; symbol: string; account_id: string }[] = []
 let attachmentRows: { trade_id: number; filename: string }[] = []
 
 const mockDb = {
@@ -62,7 +62,7 @@ const runsMatching = (re: RegExp) => runLog.filter((r) => re.test(r.sql))
 beforeEach(() => {
   runLog = []
   transactionCalls = 0
-  affectedRows = [{ date: '2026-01-05', symbol: 'AAPL' }]
+  affectedRows = [{ date: '2026-01-05', symbol: 'AAPL', account_id: 'ACCT-1' }]
   attachmentRows = []
   feesSpy.mockClear()
   summarySpy.mockClear()
@@ -85,13 +85,14 @@ describe('softDelete', () => {
 
   it('recomputes fees per affected pair and summary for affected dates', () => {
     affectedRows = [
-      { date: '2026-01-05', symbol: 'AAPL' },
-      { date: '2026-01-06', symbol: 'TSLA' },
+      { date: '2026-01-05', symbol: 'AAPL', account_id: 'ACCT-1' },
+      { date: '2026-01-06', symbol: 'TSLA', account_id: 'ACCT-2' },
     ]
     softDeleteTrades([7, 8])
+    // Beat 2: the fee re-spread is (date, symbol, account)-scoped.
     expect(feesSpy.mock.calls).toEqual([
-      ['2026-01-05', 'AAPL'],
-      ['2026-01-06', 'TSLA'],
+      ['2026-01-05', 'AAPL', 'ACCT-1'],
+      ['2026-01-06', 'TSLA', 'ACCT-2'],
     ])
     expect(summarySpy).toHaveBeenCalledTimes(1)
     const dates = summarySpy.mock.calls[0][0] as Set<string>
@@ -121,7 +122,7 @@ describe('restore', () => {
 
   it('recomputes fees + summary and wraps in one transaction', () => {
     restoreTrades([7])
-    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL')
+    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL', 'ACCT-1') // Beat 2: account-scoped
     expect(summarySpy).toHaveBeenCalledTimes(1)
     expect(transactionCalls).toBe(1)
   })
@@ -160,7 +161,7 @@ describe('hardDelete', () => {
 
   it('recomputes fees + summary and wraps in one transaction', () => {
     hardDeleteTrades([7])
-    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL')
+    expect(feesSpy).toHaveBeenCalledWith('2026-01-05', 'AAPL', 'ACCT-1') // Beat 2: account-scoped
     expect(summarySpy).toHaveBeenCalledTimes(1)
     expect(transactionCalls).toBe(1)
   })
