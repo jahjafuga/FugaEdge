@@ -12,13 +12,16 @@ import {
 // UI-free, the iteration-4 icons.ts precedent).
 
 describe('challengeBadgeId — preset → named catalog badge (R2)', () => {
-  it('maps each preset id to its named challenge badge', () => {
+  it('maps equity presets to their named badge; retired process shadows fall to generic', () => {
     expect(challengeBadgeId('equity-million')).toBe('challenge-million')
     expect(challengeBadgeId('equity-grow-base')).toBe('challenge-grow-base')
-    expect(challengeBadgeId('journal-30')).toBe('challenge-journal-30')
-    expect(challengeBadgeId('annotation-century')).toBe('challenge-annotation-century')
-    expect(challengeBadgeId('discipline-week')).toBe('challenge-discipline-week')
-    expect(challengeBadgeId('review-ritual')).toBe('challenge-review-ritual')
+    // Approach A: the four process ladder-shadow badges are retired. Their
+    // presets survive (the goal and its XP live on) but now mint the generic
+    // challenge-complete; Journaler/Aligned/Reviewer/Annotator carry the honor.
+    expect(challengeBadgeId('journal-30')).toBe('challenge-complete')
+    expect(challengeBadgeId('annotation-century')).toBe('challenge-complete')
+    expect(challengeBadgeId('discipline-week')).toBe('challenge-complete')
+    expect(challengeBadgeId('review-ritual')).toBe('challenge-complete')
   })
 
   it('null (custom goal) and unknown presets fall back to the generic badge', () => {

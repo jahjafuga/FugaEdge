@@ -83,16 +83,12 @@ export const BADGE_CATALOG: readonly BadgeDef[] = [
     description: 'Reach level 75.', grades: AT(75) },
   { id: 'level-99', name: 'Level 99', icon: 'Crown', unit: 'level', category: 'milestone',
     description: 'Reach the level cap.', grades: AT(99) },
-  // ── Challenge badges (named per preset + a generic for custom). Untiered;
-  //    minted at challenge completion via challengeBadgeId (R2). ──
-  { id: 'challenge-journal-30', name: 'Journal 30 Days', icon: 'BookOpen', unit: '', category: 'challenge',
-    description: 'Completed the Journal 30 Days challenge.', grades: SINGLE },
-  { id: 'challenge-annotation-century', name: 'Annotation Century', icon: 'PenLine', unit: '', category: 'challenge',
-    description: 'Completed the Annotation Century challenge.', grades: SINGLE },
-  { id: 'challenge-discipline-week', name: 'Discipline Week', icon: 'Target', unit: '', category: 'challenge',
-    description: 'Completed the Discipline Week challenge.', grades: SINGLE },
-  { id: 'challenge-review-ritual', name: 'Review Ritual', icon: 'Repeat', unit: '', category: 'challenge',
-    description: 'Completed the Review Ritual challenge.', grades: SINGLE },
+  // ── Challenge badges — the two EQUITY challenges + a generic for custom.
+  //    Untiered; minted at completion via challengeBadgeId (R2). The four
+  //    process ladder-shadows (journal-30 / annotation-century / discipline-week
+  //    / review-ritual) were RETIRED (Approach A): their presets survive but now
+  //    mint the generic challenge-complete; the Journaler / Aligned / Reviewer /
+  //    Annotator ladders carry those accomplishments. ──
   { id: 'challenge-grow-base', name: 'Grow the Base', icon: 'TrendingUp', unit: '', category: 'challenge',
     description: 'Completed the Grow the Base equity challenge.', grades: SINGLE },
   { id: 'challenge-million', name: 'Make a Million', icon: 'Trophy', unit: '', category: 'challenge',
@@ -109,13 +105,11 @@ export function badgeById(id: string): BadgeDef | undefined {
   return BY_ID.get(id)
 }
 
-// Preset id → its named challenge badge (R2). A custom / diverged goal carries
-// preset_id null and mints the single generic badge. NEVER 'goal:'+ulid again.
+// Preset id → its named challenge badge (R2). Only the EQUITY presets keep a
+// named badge; the four process presets were retired (Approach A) and fall
+// through to the generic challenge-complete, as does a custom / diverged goal
+// (preset_id null). NEVER 'goal:'+ulid again.
 const PRESET_BADGE: Readonly<Record<string, string>> = {
-  'journal-30': 'challenge-journal-30',
-  'annotation-century': 'challenge-annotation-century',
-  'discipline-week': 'challenge-discipline-week',
-  'review-ritual': 'challenge-review-ritual',
   'equity-grow-base': 'challenge-grow-base',
   'equity-million': 'challenge-million',
 }
