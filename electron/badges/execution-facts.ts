@@ -11,6 +11,7 @@
 // respected) are assembled in mint.ts, not here.
 
 import { openDatabase } from '../db/database'
+import { SIM_WALL } from '../accounts/scope'
 import { sqlIsWin } from '@/core/classify/outcome'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 
@@ -19,14 +20,16 @@ const LOW_FLOAT_MAX = 20_000_000
 /** Profitable trading days — judged on the per-DATE SUM across accounts
  *  (daily_summary is keyed (date, account_id) since Beat 4; badges keep their
  *  GLOBAL combined-trading meaning by aggregating before judging green).
- *  Sim exclusion here is DEFERRED to the sim-unlock audit beat — safe today
- *  because sim imports are blocked, so no sim rows can exist. */
+ *  Sim exclusion LANDED in the sim-unlock audit (fix beat 2, Lao ruling
+ *  2026-07-02): outcome facts judge REAL money only — the sim wall fences
+ *  every read in this file. These facts stay ruled-GLOBAL and never take a
+ *  scope param; the wall is a data-integrity fence, not scope participation. */
 export function countGreenDays(): number {
   const db = openDatabase()
   return (
     db
       .prepare(
-        'SELECT COUNT(*) AS n FROM (SELECT date FROM daily_summary GROUP BY date HAVING SUM(total_pnl) > 0)',
+        `SELECT COUNT(*) AS n FROM (SELECT date FROM daily_summary WHERE ${SIM_WALL} GROUP BY date HAVING SUM(total_pnl) > 0)`,
       )
       .get() as { n: number }
   ).n
@@ -38,7 +41,9 @@ export function countWinningTrades(): number {
   const db = openDatabase()
   return (
     db
-      .prepare(`SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL AND ${sqlIsWin()}`)
+      .prepare(
+        `SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL AND ${SIM_WALL} AND ${sqlIsWin()}`,
+      )
       .get(SCRATCH_EPSILON) as { n: number }
   ).n
 }
@@ -50,7 +55,7 @@ export function countLowFloatTrades(maxFloat: number = LOW_FLOAT_MAX): number {
   return (
     db
       .prepare(
-        'SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL AND float_shares IS NOT NULL AND float_shares < ?',
+        `SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL AND ${SIM_WALL} AND float_shares IS NOT NULL AND float_shares < ?`,
       )
       .get(maxFloat) as { n: number }
   ).n
@@ -63,10 +68,10 @@ export function countLowFloatTrades(maxFloat: number = LOW_FLOAT_MAX): number {
 export function longestGreenStreak(): number {
   const db = openDatabase()
   // Per-date SUM across accounts (Beat 4 re-key) — the walk itself is
-  // unchanged; sim exclusion deferred per the countGreenDays note above.
+  // unchanged; the sim wall landed per the countGreenDays note above.
   const rows = db
     .prepare(
-      'SELECT SUM(total_pnl) AS total_pnl FROM daily_summary GROUP BY date ORDER BY date ASC',
+      `SELECT SUM(total_pnl) AS total_pnl FROM daily_summary WHERE ${SIM_WALL} GROUP BY date ORDER BY date ASC`,
     )
     .all() as { total_pnl: number }[]
   let run = 0

@@ -11,6 +11,7 @@
 // The pure rule + per-day intent gate live in @/core/xp/discipline.
 
 import { openDatabase } from '../db/database'
+import { SIM_WALL } from '../accounts/scope'
 import type { DayPnl } from '@/core/xp/discipline'
 
 /** Per-date REALIZED net P&L (SUM net_pnl) + closed-trade count over non-deleted
@@ -25,11 +26,15 @@ export function netPnlByDate(dates?: string[]): Map<string, DayPnl> {
       : ''
   const rows = db
     .prepare(
+      // Sim-unlock audit fix beat 2 — the maxloss award judges REAL money
+      // only (Lao ruling 2026-07-02): the sim wall fences this one
+      // money-reading query. Still the single A2 exception; still no scope
+      // param — the wall is a data-integrity fence.
       `SELECT date,
               SUM(net_pnl) AS net_pnl,
               COUNT(*)     AS trade_count
          FROM trades
-        WHERE deleted_at IS NULL AND close_time IS NOT NULL
+        WHERE deleted_at IS NULL AND close_time IS NOT NULL AND ${SIM_WALL}
           ${scope}
         GROUP BY date`,
     )

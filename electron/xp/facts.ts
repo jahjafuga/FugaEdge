@@ -101,6 +101,10 @@ export function mapTradeRow(r: TradeFactDbRow): TradeFact {
  * journaled days are included. Optional `dates` scopes the universe (hook
  * path). importedAt = MIN(created_at) over the date's non-deleted trades
  * (R1: MIN, so a straggler fill can never re-qualify an old session).
+ *
+ * Sim-unlock audit (Lao ruling 2026-07-02): practice is PROCESS — sim
+ * trade-days count toward process XP. This read deliberately carries NO sim
+ * wall and NO account dimension (pinned in pnl-facts-sim-wall.test.ts).
  */
 export function assembleSessionFacts(dates?: string[]): SessionFact[] {
   const db = openDatabase()
@@ -143,6 +147,10 @@ export function assembleSessionFacts(dates?: string[]): SessionFact[] {
  * the full-input output's slice — so assembling stale trades could only
  * ever produce work the engine immediately discards. Optional `dates`
  * scopes further (hook path). NO P&L columns (A2).
+ *
+ * Sim-unlock audit (Lao ruling 2026-07-02): practice is PROCESS — sim
+ * trades count toward process XP. NO sim wall, NO account dimension here
+ * (pinned in pnl-facts-sim-wall.test.ts).
  */
 export function assembleTradeFacts(
   fromDate: string,

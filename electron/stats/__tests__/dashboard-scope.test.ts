@@ -111,3 +111,18 @@ describe('getDashboardData — single-account scope', () => {
     expect(emptyRead.args).toEqual(['ACCT-X'])
   })
 })
+
+// Sim-unlock audit, fix beat 2 — RULING-1 PIN (Lao 2026-07-02: practice is
+// process). The showing-up streak counts sim trade-days: its traded-days
+// read carries NO wall and NO account dimension, under every scope.
+describe('the showing-up streak — wall-free by ruling (sim days count)', () => {
+  it('the streak trades read carries no wall and no account dimension', () => {
+    getDashboardData('all', { accountId: 'ACCT-X' })
+    getDashboardData('all', 'all')
+    const streakReads = streakTradeReads()
+    expect(streakReads.length).toBeGreaterThanOrEqual(2)
+    for (const r of streakReads) {
+      expect(r.sql).not.toMatch(/account_id/i)
+    }
+  })
+})

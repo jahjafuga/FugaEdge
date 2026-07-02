@@ -260,6 +260,9 @@ function readMonth(
 // discipline (traded OR journaled), not P&L — and feeds the identity system
 // (sidebar chip / streak surfaces). It therefore stays GLOBAL and takes no
 // account scope, by the same law that keeps XP/badges/streaks/goals global.
+// Sim-unlock audit (Lao ruling 2026-07-02): sim trade-days COUNT — practice
+// is process. The traded-days read below deliberately carries NO sim wall
+// (pinned in dashboard-scope.test.ts).
 //
 // Walks backwards day-by-day from `now`. Weekends are skipped (markets
 // closed) — they don't extend the streak but also don't break it. The first
