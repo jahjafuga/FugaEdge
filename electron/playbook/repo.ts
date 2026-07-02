@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import {
   PLAYBOOK_TIERS,
@@ -76,16 +78,20 @@ interface TradeRowForStats {
   planned_stop_loss_price: number | null
 }
 
-function computeStatsForPlaybook(playbookId: number): PlaybookStats {
+function computeStatsForPlaybook(playbookId: number, scope: AccountScope): PlaybookStats {
   const db = openDatabase()
+  // Multi-account slice — per-playbook STATS follow the switcher through the
+  // seam ('all' = the non-sim wall; this killed the latent sim leak here).
+  // DEFINITIONS stay global; only this trades read scopes.
+  const sf = scopeFilter(scope)
   const trades = db
     .prepare(`
       SELECT net_pnl, side, avg_buy_price, avg_sell_price,
              shares_bought, shares_sold,
              planned_risk, planned_stop_loss_price
-      FROM trades WHERE playbook_id = ? AND deleted_at IS NULL
+      FROM trades WHERE playbook_id = ? AND deleted_at IS NULL AND ${sf.clause}
     `)
-    .all(playbookId) as TradeRowForStats[]
+    .all(playbookId, ...sf.params) as TradeRowForStats[]
 
   if (trades.length === 0) return emptyStats()
 
@@ -139,7 +145,7 @@ function computeStatsForPlaybook(playbookId: number): PlaybookStats {
   }
 }
 
-export function listPlaybooks(): PlaybookWithStats[] {
+export function listPlaybooks(scope: AccountScope = 'all'): PlaybookWithStats[] {
   const db = openDatabase()
   const rows = db
     .prepare(`
@@ -150,11 +156,11 @@ export function listPlaybooks(): PlaybookWithStats[] {
     .all() as PlaybookRowDb[]
   return rows.map((r) => {
     const pb = rowToPlaybook(r)
-    return { ...pb, stats: computeStatsForPlaybook(pb.id) }
+    return { ...pb, stats: computeStatsForPlaybook(pb.id, scope) }
   })
 }
 
-export function getPlaybook(id: number): PlaybookWithStats | null {
+export function getPlaybook(id: number, scope: AccountScope = 'all'): PlaybookWithStats | null {
   const db = openDatabase()
   const row = db
     .prepare(`
@@ -164,7 +170,7 @@ export function getPlaybook(id: number): PlaybookWithStats | null {
     .get(id) as PlaybookRowDb | undefined
   if (!row) return null
   const pb = rowToPlaybook(row)
-  return { ...pb, stats: computeStatsForPlaybook(pb.id) }
+  return { ...pb, stats: computeStatsForPlaybook(pb.id, scope) }
 }
 
 export function createPlaybook(input: CreatePlaybookInput): PlaybookWithStats {

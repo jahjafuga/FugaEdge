@@ -16,6 +16,12 @@ interface PlaybookPickerProps {
 
 // Loads active playbooks lazily on first open. Cached at the module level
 // so multiple pickers don't all fetch — playbooks rarely change mid-session.
+//
+// Multi-account RULED BOUNDARY (Playbook slice) — this cache is PINNED
+// names-only: the argless fetch means its payload's STATS are always the
+// aligned 'all' scope, and every consumer of this cache reads names/tiers
+// ONLY. Do not scope-key it and do not drop it; if a consumer ever needs
+// per-scope stats from here, that is a new ruling.
 let _cache: PlaybookWithStats[] | null = null
 let _inflight: Promise<PlaybookWithStats[]> | null = null
 

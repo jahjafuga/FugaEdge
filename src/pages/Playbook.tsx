@@ -9,6 +9,7 @@ import TierBadge from '@/components/playbook/TierBadge'
 import { tierTone } from '@/components/playbook/tierTone'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { int, percent, pnlClass, signed } from '@/lib/format'
 import {
   PLAYBOOK_TIERS,
@@ -17,6 +18,10 @@ import {
 } from '@shared/playbook-types'
 
 export default function Playbook() {
+  // Multi-account slice — the switcher's scope: per-playbook STATS follow it
+  // (every list fetch carries it; re-fetch on change). Definitions are global
+  // — the list itself never changes under any scope.
+  const { scope } = useAccountScope()
   const [list, setList] = useState<PlaybookWithStats[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -41,7 +46,7 @@ export default function Playbook() {
   const refresh = useCallback(async () => {
     setErr(null)
     try {
-      const fresh = await ipc.playbooksList()
+      const fresh = await ipc.playbooksList({ accountScope: scope })
       setList(fresh)
       invalidatePlaybookCache()
       // Keep the same selection if it still exists; otherwise pick the first.
@@ -51,12 +56,14 @@ export default function Playbook() {
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e))
     }
-  }, [selectedId])
+  }, [selectedId, scope])
 
   useEffect(() => {
     refresh()
+    // Re-fetch on switcher change (the established mirror); selection changes
+    // must NOT re-fetch, so refresh itself stays out of the deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [scope])
 
   const selected = useMemo(
     () => list?.find((p) => p.id === selectedId) ?? null,
@@ -96,7 +103,7 @@ export default function Playbook() {
     try {
       const created = await ipc.playbookCreate({ name })
       invalidatePlaybookCache()
-      const fresh = await ipc.playbooksList()
+      const fresh = await ipc.playbooksList({ accountScope: scope })
       setList(fresh)
       setSelectedId(created.id)
       setCreating(false)
@@ -104,7 +111,7 @@ export default function Playbook() {
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e))
     }
-  }, [newName])
+  }, [newName, scope])
 
   const handleSave = useCallback(async () => {
     if (!selected || !editor || saving) return
@@ -120,7 +127,7 @@ export default function Playbook() {
         tier: editor.tier,
       })
       invalidatePlaybookCache()
-      const fresh = await ipc.playbooksList()
+      const fresh = await ipc.playbooksList({ accountScope: scope })
       setList(fresh)
       setSavedAt(Date.now())
     } catch (e) {
@@ -128,7 +135,7 @@ export default function Playbook() {
     } finally {
       setSaving(false)
     }
-  }, [editor, saving, selected])
+  }, [editor, saving, selected, scope])
 
   // Archive must persist immediately. Previously the button only flipped
   // local editor state, so the change was lost on navigation away/back.
@@ -138,13 +145,13 @@ export default function Playbook() {
     try {
       await ipc.playbookUpdate({ id: selected.id, archived: nextArchived })
       invalidatePlaybookCache()
-      const fresh = await ipc.playbooksList()
+      const fresh = await ipc.playbooksList({ accountScope: scope })
       setList(fresh)
       setEditor({ ...editor, archived: nextArchived })
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e))
     }
-  }, [editor, selected])
+  }, [editor, selected, scope])
 
   const handleDelete = useCallback(async () => {
     if (!selected) return
@@ -155,14 +162,14 @@ export default function Playbook() {
     try {
       await ipc.playbookDelete(selected.id)
       invalidatePlaybookCache()
-      const fresh = await ipc.playbooksList()
+      const fresh = await ipc.playbooksList({ accountScope: scope })
       setList(fresh)
       // Pick a neighbor if there's anything left; otherwise clear selection.
       setSelectedId(fresh.length > 0 ? fresh[0].id : null)
     } catch (e) {
       window.alert(e instanceof Error ? e.message : String(e))
     }
-  }, [selected])
+  }, [selected, scope])
 
   if (err) {
     return (

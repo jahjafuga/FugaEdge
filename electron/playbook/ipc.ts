@@ -8,6 +8,7 @@ import type {
   UpdatePlaybookInput,
 } from '@shared/playbook-types'
 import type { TradeListRow } from '@shared/trades-types'
+import type { AccountScope } from '@shared/accounts-types'
 import { bumpDataVersion } from '../lib/cache'
 import { xpReconcileForTradeIds } from '../xp/reconcile'
 import {
@@ -24,7 +25,14 @@ import {
 import { getTrade } from '../trades/list'
 
 export function registerPlaybookIpc(): void {
-  ipcMain.handle(IPC.PLAYBOOKS_LIST, () => listPlaybooks())
+  // Multi-account slice — optional scope (the trades-list opt-in shape);
+  // absent resolves through the seam as 'all'. Definitions stay global;
+  // only the per-playbook stats follow it. Mutations untouched.
+  ipcMain.handle(
+    IPC.PLAYBOOKS_LIST,
+    (_e, input?: { accountScope?: AccountScope }) =>
+      listPlaybooks(input?.accountScope ?? 'all'),
+  )
   ipcMain.handle(IPC.PLAYBOOK_CREATE, (_e, input: CreatePlaybookInput) => {
     const r = createPlaybook(input)
     bumpDataVersion()

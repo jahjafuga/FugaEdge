@@ -145,7 +145,7 @@ export const ipc = {
     window.api.intradayBarsGet(symbol, date, force),
   chartSaveScreenshot: (input: import('@shared/chart-types').SaveScreenshotInput) =>
     window.api.chartSaveScreenshot(input),
-  playbooksList: () => window.api.playbooksList(),
+  playbooksList: (opts?: { accountScope?: AccountScope }) => window.api.playbooksList(opts),
   playbookCreate: (input: CreatePlaybookInput) => window.api.playbookCreate(input),
   playbookUpdate: (input: UpdatePlaybookInput) => window.api.playbookUpdate(input),
   tradePlaybookSave: (input: SetPlaybookOnTradeInput) =>

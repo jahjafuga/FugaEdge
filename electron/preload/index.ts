@@ -302,8 +302,8 @@ const api = {
   // PNG bytes; main shows the save dialog + writes the file. Mirrors export* above.
   chartSaveScreenshot: (input: SaveScreenshotInput): Promise<SaveScreenshotResult> =>
     ipcRenderer.invoke(IPC.CHART_SAVE_SCREENSHOT, input),
-  playbooksList: (): Promise<PlaybookWithStats[]> =>
-    ipcRenderer.invoke(IPC.PLAYBOOKS_LIST),
+  playbooksList: (opts?: { accountScope?: AccountScope }): Promise<PlaybookWithStats[]> =>
+    ipcRenderer.invoke(IPC.PLAYBOOKS_LIST, opts),
   playbookCreate: (input: CreatePlaybookInput): Promise<PlaybookWithStats> =>
     ipcRenderer.invoke(IPC.PLAYBOOK_CREATE, input),
   playbookUpdate: (input: UpdatePlaybookInput): Promise<PlaybookWithStats> =>
