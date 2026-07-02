@@ -35,6 +35,11 @@ import type {
 import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
+import type {
+  AccountStatus,
+  CreateAccountInput,
+  UpdateAccountInput,
+} from '@shared/accounts-types'
 import type { TimeRange } from '@shared/dashboard-types'
 import type { ListTradesWithTechnicalsOptions } from '@shared/technicals-types'
 
@@ -222,6 +227,15 @@ export const ipc = {
   goalsAbandon: (id: string) => window.api.goalsAbandon({ id }),
   goalsProgressRead: () => window.api.goalsProgressRead(),
   badgesList: (opts?: { mint?: boolean }) => window.api.badgesList(opts),
+  // ── Trading accounts (multi-account Beat 1) — mutations return the fresh list ──
+  accountsList: () => window.api.accountsList(),
+  accountsCreate: (input: CreateAccountInput) => window.api.accountsCreate(input),
+  accountsUpdate: (id: string, patch: UpdateAccountInput) =>
+    window.api.accountsUpdate({ id, patch }),
+  accountsSetDefault: (id: string) => window.api.accountsSetDefault({ id }),
+  accountsSetStatus: (id: string, status: AccountStatus) =>
+    window.api.accountsSetStatus({ id, status }),
+  accountsDelete: (id: string) => window.api.accountsDelete({ id }),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

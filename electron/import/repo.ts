@@ -2,6 +2,7 @@ import { openDatabase } from '../db/database'
 import type { DaySummaryFeeRow, RoundTrip } from '@shared/import-types'
 import { recomputeFeesForDateSymbol } from './apply-fees'
 import { recomputeSummaryForDates } from '../trades/recompute-summary'
+import { ensureDefaultAccountId } from '../accounts/repo'
 
 export function annotateTripStatus(trips: RoundTrip[]): RoundTrip[] {
   const db = openDatabase()
@@ -222,8 +223,19 @@ export function commit(
   trips: RoundTrip[],
   fees: DaySummaryFeeRow[],
   source: string,
+  accountId?: string,
 ): CommitOutcome {
   const db = openDatabase()
+
+  // Multi-account Beat 1 (LOCKED law) — every inserted trip carries an
+  // account. Beat 2's import picker passes accountId explicitly; until then
+  // the default account is resolved ONCE per commit (?? short-circuits, so an
+  // explicit id never consults the registry). ensureDefaultAccountId
+  // provisions 'Main account' on an empty registry, so a fresh install's very
+  // first import can never stamp NULL. Resolved BEFORE the transaction below:
+  // a provisioned account commits in its own repo transaction first, so the
+  // trades FK sees an existing accounts row.
+  const resolvedAccountId = accountId ?? ensureDefaultAccountId()
 
   // v0.2.3 known divergence: this hard-deletes ANY open trip for the affected
   // (symbol, date) — including a SOFT-DELETED open trip — and the matching
@@ -264,7 +276,8 @@ export function commit(
       fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees,
       net_pnl,
       executions_json, exec_hash, content_hash,
-      source_broker, source_format, source_file, account_name, fees_reported, commission
+      source_broker, source_format, source_file, account_name, fees_reported, commission,
+      account_id
     ) VALUES (
       @date, @symbol, @side,
       @open_time, @close_time, @is_open,
@@ -273,7 +286,8 @@ export function commit(
       0, 0, 0, 0, 0, @total_fees,
       @net_pnl,
       @executions_json, @exec_hash, @content_hash,
-      @source_broker, @source_format, @source_file, @account_name, @fees_reported, @commission
+      @source_broker, @source_format, @source_file, @account_name, @fees_reported, @commission,
+      @account_id
     )
   `)
 
@@ -404,6 +418,10 @@ export function commit(
         // DAS/Webull (no separately-reported commission) — an honest absence,
         // not a fabricated 0.
         commission: t.commission ?? null,
+        // Beat 1 — the ASSIGNED trading account (explicit from Beat 2's
+        // picker, else the default). account_name above stays the raw import
+        // evidence; this is the assignment.
+        account_id: resolvedAccountId,
       })
       if (info.changes > 0) {
         insertedTrips++

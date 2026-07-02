@@ -541,6 +541,44 @@ CREATE TABLE IF NOT EXISTS xp_events (
   created_at      TEXT NOT NULL
 );
 
+-- ── Multi-account Beat 1 — trading-account registry (first-class entities) ──
+-- The user's TRADING accounts ("Ocean One", "Schwab Roth IRA") — not the
+-- top-right profile menu (that stays AccountMenu until its Beat 3 rename).
+-- Lands via CREATE TABLE IF NOT EXISTS per the identity-tables precedent
+-- above: fresh installs and upgrades both get it, no migration module, NO
+-- version bump (L1). ids are ULIDs minted by the repo
+-- (src/core/ids/ulid.ts); created_at is ISO-8601 UTC set at write time.
+-- broker is the UNDERLYING brokerage as free text ("Ocean One", "Schwab") —
+-- NOT the platform: DAS is a platform, and trades.source_broker already
+-- records that dimension. account_type is one of margin | cash | roth_ira |
+-- traditional_ira | prop | offshore | sim — validated by the repo rather
+-- than a CHECK so future types don't hard-fail older binaries. Forward
+-- note: sim-type accounts supersede the parked executions.is_paper
+-- approach — the import page's "Account type" paper gate folds into
+-- account_type = 'sim' when Beat 2's import picker lands.
+CREATE TABLE IF NOT EXISTS accounts (
+  id           TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  broker       TEXT,
+  account_type TEXT NOT NULL,
+  color        TEXT,                            -- UI badge tint; assignment logic arrives with the switcher (Beat 3)
+  status       TEXT NOT NULL DEFAULT 'active',  -- 'active' | 'archived'
+  is_default   INTEGER NOT NULL DEFAULT 0,      -- exactly one row may hold 1 — see the partial index below
+  created_at   TEXT NOT NULL                    -- ISO 8601 UTC
+);
+
+-- DB-level single-default invariant: a partial UNIQUE index over the single
+-- value is_default = 1 makes a second default row a constraint violation,
+-- not a code-review hope (the idx_trades_content_hash partial-index idiom).
+-- setDefaultAccount clears the old default and sets the new one inside ONE
+-- transaction, so the constraint never fires on the happy path.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_single_default
+  ON accounts(is_default) WHERE is_default = 1;
+
+-- Duplicate names rejected at the DB; the repo translates the violation
+-- into a friendly "already exists" error.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL

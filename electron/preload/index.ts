@@ -15,6 +15,12 @@ import type {
   UpdateProfileInput,
 } from '@shared/identity-types'
 import type {
+  Account,
+  AccountStatus,
+  CreateAccountInput,
+  UpdateAccountInput,
+} from '@shared/accounts-types'
+import type {
   CommitInput,
   CommitResult,
   PreviewInputFile,
@@ -380,6 +386,18 @@ const api = {
   // ── Badges (v0.2.5 Phase B Session 6) ──
   badgesList: (opts?: { mint?: boolean }): Promise<BadgesListResult> =>
     ipcRenderer.invoke(IPC.BADGES_LIST, opts),
+  // ── Trading accounts (multi-account Beat 1) — mutations return the fresh list ──
+  accountsList: (): Promise<Account[]> => ipcRenderer.invoke(IPC.ACCOUNTS_LIST),
+  accountsCreate: (input: CreateAccountInput): Promise<Account[]> =>
+    ipcRenderer.invoke(IPC.ACCOUNTS_CREATE, input),
+  accountsUpdate: (input: { id: string; patch: UpdateAccountInput }): Promise<Account[]> =>
+    ipcRenderer.invoke(IPC.ACCOUNTS_UPDATE, input),
+  accountsSetDefault: (input: { id: string }): Promise<Account[]> =>
+    ipcRenderer.invoke(IPC.ACCOUNTS_SET_DEFAULT, input),
+  accountsSetStatus: (input: { id: string; status: AccountStatus }): Promise<Account[]> =>
+    ipcRenderer.invoke(IPC.ACCOUNTS_SET_STATUS, input),
+  accountsDelete: (input: { id: string }): Promise<Account[]> =>
+    ipcRenderer.invoke(IPC.ACCOUNTS_DELETE, input),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

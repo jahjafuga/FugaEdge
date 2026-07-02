@@ -20,6 +20,7 @@ import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
 import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
+import { migrateAccountBackfill } from './migrate-account-backfill'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -776,6 +777,22 @@ function migrateAfterSchema(
   if (!has('fees_reported')) {
     conn.exec('ALTER TABLE trades ADD COLUMN fees_reported INTEGER NOT NULL DEFAULT 0')
   }
+  if (!has('account_id')) {
+    // Multi-account Beat 1 — the ASSIGNED trading account (accounts.id ULID).
+    // A REAL foreign key: foreign_keys = ON is set per-connection in
+    // openDatabase, and SQLite accepts a REFERENCES clause on ADD COLUMN when
+    // the default is NULL (the playbook_id comment above predates that
+    // reading). Default NO ACTION ⇒ an account with trades cannot be
+    // hard-deleted; the repo translates that throw into a friendly "archive
+    // it instead" error. Semantics: account_id is the ASSIGNMENT;
+    // trades.account_name remains the raw import evidence (whatever the
+    // broker file carried). Nullable by ALTER necessity only —
+    // migrate-account-backfill assigns every NULL row (soft-deleted included,
+    // restore correctness) and commit() stamps the default at insert, so NULL
+    // is extinct in practice from this beat onward. accounts is guaranteed to
+    // exist here: SCHEMA_SQL ran before migrateAfterSchema.
+    conn.exec('ALTER TABLE trades ADD COLUMN account_id TEXT REFERENCES accounts(id)')
+  }
   conn.exec('CREATE INDEX IF NOT EXISTS idx_trades_source_broker ON trades(source_broker)')
 
   const marketCols = conn.prepare('PRAGMA table_info(market_data)').all() as {
@@ -924,6 +941,15 @@ function migrateAfterSchema(
   // new shape yet (the checklist + Settings editor keep using string[] until
   // Beats 3-4). See migrate-journal-rules-to-objects.ts.
   migrateJournalRulesToObjects(conn)
+
+  // Multi-account Beat 1 — assign every account-less trade (soft-deleted
+  // included, restore correctness) to the default account, creating
+  // 'Main account' when the registry is empty. Shape-detected + idempotent
+  // (the journal-rules convention): predicate = any trades WHERE account_id
+  // IS NULL; a second boot finds none and no-ops. Runs after the
+  // trades.account_id additive ALTER above and after SCHEMA_SQL created the
+  // accounts table. NO version bump. See migrate-account-backfill.ts.
+  migrateAccountBackfill(conn)
 
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the

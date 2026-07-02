@@ -206,6 +206,16 @@ export const IPC = {
   // wall. The catalog (what CAN be earned) is the pure code module
   // src/core/badges/catalog.ts; minting is engine-side + future threshold sweeps.
   BADGES_LIST: 'badges:list',
+  // ── Trading accounts (multi-account Beat 1) — the account REGISTRY only.
+  // Mutations return the fresh ordered list (one round-trip for the future
+  // switcher/Settings UI). Per-account FILTERING channels arrive in Beat 3;
+  // the import picker + scoped dedup in Beat 2.
+  ACCOUNTS_LIST: 'accounts:list',
+  ACCOUNTS_CREATE: 'accounts:create',
+  ACCOUNTS_UPDATE: 'accounts:update',
+  ACCOUNTS_SET_DEFAULT: 'accounts:setDefault',
+  ACCOUNTS_SET_STATUS: 'accounts:setStatus',
+  ACCOUNTS_DELETE: 'accounts:delete',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
