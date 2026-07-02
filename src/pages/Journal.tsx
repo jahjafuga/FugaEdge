@@ -12,6 +12,7 @@ import SentimentIconPicker from '@/components/sentiment/SentimentIconPicker'
 import VoiceRecorder from '@/components/voice/VoiceRecorder'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { mmss, wordCount } from '@/lib/format'
 import { extractTopics, type TopicCategory } from '@/core/topics/extract'
 import { CURATED_TERMS } from '@/core/topics/terms'
@@ -169,6 +170,10 @@ function EntryTopics({
 
 export default function Journal() {
   const today = useMemo(todayISO, [])
+  // Multi-account (sim-unlock audit, fix beat 1) — the page follows the
+  // switcher: the day summary + the day trades carry the scope; the setup
+  // picker stays argless (names-only ruling).
+  const { scope } = useAccountScope()
   const [date, setDate] = useState(today)
   const [day, setDay] = useState<JournalDay | null>(null)
   // Trades for the journal date — used to render the intraday P&L curve at
@@ -204,9 +209,10 @@ export default function Journal() {
     setSavedAt(null)
     // Journal payload (notes / rules / emotion) and the day's trades load in
     // parallel — they're independent and the chart shouldn't gate on the
-    // notes fetch.
+    // notes fetch. Both carry the switcher's scope (sim-unlock audit beat 1);
+    // the day summary and the trade list read the same scoped rows.
     ipc
-      .journalGet(date)
+      .journalGet(date, scope)
       .then((d) => {
         if (cancelled) return
         setDay(d)
@@ -218,7 +224,7 @@ export default function Journal() {
         if (!cancelled) setErr(e.message)
       })
     ipc
-      .tradesList({ date })
+      .tradesList({ date, accountScope: scope })
       .then((list) => {
         if (!cancelled) setDayTrades(list)
       })
@@ -235,7 +241,7 @@ export default function Journal() {
         ipc.journalSave(buildSaveInput(editorRef.current, date)).catch(() => {})
       }
     }
-  }, [date])
+  }, [date, scope])
 
   // Load setup names once for the topic vocabulary (read-only; never blocks the
   // page). The playbook library is global, so this is independent of the date.

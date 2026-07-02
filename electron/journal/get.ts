@@ -1,4 +1,6 @@
 import { openDatabase } from '../db/database'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 import { parseJournalRules } from '@/core/journal/rules'
@@ -84,7 +86,12 @@ function readEntry(
 function readDaySummary(
   db: ReturnType<typeof openDatabase>,
   date: string,
+  scope: AccountScope,
 ): JournalDaySummary | null {
+  // Multi-account (sim-unlock audit, fix beat 1) — the audit's one UNWALLED
+  // leak: the summary now reads through the seam ('all' = the non-sim wall).
+  // Math and column shape unchanged.
+  const sf = scopeFilter(scope)
   const row = db
     .prepare(`
       SELECT
@@ -94,11 +101,11 @@ function readDaySummary(
         COALESCE(SUM(total_fees), 0)                  AS total_fees,
         SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END)  AS winners,
         SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END)  AS losers
-      FROM trades WHERE date = ? AND deleted_at IS NULL
+      FROM trades WHERE date = ? AND deleted_at IS NULL AND ${sf.clause}
     `)
     // Win/loss CASE `?` precede `date = ?`, so the epsilons bind first
-    // (losers: negated epsilon, sqlIsLoss is `< ?`).
-    .get(SCRATCH_EPSILON, -SCRATCH_EPSILON, date) as DaySummaryRow | undefined
+    // (losers: negated epsilon, sqlIsLoss is `< ?`), then the scope binds.
+    .get(SCRATCH_EPSILON, -SCRATCH_EPSILON, date, ...sf.params) as DaySummaryRow | undefined
   if (!row || row.trade_count === 0) return null
   return {
     trade_count: row.trade_count,
@@ -120,12 +127,14 @@ function readSentiment(
   return row?.sentiment ?? null
 }
 
-export function getJournalDay(date: string): JournalDay {
+export function getJournalDay(date: string, scope: AccountScope = 'all'): JournalDay {
   const db = openDatabase()
+  // Only the trade SUMMARY scopes; the entry, rules, and sentiment are day
+  // metadata — GLOBAL by ruling.
   return {
     date,
     entry: readEntry(db, date),
-    summary: readDaySummary(db, date),
+    summary: readDaySummary(db, date, scope),
     rules: readRules(db),
     sentiment: readSentiment(db, date),
   }

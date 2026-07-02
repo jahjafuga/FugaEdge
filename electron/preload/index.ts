@@ -256,8 +256,8 @@ const api = {
     ipcRenderer.invoke(IPC.REPORTS_GET, { scope }),
   analyticsGet: (scope?: AccountScope): Promise<AnalyticsData> =>
     ipcRenderer.invoke(IPC.ANALYTICS_GET, { scope }),
-  journalGet: (date: string): Promise<JournalDay> =>
-    ipcRenderer.invoke(IPC.JOURNAL_GET, { date }),
+  journalGet: (date: string, scope?: AccountScope): Promise<JournalDay> =>
+    ipcRenderer.invoke(IPC.JOURNAL_GET, { date, scope }),
   journalSave: (input: SaveJournalInput): Promise<JournalDay> =>
     ipcRenderer.invoke(IPC.JOURNAL_SAVE, input),
   settingsGet: (): Promise<SettingsPayload> => ipcRenderer.invoke(IPC.SETTINGS_GET),
