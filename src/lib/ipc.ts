@@ -36,6 +36,7 @@ import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { SettingsUpdate } from '@shared/settings-types'
 import type {
+  AccountScope,
   AccountStatus,
   CreateAccountInput,
   UpdateAccountInput,
@@ -55,7 +56,8 @@ export const ipc = {
   importPreview: (files: PreviewInputFile[], previewDate?: string, accountId?: string) =>
     window.api.importPreview(files, previewDate, accountId),
   importCommit: (input: CommitInput) => window.api.importCommit(input),
-  dashboardGet: (range?: TimeRange) => window.api.dashboardGet(range),
+  dashboardGet: (range?: TimeRange, scope?: AccountScope) =>
+    window.api.dashboardGet(range, scope),
   tradesList: (opts?: { date?: string; deleted?: boolean }) =>
     window.api.tradesList(opts),
   getTrade: (input: { trade_id: number }) => window.api.getTrade(input),

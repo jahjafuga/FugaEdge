@@ -243,8 +243,15 @@ CREATE INDEX IF NOT EXISTS idx_executions_round_trip  ON executions(round_trip_i
 CREATE INDEX IF NOT EXISTS idx_executions_symbol      ON executions(symbol);
 CREATE INDEX IF NOT EXISTS idx_executions_timestamp   ON executions(timestamp_utc);
 
+-- Multi-account Beat 4 — re-keyed to (date, account_id): the per-day cache
+-- holds one row per account per day, so scoped reads filter and "All
+-- accounts" reads SUM(...) GROUP BY date. Fresh installs get this shape
+-- natively; upgrades rebuild via migrate-daily-summary-account.ts (the
+-- day_fees split — no version bump). The forward REFERENCES is fine: SQLite
+-- resolves FK targets at DML time (accounts is declared later in this
+-- script — the trades.account_id precedent).
 CREATE TABLE IF NOT EXISTS daily_summary (
-  date          TEXT    PRIMARY KEY,
+  date          TEXT    NOT NULL,
   total_pnl     REAL    NOT NULL DEFAULT 0,
   total_fees    REAL    NOT NULL DEFAULT 0,
   trade_count   INTEGER NOT NULL DEFAULT 0,
@@ -252,7 +259,9 @@ CREATE TABLE IF NOT EXISTS daily_summary (
   losers        INTEGER NOT NULL DEFAULT 0,
   gross_pnl     REAL    NOT NULL DEFAULT 0,
   largest_win   REAL    NOT NULL DEFAULT 0,
-  largest_loss  REAL    NOT NULL DEFAULT 0
+  largest_loss  REAL    NOT NULL DEFAULT 0,
+  account_id    TEXT    NOT NULL REFERENCES accounts(id),
+  PRIMARY KEY (date, account_id)
 );
 
 -- Raw per-(date, symbol) fee data imported from DAS Trader's daily summary

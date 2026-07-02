@@ -23,6 +23,7 @@ import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects
 import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
 import { migrateDayFeesAccount } from './migrate-day-fees-account'
+import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -1081,6 +1082,13 @@ function migrateAfterSchema(
   // account. Registered AFTER the trades rebuild per the beat's ordering.
   // Shape-gated (column present → no-op). See migrate-day-fees-account.ts.
   migrateDayFeesAccount(conn)
+
+  // Multi-account Beat 4 — daily_summary re-key: PK (date) →
+  // (date, account_id); existing rows assigned to the default account. The
+  // day_fees mirror (shape-gated, one transaction, no version bump). The
+  // recompute writer (trades/recompute-summary.ts) writes the grouped shape
+  // from the same boot onward. See migrate-daily-summary-account.ts.
+  migrateDailySummaryAccount(conn)
 
   // v0.2.2 Commit A — float-rename data move. The shares_outstanding
   // columns themselves are added by the additive ALTERs above; this call

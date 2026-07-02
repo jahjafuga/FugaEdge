@@ -25,6 +25,7 @@ import {
   type ActivationStatus,
 } from '@/core/activation/status'
 import { CelebrationProvider } from '@/lib/celebration'
+import { AccountScopeProvider } from '@/lib/accountScope'
 
 const SIDEBAR_STORAGE_KEY = 'fugaedge-sidebar-collapsed'
 
@@ -174,6 +175,7 @@ export default function AppLayout() {
 
   return (
     <CelebrationProvider>
+      <AccountScopeProvider>
       <div
       className={`relative isolate grid h-full text-fg-primary transition-[grid-template-columns] duration-200 ease-out ${
         collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[180px_1fr]'
@@ -247,6 +249,7 @@ export default function AppLayout() {
         <ProductTour onComplete={() => setShowTour(false)} />
       )}
       </div>
+      </AccountScopeProvider>
     </CelebrationProvider>
   )
 }

@@ -113,6 +113,24 @@ describe('settings repo — daily_rule_break_list (Daily Rule Breaks Phase 1)', 
   })
 })
 
+describe('settings repo — account_scope (multi-account Beat 4)', () => {
+  it("defaults to 'all' on a fresh KV map", () => {
+    expect(getSettings().values.account_scope).toBe('all')
+  })
+
+  it('write/read roundtrip: persists an account ULID and reads it back', () => {
+    saveSettings({ account_scope: '01HXACCOUNTULID' })
+    expect(store.current.account_scope).toBe('01HXACCOUNTULID')
+    expect(getSettings().values.account_scope).toBe('01HXACCOUNTULID')
+  })
+
+  it('a blank write is dropped (guarded), leaving the stored value untouched', () => {
+    saveSettings({ account_scope: 'all' })
+    saveSettings({ account_scope: '   ' })
+    expect(getSettings().values.account_scope).toBe('all')
+  })
+})
+
 describe('settings repo — indicator toggles (B1: EMA9 / EMA20 / VWAP persistence)', () => {
   it('all three default OFF on a fresh KV map', () => {
     const { values } = getSettings()

@@ -16,11 +16,19 @@ import { SCRATCH_EPSILON } from '@shared/trade-classification'
 
 const LOW_FLOAT_MAX = 20_000_000
 
-/** Profitable trading days — daily_summary rows with a net-positive total_pnl. */
+/** Profitable trading days — judged on the per-DATE SUM across accounts
+ *  (daily_summary is keyed (date, account_id) since Beat 4; badges keep their
+ *  GLOBAL combined-trading meaning by aggregating before judging green).
+ *  Sim exclusion here is DEFERRED to the sim-unlock audit beat — safe today
+ *  because sim imports are blocked, so no sim rows can exist. */
 export function countGreenDays(): number {
   const db = openDatabase()
   return (
-    db.prepare('SELECT COUNT(*) AS n FROM daily_summary WHERE total_pnl > 0').get() as { n: number }
+    db
+      .prepare(
+        'SELECT COUNT(*) AS n FROM (SELECT date FROM daily_summary GROUP BY date HAVING SUM(total_pnl) > 0)',
+      )
+      .get() as { n: number }
   ).n
 }
 
@@ -54,8 +62,12 @@ export function countLowFloatTrades(maxFloat: number = LOW_FLOAT_MAX): number {
  *  readDisciplineStreak / computeStreak. */
 export function longestGreenStreak(): number {
   const db = openDatabase()
+  // Per-date SUM across accounts (Beat 4 re-key) — the walk itself is
+  // unchanged; sim exclusion deferred per the countGreenDays note above.
   const rows = db
-    .prepare('SELECT total_pnl FROM daily_summary ORDER BY date ASC')
+    .prepare(
+      'SELECT SUM(total_pnl) AS total_pnl FROM daily_summary GROUP BY date ORDER BY date ASC',
+    )
     .all() as { total_pnl: number }[]
   let run = 0
   let longest = 0

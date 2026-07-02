@@ -31,6 +31,8 @@ const KEYS = {
   dnaFloatMin: 'dna_float_min',
   dnaFloatMax: 'dna_float_max',
   dnaRequireCatalyst: 'dna_require_catalyst',
+  // Multi-account Beat 4 — the switcher's persisted scope ('all' | ULID).
+  accountScope: 'account_scope',
 } as const
 
 const DEFAULTS: SettingsValues = {
@@ -59,6 +61,7 @@ const DEFAULTS: SettingsValues = {
   dna_float_min: 0,
   dna_float_max: 20_000_000,
   dna_require_catalyst: true,
+  account_scope: 'all',
 }
 
 function parseStringArray(raw: string | null | undefined): string[] {
@@ -141,6 +144,9 @@ export function getSettings(): SettingsPayload {
       map[KEYS.dnaRequireCatalyst],
       DEFAULTS.dna_require_catalyst,
     ),
+    // 'all' | account ULID; a stale/deleted id is resolved renderer-side
+    // (fallback to 'all') so the stored value stays an honest history.
+    account_scope: (map[KEYS.accountScope] ?? '').trim() || DEFAULTS.account_scope,
   }
   return {
     values,
@@ -249,6 +255,12 @@ export function saveSettings(input: SettingsUpdate): SettingsPayload {
     }
     if (input.dna_require_catalyst != null) {
       upsert.run(KEYS.dnaRequireCatalyst, input.dna_require_catalyst ? '1' : '0')
+    }
+    if (input.account_scope != null) {
+      // 'all' or an account ULID — trimmed non-empty guard (the api-key
+      // string style); blank writes are dropped rather than stored.
+      const v = String(input.account_scope).trim()
+      if (v) upsert.run(KEYS.accountScope, v)
     }
   })
   tx()

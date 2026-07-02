@@ -71,6 +71,26 @@ describe('count fns', () => {
     expect(countGreenDays()).toBe(11)
   })
 
+  // Beat 4 — daily_summary is keyed (date, account_id); the badge facts keep
+  // their GLOBAL combined-trading meaning by aggregating PER DATE across
+  // accounts before judging green.
+  it('countGreenDays judges per-DATE SUM across accounts (cross-account aggregate)', () => {
+    store.getN = 11
+    countGreenDays()
+    const sql = store.sqls.join(' ')
+    expect(sql).toMatch(/GROUP BY date/i)
+    expect(sql).toMatch(/HAVING SUM\(total_pnl\) > 0/i)
+  })
+
+  it('longestGreenStreak walks per-date SUM(total_pnl) grouped by date', () => {
+    store.rows = [{ total_pnl: 5 }]
+    longestGreenStreak()
+    const sql = store.sqls.join(' ')
+    expect(sql).toMatch(/SUM\(total_pnl\)/i)
+    expect(sql).toMatch(/GROUP BY date/i)
+    expect(sql).toMatch(/ORDER BY date ASC/i)
+  })
+
   it('countWinningTrades returns the COUNT', () => {
     store.getN = 42
     expect(countWinningTrades()).toBe(42)

@@ -59,6 +59,12 @@ export interface SettingsValues {
   dna_float_min: number
   dna_float_max: number
   dna_require_catalyst: boolean
+  /** Multi-account Beat 4 — the TopBar switcher's persisted read scope:
+   *  'all' or a trading-account ULID. The renderer falls back to 'all' when
+   *  the stored id no longer exists (deleted account). Written by the
+   *  switcher (the show_macd_pane own-writer pattern), never by the
+   *  Settings save-bar. */
+  account_scope: string
 }
 
 export interface SettingsPayload {

@@ -2,6 +2,8 @@ import { openDatabase } from '../db/database'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss, sqlIsScratch } from '@/core/classify/outcome'
 import { summarizeSession } from '@/core/analytics/summarizeSession'
+import { scopeFilter } from '../accounts/scope'
+import type { AccountScope } from '@shared/accounts-types'
 import type {
   DailyPnlPoint,
   DashboardData,
@@ -38,9 +40,16 @@ function rangeStart(range: TimeRange, now: Date): string | null {
 function readOverview(
   db: ReturnType<typeof openDatabase>,
   start: string | null,
+  scope: AccountScope,
 ): OverviewStats {
-  const where = start ? 'WHERE deleted_at IS NULL AND date >= ?' : 'WHERE deleted_at IS NULL'
-  const params = start ? [start] : []
+  // Beat 4 — every P&L/stats aggregate is scope-filtered through the one
+  // seam (single account, or all-non-sim). Scope binds precede the optional
+  // date bind; the epsilon `?`s in the SELECT/WHERE still bind first.
+  const sf = scopeFilter(scope)
+  const where = start
+    ? `WHERE deleted_at IS NULL AND ${sf.clause} AND date >= ?`
+    : `WHERE deleted_at IS NULL AND ${sf.clause}`
+  const params = start ? [...sf.params, start] : [...sf.params]
 
   const totals = db
     .prepare(`
@@ -62,11 +71,11 @@ function readOverview(
   // `date >= ?`, so the epsilon binds first in each .get() below. Losers bind
   // the NEGATED epsilon (sqlIsLoss is `net_pnl < ?`).
   const winnersWhere = start
-    ? `WHERE deleted_at IS NULL AND ${sqlIsWin()} AND date >= ?`
-    : `WHERE deleted_at IS NULL AND ${sqlIsWin()}`
+    ? `WHERE deleted_at IS NULL AND ${sqlIsWin()} AND ${sf.clause} AND date >= ?`
+    : `WHERE deleted_at IS NULL AND ${sqlIsWin()} AND ${sf.clause}`
   const losersWhere = start
-    ? `WHERE deleted_at IS NULL AND ${sqlIsLoss()} AND date >= ?`
-    : `WHERE deleted_at IS NULL AND ${sqlIsLoss()}`
+    ? `WHERE deleted_at IS NULL AND ${sqlIsLoss()} AND ${sf.clause} AND date >= ?`
+    : `WHERE deleted_at IS NULL AND ${sqlIsLoss()} AND ${sf.clause}`
 
   const winners = db
     .prepare(`
@@ -122,25 +131,21 @@ interface DailyRowDb {
 function readDailySeries(
   db: ReturnType<typeof openDatabase>,
   start: string | null,
+  scope: AccountScope,
 ): DailyPnlPoint[] {
-  const rows = (
-    start
-      ? db
-          .prepare(`
-            SELECT date, total_pnl AS net_pnl, trade_count
-            FROM daily_summary
-            WHERE date >= ?
-            ORDER BY date ASC
-          `)
-          .all(start)
-      : db
-          .prepare(`
-            SELECT date, total_pnl AS net_pnl, trade_count
-            FROM daily_summary
-            ORDER BY date ASC
-          `)
-          .all()
-  ) as DailyRowDb[]
+  // Beat 4 — daily_summary is keyed (date, account_id): filter through the
+  // seam and SUM per date, so a single account reads its own rows and 'all'
+  // combines every non-sim account.
+  const sf = scopeFilter(scope)
+  const rows = db
+    .prepare(`
+      SELECT date, SUM(total_pnl) AS net_pnl, SUM(trade_count) AS trade_count
+      FROM daily_summary
+      WHERE ${sf.clause}${start ? ' AND date >= ?' : ''}
+      GROUP BY date
+      ORDER BY date ASC
+    `)
+    .all(...sf.params, ...(start ? [start] : [])) as DailyRowDb[]
 
   return rows.map((r) => ({
     date: r.date,
@@ -150,10 +155,16 @@ function readDailySeries(
   }))
 }
 
-function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
+function readLatestSession(
+  db: ReturnType<typeof openDatabase>,
+  scope: AccountScope,
+): LatestSession {
+  // Beat 4 — the "latest session" is the latest session OF THE SCOPE: a
+  // single account tells its own story; 'all' is the latest across non-sim.
+  const sf = scopeFilter(scope)
   const row = db
-    .prepare('SELECT MAX(date) AS date FROM trades WHERE deleted_at IS NULL')
-    .get() as { date: string | null }
+    .prepare(`SELECT MAX(date) AS date FROM trades WHERE deleted_at IS NULL AND ${sf.clause}`)
+    .get(...sf.params) as { date: string | null }
   const date = row?.date ?? ''
   if (!date) {
     return {
@@ -188,9 +199,9 @@ function readLatestSession(db: ReturnType<typeof openDatabase>): LatestSession {
              t.confidence
       FROM trades t
       LEFT JOIN playbooks p ON p.id = t.playbook_id
-      WHERE t.date = ? AND t.deleted_at IS NULL ORDER BY t.net_pnl DESC
+      WHERE t.date = ? AND t.deleted_at IS NULL AND t.${sf.clause} ORDER BY t.net_pnl DESC
     `)
-    .all(date) as SessionTradeDb[]
+    .all(date, ...sf.params) as SessionTradeDb[]
   const trades: SessionTrade[] = rawTrades.map((r) => ({
     ...r,
     playbook_tier: r.playbook_tier && VALID_TIERS.has(r.playbook_tier)
@@ -219,16 +230,20 @@ function readMonth(
   db: ReturnType<typeof openDatabase>,
   year: number,
   month: number,
+  scope: AccountScope,
 ): MonthCalendar {
   const prefix = `${year}-${pad(month)}`
+  // Beat 4 — same per-date aggregation over the scope as readDailySeries.
+  const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
-      SELECT date, total_pnl AS net_pnl, trade_count
+      SELECT date, SUM(total_pnl) AS net_pnl, SUM(trade_count) AS trade_count
       FROM daily_summary
-      WHERE date LIKE ?
+      WHERE ${sf.clause} AND date LIKE ?
+      GROUP BY date
       ORDER BY date ASC
     `)
-    .all(`${prefix}-%`) as DailyRowDb[]
+    .all(...sf.params, `${prefix}-%`) as DailyRowDb[]
   const days: DailyPnlPoint[] = rows.map((r) => ({
     date: r.date,
     net_pnl: r.net_pnl,
@@ -240,6 +255,11 @@ function readMonth(
 
 // Consecutive market days (Mon–Fri) up to and including the most recent
 // reference date where the user either traded or wrote a journal entry.
+//
+// Beat 4 classification RULING: this is the SHOWED-UP streak — it counts
+// discipline (traded OR journaled), not P&L — and feeds the identity system
+// (sidebar chip / streak surfaces). It therefore stays GLOBAL and takes no
+// account scope, by the same law that keeps XP/badges/streaks/goals global.
 //
 // Walks backwards day-by-day from `now`. Weekends are skipped (markets
 // closed) — they don't extend the streak but also don't break it. The first
@@ -318,27 +338,30 @@ function readSettings(db: ReturnType<typeof openDatabase>): DashboardSettings {
 
 export function getDashboardData(
   range: TimeRange = '30d',
+  scope: AccountScope = 'all',
   now: Date = new Date(),
 ): DashboardData {
   const db = openDatabase()
   const start = rangeStart(range, now)
 
-  // `empty` reflects whether the user has ANY trades — not whether the
-  // current range happens to be empty. Otherwise switching to 7d on a fresh
-  // install would show the "Go import" CTA instead of the no-data state for
-  // the chosen range.
-  const totalRows = db.prepare('SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL').get() as {
-    n: number
-  }
+  // `empty` reflects whether THE SELECTED SCOPE has any trades — not whether
+  // the current range happens to be empty (switching to 7d must not show the
+  // import CTA). Beat 4 ruling: scoped on purpose, so selecting an archived
+  // or sim account reads as honestly empty.
+  const sf = scopeFilter(scope)
+  const totalRows = db
+    .prepare(`SELECT COUNT(*) AS n FROM trades WHERE deleted_at IS NULL AND ${sf.clause}`)
+    .get(...sf.params) as { n: number }
   const empty = totalRows.n === 0
 
-  const overview = readOverview(db, start)
-  const daily = readDailySeries(db, start)
-  const latest = readLatestSession(db)
+  const overview = readOverview(db, start, scope)
+  const daily = readDailySeries(db, start, scope)
+  const latest = readLatestSession(db, scope)
   const target = latest.date ? new Date(`${latest.date}T00:00:00`) : now
   const { year, month } = ym(target)
-  const monthData = readMonth(db, year, month)
+  const monthData = readMonth(db, year, month, scope)
   const settings = readSettings(db)
+  // GLOBAL by ruling (see readDisciplineStreak) — no scope.
   const discipline_streak = readDisciplineStreak(db, now)
 
   return {

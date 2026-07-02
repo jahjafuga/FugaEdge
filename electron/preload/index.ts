@@ -16,6 +16,7 @@ import type {
 } from '@shared/identity-types'
 import type {
   Account,
+  AccountScope,
   AccountStatus,
   CreateAccountInput,
   UpdateAccountInput,
@@ -135,8 +136,8 @@ const api = {
     ipcRenderer.invoke(IPC.IMPORT_PREVIEW, files, previewDate, accountId),
   importCommit: (input: CommitInput): Promise<CommitResult> =>
     ipcRenderer.invoke(IPC.IMPORT_COMMIT, input),
-  dashboardGet: (range?: TimeRange): Promise<DashboardData> =>
-    ipcRenderer.invoke(IPC.DASHBOARD_GET, { range }),
+  dashboardGet: (range?: TimeRange, scope?: AccountScope): Promise<DashboardData> =>
+    ipcRenderer.invoke(IPC.DASHBOARD_GET, { range, scope }),
   tradesList: (opts?: { date?: string; deleted?: boolean }): Promise<TradeListRow[]> =>
     ipcRenderer.invoke(IPC.TRADES_LIST, opts),
   getTrade: (input: { trade_id: number }): Promise<TradeListRow | null> =>

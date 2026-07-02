@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/lib/theme'
 import ProfileMenu from './ProfileMenu'
+import AccountSwitcher from './AccountSwitcher'
 
 const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/dashboard': { crumb: 'Dashboard',  title: 'Performance Overview' },
@@ -41,6 +42,8 @@ export default function TopBar() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Multi-account Beat 4 — the scope switcher, left of ThemeToggle. */}
+        <AccountSwitcher />
         <ThemeToggle />
         <ProfileMenu />
       </div>

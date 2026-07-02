@@ -20,6 +20,7 @@ import GoalChallengeBand from '@/components/dashboard/GoalChallengeBand'
 import EdgeIqDebriefCard from '@/components/dashboard/EdgeIqDebriefCard'
 import BrandMark from '@/components/layout/BrandMark'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { longDate } from '@/lib/format'
 import { todayDateISO } from '@/core/session/today'
 import { toCumulativeEquity } from '@/core/charts/cumulativePnl'
@@ -28,6 +29,8 @@ import type { TradeListRow } from '@shared/trades-types'
 
 export default function Dashboard() {
   const [range, setRange] = useState<TimeRange>('30d')
+  // Multi-account Beat 4 — the switcher's scope; a change re-fetches below.
+  const { scope } = useAccountScope()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
@@ -40,7 +43,7 @@ export default function Dashboard() {
     let cancelled = false
     setLoading(true)
     ipc
-      .dashboardGet(range)
+      .dashboardGet(range, scope)
       .then((d) => {
         if (!cancelled) {
           setData(d)
@@ -56,7 +59,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [range])
+  }, [range, scope])
 
   // Fetch today's trades-with-fills only when 1D is active (Journal's pattern:
   // ipc.tradesList({date})). IntradayPnLChart builds its curve from .executions.

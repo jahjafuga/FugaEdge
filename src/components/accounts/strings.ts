@@ -27,6 +27,12 @@ export const accountStrings = {
     manageHint: 'Manage accounts in Settings',
     blockedButton: 'Sim imports unlock with account filtering',
   },
+  switcher: {
+    triggerLabel: 'Trading account scope',
+    menuLabel: 'Trading accounts',
+    all: 'All accounts',
+    archivedDivider: 'Archived',
+  },
   card: {
     heading: 'Trading accounts',
     sub: 'The brokerage accounts your imports belong to.',

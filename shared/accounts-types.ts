@@ -37,6 +37,12 @@ export interface Account {
   created_at: string
 }
 
+/** Multi-account Beat 4 — the app-wide read scope the TopBar switcher sets:
+ *  one account, or 'all' (= every non-sim account BY DEFINITION — the sim
+ *  wall lives in the scoping seam, electron/accounts/scope.ts). Persisted as
+ *  the settings KV 'account_scope' ('all' | account ULID). */
+export type AccountScope = 'all' | { accountId: string }
+
 export interface CreateAccountInput {
   name: string
   broker?: string | null
