@@ -54,6 +54,11 @@ export default function Intelligence() {
         </div>
         <HeroCards insights={insightsData.insights} loading={insightsData.loading} />
         <TradingCoachCard insights={insightsData.insights} loading={insightsData.loading} />
+        {/* Multi-account RULED BOUNDARY (Option A) — the Edge Score + radar
+            ride the technicals channel (useEdgeScore -> listTradesWithTechnicals)
+            and stay WHOLLY GLOBAL this slice: inert-but-alive under switcher
+            flips. They join the Technicals slice, which also enumerates the
+            day-detail channel (electron/day). */}
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[2fr_3fr]">
           <ScoreCard {...edgeScore} rangeLabel={RANGE_LABEL[range]} />
           <RadarCard {...edgeScore} />
@@ -64,6 +69,9 @@ export default function Intelligence() {
           requireCatalyst={dnaConfig.config?.dna_require_catalyst ?? false}
           rangeLabel={RANGE_LABEL[range]}
         />
+        {/* Multi-account RULED BOUNDARY (Option A) — worked/leaked rides the
+            day/week-detail path and stays WHOLLY GLOBAL this slice; joins the
+            Technicals slice alongside the electron/day enumeration. */}
         <WorkedLeakedSummary />
         <EdgeStatStrip data={insightsData.kpis} loading={insightsData.loading} />
       </div>

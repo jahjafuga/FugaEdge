@@ -29,6 +29,14 @@ import type { DayMetrics } from '@shared/day-types'
 // Worked / Leaked + the focus line are always TODAY's (from the day's metrics) —
 // empty/clean when the day is quiet. Today's most-used playbook (a descriptive
 // daily fact, not an edge claim) sits above them.
+//
+// Multi-account RULED BOUNDARY (Insights slice, Option A) — this card stays
+// WHOLLY GLOBAL for now: every figure rides the technicals channel
+// (useTodayEdgeScore / useEdgeScore) or the day-detail path (dayRepo), both
+// outside the insights assembly. NO half-scoping (Option C rejected). It joins
+// the switcher with the Technicals slice, which also enumerates electron/day
+// (stored-shape gate there) — that slice is where "Dashboard fully
+// scope-coherent" lands.
 
 interface ScoreView {
   value: number

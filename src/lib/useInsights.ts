@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ipc } from '@/lib/ipc'
+import { useAccountScope } from '@/lib/accountScope'
 import { filterLastNDays } from '@/core/insights/helpers'
 import { runAllInsightRules } from '@/core/insights'
 import type { InsightResult } from '@/core/insights'
@@ -36,6 +37,13 @@ export interface UseInsightsResult {
 }
 
 export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
+  // Multi-account (Insights slice) — the ASSEMBLY scopes: the trades fetch
+  // carries the switcher's scope and re-fires on change; the pure rules in
+  // /src/core/insights stay byte-untouched and see only the scoped window.
+  // The other two inputs are global BY DESIGN: sessionListAll is day-metadata
+  // sentiment (no account dimension) and the discipline streak is a GLOBAL
+  // identity stat (the Beat 4 ruling — it counts showing up, not P&L).
+  const { scope } = useAccountScope()
   const [trades, setTrades] = useState<Awaited<ReturnType<typeof ipc.tradesList>> | null>(null)
   const [sessions, setSessions] = useState<Awaited<ReturnType<typeof ipc.sessionListAll>> | null>(null)
   const [streak, setStreak] = useState<number | null>(null)
@@ -45,7 +53,7 @@ export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
     let cancelled = false
     setError(null)
     Promise.all([
-      ipc.tradesList(),
+      ipc.tradesList({ accountScope: scope }),
       ipc.sessionListAll(),
       ipc.dashboardGet('all').then((d) => d.discipline_streak ?? 0),
     ])
@@ -61,7 +69,7 @@ export function useInsights(range: TimeRange = '90d'): UseInsightsResult {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [scope])
 
   // Sentiment map — derived once per sessions fetch. Null sentiment rows
   // are skipped (the rules look up by date and treat misses the same way).
