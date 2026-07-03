@@ -13,6 +13,8 @@ export interface CashEvent {
   /** YYYY-MM-DD Eastern trading day — the trades.date convention, so anchor
    *  comparisons are plain string compares. */
   date: string
+  /** Optional memo — stored trimmed; empty stores NULL. */
+  note: string | null
   /** Non-null links the two legs of a transfer; legs are only deletable as a
    *  pair via the transfer_id. */
   transfer_id: string | null
@@ -24,6 +26,7 @@ export interface CreateCashEventInput {
   kind: CashEventKind
   amount: number
   date: string
+  note?: string
 }
 
 export interface CreateTransferInput {
@@ -31,6 +34,8 @@ export interface CreateTransferInput {
   to_account_id: string
   amount: number
   date: string
+  /** ONE optional note, applied to BOTH legs. */
+  note?: string
 }
 
 export interface TransferResult {

@@ -39,6 +39,7 @@ import { registerProfileIpc } from '../profile/ipc'
 import { registerGoalsIpc } from '../goals/ipc'
 import { registerBadgesIpc } from '../badges/ipc'
 import { registerAccountsIpc } from '../accounts/ipc'
+import { registerCashIpc } from '../cash/ipc'
 import { registerXpIpc } from '../xp/ipc'
 import { runXpReconcile } from '../xp/reconcile'
 import { registerUpdaterIpc, startAutoUpdater } from '../updater'
@@ -210,6 +211,7 @@ app.whenReady().then(() => {
   registerGoalsIpc()
   registerBadgesIpc()
   registerAccountsIpc()
+  registerCashIpc()
   registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()

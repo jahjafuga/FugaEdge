@@ -49,19 +49,22 @@ function insertEvent(
   input: CreateCashEventInput,
   transferId: string | null,
 ): CashEvent {
+  // The memo is stored trimmed; empty/whitespace stores NULL.
+  const note = input.note?.trim() || null
   const ev: CashEvent = {
     id: newUlid(),
     account_id: input.account_id,
     kind: input.kind,
     amount: input.amount,
     date: input.date,
+    note,
     transfer_id: transferId,
     created_at: new Date().toISOString(),
   }
   db.prepare(
-    `INSERT INTO cash_events (id, account_id, kind, amount, date, transfer_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(ev.id, ev.account_id, ev.kind, ev.amount, ev.date, ev.transfer_id, ev.created_at)
+    `INSERT INTO cash_events (id, account_id, kind, amount, date, note, transfer_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(ev.id, ev.account_id, ev.kind, ev.amount, ev.date, ev.note, ev.transfer_id, ev.created_at)
   return ev
 }
 
@@ -108,12 +111,12 @@ export function createTransfer(input: CreateTransferInput): TransferResult {
   const tx = db.transaction(() => {
     fromEvent = insertEvent(
       db,
-      { account_id: input.from_account_id, kind: 'withdrawal', amount: input.amount, date: input.date },
+      { account_id: input.from_account_id, kind: 'withdrawal', amount: input.amount, date: input.date, note: input.note },
       transferId,
     )
     toEvent = insertEvent(
       db,
-      { account_id: input.to_account_id, kind: 'deposit', amount: input.amount, date: input.date },
+      { account_id: input.to_account_id, kind: 'deposit', amount: input.amount, date: input.date, note: input.note },
       transferId,
     )
   })

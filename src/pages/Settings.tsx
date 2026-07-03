@@ -10,6 +10,7 @@ import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEd
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
 import TradingAccountsCard from '@/components/settings/TradingAccountsCard'
+import BalancesCard from '@/components/settings/BalancesCard'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
 import ResetJournalModal from '@/components/settings/ResetJournalModal'
 import TrashSection from '@/components/settings/TrashSection'
@@ -376,6 +377,9 @@ export default function Settings() {
             its own accounts IPC (the vocabulary-editor precedent), NOT the
             settings save-bar. */}
         <TradingAccountsCard />
+        {/* Stage 3 beat 2 — the per-account cash ledger, a sibling of the
+            registry. Same own-channels pattern; local refetch reactivity. */}
+        <BalancesCard />
         <DailyTargetSection />
         <DnaSettingsSection />
         </CategoryPane>

@@ -188,3 +188,43 @@ describe('createTransfer — the atomic linked pair', () => {
     expect(runs.some((r) => /DELETE FROM cash_events WHERE id = \?/i.test(r.sql))).toBe(true)
   })
 })
+
+// Beat 2 — the OPTIONAL memo (the ratified DDL amendment: note TEXT in
+// place, version stays '39').
+describe('the note (memo)', () => {
+  it('stored TRIMMED; empty/whitespace stores NULL', () => {
+    const withNote = createCashEvent({
+      account_id: 'ACCT-A',
+      kind: 'deposit',
+      amount: 10,
+      date: '2026-06-01',
+      note: '  lunch money  ',
+    })
+    expect(withNote.note).toBe('lunch money')
+    expect(insertOf(0).args).toContain('lunch money')
+
+    const blank = createCashEvent({
+      account_id: 'ACCT-A',
+      kind: 'deposit',
+      amount: 10,
+      date: '2026-06-01',
+      note: '   ',
+    })
+    expect(blank.note).toBeNull()
+    expect(insertOf(1).args).toContain(null)
+  })
+
+  it('a transfer takes ONE note applied to BOTH legs', () => {
+    const t = createTransfer({
+      from_account_id: 'ACCT-A',
+      to_account_id: 'ACCT-B',
+      amount: 300,
+      date: '2026-06-01',
+      note: 'rebalance',
+    })
+    expect(t.from_event.note).toBe('rebalance')
+    expect(t.to_event.note).toBe('rebalance')
+    const inserts = runs.filter((r) => /INSERT INTO cash_events/i.test(r.sql))
+    for (const ins of inserts) expect(ins.args).toContain('rebalance')
+  })
+})

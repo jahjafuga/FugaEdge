@@ -639,9 +639,14 @@ CREATE TABLE IF NOT EXISTS cash_events (
   kind        TEXT NOT NULL,   -- 'starting' | 'deposit' | 'withdrawal'
   amount      REAL NOT NULL,
   date        TEXT NOT NULL,   -- YYYY-MM-DD Eastern trading day
+  note        TEXT,            -- optional memo (trimmed; empty stored NULL)
   transfer_id TEXT,            -- non-null links the two legs of a transfer
   created_at  TEXT NOT NULL    -- ISO 8601 UTC
 );
+-- The note column was added IN PLACE on 2026-07-03 (beat 2) via the ratified
+-- amendment window (73e96df): no persistent DB holds v39 before the release
+-- cut, so the DDL is freely amendable here — no ALTER, no migration module,
+-- SCHEMA_VERSION stays '39'.
 
 -- ONE 'starting' row per account, enforced at the DB — the accounts
 -- single-default partial-unique idiom (idx_accounts_single_default). The

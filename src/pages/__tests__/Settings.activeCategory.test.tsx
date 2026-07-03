@@ -17,6 +17,9 @@ vi.mock('@/lib/ipc', () => ({
     tradesList: vi.fn(),
     // Beat 3 — TradingAccountsCard mounts inside Settings and lists on mount.
     accountsList: vi.fn(async () => []),
+    // Stage 3 beat 2 — BalancesCard mounts inside Settings and fetches on mount.
+    cashEventsList: vi.fn(async () => []),
+    cashBalanceGet: vi.fn(async () => null),
     countryOnBackfillProgress: vi.fn(() => () => {}),
     floatOnBackfillProgress: vi.fn(() => () => {}),
     profileOnBackfillProgress: vi.fn(() => () => {}),

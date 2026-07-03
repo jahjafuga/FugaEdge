@@ -41,6 +41,7 @@ import type {
   CreateAccountInput,
   UpdateAccountInput,
 } from '@shared/accounts-types'
+import type { CreateCashEventInput, CreateTransferInput } from '@shared/cash-types'
 import type { TimeRange } from '@shared/dashboard-types'
 import type { ListTradesWithTechnicalsOptions } from '@shared/technicals-types'
 
@@ -240,6 +241,14 @@ export const ipc = {
   accountsSetStatus: (id: string, status: AccountStatus) =>
     window.api.accountsSetStatus({ id, status }),
   accountsDelete: (id: string) => window.api.accountsDelete({ id }),
+  // ── Cash ledger (Stage 3 beat 2) — events, transfers, computed balances ──
+  cashEventsList: (accountId?: string) => window.api.cashEventsList(accountId),
+  cashEventCreate: (input: CreateCashEventInput) => window.api.cashEventCreate(input),
+  cashEventDelete: (id: string) => window.api.cashEventDelete(id),
+  cashTransferCreate: (input: CreateTransferInput) => window.api.cashTransferCreate(input),
+  cashTransferDelete: (transferId: string) => window.api.cashTransferDelete(transferId),
+  cashBalanceGet: (accountId: string) => window.api.cashBalanceGet(accountId),
+  cashBalanceCombined: () => window.api.cashBalanceCombined(),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

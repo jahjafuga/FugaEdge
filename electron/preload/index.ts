@@ -22,6 +22,14 @@ import type {
   UpdateAccountInput,
 } from '@shared/accounts-types'
 import type {
+  AccountBalance,
+  CashEvent,
+  CombinedBalance,
+  CreateCashEventInput,
+  CreateTransferInput,
+  TransferResult,
+} from '@shared/cash-types'
+import type {
   CommitInput,
   CommitResult,
   PreviewInputFile,
@@ -408,6 +416,21 @@ const api = {
     ipcRenderer.invoke(IPC.ACCOUNTS_SET_STATUS, input),
   accountsDelete: (input: { id: string }): Promise<Account[]> =>
     ipcRenderer.invoke(IPC.ACCOUNTS_DELETE, input),
+  // ── Cash ledger (Stage 3 beat 2) — events, transfers, computed balances ──
+  cashEventsList: (accountId?: string): Promise<CashEvent[]> =>
+    ipcRenderer.invoke(IPC.CASH_EVENTS_LIST, accountId),
+  cashEventCreate: (input: CreateCashEventInput): Promise<CashEvent> =>
+    ipcRenderer.invoke(IPC.CASH_EVENT_CREATE, input),
+  cashEventDelete: (id: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.CASH_EVENT_DELETE, id),
+  cashTransferCreate: (input: CreateTransferInput): Promise<TransferResult> =>
+    ipcRenderer.invoke(IPC.CASH_TRANSFER_CREATE, input),
+  cashTransferDelete: (transferId: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.CASH_TRANSFER_DELETE, transferId),
+  cashBalanceGet: (accountId: string): Promise<AccountBalance | null> =>
+    ipcRenderer.invoke(IPC.CASH_BALANCE_GET, accountId),
+  cashBalanceCombined: (): Promise<CombinedBalance> =>
+    ipcRenderer.invoke(IPC.CASH_BALANCE_COMBINED),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

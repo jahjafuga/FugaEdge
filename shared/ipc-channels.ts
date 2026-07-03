@@ -216,6 +216,16 @@ export const IPC = {
   ACCOUNTS_SET_DEFAULT: 'accounts:setDefault',
   ACCOUNTS_SET_STATUS: 'accounts:setStatus',
   ACCOUNTS_DELETE: 'accounts:delete',
+
+  // Stage 3 beat 2 — the per-account cash ledger (events, transfers,
+  // computed balances). combinedBalance ships now; its consumer is beat 3.
+  CASH_EVENTS_LIST: 'cash:eventsList',
+  CASH_EVENT_CREATE: 'cash:eventCreate',
+  CASH_EVENT_DELETE: 'cash:eventDelete',
+  CASH_TRANSFER_CREATE: 'cash:transferCreate',
+  CASH_TRANSFER_DELETE: 'cash:transferDelete',
+  CASH_BALANCE_GET: 'cash:balanceGet',
+  CASH_BALANCE_COMBINED: 'cash:balanceCombined',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
