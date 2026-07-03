@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { Account } from '@shared/accounts-types'
-import { activeAccounts, defaultAccountId, isSimSelected } from '../account-picker'
+import { activeAccounts, defaultAccountId } from '../account-picker'
 
 // Multi-account Beat 3 — pure helpers behind the import account picker.
-// The blocked state is TYPE-derived (account_type === 'sim'), replacing the
-// old Real/Paper toggle; the default account preselects.
+// Sim-unlock audit fix beat 3: isSimSelected retired with the block (its
+// describe removed with it); the default account preselects.
 
 function acct(over: Partial<Account>): Account {
   return {
@@ -45,18 +45,5 @@ describe('defaultAccountId', () => {
   it('null when nothing is active (or the list is empty)', () => {
     expect(defaultAccountId([])).toBeNull()
     expect(defaultAccountId([acct({ id: 'A', status: 'archived' })])).toBeNull()
-  })
-})
-
-describe('isSimSelected', () => {
-  it('true only when the SELECTED account is sim-typed', () => {
-    const list = [
-      acct({ id: 'A', account_type: 'margin', is_default: true }),
-      acct({ id: 'S', account_type: 'sim' }),
-    ]
-    expect(isSimSelected(list, 'S')).toBe(true)
-    expect(isSimSelected(list, 'A')).toBe(false)
-    expect(isSimSelected(list, null)).toBe(false)
-    expect(isSimSelected(list, 'missing')).toBe(false)
   })
 })

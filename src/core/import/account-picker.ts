@@ -1,8 +1,8 @@
 // Multi-account Beat 3 — pure decisions behind the import account picker.
-// Web-portable per /ARCHITECTURE.md: no electron / DOM imports. The blocked
-// state is TYPE-derived (account_type === 'sim') — the successor of the old
-// Real/Paper toggle; sim imports stay blocked until per-account filtering
-// walls practice trades off from live stats (Beat 4+).
+// Web-portable per /ARCHITECTURE.md: no electron / DOM imports.
+// Sim-unlock audit fix beat 3: the sim BLOCK retired — isSimSelected deleted
+// with it (zero callers beyond the block sites); practice imports flow
+// normally and the walls live in the read layer.
 
 import type { Account } from '@shared/accounts-types'
 
@@ -17,10 +17,4 @@ export function activeAccounts(accounts: Account[]): Account[] {
 export function defaultAccountId(accounts: Account[]): string | null {
   const active = activeAccounts(accounts)
   return active.find((a) => a.is_default)?.id ?? active[0]?.id ?? null
-}
-
-/** True only when the SELECTED account exists and is sim-typed. */
-export function isSimSelected(accounts: Account[], selectedId: string | null): boolean {
-  if (selectedId == null) return false
-  return accounts.some((a) => a.id === selectedId && a.account_type === 'sim')
 }

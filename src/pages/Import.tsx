@@ -11,8 +11,7 @@ import AccountPickerCard from '@/components/import/AccountPickerCard'
 import { ipc } from '@/lib/ipc'
 import { int } from '@/lib/format'
 import { deriveFeesBannerVariant } from '@/core/import/feesBannerVariant'
-import { defaultAccountId, isSimSelected } from '@/core/import/account-picker'
-import { accountStrings } from '@/components/accounts/strings'
+import { defaultAccountId } from '@/core/import/account-picker'
 import type { Account } from '@shared/accounts-types'
 import type { PreviewResult, CommitResult, PreviewInputFile, SourceBroker } from '@shared/import-types'
 
@@ -341,13 +340,10 @@ function PreviewPanel({
   onConfirm: () => void
   onShowGuide: () => void
 }) {
-  // Per-batch account gate (Beat 3 — supersedes the v0.2.0 Real/Paper toggle;
-  // the old [[paper-account-import-and-filtering]] ticket folds into account
-  // TYPES). A sim-typed selection blocks Import: practice trades stay out of
-  // live stats until per-account filtering (Beat 4+) walls them off. The
-  // picker itself drives PREVIEW HONESTY via onAccountChange.
-  const blockedBySim = isSimSelected(accounts, selectedAccountId)
-
+  // The per-batch account picker (Beat 3) drives PREVIEW HONESTY via
+  // onAccountChange. Sim-unlock audit fix beat 3: the sim block retired —
+  // practice imports flow like any other; the read-layer walls (4703a10)
+  // keep them out of real-money stats.
   const hasUsableContent =
     data.summary.newTrips > 0 || data.summary.newFeeRows > 0 || data.summary.replaceFeeRows > 0
   const blockingNeedsDate = data.needsDate && !dateOverride
@@ -449,16 +445,14 @@ function PreviewPanel({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!hasUsableContent || blockingNeedsDate || blockedBySim}
+          disabled={!hasUsableContent || blockingNeedsDate}
           className="inline-flex h-9 cursor-pointer items-center rounded-md bg-gold px-4 text-sm font-semibold text-accent-ink transition-colors duration-150 ease-out-soft hover:bg-gold-hover active:bg-gold-dim disabled:cursor-not-allowed disabled:opacity-40"
         >
           {blockingNeedsDate
             ? 'Pick a date to continue'
             : !hasUsableContent
               ? 'Nothing new to import'
-              : blockedBySim
-                ? accountStrings.picker.blockedButton
-                : confirmLabel(data)}
+              : confirmLabel(data)}
         </button>
       </div>
     </div>

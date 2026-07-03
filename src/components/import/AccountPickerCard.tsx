@@ -1,12 +1,13 @@
 // Multi-account Beat 3 — the import "Trading account" picker (replaces the
-// old Real/Paper radios; type-derived sim blocking supersedes is_paper).
-// Controlled: the page owns the selection because changing it re-invokes the
-// preview (preview honesty — duplicate badges re-annotate against the chosen
-// account). Presentational beyond that — no IPC here.
+// old Real/Paper radios). Controlled: the page owns the selection because
+// changing it re-invokes the preview (preview honesty — duplicate badges
+// re-annotate against the chosen account). Presentational beyond that — no
+// IPC here. Sim-unlock audit fix beat 3: the block retired; a sim selection
+// shows the informational practice note only.
 
 import { Link } from 'react-router-dom'
 import type { Account } from '@shared/accounts-types'
-import { activeAccounts, isSimSelected } from '@/core/import/account-picker'
+import { activeAccounts } from '@/core/import/account-picker'
 import { ACCOUNT_TYPE_LABELS, accountStrings } from '@/components/accounts/strings'
 
 interface AccountPickerCardProps {
@@ -18,7 +19,7 @@ interface AccountPickerCardProps {
 export default function AccountPickerCard({ accounts, value, onChange }: AccountPickerCardProps) {
   const S = accountStrings.picker
   const options = activeAccounts(accounts)
-  const simBlocked = isSimSelected(accounts, value)
+  const simSelected = accounts.some((a) => a.id === value && a.account_type === 'sim')
 
   return (
     <div className="card-premium px-4 py-3">
@@ -43,8 +44,8 @@ export default function AccountPickerCard({ accounts, value, onChange }: Account
           {S.manageHint}
         </Link>
       </div>
-      {simBlocked && (
-        <p className="mt-3 text-xs text-fg-tertiary">{accountStrings.simImportNote}</p>
+      {simSelected && (
+        <p className="mt-3 text-xs text-fg-tertiary">{accountStrings.practiceImportNote}</p>
       )}
     </div>
   )

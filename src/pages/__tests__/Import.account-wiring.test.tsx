@@ -3,7 +3,8 @@
 // Multi-account Beat 3 — the Import page's account wiring (the beat's logic
 // core): the default account preselects; CHANGING the picker re-invokes the
 // preview with the chosen accountId (preview honesty — badges re-annotate);
-// a sim selection blocks the Import button; commit passes account_id.
+// a sim selection imports like any other (the block retired in the
+// sim-unlock audit, fix beat 3); commit passes account_id.
 // DropZone and BrokerExportGuide are stubbed (file plumbing + image assets);
 // everything else renders real.
 
@@ -135,13 +136,17 @@ describe('Import — account wiring', () => {
     expect(m.importPreview).toHaveBeenLastCalledWith(EXPECTED_INPUTS, undefined, 'ACCT-B')
   })
 
-  it('a sim selection blocks the Import button with the sim message', async () => {
+  // Sim-unlock audit fix beat 3 — the block pin INVERTED: a sim selection
+  // imports like any other account (the practice data walls live in the
+  // read layer, not the import gate).
+  it('a sim selection leaves the Import button ENABLED with the normal label (the block retired)', async () => {
     await renderAndDrop()
     fireEvent.change(screen.getByRole('combobox', { name: /trading account/i }), {
       target: { value: 'ACCT-SIM' },
     })
-    const btn = await screen.findByRole('button', { name: /sim imports unlock/i })
-    expect((btn as HTMLButtonElement).disabled).toBe(true)
+    await waitFor(() => expect(m.importPreview).toHaveBeenCalledTimes(2))
+    const btn = await screen.findByRole('button', { name: /import 1 round trip/i })
+    expect((btn as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('commit passes the SELECTED account_id in CommitInput', async () => {

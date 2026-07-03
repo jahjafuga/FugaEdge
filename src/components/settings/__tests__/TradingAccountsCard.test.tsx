@@ -99,10 +99,12 @@ describe('TradingAccountsCard — create', () => {
     expect(alert.textContent).not.toContain('invoking remote method')
   })
 
-  it('shows the sim note when the create type select is set to sim', async () => {
+  // Sim-unlock audit fix beat 3 — the note pin INVERTED to the practice
+  // copy (the block retired; the note is informational live behavior).
+  it('shows the practice note when the create type select is set to sim', async () => {
     await renderCard()
     fireEvent.change(screen.getByLabelText(/account type/i), { target: { value: 'sim' } })
-    expect(screen.getByText(/sim-account imports unlock/i)).toBeTruthy()
+    expect(screen.getByText(/practice account/i)).toBeTruthy()
   })
 })
 

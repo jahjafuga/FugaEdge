@@ -2,8 +2,12 @@
 //
 // Multi-account Beat 3 — the import "Trading account" picker card (replaces
 // the old Real/Paper radios). Logic assertions only: active-only options with
-// friendly type labels, controlled value, onChange, the sim block note, and
+// friendly type labels, controlled value, onChange, the practice note, and
 // the manage-in-Settings hint. Presentation is eyes-gated.
+//
+// Sim-unlock audit fix beat 3: the sim BLOCK retired — the old block-note
+// pins inverted to the practice note (shown on a sim selection, informational
+// only; no disable pairing).
 
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -62,14 +66,15 @@ describe('AccountPickerCard', () => {
     expect(onChange).toHaveBeenCalledWith('B')
   })
 
-  it('shows the sim block note ONLY when the selected account is sim-typed', () => {
+  it('shows the practice note ONLY when the selected account is sim-typed (informational, never blocking)', () => {
     renderCard('S')
-    expect(screen.getByText(/sim-account imports unlock/i)).toBeTruthy()
+    expect(screen.getByText(/practice account/i)).toBeTruthy()
+    expect(screen.getByText(/stay out of your real-money stats/i)).toBeTruthy()
   })
 
-  it('hides the sim note for non-sim selections and always shows the manage hint', () => {
+  it('hides the practice note for non-sim selections and always shows the manage hint', () => {
     renderCard('A')
-    expect(screen.queryByText(/sim-account imports unlock/i)).toBeNull()
+    expect(screen.queryByText(/practice account/i)).toBeNull()
     const hint = screen.getByRole('link', { name: /manage accounts in settings/i })
     expect(hint.getAttribute('href')).toBe('/settings')
   })

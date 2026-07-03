@@ -292,7 +292,7 @@ export default function TradingAccountsCard() {
           </label>
         </div>
         {type === 'sim' && (
-          <p className="mt-2 text-xs text-fg-tertiary">{accountStrings.simImportNote}</p>
+          <p className="mt-2 text-xs text-fg-tertiary">{accountStrings.practiceImportNote}</p>
         )}
         <div className="mt-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-1.5">

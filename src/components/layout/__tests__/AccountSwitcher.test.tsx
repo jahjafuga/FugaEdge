@@ -106,3 +106,36 @@ describe('AccountSwitcher', () => {
     )
   })
 })
+
+// Sim-unlock audit fix beat 3 — the conditional All label: the qualifier
+// '(sim excluded)' appears ONLY when at least one sim account exists,
+// active OR archived (archiving hides neither the account nor the
+// exclusion); plain 'All accounts' otherwise.
+describe('AccountSwitcher — the conditional All label', () => {
+  it("no sim account -> plain 'All accounts' (no qualifier)", async () => {
+    m.accountsList.mockResolvedValue([acct({ id: 'A', name: 'Main account' })])
+    const trigger = await renderSwitcher()
+    expect(trigger.textContent).toContain('All accounts')
+    expect(trigger.textContent).not.toContain('sim excluded')
+  })
+
+  it("a sim account present -> 'All accounts (sim excluded)' on the trigger and the menu entry", async () => {
+    const trigger = await renderSwitcher() // the default fixture holds a sim
+    expect(trigger.textContent).toContain('All accounts (sim excluded)')
+    fireEvent.click(trigger)
+    expect(
+      within(screen.getByRole('menu')).getByRole('menuitem', {
+        name: /all accounts \(sim excluded\)/i,
+      }),
+    ).toBeTruthy()
+  })
+
+  it('an ARCHIVED-only sim still triggers the qualifier (the ruled trigger)', async () => {
+    m.accountsList.mockResolvedValue([
+      acct({ id: 'A', name: 'Main account' }),
+      acct({ id: 'S', name: 'Practice', account_type: 'sim', status: 'archived', is_default: false }),
+    ])
+    const trigger = await renderSwitcher()
+    expect(trigger.textContent).toContain('All accounts (sim excluded)')
+  })
+})

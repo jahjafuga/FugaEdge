@@ -50,6 +50,11 @@ export default function AccountSwitcher() {
   const archived = accounts.filter((a) => a.status === 'archived')
   const selected =
     scope === 'all' ? null : accounts.find((a) => a.id === scope.accountId) ?? null
+  // Sim-unlock audit fix beat 3 — the All label qualifies the moment ANY sim
+  // account exists, active OR archived (archiving hides neither the account
+  // nor the exclusion): 'All accounts (sim excluded)'.
+  const someSim = accounts.some((a) => a.account_type === 'sim')
+  const allLabel = someSim ? S.allSimExcluded : S.all
 
   const pick = (s: AccountScope) => {
     setScope(s)
@@ -80,7 +85,7 @@ export default function AccountSwitcher() {
         ) : (
           <Layers size={13} strokeWidth={2} aria-hidden className="shrink-0 text-fg-tertiary" />
         )}
-        <span className="truncate">{selected ? selected.name : S.all}</span>
+        <span className="truncate">{selected ? selected.name : allLabel}</span>
         <ChevronDown size={13} strokeWidth={2} aria-hidden className="shrink-0 text-fg-muted" />
       </button>
 
@@ -100,7 +105,7 @@ export default function AccountSwitcher() {
               }`}
             >
               <Layers size={14} strokeWidth={2} aria-hidden />
-              {S.all}
+              {allLabel}
             </button>
             {active.map((a) => (
               <SwitcherItem key={a.id} account={a} selected={selected?.id === a.id} onPick={pick} />

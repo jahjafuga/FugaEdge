@@ -17,20 +17,23 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 }
 
 export const accountStrings = {
-  /** Shown wherever a sim account is chosen — imports stay blocked until
-   *  per-account filtering walls practice trades off from live stats. */
-  simImportNote:
-    'Sim-account imports unlock once per-account stat filtering lands — practice trades stay out of your live stats until then.',
+  /** Shown wherever a sim account is chosen (import picker + Settings) —
+   *  informational since the sim-unlock (fix beat 3): practice imports flow
+   *  normally; the walls live in the read layer. */
+  practiceImportNote:
+    'Practice account - imports stay out of your real-money stats, badges, and equity goals. They still count toward your streak and process XP.',
   picker: {
     heading: 'Trading account',
     selectLabel: 'Trading account',
     manageHint: 'Manage accounts in Settings',
-    blockedButton: 'Sim imports unlock with account filtering',
   },
   switcher: {
     triggerLabel: 'Trading account scope',
     menuLabel: 'Trading accounts',
     all: 'All accounts',
+    /** The All entry when ANY sim account exists (active or archived) —
+     *  the exclusion becomes user-visible the moment it can matter. */
+    allSimExcluded: 'All accounts (sim excluded)',
     archivedDivider: 'Archived',
   },
   compare: {
