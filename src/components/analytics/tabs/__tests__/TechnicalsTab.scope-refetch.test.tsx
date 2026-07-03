@@ -20,7 +20,13 @@ vi.mock('@/lib/ipc', () => ({
     accountsList: vi.fn(),
   },
 }))
-vi.mock('../technicals/TechnicalsFilterBar', () => ({ default: () => null }))
+// The bar stub surfaces the scopeLabel prop so the X-of-Y bridge is
+// asserted through the real tab wiring (TA definition-drift fix).
+vi.mock('../technicals/TechnicalsFilterBar', () => ({
+  default: (p: { scopeLabel: string | null }) => (
+    <div data-testid="bar-stub">{p.scopeLabel}</div>
+  ),
+}))
 vi.mock('../technicals/HeaderStripCards', () => ({ default: () => null }))
 vi.mock('../technicals/MacdStateGrid', () => ({ default: () => null }))
 vi.mock('../technicals/VwapDistanceBand', () => ({ default: () => null }))
@@ -58,7 +64,7 @@ describe('TechnicalsTab — scope-aware fetching', () => {
     render(
       <AccountScopeProvider>
         <ScopeProbe />
-        <TechnicalsTab />
+        <TechnicalsTab allTimeTotal={98} />
       </AccountScopeProvider>,
     )
     await waitFor(() => expect(m.listTradesWithTechnicals).toHaveBeenCalled())
@@ -70,6 +76,23 @@ describe('TechnicalsTab — scope-aware fetching', () => {
     await waitFor(() =>
       expect(m.listTradesWithTechnicals).toHaveBeenLastCalledWith(
         expect.objectContaining({ accountScope: { accountId: 'ACCT-B' } }),
+      ),
+    )
+  })
+
+  // TA definition-drift fix — the X-of-Y bridge: Y is the REQUIRED
+  // allTimeTotal prop drilled from the page's scoped analytics payload
+  // (no fallback branch exists — the page's loading gate guarantees it).
+  it('renders the X of Y bridge in the scope line', async () => {
+    m.listTradesWithTechnicals.mockResolvedValue([])
+    render(
+      <AccountScopeProvider>
+        <TechnicalsTab allTimeTotal={98} />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() =>
+      expect(screen.getByTestId('bar-stub').textContent).toBe(
+        '0 of 98 round trips in selected range',
       ),
     )
   })

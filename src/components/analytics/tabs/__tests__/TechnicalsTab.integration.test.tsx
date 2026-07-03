@@ -42,13 +42,13 @@ beforeEach(() => {
 
 describe('TechnicalsTab — Sections 2 + 3 integration', () => {
   it('renders both the MACD State and VWAP distance bands once data loads', async () => {
-    render(<TechnicalsTab />)
+    render(<TechnicalsTab allTimeTotal={98} />)
     expect(await screen.findByText('VWAP distance')).toBeTruthy()
     expect(screen.getByText('MACD state')).toBeTruthy()
   })
 
   it('drills a VWAP bucket → table row → TradeDetailSheet, then closes', async () => {
-    const { container } = render(<TechnicalsTab />)
+    const { container } = render(<TechnicalsTab allTimeTotal={98} />)
     await screen.findByText('VWAP distance')
 
     // Open the At-VWAP bucket → its accordion + the VWAP-dist table mount.
@@ -73,7 +73,7 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
   // so expanding/collapsing a band must not reset the filter. The ticker filter is
   // renderer-side (no refetch on change), so its value is pure filter-bar state.
   it('(inv 14) expanding/collapsing a band preserves the filter-bar state', async () => {
-    render(<TechnicalsTab />)
+    render(<TechnicalsTab allTimeTotal={98} />)
     await screen.findByText('VWAP distance')
 
     const ticker = screen.getByPlaceholderText('Ticker') as HTMLInputElement
@@ -92,7 +92,7 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
 
 describe('TechnicalsTab — Section 4 (EMA) integration', () => {
   it('renders the EMA distance band + 9/20 crossover strip once data loads', async () => {
-    render(<TechnicalsTab />)
+    render(<TechnicalsTab allTimeTotal={98} />)
     expect(await screen.findByText('EMA distance')).toBeTruthy()
     // The crossover strip is the EMA band's own surface (no VWAP analog).
     expect(screen.getByText('9/20 stacking')).toBeTruthy()
@@ -101,7 +101,7 @@ describe('TechnicalsTab — Section 4 (EMA) integration', () => {
   })
 
   it('drills an EMA bucket → table row → TradeDetailSheet, then closes', async () => {
-    const { container } = render(<TechnicalsTab />)
+    const { container } = render(<TechnicalsTab allTimeTotal={98} />)
     await screen.findByText('EMA distance')
 
     // The seeded row sits at the DEFAULT ema9_dist_pct (-1.0) → the Below-9-EMA
@@ -124,7 +124,7 @@ describe('TechnicalsTab — Section 4 (EMA) integration', () => {
 
 describe('TechnicalsTab — Section 5 (Combined Reads) integration', () => {
   it('renders the aligned/misaligned comparison and drills a cell to the sheet', async () => {
-    const { container } = render(<TechnicalsTab />)
+    const { container } = render(<TechnicalsTab allTimeTotal={98} />)
     expect(await screen.findByText('Combined signal reads')).toBeTruthy()
     expect(screen.getByText('Full alignment')).toBeTruthy()
     expect(screen.getByText('Any misalignment')).toBeTruthy()
@@ -146,7 +146,7 @@ describe('TechnicalsTab — Section 5 (Combined Reads) integration', () => {
 
 describe('TechnicalsTab — Section 6 (Time-of-Day) integration', () => {
   it('renders the time-of-day matrix and drills a cell to the sheet', async () => {
-    const { container } = render(<TechnicalsTab />)
+    const { container } = render(<TechnicalsTab allTimeTotal={98} />)
     expect(await screen.findByText('Time of day')).toBeTruthy()
 
     // The seeded row's default open_time is 09:45 ET (the 9:30-10:00 bucket) and

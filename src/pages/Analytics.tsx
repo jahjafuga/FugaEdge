@@ -181,10 +181,13 @@ export default function Analytics() {
     <PageShell
       title="Analytics"
       subtitle={
+        // TA definition-drift fix (2026-07-03) — the colliding "analyzed"
+        // retires; the all-time population is explicit. This figure is one
+        // static all-time fact shared by every tab — never window- or
+        // tab-aware by ruling.
         <span>
           <span className="font-mono text-text">{int(data.trade_count)}</span>{' '}
-          round trip{data.trade_count === 1 ? '' : 's'} analyzed —{' '}
-          {TABS.length} tabs of deep stats.
+          round trip{data.trade_count === 1 ? '' : 's'} — all time
         </span>
       }
     >
@@ -225,7 +228,7 @@ export default function Analytics() {
           {tab === 'psychology' && <PsychologyTab data={data} />}
           {tab === 'quality' && reports && <AnalyticsQualityTab reports={reports} />}
           {tab === 'symbols' && <SymbolsTab data={data} reports={reports} />}
-          {tab === 'technicals' && <TechnicalsTab />}
+          {tab === 'technicals' && <TechnicalsTab allTimeTotal={data.trade_count} />}
         </div>
       </div>
     </PageShell>

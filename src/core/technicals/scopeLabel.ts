@@ -17,6 +17,11 @@
 export interface TechnicalsScopeLabelInput {
   /** filteredRows.length — round trips in range AND matching active filters. */
   count: number
+  /** The all-time total (the page subtitle's population) — the "of Y" side
+   *  of the bridge. REQUIRED: the page's loading gate guarantees the
+   *  analytics payload exists before the tab mounts, so no fallback branch
+   *  exists (the 2026-07-03 definition-drift fix). */
+  totalCount: number
   /** A ticker filter is narrowing the set (filters.ticker !== ''). */
   hasTickerFilter: boolean
   /** A playbook filter is narrowing the set (filters.playbookName !== null). */
@@ -28,15 +33,19 @@ export interface TechnicalsScopeLabelInput {
 
 export function technicalsScopeLabel({
   count,
+  totalCount,
   hasTickerFilter,
   hasPlaybookFilter,
   rangeLabel,
 }: TechnicalsScopeLabelInput): string {
+  // Singular/plural stays keyed on X (the windowed count) — the pre-fix
+  // behavior, preserved exactly.
   const noun = count === 1 ? 'round trip' : 'round trips'
   // Filter active → the population is narrower than the date range, so naming the
   // range would overclaim. State "matching filters" and leave the range unnamed.
+  // The X-of-Y bridge survives filtering — Y is all-time either way.
   if (hasTickerFilter || hasPlaybookFilter) {
-    return `${count} ${noun} matching filters`
+    return `${count} of ${totalCount} ${noun} matching filters`
   }
-  return `${count} ${noun} in ${rangeLabel}`
+  return `${count} of ${totalCount} ${noun} in ${rangeLabel}`
 }

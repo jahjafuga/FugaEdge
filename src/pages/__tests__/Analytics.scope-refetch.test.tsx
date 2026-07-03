@@ -22,6 +22,18 @@ vi.mock('@/lib/ipc', () => ({
     accountsList: vi.fn(),
   },
 }))
+// Null-stub the nine tabs — the subtitle pin mounts the FULL page (non-empty
+// fixture); the scope-refetch describe below stays on the empty fixture and
+// never renders them.
+vi.mock('@/components/analytics/tabs/OverviewTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/AnalyticsCompareTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/PerformanceTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/ExecutionTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/MomentumTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/PsychologyTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/SymbolsTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/AnalyticsQualityTab', () => ({ default: () => null }))
+vi.mock('@/components/analytics/tabs/TechnicalsTab', () => ({ default: () => null }))
 
 import Analytics from '../Analytics'
 import { AccountScopeProvider, useAccountScope } from '@/lib/accountScope'
@@ -50,6 +62,26 @@ beforeEach(() => {
   m.settingsGet.mockResolvedValue(makeSettingsPayload({ account_scope: 'all' }))
   m.settingsSave.mockResolvedValue(makeSettingsPayload())
   m.accountsList.mockResolvedValue([])
+})
+
+// TA definition-drift fix (2026-07-03) — the collision-absence pin: the
+// page header's subtitle states the all-time population explicitly and the
+// colliding word retires. The empty state's "Nothing to analyze yet" is a
+// different surface and keeps its copy.
+describe('Analytics — the relabeled all-time subtitle', () => {
+  it('the header reads "— all time" and never says analyzed/analysed', async () => {
+    m.analyticsGet.mockResolvedValue({ trade_count: 98 } as unknown as AnalyticsData)
+    render(
+      <MemoryRouter>
+        <AccountScopeProvider>
+          <Analytics />
+        </AccountScopeProvider>
+      </MemoryRouter>,
+    )
+    const subtitle = await screen.findByText(/all time/i)
+    expect(subtitle.textContent).toMatch(/98/)
+    expect(subtitle.textContent).not.toMatch(/analys|analyz/i)
+  })
 })
 
 describe('Analytics — scope-aware fetching', () => {

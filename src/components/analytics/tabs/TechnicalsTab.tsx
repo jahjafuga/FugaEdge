@@ -41,11 +41,19 @@ import CombinedReadsBand from './technicals/CombinedReadsBand'
 import TimeOfDayMatrix from './technicals/TimeOfDayMatrix'
 import UnclassifiedChip from './technicals/UnclassifiedChip'
 
-export default function TechnicalsTab() {
+interface TechnicalsTabProps {
+  /** The all-time total from the page's scoped analytics payload — the
+   *  "of Y" side of the scope line's bridge (the 2026-07-03
+   *  definition-drift fix). REQUIRED and prop-drilled: the tab must never
+   *  fetch the total itself (one source of truth; both sides of the bridge
+   *  ride the same switcher scope by construction). */
+  allTimeTotal: number
+}
+
+export default function TechnicalsTab({ allTimeTotal }: TechnicalsTabProps) {
   // Multi-account (Technicals slice, beat 1) — the tab follows the switcher:
   // the fetch carries the scope and re-fires on change (setRows(null) at the
-  // effect top is the tab's existing stale guard). Counts change with scope;
-  // the analysed/excluded arithmetic itself is the separate parked bug.
+  // effect top is the tab's existing stale guard).
   const { scope } = useAccountScope()
   // Existing filter state — unchanged from Commit 5.
   const [filters, setFilters] = useState<TechnicalsFilters>(() => ({
@@ -155,6 +163,7 @@ export default function TechnicalsTab() {
             ? null
             : technicalsScopeLabel({
                 count: filteredRows.length,
+                totalCount: allTimeTotal,
                 hasTickerFilter: filters.ticker !== '',
                 hasPlaybookFilter: filters.playbookName !== null,
                 rangeLabel: 'selected range',
