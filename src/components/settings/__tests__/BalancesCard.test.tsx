@@ -21,6 +21,9 @@ vi.mock('@/lib/ipc', () => ({
     cashTransferCreate: vi.fn(),
     cashTransferDelete: vi.fn(),
     cashBalanceGet: vi.fn(),
+    // Anchor-trap notice — the starting form reads the account's trades
+    // once per open (the existing list channel, no new reads).
+    tradesList: vi.fn(async () => []),
   },
 }))
 
@@ -336,6 +339,106 @@ describe('BalancesCard — the segmented kind picker (round 3)', () => {
     const oceanStart = within(ocean).getByRole('button', { name: /^starting balance$/i })
     expect((oceanStart as HTMLButtonElement).disabled).toBe(false)
     expect(oceanStart.getAttribute('aria-pressed')).toBe('true')
+  })
+})
+
+// The anchor-trap notice (mini-beat): the STARTING form quotes, live, how
+// many existing trades fall strictly before the chosen date and their net
+// — informational, never blocking. OCEAN carries the cases (the fixture's
+// un-anchored account — the affordance-opened starting form, Lao's exact
+// live trap; MAIN's Starting segment is disabled by round 3's rule).
+describe('BalancesCard — the anchor-trap notice', () => {
+  const TRAP_TRADES = [
+    { id: 1, date: '2026-06-01', net_pnl: 10 },
+    { id: 2, date: '2026-06-05', net_pnl: -4 },
+    { id: 3, date: '2026-06-09', net_pnl: 31.82 },
+  ] as never
+
+  async function openOceanStarting() {
+    await renderCard()
+    const ocean = section('OCEAN')
+    fireEvent.click(within(ocean).getByRole('button', { name: /set starting balance/i }))
+    return ocean
+  }
+
+  it("renders the live notice — count AND net — when trades precede the chosen date", async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    const ocean = await openOceanStarting()
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    expect(
+      await within(ocean).findByText(
+        "3 trades before this date (net $37.82) won't count toward the balance.",
+      ),
+    ).toBeTruthy()
+  })
+
+  it('a date before every trade -> the notice is ABSENT (N=0)', async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    const ocean = await openOceanStarting()
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    await within(ocean).findByText(/3 trades before this date/)
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-05-01' } })
+    expect(within(ocean).queryByText(/before this date \(net/)).toBeNull()
+  })
+
+  it('STRICTLY before: the boundary date excludes its own trades (N=1, singular, $10.00)', async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    const ocean = await openOceanStarting()
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-06-05' } })
+    expect(
+      await within(ocean).findByText(
+        "1 trade before this date (net $10.00) won't count toward the balance.",
+      ),
+    ).toBeTruthy()
+  })
+
+  it('zero trades on the account -> absent', async () => {
+    m.tradesList.mockResolvedValue([] as never)
+    const ocean = await openOceanStarting()
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(within(ocean).queryByText(/before this date \(net/)).toBeNull()
+  })
+
+  it('the deposit form never shows the notice (starting only)', async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    await renderCard()
+    const ocean = section('OCEAN')
+    fireEvent.click(within(ocean).getByRole('button', { name: /add entry/i }))
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(within(ocean).queryByText(/before this date \(net/)).toBeNull()
+  })
+
+  it('warn, never block: saving with the trap date fires the create with the chosen date', async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    const ocean = await openOceanStarting()
+    fireEvent.change(within(ocean).getByLabelText(/amount/i), { target: { value: '1000' } })
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    await within(ocean).findByText(/3 trades before this date/)
+    fireEvent.click(within(ocean).getByRole('button', { name: /save entry/i }))
+    await waitFor(() =>
+      expect(m.cashEventCreate).toHaveBeenCalledWith({
+        account_id: 'OCEAN',
+        kind: 'starting',
+        amount: 1000,
+        date: '2026-07-03',
+        note: '',
+      }),
+    )
+  })
+
+  it('the trades read fires ONCE per form-open with the account scope (not per keystroke)', async () => {
+    m.tradesList.mockResolvedValue(TRAP_TRADES)
+    const ocean = await openOceanStarting()
+    await waitFor(() =>
+      expect(m.tradesList).toHaveBeenCalledWith({ accountScope: { accountId: 'OCEAN' } }),
+    )
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-06-05' } })
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-06-09' } })
+    fireEvent.change(within(ocean).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    await within(ocean).findByText(/3 trades before this date/)
+    expect(m.tradesList).toHaveBeenCalledTimes(1)
   })
 })
 

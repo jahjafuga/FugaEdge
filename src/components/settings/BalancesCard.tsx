@@ -20,6 +20,7 @@ import { ipc } from '@/lib/ipc'
 import { subscribeRegistryChanged } from '@/lib/registryChanged'
 import { money } from '@/lib/format'
 import type { Account } from '@shared/accounts-types'
+import type { TradeListRow } from '@shared/trades-types'
 import type { AccountBalance, CashEvent, CashEventKind } from '@shared/cash-types'
 import { ACCOUNT_TYPE_LABELS } from '@/components/accounts/strings'
 
@@ -47,6 +48,8 @@ const S = {
   startingDateHint: 'Trades from this date onward count toward the balance.',
   startingDisabledTitle:
     'This account already has a starting balance — edit or delete it in the history below.',
+  anchorTrapNotice: (n: number, net: string) =>
+    `${n} trade${n === 1 ? '' : 's'} before this date (net ${net}) won't count toward the balance.`,
   noAnchorNote:
     'This account has no starting balance yet — entries are kept, but no balance shows until one is set.',
   archivedDivider: 'Archived',
@@ -112,6 +115,30 @@ export default function BalancesCard() {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The anchor-trap notice's data: the account's trades, fetched ONCE per
+  // STARTING-form open (trades don't change mid-form); the {count, net}
+  // pair recomputes locally as the date input moves.
+  const [trapTrades, setTrapTrades] = useState<TradeListRow[] | null>(null)
+
+  useEffect(() => {
+    if (draft?.kind !== 'starting') {
+      setTrapTrades(null)
+      return
+    }
+    let cancelled = false
+    ipc
+      .tradesList({ accountScope: { accountId: draft.accountId } })
+      .then((rows) => {
+        if (!cancelled) setTrapTrades(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setTrapTrades(null) // informational — fail silent
+      })
+    return () => {
+      cancelled = true
+    }
+    // Deliberately NOT keyed on the date — one fetch per form-open.
+  }, [draft?.kind, draft?.accountId])
 
   // Transfer form state (card-level — one form serves all accounts).
   const [txFrom, setTxFrom] = useState('')
@@ -372,6 +399,21 @@ export default function BalancesCard() {
                 {draft.kind === 'starting' && (
                   <p className="mt-1 text-xs text-fg-tertiary">{S.startingDateHint}</p>
                 )}
+                {/* The LIVE anchor-trap notice — the one-anchor law made
+                    concrete at entry time. Neutral and informational:
+                    warn, never block. */}
+                {draft.kind === 'starting' &&
+                  trapTrades !== null &&
+                  (() => {
+                    const before = trapTrades.filter((t) => t.date < draft.date)
+                    if (before.length === 0) return null
+                    const net = before.reduce((s, t) => s + t.net_pnl, 0)
+                    return (
+                      <p className="mt-1 text-xs text-fg-tertiary">
+                        {S.anchorTrapNotice(before.length, money(net))}
+                      </p>
+                    )
+                  })()}
               </label>
               <label className="block">
                 <span className={labelCls}>{S.memoLabel}</span>
