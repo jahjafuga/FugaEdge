@@ -21,9 +21,16 @@ vi.mock('@/lib/ipc', () => ({
     accountsDelete: vi.fn(),
   },
 }))
+// Beat 2.5 — the notifier is mocked HERE for call-count assertions (the
+// BalancesCard test exercises the REAL module end-to-end).
+vi.mock('@/lib/registryChanged', () => ({
+  notifyRegistryChanged: vi.fn(),
+  subscribeRegistryChanged: vi.fn(() => () => {}),
+}))
 
 import TradingAccountsCard from '../TradingAccountsCard'
 import { ipc } from '@/lib/ipc'
+import { notifyRegistryChanged } from '@/lib/registryChanged'
 
 const m = vi.mocked(ipc)
 
@@ -87,6 +94,8 @@ describe('TradingAccountsCard — create', () => {
     expect(arg.name).toBe('Schwab Roth')
     expect(arg.account_type).toBe('roth_ira')
     expect(await screen.findByText('Schwab Roth')).toBeTruthy()
+    // Beat 2.5 — the successful mutation announces the registry change once.
+    expect(notifyRegistryChanged).toHaveBeenCalledTimes(1)
   })
 
   it('surfaces the duplicate-name guard as friendly inline text (wrapper stripped)', async () => {
@@ -97,6 +106,18 @@ describe('TradingAccountsCard — create', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('An account named "Ocean One" already exists')
     expect(alert.textContent).not.toContain('invoking remote method')
+    // Beat 2.5 — a FAILED mutation announces nothing.
+    expect(notifyRegistryChanged).not.toHaveBeenCalled()
+  })
+
+  it('a successful archive announces the registry change once (beat 2.5)', async () => {
+    m.accountsSetStatus.mockResolvedValue(
+      BASE.map((a) => (a.id === 'B' ? { ...a, status: 'archived' as const } : a)),
+    )
+    await renderCard()
+    fireEvent.click(screen.getAllByRole('button', { name: /^archive/i })[0])
+    await waitFor(() => expect(m.accountsSetStatus).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(notifyRegistryChanged).toHaveBeenCalledTimes(1))
   })
 
   // Sim-unlock audit fix beat 3 — the note pin INVERTED to the practice

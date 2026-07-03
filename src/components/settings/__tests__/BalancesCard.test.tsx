@@ -26,6 +26,7 @@ vi.mock('@/lib/ipc', () => ({
 
 import BalancesCard from '../BalancesCard'
 import { ipc } from '@/lib/ipc'
+import { notifyRegistryChanged } from '@/lib/registryChanged'
 
 const m = vi.mocked(ipc)
 
@@ -225,6 +226,30 @@ describe('BalancesCard — honesty inlines', () => {
     const ocean = section('OCEAN')
     fireEvent.click(within(ocean).getByRole('button', { name: /add entry/i }))
     expect(within(ocean).getByText(/no starting balance/i)).toBeTruthy()
+  })
+})
+
+describe('BalancesCard — the sibling notify (beat 2.5)', () => {
+  it('a registry notify re-runs the load: a newly-present account renders WITHOUT remount', async () => {
+    await renderCard()
+    const listCalls = m.accountsList.mock.calls.length
+    const NEW = acct({ id: 'FRESH', name: 'Fresh One', is_default: false })
+    m.accountsList.mockResolvedValue([...ACCOUNTS, NEW])
+    notifyRegistryChanged()
+    await waitFor(() => expect(m.accountsList.mock.calls.length).toBeGreaterThan(listCalls))
+    await waitFor(() => expect(screen.getByTestId('balances-account-FRESH')).toBeTruthy())
+    expect(m.cashBalanceGet).toHaveBeenCalledWith('FRESH')
+  })
+
+  it('unmounting the subscriber stops delivery (cleanup pin)', async () => {
+    const { unmount } = render(<BalancesCard />)
+    await waitFor(() => expect(screen.getByTestId('balance-MAIN')).toBeTruthy())
+    unmount()
+    const listCalls = m.accountsList.mock.calls.length
+    notifyRegistryChanged()
+    // Delivery stopped: no further load fires for the unmounted card.
+    await new Promise((r) => setTimeout(r, 30))
+    expect(m.accountsList.mock.calls.length).toBe(listCalls)
   })
 })
 

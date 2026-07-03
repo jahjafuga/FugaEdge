@@ -16,6 +16,7 @@ import { ArrowRightLeft, Plus, Trash2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { ipc } from '@/lib/ipc'
+import { subscribeRegistryChanged } from '@/lib/registryChanged'
 import { money } from '@/lib/format'
 import type { Account } from '@shared/accounts-types'
 import type { AccountBalance, CashEvent, CashEventKind } from '@shared/cash-types'
@@ -126,6 +127,12 @@ export default function BalancesCard() {
 
   useEffect(() => {
     void reload().catch((e) => setError(friendly(e)))
+    // Beat 2.5 — the sibling notify: registry mutations in Trading accounts
+    // announce; this card refetches. The returned unsubscribe is the effect
+    // cleanup (strict-mode double-mount safe).
+    return subscribeRegistryChanged(() => {
+      void reload().catch((e) => setError(friendly(e)))
+    })
   }, [reload])
 
   const eventsByAccount = useMemo(() => {

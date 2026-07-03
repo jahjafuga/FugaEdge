@@ -12,6 +12,7 @@ import { Pencil, Star, Trash2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import { ipc } from '@/lib/ipc'
+import { notifyRegistryChanged } from '@/lib/registryChanged'
 import type { Account, AccountType } from '@shared/accounts-types'
 import { ACCOUNT_TYPES } from '@shared/accounts-types'
 import { ACCOUNT_TYPE_LABELS, accountStrings } from '@/components/accounts/strings'
@@ -78,6 +79,10 @@ export default function TradingAccountsCard() {
     setError(null)
     try {
       setAccounts(await mutation())
+      // Beat 2.5 — every successful registry mutation funnels through here;
+      // announce once so sibling consumers (the Balances card) refetch.
+      // The failure path below announces nothing.
+      notifyRegistryChanged()
       return true
     } catch (e) {
       setError(friendly(e))
