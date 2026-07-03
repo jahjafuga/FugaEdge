@@ -130,7 +130,15 @@
 // Bumped to 37: journal-rules data-model scaffold. Registers
 // migrate-journal-rules-to-objects (string[] -> JournalRule[]) — a NO-OP this
 // beat (detect-and-log only); the data conversion lands in Beat 2.
-export const SCHEMA_VERSION = '38'
+//
+// Bumped to 39 for Stage 3 beat 1 — new cash_events table (the per-account
+// cash ledger: starting/deposit/withdrawal rows, transfer pairs by
+// transfer_id) plus its partial-unique single-starting index and account
+// index. The trade_technicals v26 precedent exactly: the table is created
+// by CREATE TABLE IF NOT EXISTS in SCHEMA_SQL, so it lands on both fresh
+// installs and upgrades with NO per-version migration module and no backup
+// latch. The bump is release-tracking only.
+export const SCHEMA_VERSION = '39'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -614,6 +622,34 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_single_default
 -- Duplicate names rejected at the DB; the repo translates the violation
 -- into a friendly "already exists" error.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_name ON accounts(name);
+
+-- Stage 3 (v39) — the per-account cash ledger: 'starting' | 'deposit' |
+-- 'withdrawal' rows, per account from day one. Transfers are a linked PAIR
+-- of plain deposit/withdrawal legs sharing a transfer_id (no special kind —
+-- zero special cases in the balance math); the pair is atomic at the repo
+-- and deletable only together. Amount/kind/date validation lives in the
+-- repo (electron/cash/repo.ts) by house style — no CHECK constraints.
+-- date is the Eastern trading day (YYYY-MM-DD), comparable to trades.date;
+-- balance = starting + deposits - withdrawals + net P&L, every sum
+-- filtered date >= the starting row's date (the goals/equity.ts >=
+-- convention, mirrored never imported).
+CREATE TABLE IF NOT EXISTS cash_events (
+  id          TEXT PRIMARY KEY,
+  account_id  TEXT NOT NULL REFERENCES accounts(id),
+  kind        TEXT NOT NULL,   -- 'starting' | 'deposit' | 'withdrawal'
+  amount      REAL NOT NULL,
+  date        TEXT NOT NULL,   -- YYYY-MM-DD Eastern trading day
+  transfer_id TEXT,            -- non-null links the two legs of a transfer
+  created_at  TEXT NOT NULL    -- ISO 8601 UTC
+);
+
+-- ONE 'starting' row per account, enforced at the DB — the accounts
+-- single-default partial-unique idiom (idx_accounts_single_default). The
+-- repo also guards with a friendly error before insert (the belt).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cash_events_single_starting
+  ON cash_events(account_id) WHERE kind = 'starting';
+
+CREATE INDEX IF NOT EXISTS idx_cash_events_account ON cash_events(account_id);
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
