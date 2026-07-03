@@ -113,6 +113,17 @@ const EVENTS: CashEvent[] = [
     transfer_id: 'T-1',
     created_at: '2026-06-01T00:00:00.000Z',
   },
+  // Round 3 — the inbound transfer leg (a deposit to this account).
+  {
+    id: 'EV-LEG-IN',
+    account_id: 'MAIN',
+    kind: 'deposit',
+    amount: 300,
+    date: '2026-06-02',
+    note: 'rebalance',
+    transfer_id: 'T-2',
+    created_at: '2026-06-02T00:00:00.000Z',
+  },
 ]
 
 function section(id: string) {
@@ -250,6 +261,81 @@ describe('BalancesCard — the sibling notify (beat 2.5)', () => {
     // Delivery stopped: no further load fires for the unmounted card.
     await new Promise((r) => setTimeout(r, 30))
     expect(m.accountsList.mock.calls.length).toBe(listCalls)
+  })
+})
+
+// Round 3 — the Settings ledger polish: bank-style direction color (the
+// ONE ruled green exception), signed amounts, the segmented kind picker,
+// the disabled-Starting prevention. Red is NEVER used for cash events.
+describe('BalancesCard — bank-style signed history (round 3)', () => {
+  it("a deposit renders '+$' in the profit token; a withdrawal '-$' neutral; starting unsigned neutral", async () => {
+    await renderCard()
+    const dep = within(screen.getByTestId('cash-event-EV-DEP')).getByText('+$200.00')
+    expect(dep.className).toContain('text-win')
+    const wd = within(screen.getByTestId('cash-event-EV-LEG')).getByText('-$50.00')
+    expect(wd.className).not.toContain('text-win')
+    expect(wd.className).not.toContain('text-loss')
+    const start = within(screen.getByTestId('cash-event-EV-START')).getByText('$1,000.00')
+    expect(start.textContent).not.toMatch(/^[+-]/)
+    expect(start.className).not.toContain('text-win')
+  })
+
+  it('transfer legs inherit their kind: the inbound leg is green +, the outbound neutral - (both beside their TRANSFER chips)', async () => {
+    await renderCard()
+    const inRow = screen.getByTestId('cash-event-EV-LEG-IN')
+    expect(within(inRow).getByText('+$300.00').className).toContain('text-win')
+    expect(within(inRow).getByText('Transfer')).toBeTruthy()
+    const outRow = screen.getByTestId('cash-event-EV-LEG')
+    expect(within(outRow).getByText('-$50.00').className).not.toContain('text-win')
+    expect(within(outRow).getByText('Transfer')).toBeTruthy()
+  })
+
+  it('RED-NEVER: no element in the card carries the loss token under the full event mix', async () => {
+    const { container } = render(<BalancesCard />)
+    await waitFor(() => expect(screen.getByTestId('balance-MAIN')).toBeTruthy())
+    expect(container.querySelector('.text-loss')).toBeNull()
+  })
+})
+
+describe('BalancesCard — the segmented kind picker (round 3)', () => {
+  it('three segments render as a group; picking Withdrawal produces the SAME payload shape the select did', async () => {
+    await renderCard()
+    const main = section('MAIN')
+    fireEvent.click(within(main).getByRole('button', { name: /add entry/i }))
+    const group = within(main).getByRole('group', { name: /entry kind/i })
+    expect(within(group).getByRole('button', { name: /^deposit$/i })).toBeTruthy()
+    expect(within(group).getByRole('button', { name: /^withdrawal$/i })).toBeTruthy()
+    expect(within(group).getByRole('button', { name: /starting balance/i })).toBeTruthy()
+    const wd = within(group).getByRole('button', { name: /^withdrawal$/i })
+    fireEvent.click(wd)
+    expect(wd.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.change(within(main).getByLabelText(/amount/i), { target: { value: '200' } })
+    fireEvent.change(within(main).getByLabelText(/date/i), { target: { value: '2026-07-03' } })
+    fireEvent.click(within(main).getByRole('button', { name: /save entry/i }))
+    await waitFor(() =>
+      expect(m.cashEventCreate).toHaveBeenCalledWith({
+        account_id: 'MAIN',
+        kind: 'withdrawal',
+        amount: 200,
+        date: '2026-07-03',
+        note: '',
+      }),
+    )
+  })
+
+  it('the Starting segment is DISABLED (with a title) when a starting row exists; the affordance preselects it when none does', async () => {
+    await renderCard()
+    const main = section('MAIN') // anchored
+    fireEvent.click(within(main).getByRole('button', { name: /add entry/i }))
+    const startSeg = within(main).getByRole('button', { name: /starting balance/i })
+    expect((startSeg as HTMLButtonElement).disabled).toBe(true)
+    expect(startSeg.getAttribute('title')).toBeTruthy()
+
+    const ocean = section('OCEAN') // un-anchored
+    fireEvent.click(within(ocean).getByRole('button', { name: /set starting balance/i }))
+    const oceanStart = within(ocean).getByRole('button', { name: /^starting balance$/i })
+    expect((oceanStart as HTMLButtonElement).disabled).toBe(false)
+    expect(oceanStart.getAttribute('aria-pressed')).toBe('true')
   })
 })
 

@@ -6,7 +6,7 @@
 // sanctioned ride-along pin: the handle renders with EXACTLY ONE '@'
 // (ProfileHero.tsx:84 doubled a stored '@'). Layout and copy eyes-gated.
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Account } from '@shared/accounts-types'
 import type { AccountBalance } from '@shared/cash-types'
@@ -20,6 +20,9 @@ vi.mock('@/lib/ipc', () => ({
     settingsSave: vi.fn(async () => ({})),
     cashBalanceGet: vi.fn(),
     cashBalanceCombined: vi.fn(),
+    // Round 2 — the single-scope flow line reads the existing events
+    // channel (mount-forced mock; the one ruled data addition).
+    cashEventsList: vi.fn(async () => []),
   },
 }))
 
@@ -127,8 +130,32 @@ describe('ProfileHero — the account panel follows the switcher', () => {
     renderHero()
     await waitFor(() => expect(screen.getByTestId('hero-account-panel')).toBeTruthy())
     const panel = screen.getByTestId('hero-account-panel')
-    expect(panel.textContent).toContain('$6,037.82')
+    await waitFor(() => expect(panel.textContent).toContain('$6,037.82'))
     expect(panel.textContent).toMatch(/across 2 accounts/i)
+  })
+
+  it("'all' renders the compact allocation bar — one segment per anchored non-sim account (beat 3.5)", async () => {
+    renderHero()
+    await waitFor(() => expect(screen.getByTestId('hero-account-panel')).toBeTruthy())
+    const panel = screen.getByTestId('hero-account-panel')
+    await waitFor(() => expect(within(panel).getByTestId('alloc-seg-MAIN')).toBeTruthy())
+    expect(within(panel).getByTestId('alloc-seg-OCEAN')).toBeTruthy()
+    expect(within(panel).queryByTestId('alloc-seg-SIM')).toBeNull()
+  })
+
+  it('THE GAP FIX: zero anchored -> the em-dash headline, never $0.00 (beat 3.5, the 12da6d6 debt)', async () => {
+    m.cashBalanceGet.mockResolvedValue(null)
+    m.cashBalanceCombined.mockResolvedValue({
+      total: 0,
+      missing_anchor: ['MAIN', 'OCEAN'],
+    })
+    renderHero()
+    await waitFor(() => expect(screen.getByTestId('hero-account-panel')).toBeTruthy())
+    const panel = screen.getByTestId('hero-account-panel')
+    await waitFor(() => expect(panel.textContent).toMatch(/across 0 of 2 accounts/i))
+    expect(panel.textContent).toContain('—')
+    expect(panel.textContent).not.toContain('$0.00')
+    expect(within(panel).queryByTestId('alloc-seg-MAIN')).toBeNull()
   })
 
   it('a single scope shows dot/name/broker/type label/balance', async () => {

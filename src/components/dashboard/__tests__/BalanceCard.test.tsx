@@ -20,6 +20,9 @@ vi.mock('@/lib/ipc', () => ({
     settingsSave: vi.fn(async () => ({})),
     cashBalanceGet: vi.fn(),
     cashBalanceCombined: vi.fn(),
+    // Round 2 — the single-scope flow strip reads the existing events
+    // channel (mount-forced mock; the one ruled data addition).
+    cashEventsList: vi.fn(async () => []),
   },
 }))
 
@@ -118,6 +121,57 @@ describe('BalanceCard — the all-scope roll-up', () => {
     expect(within(screen.getByTestId('balance-row-OCEAN')).getByText('—')).toBeTruthy()
     expect(screen.queryByTestId('balance-row-SIM')).toBeNull()
   })
+
+  it('renders the allocation line: one segment per ANCHORED account, none for sim or unanchored (beat 3.5)', async () => {
+    render(
+      <AccountScopeProvider>
+        <BalanceCard />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('balance-total')).toBeTruthy())
+    expect(screen.getByTestId('alloc-seg-MAIN')).toBeTruthy()
+    expect(screen.getByTestId('alloc-seg-ARCH')).toBeTruthy()
+    expect(screen.queryByTestId('alloc-seg-OCEAN')).toBeNull() // unanchored
+    expect(screen.queryByTestId('alloc-seg-SIM')).toBeNull() // walled
+  })
+
+  it('the ledger rows carry share% from the SAME segments data (round 2)', async () => {
+    render(
+      <AccountScopeProvider>
+        <BalanceCard />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('balance-total')).toBeTruthy())
+    // MAIN 1037.82 of 6037.82 -> 17%; ARCH 5000 -> 83% (rounded).
+    expect(within(screen.getByTestId('balance-row-MAIN')).getByText('17%')).toBeTruthy()
+    expect(within(screen.getByTestId('balance-row-ARCH')).getByText('83%')).toBeTruthy()
+    // The unanchored row shows NO share%.
+    expect(
+      within(screen.getByTestId('balance-row-OCEAN')).queryByText(/%$/),
+    ).toBeNull()
+  })
+
+  it('THE GAP FIX: zero anchored accounts -> the headline is the EM-DASH, never $0.00; the coverage stays honest; NO bar (beat 3.5, the 12da6d6 debt)', async () => {
+    m.cashBalanceGet.mockResolvedValue(null)
+    m.cashBalanceCombined.mockResolvedValue({
+      total: 0,
+      missing_anchor: ['MAIN', 'OCEAN', 'ARCH'],
+    })
+    render(
+      <AccountScopeProvider>
+        <BalanceCard />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('balance-total')).toBeTruthy())
+    const headline = screen.getByTestId('balance-total').textContent
+    expect(headline).toContain('—')
+    expect(headline).not.toContain('$0.00')
+    expect(screen.getByText(/across 0 of 3 accounts/i)).toBeTruthy()
+    expect(screen.getByText(/set starting balance in settings/i)).toBeTruthy()
+    expect(screen.queryByTestId('alloc-seg-MAIN')).toBeNull()
+    // Round 2 — the ghost band: an honest empty track, never a segment.
+    expect(screen.getByTestId('alloc-ghost')).toBeTruthy()
+  })
 })
 
 describe('BalanceCard — single scope', () => {
@@ -150,5 +204,73 @@ describe('BalanceCard — single scope', () => {
     )
     expect(screen.getByTestId('balance-total').textContent).not.toContain('0')
     expect(screen.getByText(/set starting balance in settings/i)).toBeTruthy()
+  })
+
+  it('single scope: the accent line renders in the account color; NO segmented bar (beat 3.5)', async () => {
+    render(
+      <AccountScopeProvider>
+        <Probe id="MAIN" />
+        <BalanceCard />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('balance-total')).toBeTruthy())
+    fireEvent.click(screen.getByText('probe-pick-MAIN'))
+    await waitFor(() =>
+      expect(screen.getByTestId('balance-total').textContent).toContain('$1,037.82'),
+    )
+    expect(screen.getByTestId('alloc-accent')).toBeTruthy()
+    expect(screen.queryByTestId('alloc-seg-MAIN')).toBeNull()
+  })
+
+  it('single scope renders THE FLOW STRIP from the events channel (round 2)', async () => {
+    m.cashEventsList.mockResolvedValue([
+      {
+        id: 'S',
+        account_id: 'MAIN',
+        kind: 'starting',
+        amount: 1000,
+        date: '2026-05-01',
+        note: null,
+        transfer_id: null,
+        created_at: '',
+      },
+      {
+        id: 'D',
+        account_id: 'MAIN',
+        kind: 'deposit',
+        amount: 500,
+        date: '2026-07-03',
+        note: null,
+        transfer_id: null,
+        created_at: '',
+      },
+      {
+        id: 'W',
+        account_id: 'MAIN',
+        kind: 'withdrawal',
+        amount: 200,
+        date: '2026-07-03',
+        note: null,
+        transfer_id: null,
+        created_at: '',
+      },
+    ] as never)
+    render(
+      <AccountScopeProvider>
+        <Probe id="MAIN" />
+        <BalanceCard />
+      </AccountScopeProvider>,
+    )
+    await waitFor(() => expect(screen.getByTestId('balance-total')).toBeTruthy())
+    fireEvent.click(screen.getByText('probe-pick-MAIN'))
+    await waitFor(() => expect(m.cashEventsList).toHaveBeenCalledWith('MAIN'))
+    const strip = await screen.findByTestId('flow-strip')
+    expect(strip.textContent).toContain('Starting')
+    expect(strip.textContent).toContain('$1,000.00')
+    expect(strip.textContent).toContain('2026-05-01')
+    expect(strip.textContent).toContain('Deposits')
+    expect(strip.textContent).toContain('$500.00')
+    expect(strip.textContent).toContain('Withdrawals')
+    expect(strip.textContent).toContain('$200.00')
   })
 })

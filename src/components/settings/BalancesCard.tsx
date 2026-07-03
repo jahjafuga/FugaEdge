@@ -12,9 +12,10 @@
 // beat-4 discreet-mode coverage rides on this).
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowRightLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, Flag, Minus, Plus, Trash2 } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import ConfirmModal from '@/components/ui/ConfirmModal'
+import MoneyFigure from '@/components/ui/MoneyFigure'
 import { ipc } from '@/lib/ipc'
 import { subscribeRegistryChanged } from '@/lib/registryChanged'
 import { money } from '@/lib/format'
@@ -44,6 +45,8 @@ const S = {
   preAnchorWarning:
     "This date is before this account's starting date — it won't count toward the balance.",
   startingDateHint: 'Trades from this date onward count toward the balance.',
+  startingDisabledTitle:
+    'This account already has a starting balance — edit or delete it in the history below.',
   noAnchorNote:
     'This account has no starting balance yet — entries are kept, but no balance shows until one is set.',
   archivedDivider: 'Archived',
@@ -64,6 +67,13 @@ const S = {
   pairBody:
     'This entry is one leg of a transfer. Both legs go together — the paired entry in the other account is deleted too, restoring both balances.',
   pairConfirm: 'Delete transfer',
+}
+
+/** The neutral 12px kind icon — Flag (starting), Plus (deposit), Minus
+ *  (withdrawal). Neutral by law: a deposit is not profit. */
+function KindIcon({ kind }: { kind: CashEventKind }) {
+  const Icon = kind === 'starting' ? Flag : kind === 'deposit' ? Plus : Minus
+  return <Icon size={12} strokeWidth={2} aria-hidden />
 }
 
 /** Electron wraps main-side throws — show the repo's friendly message. */
@@ -267,11 +277,18 @@ export default function BalancesCard() {
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <span
-              data-testid={`balance-${a.id}`}
-              className="font-mono text-sm font-semibold text-fg-primary"
-            >
-              {bal === null ? S.noBalance : money(bal.balance)}
+            <span className="flex flex-col items-end">
+              <span
+                data-testid={`balance-${a.id}`}
+                className="font-mono text-lg font-bold tracking-tight text-fg-primary tnum"
+              >
+                {bal === null ? S.noBalance : <MoneyFigure value={bal.balance} size="lg" />}
+              </span>
+              {bal !== null && (
+                <span className="font-mono text-[10px] text-fg-tertiary tnum">
+                  since {bal.anchor_date}
+                </span>
+              )}
             </span>
             {/* An un-anchored account offers BOTH: the starting affordance
                 and Add entry — movements are allowed pre-anchor (the
@@ -299,28 +316,38 @@ export default function BalancesCard() {
 
         {formOpen && (
           <div className="mt-3 rounded-md border border-border-subtle bg-bg-0 p-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <label className="block">
-                <span className={labelCls}>{S.kindLabel}</span>
-                <select
-                  aria-label={S.kindLabel}
-                  value={draft.kind}
-                  disabled={draft.kind === 'starting'}
-                  onChange={(e) =>
-                    setDraft({ ...draft, kind: e.target.value as CashEventKind })
-                  }
-                  className={inputCls}
-                >
-                  {draft.kind === 'starting' ? (
-                    <option value="starting">{S.kindNames.starting}</option>
-                  ) : (
-                    <>
-                      <option value="deposit">{S.kindNames.deposit}</option>
-                      <option value="withdrawal">{S.kindNames.withdrawal}</option>
-                    </>
-                  )}
-                </select>
-              </label>
+            {/* The segmented kind picker (round 3, Lao-locked): one tap,
+                aria-pressed semantics. The Starting segment is DISABLED
+                when the account already holds a starting row — prevention
+                over error; the repo's friendly guard stays as the belt. */}
+            <div
+              role="group"
+              aria-label={S.kindLabel}
+              className="mb-3 inline-flex rounded-md border border-border-strong bg-bg-1 p-0.5"
+            >
+              {(['deposit', 'withdrawal', 'starting'] as CashEventKind[]).map((k) => {
+                const startingBlocked = k === 'starting' && bal !== null
+                const active = draft.kind === k
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    aria-pressed={active}
+                    disabled={startingBlocked}
+                    title={startingBlocked ? S.startingDisabledTitle : undefined}
+                    onClick={() => setDraft({ ...draft, kind: k })}
+                    className={`h-8 cursor-pointer rounded px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      active
+                        ? 'bg-gold text-accent-ink'
+                        : 'text-fg-secondary hover:text-fg-primary'
+                    }`}
+                  >
+                    {S.kindNames[k]}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <label className="block">
                 <span className={labelCls}>{S.amountLabel}</span>
                 <input
@@ -388,33 +415,57 @@ export default function BalancesCard() {
             balance shows. The note lives in the form per the ruling; the
             history below stays visible regardless. */}
         {acctEvents.length > 0 && (
-          <ul className="mt-3 space-y-1.5">
+          <ul className="mt-3 divide-y divide-border-subtle rounded-md border border-border-subtle bg-bg-0">
             {acctEvents.map((ev) => (
               <li
                 key={ev.id}
                 data-testid={`cash-event-${ev.id}`}
-                className="flex items-center justify-between gap-3 rounded-md border border-border-subtle bg-bg-0 px-3 py-1.5 text-xs"
+                className="flex items-center justify-between gap-3 px-3 py-1.5 text-xs transition-colors duration-150 hover:bg-bg-1/50"
               >
                 <div className="flex min-w-0 items-center gap-2">
-                  <span className="shrink-0 text-fg-secondary">{S.kindNames[ev.kind]}</span>
+                  {/* Neutral kind chip with its icon — the transfer-chip
+                      shell extended; a deposit is not profit, a
+                      withdrawal is not loss. */}
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border-subtle bg-bg-1 px-2 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary">
+                    <KindIcon kind={ev.kind} />
+                    {S.kindNames[ev.kind]}
+                  </span>
                   {ev.transfer_id && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border-subtle bg-bg-1 px-2 py-0.5 text-[10px] uppercase tracking-wider text-fg-tertiary">
                       <ArrowRightLeft size={10} strokeWidth={2} />
                       {S.transferMarker}
                     </span>
                   )}
-                  <span className="shrink-0 font-mono text-fg-primary">{money(ev.amount)}</span>
-                  <span className="shrink-0 font-mono text-fg-tertiary">{ev.date}</span>
-                  {ev.note && <span className="truncate text-fg-tertiary">{ev.note}</span>}
+                  {ev.note && <span className="truncate italic text-fg-tertiary">{ev.note}</span>}
                 </div>
-                <button
-                  type="button"
-                  aria-label={S.deleteEntry}
-                  onClick={() => requestDelete(ev)}
-                  className="shrink-0 cursor-pointer rounded p-1 text-fg-tertiary transition-colors hover:text-loss"
-                >
-                  <Trash2 size={13} strokeWidth={2} />
-                </button>
+                <div className="flex shrink-0 items-center gap-3">
+                  {/* RULED EXCEPTION (Lao, 2026-07-03): bank-style inflow
+                      green in the Settings ledger history ONLY - deposits
+                      wear the profit token; withdrawals stay neutral; red
+                      is reserved for P&L loss app-wide. Signs ride the
+                      amount text (single node); starting rows are anchors,
+                      not flows - unsigned, neutral. */}
+                  <span
+                    className={`w-20 text-right font-mono tnum ${
+                      ev.kind === 'deposit' ? 'text-win' : 'text-fg-primary'
+                    }`}
+                  >
+                    {ev.kind === 'deposit'
+                      ? `+${money(ev.amount)}`
+                      : ev.kind === 'withdrawal'
+                        ? `-${money(ev.amount)}`
+                        : money(ev.amount)}
+                  </span>
+                  <span className="font-mono text-fg-tertiary tnum">{ev.date}</span>
+                  <button
+                    type="button"
+                    aria-label={S.deleteEntry}
+                    onClick={() => requestDelete(ev)}
+                    className="shrink-0 cursor-pointer rounded p-1 text-fg-tertiary transition-colors hover:text-loss"
+                  >
+                    <Trash2 size={13} strokeWidth={2} />
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
