@@ -249,6 +249,7 @@ export const ipc = {
   cashTransferDelete: (transferId: string) => window.api.cashTransferDelete(transferId),
   cashBalanceGet: (accountId: string) => window.api.cashBalanceGet(accountId),
   cashBalanceCombined: () => window.api.cashBalanceCombined(),
+  cashBalanceSeries: (scope?: AccountScope) => window.api.cashBalanceSeries(scope),
   updaterGetStatus: () => window.api.updaterGetStatus(),
   updaterCheckNow: () => window.api.updaterCheckNow(),
   updaterQuitAndInstall: () => window.api.updaterQuitAndInstall(),

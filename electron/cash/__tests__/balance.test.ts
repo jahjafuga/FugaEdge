@@ -31,6 +31,13 @@ function anchoredKey(sql: string, args: unknown[]): string | null {
 
 const POISON = 999_999
 
+// Per-(account|anchor) DATE-GROUPED deltas for the series reader (beat 3).
+// The poisoned no-anchor route returns a pre-anchor date with a huge delta,
+// so a missing `date >= ?` clause visibly corrupts the series.
+let eventDeltas: Record<string, { date: string; delta: number }[]> = {}
+let tradeDeltas: Record<string, { date: string; delta: number }[]> = {}
+const POISON_ROWS = [{ date: '1999-01-01', delta: 999_999 }]
+
 const mockDb = {
   prepare(sql: string) {
     return {
@@ -55,6 +62,14 @@ const mockDb = {
       },
       all: (...args: unknown[]) => {
         alls.push({ sql, args })
+        if (/GROUP BY date/.test(sql) && /FROM cash_events/.test(sql)) {
+          const k = anchoredKey(sql, args)
+          return k ? (eventDeltas[k] ?? []) : POISON_ROWS
+        }
+        if (/GROUP BY date/.test(sql) && /FROM trades/.test(sql)) {
+          const k = anchoredKey(sql, args)
+          return k ? (tradeDeltas[k] ?? []) : POISON_ROWS
+        }
         if (/FROM accounts/.test(sql)) return accountRows
         return []
       },
@@ -64,7 +79,7 @@ const mockDb = {
 
 vi.mock('../../db/database', () => ({ openDatabase: () => mockDb }))
 
-import { balanceForAccount, combinedBalance } from '../balance'
+import { balanceForAccount, combinedBalance, balanceSeries } from '../balance'
 
 beforeEach(() => {
   gets = []
@@ -96,6 +111,28 @@ beforeEach(() => {
     { id: 'ACCT-B', account_type: 'cash', status: 'archived' },
     { id: 'ACCT-C', account_type: 'margin', status: 'active' }, // no starting row
   ]
+  // Series fixtures — the SAME truth as the point sums above, date-grouped:
+  // A: starting 1000 (01-01) + dep 200 (02-01) - wd 50 (04-01); trades +60
+  // (03-15, between the anchors) +40 (06-15). B: starting 2000 (06-01);
+  // trade +25 (06-20). Sim poisoned. Last points MUST equal the point
+  // readers to the cent.
+  eventDeltas = {
+    'ACCT-A|2026-01-01': [
+      { date: '2026-01-01', delta: 1000 },
+      { date: '2026-02-01', delta: 200 },
+      { date: '2026-04-01', delta: -50 },
+    ],
+    'ACCT-B|2026-06-01': [{ date: '2026-06-01', delta: 2000 }],
+    'ACCT-SIM|2026-01-01': [{ date: '2026-01-01', delta: 5000 }],
+  }
+  tradeDeltas = {
+    'ACCT-A|2026-01-01': [
+      { date: '2026-03-15', delta: 60 },
+      { date: '2026-06-15', delta: 40 },
+    ],
+    'ACCT-B|2026-06-01': [{ date: '2026-06-20', delta: 25 }],
+    'ACCT-SIM|2026-01-01': [{ date: '2026-02-02', delta: 999 }],
+  }
 })
 
 describe('balanceForAccount — one anchor governs all three sums', () => {
@@ -168,5 +205,61 @@ describe('combinedBalance — the composing sim-walled roll-up with coverage', (
     const c = combinedBalance()
     expect(c.missing_anchor).toEqual(['ACCT-C'])
     expect(c.total).toBe(3275) // still computed over the anchored rest
+  })
+})
+
+// Beat 3 — balanceSeries: ordered daily points from the scope's earliest
+// anchor to today, under the SAME laws as the point readers. The pin that
+// carries the beat: the series' LAST point equals the point reader to the
+// cent — one truth, two shapes.
+describe('balanceSeries — the balance-over-time reader', () => {
+  it('single account: starts at the anchor, steps on deposit/withdrawal/trade days; pre-anchor poison changes NOTHING', () => {
+    const s = balanceSeries({ accountId: 'ACCT-A' })
+    // The activity points, exact (the poisoned 1999 route would prepend a
+    // 999,999 point if any read lost its anchor clause).
+    expect(s.slice(0, 5)).toEqual([
+      { date: '2026-01-01', balance: 1000 },
+      { date: '2026-02-01', balance: 1200 },
+      { date: '2026-03-15', balance: 1260 },
+      { date: '2026-04-01', balance: 1210 },
+      { date: '2026-06-15', balance: 1250 },
+    ])
+    expect(s[0].date).toBe('2026-01-01') // nothing before the anchor
+  })
+
+  it('THE CONSISTENCY PIN: the last point equals balanceForAccount to the cent', () => {
+    const s = balanceSeries({ accountId: 'ACCT-A' })
+    expect(s[s.length - 1].balance).toBe(balanceForAccount('ACCT-A')!.balance)
+  })
+
+  it("'all': composes per-account windows and the last point equals combinedBalance.total", () => {
+    const s = balanceSeries('all')
+    // The between-anchors trade (03-15) moves the curve BEFORE B exists —
+    // the earlier account only; B's starting lands 06-01.
+    const byDate = Object.fromEntries(s.map((p) => [p.date, p.balance]))
+    expect(byDate['2026-03-15']).toBe(1260)
+    expect(byDate['2026-06-01']).toBe(3210)
+    expect(byDate['2026-06-20']).toBe(3275)
+    expect(s[s.length - 1].balance).toBe(combinedBalance().total)
+  })
+
+  it("'all' walls sim at the reader and skips unanchored accounts (no sim read ever fires)", () => {
+    balanceSeries('all')
+    expect(alls.some((a) => a.args.includes('ACCT-SIM'))).toBe(false)
+    expect(gets.some((g) => g.args.includes('ACCT-SIM'))).toBe(false)
+    // The archived non-sim account IS read (B's anchor bind appears).
+    expect(alls.some((a) => a.args[0] === 'ACCT-B')).toBe(true)
+  })
+
+  it('no anchors in scope -> empty series (the honest chart empty state)', () => {
+    expect(balanceSeries({ accountId: 'ACCT-C' })).toEqual([])
+    accountRows = [{ id: 'ACCT-C', account_type: 'margin', status: 'active' }]
+    expect(balanceSeries('all')).toEqual([])
+  })
+
+  it("a sim account's OWN series computes (the practice ledger has a curve)", () => {
+    const s = balanceSeries({ accountId: 'ACCT-SIM' })
+    expect(s[0]).toEqual({ date: '2026-01-01', balance: 5000 })
+    expect(s[s.length - 1].balance).toBe(5999)
   })
 })

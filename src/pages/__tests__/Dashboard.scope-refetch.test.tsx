@@ -17,6 +17,11 @@ vi.mock('@/lib/ipc', () => ({
     settingsGet: vi.fn(),
     settingsSave: vi.fn(),
     accountsList: vi.fn(),
+    // Stage 3 beat 3 — the balance card + curve mount inside Dashboard and
+    // fetch on mount (the documented mount-forced precedent).
+    cashBalanceGet: vi.fn(async () => null),
+    cashBalanceCombined: vi.fn(async () => ({ total: 0, missing_anchor: [] })),
+    cashBalanceSeries: vi.fn(async () => []),
   },
 }))
 

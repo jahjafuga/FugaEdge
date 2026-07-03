@@ -431,6 +431,8 @@ const api = {
     ipcRenderer.invoke(IPC.CASH_BALANCE_GET, accountId),
   cashBalanceCombined: (): Promise<CombinedBalance> =>
     ipcRenderer.invoke(IPC.CASH_BALANCE_COMBINED),
+  cashBalanceSeries: (scope?: AccountScope): Promise<{ date: string; balance: number }[]> =>
+    ipcRenderer.invoke(IPC.CASH_BALANCE_SERIES, scope),
   // ── Auto-updater ─────────────────────────────────────────────────────
   updaterGetStatus: (): Promise<UpdaterStatus> =>
     ipcRenderer.invoke(IPC.UPDATER_GET_STATUS),

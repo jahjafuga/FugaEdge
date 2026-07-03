@@ -226,6 +226,9 @@ export const IPC = {
   CASH_TRANSFER_DELETE: 'cash:transferDelete',
   CASH_BALANCE_GET: 'cash:balanceGet',
   CASH_BALANCE_COMBINED: 'cash:balanceCombined',
+  // Beat 3 — the balance-over-time series (the Dashboard curve + any
+  // future consumer). Optional scope; daily points.
+  CASH_BALANCE_SERIES: 'cash:balanceSeries',
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

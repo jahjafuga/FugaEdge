@@ -10,6 +10,8 @@ import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import MonthCalendarPreview from '@/components/dashboard/MonthCalendarPreview'
 import LatestSessionTable from '@/components/dashboard/LatestSessionTable'
 import MaxLossBanner from '@/components/dashboard/MaxLossBanner'
+import BalanceCard from '@/components/dashboard/BalanceCard'
+import BalanceCurveCard from '@/components/dashboard/BalanceCurveCard'
 import TimeRangeToggle from '@/components/dashboard/TimeRangeToggle'
 import TodaySessionCard from '@/components/dashboard/TodaySessionCard'
 import MarketSentimentCard from '@/components/dashboard/MarketSentimentCard'
@@ -147,6 +149,10 @@ export default function Dashboard() {
           date={data.latest.date}
         />
 
+        {/* The balance HOME (Stage 3 beat 3) — the money-header slot:
+            per-scope ledger balance / the walled roll-up with coverage. */}
+        <BalanceCard />
+
         {/* The top three-card row (v0.2.5 beat 4, FINAL placement): Today's
             Session | Quote of the Day | Journal. Unequal split: Today's Session
             widest (it carries the stats), Quote medium, Journal narrowest;
@@ -203,6 +209,10 @@ export default function Dashboard() {
             <CumulativePnlChart equity={cumulativePnl} />
           </Card>
         )}
+
+        {/* Balance over time (Stage 3 beat 3) — a SIBLING of the P&L curve:
+            the ledger balance walk, gold line (balance is not P&L). */}
+        <BalanceCurveCard />
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
           <Card title="Latest session" padded={false} className="overflow-hidden">

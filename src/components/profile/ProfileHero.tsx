@@ -7,6 +7,7 @@
 
 import AnimatedNumber from '@/components/ui/AnimatedNumber'
 import AvatarPicker from './AvatarPicker'
+import HeroAccountPanel from './HeroAccountPanel'
 import LevelRing from './LevelRing'
 import { badgeIcon } from './badges/badgeIcons'
 import { tierColor, type FeaturedEmblem } from './badges/tierMetal'
@@ -81,7 +82,11 @@ export default function ProfileHero({
           <h2 className="truncate text-2xl font-bold tracking-tight text-fg-primary">
             {name}
           </h2>
-          {handle && <p className="mt-0.5 text-sm text-fg-tertiary">@{handle}</p>}
+          {/* Normalize to exactly one '@' — a stored handle may already
+              carry it (the '@@' ride-along, Stage 3 beat 3). */}
+          {handle && (
+            <p className="mt-0.5 text-sm text-fg-tertiary">@{handle.replace(/^@+/, '')}</p>
+          )}
 
           <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 sm:justify-start">
             {styleLabel && (
@@ -124,6 +129,11 @@ export default function ProfileHero({
             </p>
           </div>
         </div>
+
+        {/* The account panel (Stage 3 beat 3) — the hero's right side
+            follows the switcher: broker, details, and the COMPUTED LEDGER
+            balance. The page's only scope consumer; identity stays global. */}
+        <HeroAccountPanel />
       </div>
     </section>
   )

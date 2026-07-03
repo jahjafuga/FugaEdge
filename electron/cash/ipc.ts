@@ -5,6 +5,7 @@
 
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
+import type { AccountScope } from '@shared/accounts-types'
 import type {
   CreateCashEventInput,
   CreateTransferInput,
@@ -16,7 +17,7 @@ import {
   deleteTransfer,
   listCashEvents,
 } from './repo'
-import { balanceForAccount, combinedBalance } from './balance'
+import { balanceForAccount, balanceSeries, combinedBalance } from './balance'
 
 export function registerCashIpc(): void {
   ipcMain.handle(IPC.CASH_EVENTS_LIST, (_e, accountId?: string) =>
@@ -36,4 +37,7 @@ export function registerCashIpc(): void {
     balanceForAccount(accountId),
   )
   ipcMain.handle(IPC.CASH_BALANCE_COMBINED, () => combinedBalance())
+  ipcMain.handle(IPC.CASH_BALANCE_SERIES, (_e, scope?: AccountScope) =>
+    balanceSeries(scope ?? 'all'),
+  )
 }
