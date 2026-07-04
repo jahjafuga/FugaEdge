@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from 'react'
 import { Wallet } from 'lucide-react'
+import MaskedMoney from '@/components/ui/MaskedMoney'
 import MoneyFigure from '@/components/ui/MoneyFigure'
 import { ipc } from '@/lib/ipc'
 import { money } from '@/lib/format'
@@ -171,12 +172,12 @@ export default function HeroAccountPanel() {
           {/* The two-fact flow line — labels carry the signs. */}
           {view.balance !== null && view.flow.starting && (
             <p className="mt-2 font-mono text-[10px] text-fg-tertiary tnum">
-              {S.flowStarting} {money(view.flow.starting.amount)}
+              {S.flowStarting} <MaskedMoney>{money(view.flow.starting.amount)}</MaskedMoney>
               {view.flow.deposits > 0 && (
-                <> · {S.flowDeposits} {money(view.flow.deposits)}</>
+                <> · {S.flowDeposits} <MaskedMoney>{money(view.flow.deposits)}</MaskedMoney></>
               )}
               {view.flow.withdrawals > 0 && (
-                <> · {S.flowWithdrawals} {money(view.flow.withdrawals)}</>
+                <> · {S.flowWithdrawals} <MaskedMoney>{money(view.flow.withdrawals)}</MaskedMoney></>
               )}
             </p>
           )}

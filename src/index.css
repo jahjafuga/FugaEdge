@@ -462,6 +462,18 @@
     font-variant-numeric: tabular-nums slashed-zero;
   }
 
+  /* Streamer mode (beat 4) — account-level dollars wear .masked-money;
+     the hiding is keyed ENTIRELY on html.streamer (set before first paint
+     by the index.html bootstrap, toggled live by the header eye). Blur is
+     the default look (eyes-gated): the layout never shifts because the
+     text keeps its box; select/copy is disabled so the value can't be
+     lifted off a stream overlay. Per-share prices never carry the class. */
+  html.streamer .masked-money {
+    filter: blur(8px);
+    user-select: none;
+    pointer-events: none;
+  }
+
   /* Skeleton shimmer — themed via vars so light mode reads correctly */
   .skeleton {
     background:

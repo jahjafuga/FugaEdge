@@ -30,6 +30,11 @@ interface FilledBody {
   figureTone: string
   /** Muted meta line below the figure. */
   detail: string
+  /** Streamer mode (beat 4): the figure is an account dollar — masks.
+   *  The R:R ratio figure stays visible (not a dollar). */
+  maskFigure?: boolean
+  /** The detail line carries dollars (the R:R avg win/loss) — masks. */
+  maskDetail?: boolean
 }
 interface EmptyBody {
   kind: 'empty'
@@ -57,28 +62,28 @@ function tiles(d: KpiStripData): Tile[] {
       label: 'Best symbol',
       Icon: Star,
       body: d.bestSymbol
-        ? { kind: 'filled', identity: d.bestSymbol.symbol, figure: signed(d.bestSymbol.netPnl), figureTone: pnlClass(d.bestSymbol.netPnl), detail: meta(d.bestSymbol) }
+        ? { kind: 'filled', identity: d.bestSymbol.symbol, figure: signed(d.bestSymbol.netPnl), figureTone: pnlClass(d.bestSymbol.netPnl), detail: meta(d.bestSymbol), maskFigure: true }
         : { kind: 'empty', empty: 'Need 3+ trades on a symbol' },
     },
     {
       label: 'Best weekday',
       Icon: Calendar,
       body: d.bestWeekday
-        ? { kind: 'filled', identity: d.bestWeekday.day, figure: signed(d.bestWeekday.netPnl), figureTone: pnlClass(d.bestWeekday.netPnl), detail: meta(d.bestWeekday) }
+        ? { kind: 'filled', identity: d.bestWeekday.day, figure: signed(d.bestWeekday.netPnl), figureTone: pnlClass(d.bestWeekday.netPnl), detail: meta(d.bestWeekday), maskFigure: true }
         : { kind: 'empty', empty: 'Need 5+ trades on a weekday' },
     },
     {
       label: 'Best setup',
       Icon: Tag,
       body: d.bestSetup
-        ? { kind: 'filled', identity: d.bestSetup.playbook, figure: signed(d.bestSetup.netPnl), figureTone: pnlClass(d.bestSetup.netPnl), detail: meta(d.bestSetup) }
+        ? { kind: 'filled', identity: d.bestSetup.playbook, figure: signed(d.bestSetup.netPnl), figureTone: pnlClass(d.bestSetup.netPnl), detail: meta(d.bestSetup), maskFigure: true }
         : { kind: 'empty', empty: 'Tag setups to see this' },
     },
     {
       label: 'Best session',
       Icon: Sun,
       body: d.bestSession
-        ? { kind: 'filled', identity: shortDate(d.bestSession.date), figure: signed(d.bestSession.netPnl), figureTone: pnlClass(d.bestSession.netPnl), detail: meta(d.bestSession) }
+        ? { kind: 'filled', identity: shortDate(d.bestSession.date), figure: signed(d.bestSession.netPnl), figureTone: pnlClass(d.bestSession.netPnl), detail: meta(d.bestSession), maskFigure: true }
         : { kind: 'empty', empty: 'No sessions in range' },
     },
     {
@@ -87,9 +92,12 @@ function tiles(d: KpiStripData): Tile[] {
       body: d.payoffRatio
         ? {
             kind: 'filled',
+            // The RATIO stays visible under streamer mode (not a dollar);
+            // its avg-win/loss DETAIL is dollars — that masks.
             figure: `${d.payoffRatio.ratio.toFixed(2)}×`,
             figureTone: d.payoffRatio.ratio >= 1 ? 'text-win' : 'text-loss',
             detail: `avg ${signed(d.payoffRatio.avgWin)} / ${signed(d.payoffRatio.avgLoss)}`,
+            maskDetail: true,
           }
         : { kind: 'empty', empty: 'Need wins and losses' },
     },
@@ -97,7 +105,7 @@ function tiles(d: KpiStripData): Tile[] {
       label: 'Expectancy',
       Icon: TrendingUp,
       body: d.expectancy
-        ? { kind: 'filled', figure: signed(d.expectancy.dollars), figureTone: pnlClass(d.expectancy.dollars), detail: expectancyDetail(d.expectancy) }
+        ? { kind: 'filled', figure: signed(d.expectancy.dollars), figureTone: pnlClass(d.expectancy.dollars), detail: expectancyDetail(d.expectancy), maskFigure: true }
         : { kind: 'empty', empty: 'No trades in range' },
     },
   ]
@@ -140,12 +148,16 @@ function TileCard({ tile }: { tile: Tile }) {
               {body.identity}
             </div>
           )}
-          {/* MONEY / ratio — the prominent hero figure, colored by sign. */}
+          {/* MONEY / ratio — the prominent hero figure, colored by sign.
+              Dollar figures wear masked-money (streamer mode); the R:R
+              ratio does not. */}
           <div className={`${body.identity ? 'mt-0.5' : 'mt-3'} truncate font-mono text-xl font-bold tnum ${body.figureTone}`}>
-            {body.figure}
+            {body.maskFigure ? <span className="masked-money">{body.figure}</span> : body.figure}
           </div>
           {/* META — trade count + win% (or the avg-win/loss / R detail). */}
-          <div className="mt-1 truncate font-mono text-[11px] text-fg-tertiary tnum">{body.detail}</div>
+          <div className="mt-1 truncate font-mono text-[11px] text-fg-tertiary tnum">
+            {body.maskDetail ? <span className="masked-money">{body.detail}</span> : body.detail}
+          </div>
         </>
       ) : (
         <>

@@ -29,6 +29,23 @@
         }
       })()
     </script>
+    <script>
+      // Streamer-mode bootstrap (beat 4) — the theme script's mirror. Runs
+      // synchronously before React mounts so a masked balance is BORN
+      // masked: no frame where the real number shows. Reads
+      // localStorage["fugaedge-streamer"] ('on' | 'off'); unset = off.
+      // FAIL-SAFE MASKED: a blocked localStorage resolves to hidden —
+      // uncertainty must never leak a dollar.
+      (function () {
+        try {
+          if (localStorage.getItem('fugaedge-streamer') === 'on') {
+            document.documentElement.classList.add('streamer')
+          }
+        } catch (e) {
+          document.documentElement.classList.add('streamer')
+        }
+      })()
+    </script>
   </head>
   <body class="antialiased">
     <div id="root"></div>

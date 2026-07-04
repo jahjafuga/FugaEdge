@@ -3,6 +3,7 @@ import { Moon, Sun } from 'lucide-react'
 import { useThemeMode } from '@/lib/theme'
 import ProfileMenu from './ProfileMenu'
 import AccountSwitcher from './AccountSwitcher'
+import StreamerToggle from './StreamerToggle'
 
 const ROUTES: Record<string, { crumb: string; title: string }> = {
   '/dashboard': { crumb: 'Dashboard',  title: 'Performance Overview' },
@@ -44,6 +45,9 @@ export default function TopBar() {
       <div className="flex items-center gap-3">
         {/* Multi-account Beat 4 — the scope switcher, left of ThemeToggle. */}
         <AccountSwitcher />
+        {/* Streamer mode (arc-closer beat 4) — the eye beside the theme
+            toggle, per the Lao lock. */}
+        <StreamerToggle />
         <ThemeToggle />
         <ProfileMenu />
       </div>

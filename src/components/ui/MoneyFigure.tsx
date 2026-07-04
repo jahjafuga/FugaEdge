@@ -29,8 +29,10 @@ export default function MoneyFigure({ value, size = 'lg', className = '' }: Mone
   const dollars = text.slice(0, dot)
   const cents = text.slice(dot) // '.82'
   return (
+    // masked-money — the streamer-mode marker (beat 4): every MoneyFigure
+    // site adopts the mask centrally; the hiding is CSS under html.streamer.
     <span
-      className={`font-mono font-bold tracking-tight tnum ${SIZE[size]} ${className}`}
+      className={`masked-money font-mono font-bold tracking-tight tnum ${SIZE[size]} ${className}`}
     >{dollars}<span data-testid="money-cents" className="text-[0.55em] font-semibold text-fg-secondary">{cents}</span></span>
   )
 }

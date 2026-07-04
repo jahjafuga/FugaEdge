@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
+import MaskedMoney from '@/components/ui/MaskedMoney'
 import MoneyFigure from '@/components/ui/MoneyFigure'
 import { ipc } from '@/lib/ipc'
 import { money } from '@/lib/format'
@@ -246,7 +247,7 @@ function AllBody({ view }: { view: AllView }) {
                 {fraction === null ? '' : `${Math.round(fraction * 100)}%`}
               </span>
               <span className="w-24 text-right font-mono text-fg-primary tnum">
-                {b === null ? S.none : money(b.balance)}
+                {b === null ? S.none : <MaskedMoney>{money(b.balance)}</MaskedMoney>}
               </span>
             </li>
           )
@@ -321,12 +322,12 @@ function SingleBody({ view }: { view: SingleView }) {
           data-testid="flow-strip"
           className="mt-3 font-mono text-[11px] text-fg-tertiary tnum"
         >
-          {S.flowStarting} {money(view.flow.starting.amount)} · {view.flow.starting.date}
+          {S.flowStarting} <MaskedMoney>{money(view.flow.starting.amount)}</MaskedMoney> · {view.flow.starting.date}
           {view.flow.deposits > 0 && (
-            <> · {S.flowDeposits} {money(view.flow.deposits)}</>
+            <> · {S.flowDeposits} <MaskedMoney>{money(view.flow.deposits)}</MaskedMoney></>
           )}
           {view.flow.withdrawals > 0 && (
-            <> · {S.flowWithdrawals} {money(view.flow.withdrawals)}</>
+            <> · {S.flowWithdrawals} <MaskedMoney>{money(view.flow.withdrawals)}</MaskedMoney></>
           )}
         </p>
       )}

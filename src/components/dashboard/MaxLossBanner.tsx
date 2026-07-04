@@ -26,10 +26,11 @@ export default function MaxLossBanner({
           Max daily loss reached
         </div>
         <div className="mt-0.5 text-sm text-fg-secondary">
+          {/* masked-money — account dollars hide under streamer mode. */}
           Today's P&L is{' '}
-          <span className="font-mono font-semibold text-loss tnum">{signed(todayPnl)}</span>{' '}
+          <span className="masked-money font-mono font-semibold text-loss tnum">{signed(todayPnl)}</span>{' '}
           — past your{' '}
-          <span className="font-mono tnum">{money(maxDailyLoss)}</span>{' '}
+          <span className="masked-money font-mono tnum">{money(maxDailyLoss)}</span>{' '}
           daily limit.{' '}
           <span className="text-fg-tertiary">{longDate(date)}</span>
         </div>

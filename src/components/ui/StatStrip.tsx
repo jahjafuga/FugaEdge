@@ -52,6 +52,10 @@ export default function StatStrip({
 // byte-identical to before, so Day Detail + Week Review (which omit the prop)
 // are unchanged.
 function KpiCard({ kpi, variant }: { kpi: Kpi; variant: StatStripVariant }) {
+  // Streamer mode (beat 4) — the dollar-Fmt identity seam: only tiles
+  // rendering through the shared DOLLAR formats mask; percent/count/ratio
+  // tiles stay visible. Identity check, not string sniffing.
+  const isDollar = kpi.format === moneyOrDash || kpi.format === signedOrDash
   const color =
     kpi.value === null
       ? 'text-fg-muted'
@@ -77,7 +81,13 @@ function KpiCard({ kpi, variant }: { kpi: Kpi; variant: StatStripVariant }) {
         className={`mt-1.5 font-mono font-semibold tnum ${color}`}
         style={{ fontSize: '22px', letterSpacing: '-0.02em', lineHeight: 1.15 }}
       >
-        <AnimatedNumber value={kpi.value} format={kpi.format} />
+        {isDollar ? (
+          <span className="masked-money">
+            <AnimatedNumber value={kpi.value} format={kpi.format} />
+          </span>
+        ) : (
+          <AnimatedNumber value={kpi.value} format={kpi.format} />
+        )}
       </div>
     </div>
   )
