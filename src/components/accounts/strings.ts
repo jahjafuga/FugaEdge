@@ -37,12 +37,17 @@ export const accountStrings = {
     archivedDivider: 'Archived',
   },
   compare: {
-    /** The Account-growth %-row's sub-line under any single-account scope —
-     *  its denominator is the APP-WIDE account size, so a scoped numerator
-     *  would fabricate per-account growth. Self-expiring: revisited when
-     *  Stage 3 lands per-account balances. */
-    scopedGrowthNote:
-      'Measured against your app-wide account size. Per-account growth arrives with per-account balances.',
+    /** The growth row's sub-lines (beat 4 build B — the un-park). The
+     *  denominator is CONTRIBUTED CAPITAL (starting + deposits -
+     *  withdrawals), never the current balance. The old scopedGrowthNote
+     *  retired with its condition: Stage 3 landed per-account balances.
+     *  Copy is dollar-free on purpose — a dollar in the sub-line would
+     *  leak under streamer mode. */
+    growthOverContributed: 'over contributed capital',
+    growthNoAnchor: 'set a starting balance to track growth',
+    growthNonPositive: 'needs positive contributed capital',
+    growthAcrossAll: (n: number) => `across ${n} account${n === 1 ? '' : 's'}`,
+    growthAcrossPartial: (n: number, m: number) => `across ${n} of ${m} accounts`,
   },
   card: {
     heading: 'Trading accounts',

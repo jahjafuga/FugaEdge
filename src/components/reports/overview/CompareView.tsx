@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   Area,
   Bar,
@@ -29,7 +29,9 @@ import {
 } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import { useAccountScope } from '@/lib/accountScope'
+import { ipc } from '@/lib/ipc'
 import { accountStrings } from '@/components/accounts/strings'
+import MaskedMoney from '@/components/ui/MaskedMoney'
 import Card from '@/components/ui/Card'
 import { duration, money, perShareGainLoss, perShareGainLossIsZero, shortDate, signed } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
@@ -50,7 +52,6 @@ import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
   computePeriodComparison,
-  netPnlPctOfAccount,
   daysBetween,
   rangeForPreset,
   rangeForSameMonthLastYear,
@@ -69,8 +70,10 @@ interface CompareViewProps {
   rangeA: DateRange
   rangeB: DateRange
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
-  /** Static configured account size for "Net P&L (% of account size)". null when
-   *  never configured (stored_keys check upstream) -> that row renders em-dash. */
+  /** RETIRED DENOMINATOR (beat 4 build B): the growth row now divides by
+   *  CONTRIBUTED CAPITAL from the cash ledger, not the app-wide account
+   *  size. The prop stays in the interface so AnalyticsCompareTab needs no
+   *  change this build; removable together with the tab's plumbing later. */
   accountSize?: number | null
 }
 
@@ -120,7 +123,7 @@ export default function CompareView({
   rangeA,
   rangeB,
   onRangeChange,
-  accountSize,
+  // accountSize deliberately not destructured — see the interface note.
 }: CompareViewProps) {
   const comparison = useMemo<ComparisonResult>(
     () => computePeriodComparison(trades, rangeA, rangeB),
@@ -165,7 +168,7 @@ export default function CompareView({
               verdict headline + 70%/2:1 reference gauges, then edge core,
               consistency, execution quality, behaviour, and activity. Pure
               presentation over comparison.periodA/periodB. */}
-          <VerdictBlock a={comparison.periodA} b={comparison.periodB} accountSize={accountSize ?? null} />
+          <VerdictBlock a={comparison.periodA} b={comparison.periodB} />
 
           {eitherEmpty && (
             <div className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary">
@@ -505,6 +508,10 @@ interface StatSpec {
    *  stats. When set and below LOW_R_SAMPLE the row dims its value + shows a
    *  "low sample" marker. Additive — rows that omit it render exactly as before. */
   coverage?: number
+  /** Streamer mode (beat 4): the row's value + delta cells wear the shipped
+   *  masked-money marker. Only the growth row sets it — its % beside the
+   *  visible Net P&L would reconstruct the masked balance. */
+  masked?: boolean
 }
 
 interface StatSection {
@@ -646,10 +653,10 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
   ]
 }
 
-function VerdictBlock({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics; accountSize: number | null }) {
+function VerdictBlock({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
   return (
     <div className="space-y-4">
-      <VerdictCard a={a} b={b} accountSize={accountSize} />
+      <VerdictCard a={a} b={b} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {buildSections(a, b).map((s) => (
           <StatSectionCard key={s.title} section={s} />
@@ -659,18 +666,84 @@ function VerdictBlock({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetric
   )
 }
 
+// Beat 4 build B — THE UN-PARK: the growth row's denominator is
+// CONTRIBUTED CAPITAL (starting + deposits - withdrawals) from the shipped
+// cash ledger, never the current balance (P&L would shrink its own
+// percentage) and never the app-wide account size (the c42c2d6 em-dash
+// era). Derived renderer-side over the existing channels: single scope
+// reads the scoped account; 'all' composes the walled sum over anchored
+// non-sim accounts with coverage honesty. No anchor / non-positive
+// contributed -> null (the em-dash) with an honest subLabel — never
+// Infinity, never NaN.
+interface ContributedCapital {
+  /** The denominator, or null when it must not compute. */
+  contributed: number | null
+  reason: 'ok' | 'no-anchor' | 'non-positive'
+  /** Coverage for the 'all' subLabel: anchored / total non-sim. */
+  anchored: number
+  total: number
+}
+
+function useContributedCapital(scope: ReturnType<typeof useAccountScope>['scope']): ContributedCapital | null {
+  const [state, setState] = useState<ContributedCapital | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      if (scope === 'all') {
+        const accounts = await ipc.accountsList()
+        const nonSim = accounts.filter((a) => a.account_type !== 'sim')
+        const balances = await Promise.all(nonSim.map((a) => ipc.cashBalanceGet(a.id)))
+        const anchored = balances.filter((b): b is NonNullable<typeof b> => b !== null)
+        const sum = anchored.reduce((s, b) => s + b.starting + b.deposits - b.withdrawals, 0)
+        const next: ContributedCapital =
+          anchored.length === 0
+            ? { contributed: null, reason: 'no-anchor', anchored: 0, total: nonSim.length }
+            : sum <= 0
+              ? { contributed: null, reason: 'non-positive', anchored: anchored.length, total: nonSim.length }
+              : { contributed: sum, reason: 'ok', anchored: anchored.length, total: nonSim.length }
+        if (!cancelled) setState(next)
+      } else {
+        const b = await ipc.cashBalanceGet(scope.accountId)
+        const c = b === null ? null : b.starting + b.deposits - b.withdrawals
+        const next: ContributedCapital =
+          b === null
+            ? { contributed: null, reason: 'no-anchor', anchored: 0, total: 1 }
+            : c !== null && c > 0
+              ? { contributed: c, reason: 'ok', anchored: 1, total: 1 }
+              : { contributed: null, reason: 'non-positive', anchored: 1, total: 1 }
+        if (!cancelled) setState(next)
+      }
+    }
+    setState(null) // stale guard — the row shows the em-dash while loading
+    void load().catch(() => {
+      if (!cancelled) setState(null) // fail-honest: never a fabricated %
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [scope])
+  return state
+}
+
+const CS = accountStrings.compare
+
+function growthSubLabel(cc: ContributedCapital | null, scopedSingle: boolean): string | undefined {
+  if (cc === null) return undefined
+  if (cc.reason === 'no-anchor') return CS.growthNoAnchor
+  if (cc.reason === 'non-positive') return CS.growthNonPositive
+  if (scopedSingle) return CS.growthOverContributed
+  return cc.anchored === cc.total
+    ? CS.growthAcrossAll(cc.total)
+    : CS.growthAcrossPartial(cc.anchored, cc.total)
+}
+
 // The headline card — the trader's verdict at a glance: the four numbers Ross
 // reviews first, then the two reference gauges (accuracy vs the 70% target,
 // P/L ratio vs the 2:1 target).
-function VerdictCard({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics; accountSize: number | null }) {
-  // Multi-account micro-slice — the % row's denominator is the APP-WIDE
-  // account size; under any single-account scope a scoped numerator over that
-  // base would fabricate per-account growth, so the row withholds its value
-  // (house em-dash) with the note. Self-expiring: revisited when Stage 3
-  // lands per-account balances. 'Account growth $' stays — it is the (already
-  // scoped) period net P&L by definition.
+function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
   const { scope } = useAccountScope()
   const scopedSingle = scope !== 'all'
+  const cc = useContributedCapital(scope)
   const headline: StatSpec[] = [
     { label: 'Net P&L',         a: a.netPnL,        b: b.netPnL,        format: 'money', higherIsBetter: true },
     { label: 'Avg daily P&L',   a: a.avgDailyPnL,   b: b.avgDailyPnL,   format: 'money', higherIsBetter: true },
@@ -687,14 +760,15 @@ function VerdictCard({ a, b, accountSize }: { a: PeriodMetrics; b: PeriodMetrics
     // row, no new computation). Identical to "Net P&L" above by definition;
     // Phase 2 adds Account growth % to pair with it.
     { label: 'Account growth $', a: a.netPnL, b: b.netPnL, format: 'money', higherIsBetter: true },
-    // Phase 3 (djsevans87) — honestly labeled: net P&L rescaled by the STATIC
-    // configured account_size (NOT true compounding growth). null accountSize
-    // (never configured) -> netPnlPctOfAccount returns null -> em-dash.
-    { label: 'Net P&L (% of account size)',
-      a: scopedSingle ? null : netPnlPctOfAccount(a.netPnL, accountSize),
-      b: scopedSingle ? null : netPnlPctOfAccount(b.netPnL, accountSize),
-      format: 'pct', higherIsBetter: true,
-      subLabel: scopedSingle ? accountStrings.compare.scopedGrowthNote : undefined },
+    // Beat 4 build B — the % over CONTRIBUTED CAPITAL (the un-park). The
+    // numerator is the row's existing period Net P&L; masked under streamer
+    // (a visible P&L beside a visible % reconstructs the masked balance
+    // with one division).
+    { label: 'Net P&L (% of contributed)',
+      a: cc?.contributed ? a.netPnL / cc.contributed : null,
+      b: cc?.contributed ? b.netPnL / cc.contributed : null,
+      format: 'pct', higherIsBetter: true, masked: true,
+      subLabel: growthSubLabel(cc, scopedSingle) },
   ]
   return (
     <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">
@@ -908,12 +982,26 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
         )}
       </span>
       <span className={`font-mono text-xs tnum ${lowSample ? 'opacity-50' : ''}`}>
-        <span className="text-fg-primary">{fmtValue(a, format)}</span>
-        <span className="mx-1 text-fg-tertiary">vs</span>
-        <span className="text-fg-tertiary">{fmtValue(b, format)}</span>
+        {spec.masked ? (
+          <MaskedMoney>
+            <span className="text-fg-primary">{fmtValue(a, format)}</span>
+            <span className="mx-1 text-fg-tertiary">vs</span>
+            <span className="text-fg-tertiary">{fmtValue(b, format)}</span>
+          </MaskedMoney>
+        ) : (
+          <>
+            <span className="text-fg-primary">{fmtValue(a, format)}</span>
+            <span className="mx-1 text-fg-tertiary">vs</span>
+            <span className="text-fg-tertiary">{fmtValue(b, format)}</span>
+          </>
+        )}
       </span>
       <span className={`flex w-[68px] items-center justify-end gap-1 font-mono text-xs tnum ${toneCls}`}>
-        <span>{fmtDelta(delta, format)}</span>
+        {spec.masked ? (
+          <MaskedMoney>{fmtDelta(delta, format)}</MaskedMoney>
+        ) : (
+          <span>{fmtDelta(delta, format)}</span>
+        )}
         <Arrow size={11} strokeWidth={2.25} />
       </span>
     </div>
