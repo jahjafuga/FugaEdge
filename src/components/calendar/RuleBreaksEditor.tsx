@@ -108,14 +108,16 @@ export default function RuleBreaksEditor({ date, breaks, onChange }: RuleBreaksE
               } ${saving ? 'opacity-60' : ''}`}
               // Selected = dark felt surface with a colored OUTLINE + GLOW (aurora
               // language), not a flood-fill: the chip's own color identifies it via
-              // a 1px colored border, a soft 40%-alpha ring, and a 12px outer halo.
-              // Tunable — bump the halo blur / drop alpha hex (e.g. `${color}cc`) to
-              // dial intensity. Unselected stays untouched.
+              // a 1px colored border, a soft 40%-alpha ring, and a 12px outer halo
+              // ALSO at 40% alpha (the pre-bump pass dimmed the halo from full
+              // color; selection reads from the ring + border). Tunable — raise
+              // the halo hex (e.g. `${color}cc`) or blur to dial intensity.
+              // Unselected stays untouched.
               style={
                 active
                   ? {
                       borderColor: color,
-                      boxShadow: `0 0 0 1px ${color}66, 0 0 12px -2px ${color}`,
+                      boxShadow: `0 0 0 1px ${color}66, 0 0 12px -2px ${color}66`,
                     }
                   : undefined
               }
