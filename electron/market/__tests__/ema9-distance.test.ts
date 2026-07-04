@@ -109,3 +109,108 @@ describe('runLaunchEma9Backfill (launch arm) → backfillAllEma9Distances', () =
     expect(h.setEma9).not.toHaveBeenCalled()
   })
 })
+
+// ── EMA fix beat B — the warmup-union seed unification ─────────────────────
+// The tile adopts the snapshot's exonerated convention
+// (computeTradeTechnicals.ts:155-185): EMA seeded over the WARMUP-UNION
+// closes, read at the entry bar; the day-only slice and the >=9-day-bar
+// floor retire. No warmup present -> the union degrades to day-only, so
+// every pre-existing case above stands byte-unchanged. The two ema()
+// helpers (electron/lib, core/charts) are algorithmically identical
+// (SMA seed, same recurrence — core/charts/ema.ts:10-13 documents the
+// deliberate match), so the union window is the WHOLE unification.
+
+// Prior-day warmup: 12 bars ending before the day session. Day bars (BARS)
+// start at t=0, so warmup occupies negative-time buckets — strictly earlier,
+// mirroring the real prior-day series.
+const WARMUP_CLOSES = [30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20.5, 20.2]
+const WARMUP = WARMUP_CLOSES.map((c, i) => mkBar(i - WARMUP_CLOSES.length, c))
+
+// The snapshot-formula expectation on the same inputs: ema over the union
+// closes up to (and including) the entry bar, read at that bar.
+function expectedUnionPct(dayClosesUpTo: number[], entry: number): number {
+  const series = ema([...WARMUP_CLOSES, ...dayClosesUpTo], 9)
+  const last = series[series.length - 1] as number
+  return ((entry - last) / last) * 100
+}
+
+describe('computeEma9Distance — the unified warmup-union seed (beat B)', () => {
+  it('(a) CONVERGENCE: with warmup + day bars, equals the snapshot formula on the same inputs', () => {
+    const expected = expectedUnionPct(CLOSES.slice(0, 11), 20) // entry bar idx 10
+    expect(computeEma9Distance(longTrade(), BARS, WARMUP)).toBeCloseTo(expected, 10)
+  })
+
+  it("(b) THE EARLY-SESSION CASE: an entry on the day's second bar computes from warmup (the old seed had no legal value)", () => {
+    // open_time at t=60000 → day bar index 1; the old day-only floor
+    // (cutoffIdx < 8) returned null — the 9/37 drift class, dead by
+    // construction under the union.
+    const expected = expectedUnionPct(CLOSES.slice(0, 2), 20)
+    expect(
+      computeEma9Distance(longTrade({ open_time: '1970-01-01T00:01:00.000Z' }), BARS, WARMUP),
+    ).toBeCloseTo(expected, 10)
+  })
+
+  it("(c) HONEST NULL: no warmup AND insufficient day bars -> null (the snapshot's sufficiency rule, mirrored)", () => {
+    // union = 6 closes < the 9-sample seed → the ema series is null at the
+    // entry bar → null, never fabricated.
+    expect(
+      computeEma9Distance(longTrade({ open_time: '1970-01-01T00:05:00.000Z' }), BARS, []),
+    ).toBeNull()
+  })
+})
+
+describe('backfillAllEma9Distances — the tile heal rides the existing sweep (beat B)', () => {
+  beforeEach(() => {
+    h.setEma9.mockClear()
+  })
+
+  it('(d1) re-derives a stored stale (day-seed) value to the union value from CACHED bars', () => {
+    const oldDaySeed = EXPECTED // the pre-unification stored value
+    const unionValue = expectedUnionPct(CLOSES.slice(0, 11), 20)
+    h.intradayRow = { bars: BARS, warmup_bars: WARMUP } as never
+    h.fakeDb = {
+      prepare: () => ({
+        all: () => [
+          { id: 7, symbol: 'AAA', date: '2026-06-09', side: 'long', avg_buy_price: 20, avg_sell_price: 0, open_time: ENTRY_OT, entry_ema9_distance_pct: oldDaySeed },
+        ],
+        get: () => undefined,
+        run: () => {},
+      }),
+    }
+    runLaunchEma9Backfill()
+    expect(h.setEma9).toHaveBeenCalledTimes(1)
+    expect(h.setEma9.mock.calls[0][0]).toBe(7)
+    expect(h.setEma9.mock.calls[0][1]).toBeCloseTo(unionValue, 10)
+  })
+
+  it('(d2) idempotent under the new seed — a second sweep writes nothing', () => {
+    const unionValue = expectedUnionPct(CLOSES.slice(0, 11), 20)
+    h.intradayRow = { bars: BARS, warmup_bars: WARMUP } as never
+    h.fakeDb = {
+      prepare: () => ({
+        all: () => [
+          { id: 7, symbol: 'AAA', date: '2026-06-09', side: 'long', avg_buy_price: 20, avg_sell_price: 0, open_time: ENTRY_OT, entry_ema9_distance_pct: unionValue },
+        ],
+        get: () => undefined,
+        run: () => {},
+      }),
+    }
+    runLaunchEma9Backfill()
+    expect(h.setEma9).not.toHaveBeenCalled()
+  })
+
+  it('(d3) uncached trades untouched — no write, no fetch attempted (a stored value is never erased by bar absence)', () => {
+    h.intradayRow = null
+    h.fakeDb = {
+      prepare: () => ({
+        all: () => [
+          { id: 9, symbol: 'BBB', date: '2026-06-09', side: 'long', avg_buy_price: 20, avg_sell_price: 0, open_time: ENTRY_OT, entry_ema9_distance_pct: 3.21 },
+        ],
+        get: () => undefined,
+        run: () => {},
+      }),
+    }
+    runLaunchEma9Backfill()
+    expect(h.setEma9).not.toHaveBeenCalled()
+  })
+})

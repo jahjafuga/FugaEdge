@@ -244,17 +244,23 @@ export function backfillAllEma9Distances(): number {
 
   let written = 0
   // Cache parsed bar arrays so we only deserialize each row once per refresh.
-  const barsCache = new Map<string, IntradayBar[] | null>()
+  // Beat B: the cache carries the row's warmup series too — the SAME
+  // intraday_bars row the day bars come from (zero extra fetches).
+  const barsCache = new Map<string, { bars: IntradayBar[]; warmup: IntradayBar[] } | null>()
 
   for (const t of trades) {
     const key = `${t.symbol}|${t.date}`
-    let bars = barsCache.get(key)
-    if (bars === undefined) {
+    let cached = barsCache.get(key)
+    if (cached === undefined) {
       const row = getIntradayRow(t.symbol, t.date)
-      bars = row?.bars ?? null
-      barsCache.set(key, bars)
+      cached = row?.bars ? { bars: row.bars, warmup: row.warmup_bars ?? [] } : null
+      barsCache.set(key, cached)
     }
-    const pct = computeEma9Distance(t, bars)
+    // Uncached (no bars row) -> SKIP, never erase: this sweep is offline
+    // by design (no fetch), so bar absence says nothing about the trade —
+    // a stored value survives until bars exist to recompute it (beat B d3).
+    if (cached === null) continue
+    const pct = computeEma9Distance(t, cached.bars, cached.warmup)
     // Only write when the value actually changes — keeps the WAL slim.
     if (pct !== t.entry_ema9_distance_pct) {
       setTradeEma9Distance(t.id, pct)
@@ -453,6 +459,7 @@ export function runPendingMaeMfeBackfill(): void {
 export function computeEma9Distance(
   trade: TradeForEma,
   bars: IntradayBar[] | null,
+  warmupBars: IntradayBar[] | null = null,
 ): number | null {
   if (!bars || bars.length === 0) return null
   // open_time is true UTC (Day 8.5 Commit B) — Date.parse reads the Z suffix
@@ -461,15 +468,30 @@ export function computeEma9Distance(
   if (!Number.isFinite(entryMs)) return null
 
   // Find the bar containing the entry (its start ≤ entry < start + 60s).
-  // Bars are sorted ascending by Massive.
+  // Bars are sorted ascending by Massive. (The tile's existing entry-bar
+  // selection — last bar at-or-before the entry — is kept byte-identical;
+  // beat B unifies the SEED only.)
   let cutoffIdx = -1
   for (let i = 0; i < bars.length; i++) {
     if (bars[i].t > entryMs) break
     cutoffIdx = i
   }
-  if (cutoffIdx < 8) return null  // need 9 bars to seed the EMA9
+  if (cutoffIdx < 0) return null // entry precedes every day bar
 
-  const closes = bars.slice(0, cutoffIdx + 1).map((b) => b.c)
+  // EMA fix beat B — THE SEED UNIFICATION: the EMA is seeded over the
+  // WARMUP-UNION closes (prior-day series + day bars up to the entry bar)
+  // and read at the entry bar, adopting the snapshot's exonerated
+  // convention (computeTradeTechnicals.ts:155-185) exactly. The old
+  // day-only slice and its >=9-day-bar floor retire: an early-session
+  // entry now seeds from warmup (the 9/37 drift class, dead), and with
+  // no warmup the union degrades to day-only — the ema() helper's own
+  // 9-sample seed keeps the honest null. The two ema() helpers are
+  // algorithmically identical (SMA seed; core/charts/ema.ts:10-13), so
+  // the window is the whole unification.
+  const closes = [
+    ...(warmupBars ?? []).map((b) => b.c),
+    ...bars.slice(0, cutoffIdx + 1).map((b) => b.c),
+  ]
   const series = ema(closes, 9)
   const last = series[series.length - 1]
   if (last == null || last <= 0) return null
