@@ -199,7 +199,7 @@ function CompactBar({
   if (segments.length === 0) return null
   return (
     <div
-      className="mt-2.5 flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full bg-bg-1"
+      className="balance-band-track mt-2.5 flex h-1.5 w-full gap-[2px] overflow-hidden rounded-full"
       aria-hidden
     >
       {segments

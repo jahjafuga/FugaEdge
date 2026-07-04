@@ -101,13 +101,10 @@ export default function BalanceCard() {
 
   return (
     <Card title={S.title} className="relative overflow-hidden">
-      {/* The one flourish (veto-able): a top-edge gold wash, this card only. */}
+      {/* The one flourish (veto-able): a top-edge gold wash, this card only.
+          Token-driven with a lighter light-mode alpha (the light audit). */}
       <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-24"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(212,175,55,0.05) 0%, rgba(212,175,55,0.02) 55%, transparent 100%)',
-        }}
+        className="balance-gold-wash pointer-events-none absolute inset-x-0 top-0 h-24"
         aria-hidden
       />
       <div className="relative">
@@ -135,7 +132,7 @@ function CapitalBand({
 }) {
   return (
     <div
-      className="mt-4 flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full bg-bg-1"
+      className="balance-band-track mt-4 flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full"
       aria-hidden
     >
       {segments

@@ -71,14 +71,17 @@ export default function AccountSwitcher() {
 
   return (
     <div ref={wrapRef} className="relative">
+      {/* The pill fix (Arc 2 beat 2): the width fits the longest label
+          ('All accounts (sim excluded)') without truncation, and the title
+          carries the FULL current label as the hover belt. */}
       <button
         type="button"
         onClick={openMenu}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={S.triggerLabel}
-        title={S.triggerLabel}
-        className="inline-flex h-9 max-w-[220px] cursor-pointer items-center gap-2 rounded-md border border-border-subtle bg-bg-2 px-3 text-sm text-fg-secondary transition-colors duration-150 ease-out-soft hover:border-border hover:text-fg-primary"
+        title={selected ? selected.name : allLabel}
+        className="inline-flex h-9 max-w-[280px] cursor-pointer items-center gap-2 rounded-md border border-border-subtle bg-bg-2 px-3 text-sm text-fg-secondary transition-colors duration-150 ease-out-soft hover:border-border hover:text-fg-primary"
       >
         {selected ? (
           <Dot color={selected.color} />

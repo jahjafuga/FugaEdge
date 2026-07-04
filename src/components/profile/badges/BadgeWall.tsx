@@ -33,9 +33,11 @@ function evaluate(def: BadgeDef, earnedKeys: Set<string>): DefState {
     }
   }
   const nextGrade = def.grades.find((g) => !earnedKeys.has(key(g.tier)))
+  // The rider (Arc 2 beat 2): thousands separators on the threshold —
+  // '1,000,000 peak profit ($)'; small counts unchanged by construction.
   const lockedHint =
     nextGrade && nextGrade.threshold > 0 && def.unit
-      ? `${nextGrade.threshold} ${def.unit}`
+      ? `${nextGrade.threshold.toLocaleString('en-US')} ${def.unit}`
       : S.badges.locked
   return { def, earned, highestTier, lockedHint }
 }

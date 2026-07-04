@@ -462,6 +462,24 @@
     font-variant-numeric: tabular-nums slashed-zero;
   }
 
+  /* Light audit (Arc 2 beat 2) — the Dashboard balance card's gold wash,
+     token-driven; light mode runs a hair lighter so the tint never yellows
+     a white card. And the capital band's TRACK: bg-1 is WHITE in light
+     mode (white-on-white = invisible), so the track gets its own class
+     with a light override — dark renders byte-identically to before. */
+  .balance-gold-wash {
+    background: linear-gradient(180deg, rgb(var(--gold) / 0.05) 0%, rgb(var(--gold) / 0.02) 55%, transparent 100%);
+  }
+  :root.light .balance-gold-wash {
+    background: linear-gradient(180deg, rgb(var(--gold) / 0.04) 0%, rgb(var(--gold) / 0.015) 55%, transparent 100%);
+  }
+  .balance-band-track {
+    background: rgb(var(--bg-1));
+  }
+  :root.light .balance-band-track {
+    background: rgb(var(--bg-4));
+  }
+
   /* Streamer mode (beat 4) — account-level dollars wear .masked-money;
      the hiding is keyed ENTIRELY on html.streamer (set before first paint
      by the index.html bootstrap, toggled live by the header eye). Blur is
