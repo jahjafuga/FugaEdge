@@ -257,8 +257,8 @@ function EmptyState() {
         No trades yet — let's change that.
       </div>
       <div className="mx-auto mt-2 max-w-md text-sm text-fg-tertiary">
-        Drop a DAS Trader CSV on the Import page. Your KPIs, equity curve, and
-        calendar will populate immediately.
+        Drop your broker's trade export on the Import page. Your KPIs, equity
+        curve, and calendar will populate immediately.
       </div>
       <Link
         to="/import"
