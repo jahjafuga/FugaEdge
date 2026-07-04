@@ -19,12 +19,37 @@ const ZERO: BadgeStats = {
   lowFloatTrades: 0,
   greenStreakLongest: 0,
   annotationCount: 0,
+  profitPeak: 0,
 }
 const has = (
   g: ReturnType<typeof earnedGrades>,
   badge_id: string,
   tier: string | null,
 ) => g.some((x) => x.badge_id === badge_id && x.tier === tier)
+
+// Arc 3 Beat 1 — the money milestone rungs: profitPeak against the five
+// gold single-grade defs. The mint-all-tiers idiom cascades naturally: a
+// peak crossing several rungs at once earns them all in one evaluation.
+describe('earnedGrades — the money milestones (Arc 3)', () => {
+  it('peak 150 -> exactly the $100 rung earns (gold), none above', () => {
+    const g = earnedGrades({ ...ZERO, profitPeak: 150 })
+    expect(has(g, 'money-100', 'gold')).toBe(true)
+    expect(has(g, 'money-1k', 'gold')).toBe(false)
+    expect(g.filter((x) => x.badge_id.startsWith('money-'))).toHaveLength(1)
+  })
+
+  it('peak 1,000,000 -> ALL FIVE rungs earn in one evaluation (the cascade)', () => {
+    const g = earnedGrades({ ...ZERO, profitPeak: 1_000_000 })
+    for (const id of ['money-100', 'money-1k', 'money-10k', 'money-100k', 'money-1m']) {
+      expect(has(g, id, 'gold')).toBe(true)
+    }
+  })
+
+  it('peak 0 (the floor) -> no money rung earns', () => {
+    const g = earnedGrades({ ...ZERO, profitPeak: 0 })
+    expect(g.filter((x) => x.badge_id.startsWith('money-'))).toHaveLength(0)
+  })
+})
 
 describe('earnedGrades', () => {
   it('Journaler: 16 sessions earns copper only (mint-all-tiers)', () => {

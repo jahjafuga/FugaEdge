@@ -21,6 +21,7 @@ import {
   countWinningTrades,
   longestGreenStreak,
 } from './execution-facts'
+import { profitPeak } from './money-facts'
 import { awardBadge } from './repo'
 
 const STREAK_PREFIX = 'streak:'
@@ -59,6 +60,9 @@ export function mintEarnedBadges(): NewlyMinted[] {
     winningTrades: countWinningTrades(),
     lowFloatTrades: countLowFloatTrades(),
     greenStreakLongest: longestGreenStreak(),
+    // Arc 3 — the profit peak feeds the money milestone rungs (walled read;
+    // still display-only: no insertXpEvents anywhere in this module).
+    profitPeak: profitPeak(),
   })
 
   const newlyMinted: NewlyMinted[] = []

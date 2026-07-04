@@ -37,6 +37,10 @@ export interface BadgeStats {
   greenStreakLongest: number
   /** Fully-annotated trades (trade_fully_annotated ledger events). */
   annotationCount: number
+  /** Arc 3 — the profit peak: the high-water mark of cumulative net P&L
+   *  over non-sim, non-deleted trades, floored at zero (the walled read
+   *  lives in electron/badges/money-facts.ts). */
+  profitPeak: number
 }
 
 export interface EarnedGrade {
@@ -65,6 +69,14 @@ const COUNT_FOR: Readonly<Record<string, (s: BadgeStats) => number>> = {
   low_float_hunter: (s) => s.lowFloatTrades,
   green_streak: (s) => s.greenStreakLongest,
   annotator: (s) => s.annotationCount,
+  // Arc 3 — the money milestone rungs all read the profit peak; each rung's
+  // gold grade threshold IS the dollar mark. Mint-all-tiers cascades a peak
+  // that crosses several rungs at once.
+  'money-100': (s) => s.profitPeak,
+  'money-1k': (s) => s.profitPeak,
+  'money-10k': (s) => s.profitPeak,
+  'money-100k': (s) => s.profitPeak,
+  'money-1m': (s) => s.profitPeak,
 }
 
 export function earnedGrades(stats: BadgeStats): EarnedGrade[] {

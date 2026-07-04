@@ -80,11 +80,31 @@ describe('BADGE_CATALOG shape + invariants', () => {
     expect(badgeById('sharpening')?.grades).toEqual([{ tier: null, threshold: 0 }])
   })
 
-  it('no standard-catalog badge references P&L sign or dollar size (D19); challenge badges are untiered', () => {
+  // INVERTED (Arc 3 Beat 1): the old name pinned "no badge references
+  // dollar size" — the money milestone ladder is the RULED exception
+  // (Lao, 2026-07-04): profit-peak rungs, XP-FENCED (a badge grants no XP
+  // by construction; D19's throw in goals/engine.ts is untouched).
+  it('challenge badges are untiered; the money milestones are the ruled dollar exception (Arc 3)', () => {
     for (const b of BADGE_CATALOG) {
       if (b.category === 'challenge') {
         expect(b.grades).toEqual([{ tier: null, threshold: 0 }])
       }
+    }
+  })
+
+  it('ships the five money milestone rungs: gold single grades at 100 / 1K / 10K / 100K / 1M (Arc 3)', () => {
+    const rungs: Record<string, number> = {
+      'money-100': 100,
+      'money-1k': 1_000,
+      'money-10k': 10_000,
+      'money-100k': 100_000,
+      'money-1m': 1_000_000,
+    }
+    for (const [id, threshold] of Object.entries(rungs)) {
+      const def = badgeById(id) as BadgeDef
+      expect(def).toBeTruthy()
+      expect(def.category).toBe('milestone')
+      expect(def.grades).toEqual([{ tier: 'gold', threshold }])
     }
   })
 })

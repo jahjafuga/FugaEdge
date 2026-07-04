@@ -72,6 +72,21 @@ export const BADGE_CATALOG: readonly BadgeDef[] = [
     description: '≥80% disciplined entries over a 20-session window.', grades: SINGLE },
   { id: 'sharpening', name: 'Sharpening', icon: 'TrendingUp', unit: '', category: 'process',
     description: 'Month-over-month discipline up +10 points.', grades: SINGLE },
+  // ── Money milestones (Arc 3 Beat 1) — the profit-peak ladder. Gold
+  //    single grades (untiered rungs, gold by declaration); the peak is the
+  //    high-water mark of cumulative earned P&L over non-sim, non-deleted
+  //    trades — earned at peak, never un-earned by drawdown. XP-FENCED by
+  //    construction: minting is display-only (electron/badges/mint.ts). ──
+  { id: 'money-100', name: 'First $100', icon: 'DollarSign', unit: 'peak profit ($)', category: 'milestone',
+    description: 'Peak trading profit reached $100.', grades: [{ tier: 'gold', threshold: 100 }] },
+  { id: 'money-1k', name: '$1K Club', icon: 'Coins', unit: 'peak profit ($)', category: 'milestone',
+    description: 'Peak trading profit reached $1,000.', grades: [{ tier: 'gold', threshold: 1_000 }] },
+  { id: 'money-10k', name: '$10K Club', icon: 'Gem', unit: 'peak profit ($)', category: 'milestone',
+    description: 'Peak trading profit reached $10,000.', grades: [{ tier: 'gold', threshold: 10_000 }] },
+  { id: 'money-100k', name: '$100K Club', icon: 'Landmark', unit: 'peak profit ($)', category: 'milestone',
+    description: 'Peak trading profit reached $100,000.', grades: [{ tier: 'gold', threshold: 100_000 }] },
+  { id: 'money-1m', name: '$1M Club', icon: 'Medal', unit: 'peak profit ($)', category: 'milestone',
+    description: 'Peak trading profit reached $1,000,000.', grades: [{ tier: 'gold', threshold: 1_000_000 }] },
   // ── Level milestones (5 marks) ──
   { id: 'level-10', name: 'Level 10', icon: 'Star', unit: 'level', category: 'milestone',
     description: 'Reach level 10.', grades: AT(10) },
