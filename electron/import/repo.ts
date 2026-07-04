@@ -409,6 +409,22 @@ export function commit(
       supersededTrips += supersedeSummary.run(symbol, date, resolvedAccountId).changes
     }
 
+    // EMA-discrepancy fix beat A — the technicals ORPHAN SWEEP. The two
+    // purges above hard-delete trade rows; SQLite reuses rowids at the
+    // NEXT insert, so a purged trade's trade_technicals row would be
+    // ADOPTED by its successor at the same id wearing a current
+    // schema_version — a stale snapshot the backfill can't see (the
+    // 2026-07-04 diagnostic's Dave shape). Sweep the orphans HERE:
+    // after BOTH purge phases, BEFORE any insert can reuse an id. The
+    // predicate is structurally orphan-only — a live trade's row is
+    // untouchable, so the identical-re-import dedupe path never churns
+    // technicals. A swept row is byte-identical to a missing row: the
+    // getStaleTradeIds NULL branch + the lazy-guard re-enrich it exactly
+    // like a new trade's.
+    db.prepare(
+      'DELETE FROM trade_technicals WHERE trade_id NOT IN (SELECT id FROM trades)',
+    ).run()
+
     for (const t of trips) {
       if (t.status === 'duplicate') {
         skippedTrips++

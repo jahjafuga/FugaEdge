@@ -12,8 +12,17 @@ import { computeMacd } from '@/core/charts/macd'
  * parity EMA seed unification lands). Stored on each
  * trade_technicals row; Session 3's backfill enumerates
  * rows with stale schema_version for recompute.
+ *
+ * Bumped to 2 (EMA-discrepancy fix beat A, 2026-07-04): the
+ * ONE-TIME HEAL. Before the orphan sweep landed in the import
+ * commit, a purged trade's row could be adopted by a rowid-
+ * reusing successor and carry a stale snapshot under a current
+ * version. The math is UNCHANGED (exonerated 62/62 to the cent
+ * by the diagnostic) — this bump exists purely to mark every
+ * pre-fix row stale so the launch backfill recomputes the whole
+ * book against current fills.
  */
-export const TECHNICALS_SCHEMA_VERSION = 1
+export const TECHNICALS_SCHEMA_VERSION = 2
 
 /**
  * Narrow input type — declares exactly what this module

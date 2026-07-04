@@ -47,7 +47,8 @@ describe('computeTradeTechnicals — per-trade entry-state indicator extractor',
     expect(r.tf_1m.ema9).not.toBeNull()
     expect(r.tf_1m.ema20).not.toBeNull()
     expect(r.data_complete).toBe(true)
-    expect(r.schema_version).toBe(1)
+    // INVERTED (EMA fix beat A): the literal `1` pin retired with the
+    // one-time heal bump — the relative constant assert below is the pin.
     expect(r.schema_version).toBe(TECHNICALS_SCHEMA_VERSION)
     expect(Number.isNaN(Date.parse(r.computed_at))).toBe(false)
   })
