@@ -28,8 +28,11 @@ export interface MetalClasses {
 }
 
 export const METAL: Record<Metal, MetalClasses> = {
+  // Arc 2 beat 1 (the trophy room): the earned borders read as metal
+  // hairline rings (alpha up), hover gains a faint metal fill — the sheen
+  // classes carry the soft inner highlight (index.css). Locked never metal.
   copper: {
-    earned: 'border-copper/40 bg-copper/[0.05] hover:border-copper/70 disabled:hover:border-copper/40 badge-sheen-copper',
+    earned: 'border-copper/55 bg-copper/[0.05] hover:border-copper/80 hover:bg-copper/[0.09] disabled:hover:border-copper/55 badge-sheen-copper',
     featured: 'border-copper bg-copper/[0.10] shadow-sm badge-sheen-copper',
     disc: 'bg-copper/[0.16]',
     discFeatured: 'bg-copper/[0.18]',
@@ -40,7 +43,7 @@ export const METAL: Record<Metal, MetalClasses> = {
     crest: 'text-copper/60',
   },
   silver: {
-    earned: 'border-silver/50 bg-silver/[0.06] hover:border-silver/80 disabled:hover:border-silver/50 badge-sheen-silver',
+    earned: 'border-silver/60 bg-silver/[0.06] hover:border-silver/90 hover:bg-silver/[0.10] disabled:hover:border-silver/60 badge-sheen-silver',
     featured: 'border-silver bg-silver/[0.12] shadow-sm badge-sheen-silver',
     disc: 'bg-silver/[0.18]',
     discFeatured: 'bg-silver/[0.20]',
@@ -51,7 +54,7 @@ export const METAL: Record<Metal, MetalClasses> = {
     crest: 'text-silver/60',
   },
   gold: {
-    earned: 'border-gold/50 bg-gold/[0.07] hover:border-gold/80 disabled:hover:border-gold/50 card-glow-gold badge-sheen-gold',
+    earned: 'border-gold/60 bg-gold/[0.07] hover:border-gold/90 hover:bg-gold/[0.11] disabled:hover:border-gold/60 card-glow-gold badge-sheen-gold',
     featured: 'border-gold bg-gold/[0.12] shadow-sm card-glow-gold badge-sheen-gold',
     disc: 'bg-gold/[0.16]',
     discFeatured: 'bg-gold/[0.18]',

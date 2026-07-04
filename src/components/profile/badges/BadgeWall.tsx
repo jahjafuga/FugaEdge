@@ -49,10 +49,12 @@ const CATEGORY_ORDER: ReadonlyArray<BadgeDef['category']> = [
 
 // Tier-metal styling (metalFor + METAL, the copper/silver/gold classes) is
 // shared with the avatar emblem — see ./tierMetal. The locked treatment stays
-// here (wall-specific, tier-independent neutral grey).
-const LOCKED_TILE = 'border-border-subtle bg-bg-3'
-const LOCKED_DISC = 'bg-bg-1'
-const LOCKED_ICON = 'text-fg-tertiary'
+// here (wall-specific, tier-independent neutral grey). Arc 2 beat 1: locked
+// RECEDES — quieter border and fill, dimmed icon — so earned metal carries
+// the room; the milestone rungs sit dormant-neutral until gold on earn.
+const LOCKED_TILE = 'border-border-subtle/60 bg-bg-3/60'
+const LOCKED_DISC = 'bg-bg-1/80'
+const LOCKED_ICON = 'text-fg-muted'
 
 interface BadgeWallProps {
   featured: string[]
@@ -109,10 +111,10 @@ export default function BadgeWall({
   return (
     <section className="mt-4 card-premium p-6">
       <div className="mb-5 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-tertiary">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-fg-tertiary">
           {B.heading}
         </h2>
-        <span className="font-mono text-xs text-fg-tertiary">
+        <span className="font-mono text-xs text-fg-tertiary tnum">
           {earnedGrades} / {totalGrades} {B.earnedWord}
         </span>
       </div>
@@ -126,15 +128,17 @@ export default function BadgeWall({
           const { earned, total } = gradeCount(category)
           return (
             <div key={category}>
-              <div className="mb-2 flex items-baseline justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-secondary">
+              {/* Section header — the 3.5 micro-label voice; the count sits
+                  right-aligned in tabular figures. Label STRINGS unchanged. */}
+              <div className="mb-2 flex items-baseline justify-between border-b border-border-subtle/60 pb-1.5">
+                <h3 className="text-[10px] font-medium uppercase tracking-[0.14em] text-fg-secondary">
                   {B.categoryLabels[category]}
                 </h3>
-                <span className="font-mono text-[11px] text-fg-tertiary">
+                <span className="font-mono text-[11px] text-fg-tertiary tnum">
                   {earned} / {total}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
                 {group.map((s) => {
                   const Icon = badgeIcon(s.def.icon)
                   const isFeatured = featured.includes(s.def.id)
@@ -153,7 +157,7 @@ export default function BadgeWall({
                           : `${B.locked} — ${s.def.description}`
                       }
                       onClick={() => toggleFeatured(s.def.id)}
-                      className={`group relative flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
+                      className={`group relative flex min-h-[64px] items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all duration-150 ease-out-soft ${
                         isFeatured ? m.featured : s.earned ? m.earned : LOCKED_TILE
                       } ${s.earned ? 'cursor-pointer' : 'cursor-default'}`}
                     >
@@ -194,7 +198,16 @@ export default function BadgeWall({
                         <span className="block truncate text-sm font-semibold text-fg-primary">
                           {s.def.name}
                         </span>
-                        <span className="mt-0.5 flex items-center gap-1 font-mono text-xs text-fg-tertiary">
+                        {/* Earned: the tier word in the metal's voice. Locked:
+                            the requirement hint in the micro-label voice — the
+                            hint TEXT itself is unchanged (pinned copy). */}
+                        <span
+                          className={`mt-0.5 flex items-center gap-1 ${
+                            s.earned
+                              ? 'font-mono text-xs text-fg-tertiary'
+                              : 'text-[10px] uppercase tracking-wider text-fg-muted'
+                          }`}
+                        >
                           {!s.earned && <Lock className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden />}
                           <span className="truncate">
                             {s.earned
