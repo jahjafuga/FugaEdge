@@ -41,7 +41,11 @@ export default function ConfirmModal({
       : 'bg-gold text-accent-ink hover:bg-gold-hover'
 
   return (
-    <Modal open={open} onClose={onClose} title={title} width={440}>
+    // Pre-bump visual pass: every confirm rides Modal's premium surface
+    // (card-premium felt + card-accent gold hairline + animate-modal-in) —
+    // the prop already existed on Modal, matching DetailModalShell; width
+    // and all behavior unchanged.
+    <Modal open={open} onClose={onClose} title={title} width={440} premium>
       <div className="flex flex-col gap-4">
         {body}
 

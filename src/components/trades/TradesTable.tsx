@@ -929,7 +929,10 @@ export default function TradesTable({
           onConfirm={handleBulkSoftDelete}
           body={
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border-subtle bg-bg-2 px-4 py-3">
+              {/* The summary row sits felt-consistent inside the premium
+                  panel: hairline border + translucent bg-0 inset (the hero
+                  panel's inset idiom) instead of the flat bg-2 card. */}
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border-subtle bg-bg-0/60 px-4 py-3">
                 <div className="min-w-0">
                   <div className="font-mono text-base font-semibold text-fg-primary tnum">
                     {selectedCount} trade{selectedCount === 1 ? '' : 's'}
