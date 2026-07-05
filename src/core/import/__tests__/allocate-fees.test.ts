@@ -133,3 +133,66 @@ describe('zeroAllocation', () => {
     }
   })
 })
+
+// ── Ocean One fee-merge Beat 2 ───────────────────────────────────────────────
+// day_fees now carries fee_commission + fee_other (schema 40). The allocator
+// must fold BOTH into each trip's total_fees — pro-rata with the same last-trip
+// residue as the five regulatory categories — so a superseded Ocean One trip's
+// FULL fee (incl. its distinct Comm and the ORF/OCC/NSCC/Acc/Clr/Misc "other"
+// bucket) lands on the surviving DAS trade and the penny-tie holds. They are NOT
+// written to trades.fee_* (no such columns — RULED: trade-level itemization is
+// deferred); they exist only to make total_fees whole.
+describe('allocateFees — Ocean One commission + other (Beat 2)', () => {
+  it('folds fee_commission and fee_other into a single trip total_fees', () => {
+    const trips = [{ id: 1, total_shares: 200 }]
+    const fees = {
+      fee_ecn: 0.1, fee_sec: 0.02, fee_finra: 0.05, fee_htb: 0, fee_cat: 0.01,
+      fee_commission: 0.5, fee_other: 0.03,
+    }
+    const out = allocateFees(trips, fees)
+    // 0.10 + 0.02 + 0.05 + 0 + 0.01 + 0.50 + 0.03 = 0.71
+    expect(out[0].total_fees).toBeCloseTo(0.71, 2)
+  })
+
+  it('splits commission + other pro-rata by shares, penny-tied to source', () => {
+    const trips = [
+      { id: 1, total_shares: 100 },
+      { id: 2, total_shares: 300 },
+    ]
+    const fees = {
+      fee_ecn: 0, fee_sec: 0, fee_finra: 0, fee_htb: 0, fee_cat: 0,
+      fee_commission: 0.4, fee_other: 0.8,
+    }
+    const out = allocateFees(trips, fees)
+    // 25% / 75%: trip1 = 0.10 + 0.20 = 0.30, trip2 = 0.30 + 0.60 = 0.90.
+    expect(out[0].total_fees).toBeCloseTo(0.3, 2)
+    expect(out[1].total_fees).toBeCloseTo(0.9, 2)
+    // penny-tie: the day's allocated totals sum to commission + other exactly.
+    expect(out[0].total_fees + out[1].total_fees).toBeCloseTo(1.2, 2)
+  })
+
+  it('residue on commission + other lands on the last trip (three-way, no drift)', () => {
+    const trips = [
+      { id: 1, total_shares: 100 },
+      { id: 2, total_shares: 100 },
+      { id: 3, total_shares: 100 },
+    ]
+    // 0.10 / 3 = 0.0333… — naive pro-rata leaves a 0.0001 residue; last trip absorbs.
+    const fees = {
+      fee_ecn: 0, fee_sec: 0, fee_finra: 0, fee_htb: 0, fee_cat: 0,
+      fee_commission: 0.1, fee_other: 0.1,
+    }
+    const out = allocateFees(trips, fees)
+    const sum = out.reduce((acc, a) => acc + a.total_fees, 0)
+    expect(sum).toBeCloseTo(0.2, 2)
+  })
+
+  it('treats an absent commission/other (legacy 5-category shape) as zero — no NaN', () => {
+    // Existing DAS callers hand a DayFees with only the five regulatory fields.
+    const trips = [{ id: 1, total_shares: 100 }]
+    const fees = { fee_ecn: 0.1, fee_sec: 0, fee_finra: 0, fee_htb: 0, fee_cat: 0 }
+    const out = allocateFees(trips, fees)
+    expect(out[0].total_fees).toBeCloseTo(0.1, 2)
+    expect(Number.isNaN(out[0].total_fees)).toBe(false)
+  })
+})

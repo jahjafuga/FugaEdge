@@ -23,6 +23,7 @@ import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects
 import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
 import { migrateDayFeesAccount } from './migrate-day-fees-account'
+import { migrateAddDayFeesOoColumns } from './migrate-add-day-fees-oo-columns'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
@@ -1082,6 +1083,15 @@ function migrateAfterSchema(
   // account. Registered AFTER the trades rebuild per the beat's ordering.
   // Shape-gated (column present → no-op). See migrate-day-fees-account.ts.
   migrateDayFeesAccount(conn)
+
+  // Ocean One fee-merge Beat 1 (schema 39 → 40) — add day_fees.fee_commission +
+  // fee_other so Beat 2 can route Ocean One's Comm + "other" bucket through the
+  // existing pro-rata allocator (day_fees has no slot for them today). Registered
+  // AFTER migrateDayFeesAccount because that rebuild copies a FIXED column list —
+  // adding these before it would drop them on the rebuild boot. Additive +
+  // idempotent (PRAGMA-gated); no backup/latch/version gate (migrateAddCommission
+  // idiom). See migrate-add-day-fees-oo-columns.ts.
+  migrateAddDayFeesOoColumns(conn)
 
   // Multi-account Beat 4 — daily_summary re-key: PK (date) →
   // (date, account_id); existing rows assigned to the default account. The

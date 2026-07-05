@@ -49,7 +49,7 @@ export function recomputeFeesForDateSymbol(
 
   const fees = db
     .prepare(`
-      SELECT fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat
+      SELECT fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, fee_commission, fee_other
       FROM day_fees WHERE date = ? AND symbol = ? AND account_id = ?
     `)
     .get(date, symbol, accountId) as DayFees | undefined

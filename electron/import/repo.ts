@@ -349,16 +349,18 @@ export function commit(
   // Beat 2: fee rows are keyed (date, symbol, account_id) — this import's
   // rows land under its account and can only replace that account's rows.
   const upsertFees = db.prepare(`
-    INSERT INTO day_fees (date, symbol, fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees, source, account_id)
-    VALUES (@date, @symbol, @fee_ecn, @fee_sec, @fee_finra, @fee_htb, @fee_cat, @total_fees, @source, @account_id)
+    INSERT INTO day_fees (date, symbol, fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, fee_commission, fee_other, total_fees, source, account_id)
+    VALUES (@date, @symbol, @fee_ecn, @fee_sec, @fee_finra, @fee_htb, @fee_cat, @fee_commission, @fee_other, @total_fees, @source, @account_id)
     ON CONFLICT(date, symbol, account_id) DO UPDATE SET
-      fee_ecn    = excluded.fee_ecn,
-      fee_sec    = excluded.fee_sec,
-      fee_finra  = excluded.fee_finra,
-      fee_htb    = excluded.fee_htb,
-      fee_cat    = excluded.fee_cat,
-      total_fees = excluded.total_fees,
-      source     = excluded.source
+      fee_ecn        = excluded.fee_ecn,
+      fee_sec        = excluded.fee_sec,
+      fee_finra      = excluded.fee_finra,
+      fee_htb        = excluded.fee_htb,
+      fee_cat        = excluded.fee_cat,
+      fee_commission = excluded.fee_commission,
+      fee_other      = excluded.fee_other,
+      total_fees     = excluded.total_fees,
+      source         = excluded.source
   `)
 
   // v0.2.3 resurrect: when INSERT OR IGNORE no-ops because the incoming trip's
@@ -529,6 +531,8 @@ export function commit(
         fee_finra: f.fee_finra,
         fee_htb: f.fee_htb,
         fee_cat: f.fee_cat,
+        fee_commission: f.fee_commission,
+        fee_other: f.fee_other,
         total_fees: f.total_fees,
         source,
         account_id: resolvedAccountId,

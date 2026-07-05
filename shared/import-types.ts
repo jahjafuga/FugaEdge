@@ -177,6 +177,11 @@ export interface DaySummaryFeeRow {
   fee_finra: number
   fee_htb: number
   fee_cat: number
+  // Ocean One fee-merge (schema 40): the broker's DISTINCT commission and the
+  // pooled other-fees bucket (ORF/OCC/NSCC/Acc/Clr/Misc). DAS/Webull daily-
+  // summary rows carry 0 here — they have no separately-itemized commission.
+  fee_commission: number
+  fee_other: number
   total_fees: number
   status: FeeStatus
   matchedTrips: number  // round trips already in DB for this (date, symbol)

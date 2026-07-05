@@ -138,7 +138,17 @@
 // by CREATE TABLE IF NOT EXISTS in SCHEMA_SQL, so it lands on both fresh
 // installs and upgrades with NO per-version migration module and no backup
 // latch. The bump is release-tracking only.
-export const SCHEMA_VERSION = '39'
+//
+// Bumped to 40 for the Ocean One fee-merge (Beat 1 of 2) — two additive
+// day_fees columns, fee_commission + fee_other, so Beat 2 can route Ocean
+// One's separate Comm and its "other" fee bucket (ORF/OCC/NSCC/Acc/Clr/Misc)
+// through the existing pro-rata allocator (day_fees carried slots only for
+// ecn/sec/finra/htb/cat). Both mirror fee_ecn (REAL NOT NULL DEFAULT 0);
+// added by the guarded ADD COLUMN in migrate-add-day-fees-oo-columns.ts,
+// registered AFTER migrateDayFeesAccount (whose rebuild copies a fixed column
+// list). Additive + idempotent — no backup/latch/version gate; the bump is
+// release-tracking (the cohort runs it on next update).
+export const SCHEMA_VERSION = '40'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

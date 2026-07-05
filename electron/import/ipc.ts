@@ -233,6 +233,13 @@ export function registerImportIpc(): void {
             const parsed = parseOceanOneXls(f.bytes, f.filename)
             skippedExecutions += parsed.skipped
             directTrips.push(...parsed.roundTrips)
+            // Beat 2: the OO fee ledger rides the SAME day_fees pipeline as DAS
+            // daily-summary fees (annotateFeeStatus → upsertFees → recompute), so
+            // a superseded OO trip's fees land on the surviving DAS trade.
+            // status/matchedTrips are (re)assigned by annotateFeeStatus below.
+            for (const d of parsed.dayFees) {
+              allFees.push({ ...d, status: 'new', matchedTrips: 0 })
+            }
             issues.push(
               ...csvParseIssues(f.filename, 'ocean_one', {
                 kept: parsed.roundTrips.length,
@@ -595,6 +602,9 @@ export function registerImportIpc(): void {
               fee_finra: r.fee_finra,
               fee_htb: r.fee_htb,
               fee_cat: r.fee_cat,
+              // DAS daily-summary has no separately-itemized commission/other.
+              fee_commission: 0,
+              fee_other: 0,
               total_fees: r.total_fees,
               status: 'new',
               matchedTrips: 0,

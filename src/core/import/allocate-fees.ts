@@ -22,6 +22,14 @@ export interface DayFees {
   fee_finra: number
   fee_htb: number
   fee_cat: number
+  // Schema 40 (Ocean One fee-merge): the broker's distinct commission and the
+  // pooled "other" bucket (ORF/OCC/NSCC/Acc/Clr/Misc). OPTIONAL so the five-
+  // category DAS callers compile unchanged; absent ⇒ 0. These are folded into
+  // total_fees but NOT written to trades.fee_* — there are no such trade columns
+  // (RULED: trade-level itemization is deferred); they exist only to keep the
+  // superseded Ocean One trip's total whole on the surviving DAS trade.
+  fee_commission?: number
+  fee_other?: number
 }
 
 export interface AllocatedFees {
@@ -55,7 +63,13 @@ export function allocateFees(
   const totalShares = trips.reduce((acc, t) => acc + t.total_shares, 0)
   if (totalShares === 0) return []
 
-  const acc = { ecn: 0, sec: 0, finra: 0, htb: 0, cat: 0 }
+  // Ocean One's commission + other are pooled and allocated with the same
+  // last-trip residue as the five regulatory categories, then folded into
+  // total_fees. Absent (DAS five-category callers) ⇒ 0.
+  const srcComm = fees.fee_commission ?? 0
+  const srcOther = fees.fee_other ?? 0
+
+  const acc = { ecn: 0, sec: 0, finra: 0, htb: 0, cat: 0, comm: 0, other: 0 }
   const out: AllocatedFees[] = []
 
   trips.forEach((t, i) => {
@@ -66,12 +80,16 @@ export function allocateFees(
     const finra = last ? round2(fees.fee_finra - acc.finra) : round2(fees.fee_finra * ratio)
     const htb = last ? round2(fees.fee_htb - acc.htb) : round2(fees.fee_htb * ratio)
     const cat = last ? round2(fees.fee_cat - acc.cat) : round2(fees.fee_cat * ratio)
+    const comm = last ? round2(srcComm - acc.comm) : round2(srcComm * ratio)
+    const other = last ? round2(srcOther - acc.other) : round2(srcOther * ratio)
 
     acc.ecn += ecn
     acc.sec += sec
     acc.finra += finra
     acc.htb += htb
     acc.cat += cat
+    acc.comm += comm
+    acc.other += other
 
     out.push({
       id: t.id,
@@ -80,7 +98,9 @@ export function allocateFees(
       fee_finra: finra,
       fee_htb: htb,
       fee_cat: cat,
-      total_fees: round2(ecn + sec + finra + htb + cat),
+      // commission + other are folded into the total (they have no trades.fee_*
+      // column of their own — deferred), so net_pnl reflects the whole fee.
+      total_fees: round2(ecn + sec + finra + htb + cat + comm + other),
     })
   })
 

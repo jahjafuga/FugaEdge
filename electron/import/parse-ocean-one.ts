@@ -1,6 +1,11 @@
 import * as XLSX from 'xlsx'
 import { createHash } from 'node:crypto'
-import type { Execution, RoundTrip, RoundTripExecution } from '@shared/import-types'
+import type {
+  Execution,
+  RoundTrip,
+  RoundTripExecution,
+  DaySummaryFeeRow,
+} from '@shared/import-types'
 import { hashFills, hashFillsByContent } from '@/core/import/build-round-trips'
 import { localEasternToUtc } from '@/lib/format'
 
@@ -147,8 +152,15 @@ function round4(n: number): number {
   return Math.round(n * 10000) / 10000
 }
 
+/** Per-(date,symbol) day_fees ledger the Ocean One path emits so the fee
+ *  allocator can land a superseded OO trip's fees on the surviving DAS trade.
+ *  status/matchedTrips are added downstream by the import handler. */
+export type OceanOneDayFee = Omit<DaySummaryFeeRow, 'status' | 'matchedTrips'>
+
 export interface ParseOceanOneResult {
   roundTrips: RoundTrip[]
+  /** SUMMED per (date, symbol) — one row even when a day has many OO trips. */
+  dayFees: OceanOneDayFee[]
   skipped: number
   warnings: string[]
   trace: { row: number; outcome: 'kept' | 'skipped'; reason?: string; symbol?: string }[]
@@ -170,6 +182,7 @@ export function parseOceanOneXls(
   })
 
   const roundTrips: RoundTrip[] = []
+  const dayFeeByKey = new Map<string, OceanOneDayFee>()
   const trace: ParseOceanOneResult['trace'] = []
   const warnings: string[] = []
   let skipped = 0
@@ -319,6 +332,34 @@ export function parseOceanOneXls(
       time: f.time,
     }))
 
+    // Accumulate this trip's itemized fees into the (date, symbol) day_fees
+    // ledger — SUMMED so a day with many OO trips yields ONE row that ties to
+    // the day's total. htb has no Ocean One source (always 0).
+    const feeKey = `${opened.date}|${symbol}`
+    let df = dayFeeByKey.get(feeKey)
+    if (!df) {
+      df = {
+        date: opened.date,
+        symbol,
+        fee_ecn: 0,
+        fee_sec: 0,
+        fee_finra: 0,
+        fee_htb: 0,
+        fee_cat: 0,
+        fee_commission: 0,
+        fee_other: 0,
+        total_fees: 0,
+      }
+      dayFeeByKey.set(feeKey, df)
+    }
+    df.fee_ecn = round2(df.fee_ecn + ecn)
+    df.fee_sec = round2(df.fee_sec + sec)
+    df.fee_finra = round2(df.fee_finra + finra)
+    df.fee_cat = round2(df.fee_cat + cat)
+    df.fee_commission = round2(df.fee_commission + commission)
+    df.fee_other = round2(df.fee_other + other)
+    df.total_fees = round2(df.total_fees + totalFees)
+
     roundTrips.push({
       date: opened.date,
       symbol,
@@ -338,6 +379,10 @@ export function parseOceanOneXls(
       executions: rtExecs,
       status: 'new',
       source_broker: 'OceanOne',
+      // Beat 2: OO trips are summary-class so the (symbol,date) supersede dedups
+      // them against covering DAS executions (no duplicate trade); their fees
+      // reach the surviving DAS trade via the day_fees ledger above.
+      source_format: 'summary',
       source_file: sourceFile,
       fees_reported: true,
       commission,
@@ -345,5 +390,5 @@ export function parseOceanOneXls(
     trace.push({ row: i, outcome: 'kept', symbol })
   }
 
-  return { roundTrips, skipped, warnings, trace }
+  return { roundTrips, dayFees: Array.from(dayFeeByKey.values()), skipped, warnings, trace }
 }
