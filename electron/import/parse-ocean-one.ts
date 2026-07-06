@@ -151,6 +151,15 @@ function round2(n: number): number {
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000
 }
+// Half-away-from-zero 2dp round. Plain round2 (Math.round) rounds a half toward
+// +Infinity, so a short's negative half-cent Gross (e.g. -6.445) would round its
+// MAGNITUDE down to -6.44; the sign-aware nudge makes it -6.45, matching the
+// broker's displayed number for both longs and shorts. The 1e-6 also rescues a
+// positive half-cent that floats just under its boundary (1.005 -> 1.01), so
+// reading a full-precision file value rounds the way the broker shows it.
+function round2HalfAway(n: number): number {
+  return Math.round((n + Math.sign(n) * 1e-6) * 100) / 100
+}
 
 /** Per-(date,symbol) day_fees ledger the Ocean One path emits so the fee
  *  allocator can land a superseded OO trip's fees on the surviving DAS trade.
@@ -291,10 +300,15 @@ export function parseOceanOneXls(
     }
     const totalFees = round2(commission + ecn + sec + cat + finra + other)
 
-    // Gross from the prices (matches the file's Gross; closeTrip's convention).
-    const grossPnl = round2(
-      side === 'long' ? qty * exit - qty * entry : qty * entry - qty * exit,
-    )
+    // Beat B: trust the file's AUTHORITATIVE Gross column instead of recomputing
+    // from the (rounded-average) Entry/Exit prices. The recompute dropped
+    // half-cents (6.445 -> 6.44 vs the broker's 6.45) and drifted up to ~$2 on
+    // large-share trades. colMap already indexes Gross; the file value carries the
+    // correct sign for shorts, so no side branch is needed, and round2HalfAway
+    // matches the broker's displayed rounding on both signs. Net stays the derived
+    // gross - fees: reading the file's Net column too would break the
+    // net = gross - fees invariant on real trips (independent 2dp rounding).
+    const grossPnl = round2HalfAway(num(cell(row, 'Gross')))
     const netPnl = round2(grossPnl - totalFees)
 
     // Two synthetic fills (entry + exit) — NOT run through buildRoundTrips; used
