@@ -113,7 +113,10 @@ describe('migrateAddTradesPreciseColumns — additive total_fees_precise + gross
     expect(db._state.cols.filter((c) => c === 'gross_pnl_precise')).toHaveLength(1)
   })
 
-  it('bumps SCHEMA_VERSION to 41', () => {
-    expect(SCHEMA_VERSION).toBe('41')
+  it('holds SCHEMA_VERSION at the B1 floor of 41 or later (later beats advance it)', () => {
+    // B1 established schema 41; later precision-pass beats (B2b -> 42) bump it
+    // further, so this is a non-regression floor, not an exact lock — the
+    // current exact value is asserted by the latest migration's own test.
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(41)
   })
 })

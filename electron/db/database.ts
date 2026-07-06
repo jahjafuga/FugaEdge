@@ -25,6 +25,7 @@ import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
 import { migrateDayFeesAccount } from './migrate-day-fees-account'
 import { migrateAddDayFeesOoColumns } from './migrate-add-day-fees-oo-columns'
 import { migrateAddTradesPreciseColumns } from './migrate-add-trades-precise-columns'
+import { migrateBackfillPreciseColumns } from './migrate-backfill-precise-columns'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
@@ -42,6 +43,9 @@ const CONTENT_HASH_BACKUP_LATCH_KEY = 'content_hash_migration_backup_done'
 // Latch for the v0.2.2 float-rename migration's pre-migration backup (schema 20→21).
 const FLOAT_RENAME_BACKUP_LATCH_KEY = 'float_rename_migration_backup_done'
 const SCRATCH_RECLASSIFY_BACKUP_LATCH_KEY = 'scratch_reclassify_migration_backup_done'
+
+// Latch for the Beat B2b precise-backfill migration's pre-migration backup (schema 41→42).
+const PRECISE_BACKFILL_BACKUP_LATCH_KEY = 'precise_backfill_migration_backup_done'
 
 // Latch for the v0.2.3 mae/mfe-reset migration's pre-migration backup (schema 24→25).
 const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
@@ -413,6 +417,66 @@ function backupBeforeContentHashMigration(
   } catch (e) {
     console.error(
       `[FE db] content-hash backup latch write failed: ${e}`,
+    )
+  }
+}
+
+// Pre-migration backup for the Beat B2b precise-column backfill (schema 41→42).
+// Same shape as backupBeforeContentHashMigration: checkpoint WAL → copy DB aside
+// → throw on failure so migrateBackfillPreciseColumns aborts without mutating
+// data. The backfill only fills the DERIVED precise columns from the untouched
+// 2dp columns, so this backup is defense-in-depth (consistency with the other
+// data migrations). Latch lives in settings so a successful backup on a prior
+// launch is never repeated.
+function backupBeforePreciseBackfillMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(PRECISE_BACKFILL_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-schema42-precise-backfill-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before precise-backfill backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so the
+  // migration aborts instead of mutating data with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] precise-backfill pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(PRECISE_BACKFILL_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(
+      `[FE db] precise-backfill backup latch write failed: ${e}`,
     )
   }
 }
@@ -1088,6 +1152,17 @@ function migrateAfterSchema(
   // migrateAddDayFeesOoColumns idiom). Migration-only (not in SCHEMA_SQL's trades
   // CREATE). See migrate-add-trades-precise-columns.ts.
   migrateAddTradesPreciseColumns(conn)
+
+  // Precision pass Beat B2b (schema 41 -> 42) — one-shot backfill copying each
+  // pre-B2a row's 2dp value into its precise column (precise 0 -> 2dp) so a
+  // later beat's SUM(*_precise) doesn't undercount old rows to zero. Registered
+  // AFTER migrateAddTradesPreciseColumns so the columns exist. Version-gated
+  // (priorVersion < 42) + both-zero WHERE (never clobbers a B2a-precise row) +
+  // latch + backup + transaction — the migrate-content-hash idiom. See
+  // migrate-backfill-precise-columns.ts.
+  migrateBackfillPreciseColumns(conn, priorVersion, {
+    backup: () => backupBeforePreciseBackfillMigration(conn, dbPath),
+  })
 
   // Multi-account Beat 2 — day_fees rebuild: PK (date, symbol) →
   // (date, symbol, account_id); existing rows assigned to the default
