@@ -62,7 +62,9 @@ export function recomputeFeesForDateSymbol(
       fee_htb   = @fee_htb,
       fee_cat   = @fee_cat,
       total_fees = @total_fees,
+      total_fees_precise = @total_fees,
       net_pnl    = gross_pnl - @total_fees,
+      net_pnl_precise = gross_pnl_precise - @total_fees,
       pnl        = gross_pnl - @total_fees
     WHERE id = @id
   `)

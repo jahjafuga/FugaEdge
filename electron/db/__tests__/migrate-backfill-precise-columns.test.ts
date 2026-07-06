@@ -99,7 +99,10 @@ describe('migrateBackfillPreciseColumns — one-shot 2dp -> precise backfill (sc
     expect(updates(runLog)).toHaveLength(0)
   })
 
-  it('bumps SCHEMA_VERSION to 42', () => {
-    expect(SCHEMA_VERSION).toBe('42')
+  it('holds SCHEMA_VERSION at the B2b floor of 42 or later (later beats advance it)', () => {
+    // B2b established schema 42; later precision-pass beats (F0 -> 43) bump it
+    // further, so this is a non-regression floor, not an exact lock — the current
+    // exact value is asserted by the latest migration's own test (F0's).
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(42)
   })
 })

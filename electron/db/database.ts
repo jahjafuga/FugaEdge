@@ -26,6 +26,7 @@ import { migrateDayFeesAccount } from './migrate-day-fees-account'
 import { migrateAddDayFeesOoColumns } from './migrate-add-day-fees-oo-columns'
 import { migrateAddTradesPreciseColumns } from './migrate-add-trades-precise-columns'
 import { migrateBackfillPreciseColumns } from './migrate-backfill-precise-columns'
+import { migrateAddNetPreciseAndFixFees } from './migrate-add-net-precise-and-fix-fees'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
@@ -46,6 +47,9 @@ const SCRATCH_RECLASSIFY_BACKUP_LATCH_KEY = 'scratch_reclassify_migration_backup
 
 // Latch for the Beat B2b precise-backfill migration's pre-migration backup (schema 41→42).
 const PRECISE_BACKFILL_BACKUP_LATCH_KEY = 'precise_backfill_migration_backup_done'
+
+// Latch for the Beat F0 net-precise migration's pre-migration backup (schema 42→43).
+const NET_PRECISE_BACKUP_LATCH_KEY = 'net_precise_migration_backup_done'
 
 // Latch for the v0.2.3 mae/mfe-reset migration's pre-migration backup (schema 24→25).
 const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
@@ -477,6 +481,65 @@ function backupBeforePreciseBackfillMigration(
   } catch (e) {
     console.error(
       `[FE db] precise-backfill backup latch write failed: ${e}`,
+    )
+  }
+}
+
+// Pre-migration backup for the Beat F0 net-precise migration (schema 42→43). Same
+// shape as backupBeforePreciseBackfillMigration: checkpoint WAL → copy DB aside →
+// throw on failure so migrateAddNetPreciseAndFixFees aborts without mutating data.
+// The corrective + net backfill only fill DERIVED precise columns, so this backup is
+// defense-in-depth (consistency with the other data migrations). Latch lives in
+// settings so a successful backup on a prior launch is never repeated.
+function backupBeforeNetPreciseMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(NET_PRECISE_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-schema43-net-precise-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before net-precise backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so the
+  // migration aborts instead of mutating data with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] net-precise pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(NET_PRECISE_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(
+      `[FE db] net-precise backup latch write failed: ${e}`,
     )
   }
 }
@@ -1162,6 +1225,18 @@ function migrateAfterSchema(
   // migrate-backfill-precise-columns.ts.
   migrateBackfillPreciseColumns(conn, priorVersion, {
     backup: () => backupBeforePreciseBackfillMigration(conn, dbPath),
+  })
+
+  // Precision pass Beat F0 (schema 42 -> 43) — add net_pnl_precise, corrective-fix the
+  // stale total_fees_precise the allocator left at 0 on post-B2a fees_reported=0 rows,
+  // then backfill net_pnl_precise from the corrected fee. Registered AFTER
+  // migrateBackfillPreciseColumns so both precise fee/gross columns exist. The ALTER is
+  // PRAGMA-gated + always (fresh installs get the migration-only column); the corrective
+  // + net backfill are version-gated (priorVersion < 43) + clobber-safe WHERE + latch +
+  // backup + transaction — the migrate-content-hash idiom. See
+  // migrate-add-net-precise-and-fix-fees.ts.
+  migrateAddNetPreciseAndFixFees(conn, priorVersion, {
+    backup: () => backupBeforeNetPreciseMigration(conn, dbPath),
   })
 
   // Multi-account Beat 2 — day_fees rebuild: PK (date, symbol) →

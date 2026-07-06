@@ -2,8 +2,10 @@
 // (precision pass, Beat B1 of 3 — schema 40 -> 41).
 //
 // The complete precision pass fixes the round-then-sum aggregate drift on FEES
-// and GROSS (net is deferred). This beat ONLY lands the two storage columns; the
-// write-precision (B2) and aggregate-repointing (B3) are separate beats.
+// and GROSS (net was deferred at B1; net_pnl_precise now lands separately in the F0
+// migration — migrate-add-net-precise-and-fix-fees.ts). This beat ONLY lands the two
+// storage columns; the write-precision (B2) and aggregate-repointing (B3) are
+// separate beats.
 //
 // The columns MIRROR total_fees exactly: REAL NOT NULL DEFAULT 0 (schema.ts:181)
 // -- so existing rows backfill to 0 (SQLite's documented ADD COLUMN semantics)
