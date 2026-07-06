@@ -189,6 +189,18 @@ export function parseOceanOneXls(
     raw: false,
     defval: '',
   })
+  // Beat B2a: a SECOND read of the SAME sheet, raw. raw:false hands back the
+  // broker's 2dp display ("6.45"); raw:true hands back the underlying value
+  // (6.445) that the display rounded away. We read ONLY the numeric Gross + fee
+  // cells from this array via cellRawNum — never dates/times, which raw:true
+  // would return as Excel serials — so no formatting hazard is reintroduced.
+  // Identical shape to `rows` (same sheet + header:1), so rowsRaw[i] lines up
+  // with rows[i] under whatever colMap is current at row i.
+  const rowsRaw = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+    header: 1,
+    raw: true,
+    defval: '',
+  })
 
   const roundTrips: RoundTrip[] = []
   const dayFeeByKey = new Map<string, OceanOneDayFee>()
@@ -202,6 +214,17 @@ export function parseOceanOneXls(
     if (!colMap) return ''
     const i = colMap.get(label)
     return i == null ? '' : String(row[i] ?? '').trim()
+  }
+  // Beat B2a: the full-precision underlying value of a numeric cell, read from
+  // the raw:true twin at the same row index. A raw numeric cell is a number
+  // (use it as-is — no String round-trip); anything else routes through num()
+  // so parenthesised negatives / blanks still behave.
+  const cellRawNum = (rowIdx: number, label: string): number => {
+    if (!colMap) return 0
+    const i = colMap.get(label)
+    if (i == null) return 0
+    const v = rowsRaw[rowIdx]?.[i]
+    return typeof v === 'number' ? v : num(String(v ?? ''))
   }
   const skip = (row: number, reason: string, symbol?: string) => {
     skipped++
@@ -276,8 +299,12 @@ export function parseOceanOneXls(
     let cat = 0
     let finra = 0
     let other = 0
+    // Beat B2a: the raw fee sum, full precision (no per-cell 2dp rounding). The
+    // 2dp components below still drive total_fees + the day_fees ledger.
+    let feesPrecise = 0
     for (const col of FEE_COLUMNS) {
       const v = num(cell(row, col))
+      feesPrecise += cellRawNum(i, col)
       switch (FEE_TO_FIELD[col]) {
         case 'commission':
           commission += v
@@ -309,6 +336,8 @@ export function parseOceanOneXls(
     // gross - fees: reading the file's Net column too would break the
     // net = gross - fees invariant on real trips (independent 2dp rounding).
     const grossPnl = round2HalfAway(num(cell(row, 'Gross')))
+    // Beat B2a: the file's underlying Gross (6.445), not the 2dp display (6.45).
+    const grossPrecise = cellRawNum(i, 'Gross')
     const netPnl = round2(grossPnl - totalFees)
 
     // Two synthetic fills (entry + exit) — NOT run through buildRoundTrips; used
@@ -388,6 +417,11 @@ export function parseOceanOneXls(
       gross_pnl: grossPnl,
       total_fees: totalFees,
       net_pnl: netPnl,
+      // Beat B2a: full-precision companions from the raw:true read. OO trips are
+      // fees_reported=1 (allocator-excluded), so total_fees_precise survives to
+      // trades intact — see apply-fees.ts.
+      gross_pnl_precise: grossPrecise,
+      total_fees_precise: feesPrecise,
       exec_hash: hashFills(fills),
       content_hash: hashFillsByContent(fills),
       executions: rtExecs,

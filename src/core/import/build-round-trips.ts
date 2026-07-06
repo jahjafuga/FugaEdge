@@ -241,6 +241,11 @@ function closeTrip(execs: Execution[], isOpen: boolean): RoundTrip {
     gross_pnl: grossPnl,
     total_fees: totalFees,
     net_pnl: round2(grossPnl - totalFees),
+    // Beat B2a: pre-round full-precision companions to the 2dp columns above.
+    // proceedsSold-costBought and feeSum are the exact values before round2;
+    // Beat B3 sums these to avoid round-then-sum drift on the dashboard.
+    gross_pnl_precise: proceedsSold - costBought,
+    total_fees_precise: feeSum,
     exec_hash: hashFills(execs),
     content_hash: hashFillsByContent(execs),
     executions: fills,

@@ -309,6 +309,7 @@ export function commit(
       pnl, gross_pnl,
       fee_ecn, fee_sec, fee_finra, fee_htb, fee_cat, total_fees,
       net_pnl,
+      gross_pnl_precise, total_fees_precise,
       executions_json, exec_hash, content_hash,
       source_broker, source_format, source_file, account_name, fees_reported, commission,
       account_id
@@ -319,6 +320,7 @@ export function commit(
       @pnl, @gross_pnl,
       0, 0, 0, 0, 0, @total_fees,
       @net_pnl,
+      @gross_pnl_precise, @total_fees_precise,
       @executions_json, @exec_hash, @content_hash,
       @source_broker, @source_format, @source_file, @account_name, @fees_reported, @commission,
       @account_id
@@ -454,6 +456,11 @@ export function commit(
         pnl: t.net_pnl,
         gross_pnl: t.gross_pnl,
         net_pnl: t.net_pnl,
+        // Beat B2a: full-precision fees + gross for the aggregate (Beat B3 sums
+        // these). Fall back to the 2dp value for any RoundTrip that didn't
+        // capture precise — keeps the bind non-undefined and no reader worse off.
+        gross_pnl_precise: t.gross_pnl_precise ?? t.gross_pnl,
+        total_fees_precise: t.total_fees_precise ?? t.total_fees,
         // Persist the trip's own fee total. For fees_reported trips (Ocean One)
         // this is the parser's authoritative 11-fee sum; recomputeFeesForDateSymbol
         // then SKIPS these trips (apply-fees.ts WHERE fees_reported = 0) so the

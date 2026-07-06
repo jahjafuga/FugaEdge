@@ -132,6 +132,16 @@ export interface RoundTrip {
   gross_pnl: number
   total_fees: number
   net_pnl: number
+  /** Full-precision gross P&L (pre-round), captured alongside the 2dp
+   *  gross_pnl. Beat B3 sums these to kill the round-then-sum drift the
+   *  dashboard shows. Optional/additive — a RoundTrip that doesn't set it
+   *  falls back to gross_pnl at the repo INSERT (see repo.ts). */
+  gross_pnl_precise?: number
+  /** Full-precision total fees (pre-round), companion to total_fees. Same
+   *  Beat B3 rationale + INSERT fallback. Only meaningful for fees_reported
+   *  trips (Ocean One raw cells, DAS/fill feeSum); day_fees-allocated fees
+   *  (fees_reported = 0) stay 2dp — the documented B2a limitation. */
+  total_fees_precise?: number
   /** ID-based content hash: SHA-1 over sorted "trade_id:order_id" pairs
    *  (plus account_name when non-empty for multi-account partitioning).
    *  v0.1.6 contract — every existing trade row dedups against itself on
