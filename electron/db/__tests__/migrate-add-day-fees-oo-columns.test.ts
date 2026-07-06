@@ -97,7 +97,10 @@ describe('migrateAddDayFeesOoColumns — additive fee_commission + fee_other (mi
     expect(db._state.cols.filter((c) => c === 'fee_other')).toHaveLength(1)
   })
 
-  it('bumps SCHEMA_VERSION to 40', () => {
-    expect(SCHEMA_VERSION).toBe('40')
+  it('holds SCHEMA_VERSION at the Beat 1 floor of 40 or later (later beats advance it)', () => {
+    // Beat 1 established schema 40; the precision-pass beats bump it further, so
+    // this is a non-regression floor, not an exact lock (the current exact value
+    // is asserted by the latest migration's own test).
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(40)
   })
 })

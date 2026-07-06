@@ -24,6 +24,7 @@ import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
 import { migrateDayFeesAccount } from './migrate-day-fees-account'
 import { migrateAddDayFeesOoColumns } from './migrate-add-day-fees-oo-columns'
+import { migrateAddTradesPreciseColumns } from './migrate-add-trades-precise-columns'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
@@ -1077,6 +1078,16 @@ function migrateAfterSchema(
   migrateTradesRebuildDedup(conn, {
     backup: () => backupBeforeTradesRebuildMigration(conn, dbPath),
   })
+
+  // Precision pass Beat B1 (schema 40 -> 41) — add trades.total_fees_precise +
+  // gross_pnl_precise so a later beat can SUM full-precision fees/gross without
+  // the round-then-sum drift (net deferred). Registered AFTER
+  // migrateTradesRebuildDedup because that rebuild copies a FIXED column list —
+  // adding these before it would drop them on the rebuild boot. Additive +
+  // idempotent (PRAGMA-gated); no backup/latch/version gate (the
+  // migrateAddDayFeesOoColumns idiom). Migration-only (not in SCHEMA_SQL's trades
+  // CREATE). See migrate-add-trades-precise-columns.ts.
+  migrateAddTradesPreciseColumns(conn)
 
   // Multi-account Beat 2 — day_fees rebuild: PK (date, symbol) →
   // (date, symbol, account_id); existing rows assigned to the default
