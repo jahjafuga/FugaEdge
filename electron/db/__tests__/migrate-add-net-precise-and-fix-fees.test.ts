@@ -176,7 +176,10 @@ describe('migrateAddNetPreciseAndFixFees — add net_pnl_precise + corrective fe
     expect(updates(runLog)).toHaveLength(0)
   })
 
-  it('bumps SCHEMA_VERSION to 43', () => {
-    expect(SCHEMA_VERSION).toBe('43')
+  it('holds SCHEMA_VERSION at the F0 floor of 43 or later (later beats advance it)', () => {
+    // F0 established schema 43; later precision-pass beats (F3 -> 44) bump it further, so
+    // this is a non-regression floor, not an exact lock — the current exact value is
+    // asserted by the latest migration's own test (F3's).
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(43)
   })
 })

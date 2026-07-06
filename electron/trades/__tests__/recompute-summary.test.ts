@@ -91,3 +91,41 @@ describe('recomputeSummaryForDates (per-account rewrite)', () => {
     expect(insertsIn().map((r) => r.args[2]).sort()).toEqual(['2026-01-05', '2026-01-06'])
   })
 })
+
+// Precision pass Beat F3 — the writer stores a PRECISE daily net alongside the
+// existing 2dp total_pnl. total_pnl (SUM(net_pnl)) is KEPT verbatim so the
+// green-days badges keep evaluating on 2dp (carve-out); total_pnl_precise is a
+// NEW derived column = SUM(gross_pnl_precise) - SUM(total_fees_precise) (derived,
+// NOT SUM(net_pnl_precise) — an Ocean One import can leave that 0), and the two
+// aggregate money columns move to their precise sources.
+describe('recomputeSummaryForDates — F3 precise cache (total_pnl_precise, schema 44)', () => {
+  const sqlOf = () => insertsIn()[0].sql
+
+  it('adds total_pnl_precise derived as SUM(gross_pnl_precise) - SUM(total_fees_precise)', () => {
+    recomputeSummaryForDates(new Set(['2026-01-05']))
+    const sql = sqlOf()
+    expect(sql).toMatch(/total_pnl_precise/)
+    expect(sql).toMatch(
+      /COALESCE\(SUM\(gross_pnl_precise\),\s*0\)\s*-\s*COALESCE\(SUM\(total_fees_precise\),\s*0\)/i,
+    )
+  })
+
+  it('repoints total_fees + gross_pnl to their precise columns (the 2dp SUMs are gone)', () => {
+    recomputeSummaryForDates(new Set(['2026-01-05']))
+    const sql = sqlOf()
+    expect(sql).toMatch(/COALESCE\(SUM\(total_fees_precise\),\s*0\)/i)
+    expect(sql).toMatch(/COALESCE\(SUM\(gross_pnl_precise\),\s*0\)/i)
+    expect(sql).not.toMatch(/SUM\(total_fees\)/)
+    expect(sql).not.toMatch(/SUM\(gross_pnl\)/)
+  })
+
+  it('KEEPS total_pnl on the 2dp SUM(net_pnl) — the green-days carve-out source', () => {
+    recomputeSummaryForDates(new Set(['2026-01-05']))
+    expect(sqlOf()).toMatch(/SUM\(net_pnl\)/)
+  })
+
+  it('adds NO new bind parameter (derived expr is columns): args stay [eps, -eps, date]', () => {
+    recomputeSummaryForDates(new Set(['2026-01-05']))
+    expect(insertsIn()[0].args).toEqual([SCRATCH_EPSILON, -SCRATCH_EPSILON, '2026-01-05'])
+  })
+})

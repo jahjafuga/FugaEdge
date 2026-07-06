@@ -148,7 +148,7 @@
 // registered AFTER migrateDayFeesAccount (whose rebuild copies a fixed column
 // list). Additive + idempotent — no backup/latch/version gate; the bump is
 // release-tracking (the cohort runs it on next update).
-export const SCHEMA_VERSION = '43'
+export const SCHEMA_VERSION = '44'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

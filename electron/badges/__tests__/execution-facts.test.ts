@@ -102,3 +102,24 @@ describe('count fns', () => {
     expect(store.sqls.join(' ')).toMatch(/float_shares < \?/i)
   })
 })
+
+// Precision pass Beat F3 carve-out proof. F3 adds daily_summary.total_pnl_precise for
+// the HEADLINE equity/month readers, but the gamification green-days MUST keep reading
+// the 2dp total_pnl so no award threshold ever evaluates on precise net (award stability
+// + byte-identical history). This guards that the green-days SQL never drifts onto the
+// precise column.
+describe('carve-out: green-days read the 2dp total_pnl, NEVER total_pnl_precise', () => {
+  it('countGreenDays sums total_pnl (2dp) and never total_pnl_precise', () => {
+    countGreenDays()
+    const sql = store.sqls.join(' ')
+    expect(sql).toMatch(/SUM\(total_pnl\)/i)
+    expect(sql).not.toMatch(/total_pnl_precise/i)
+  })
+
+  it('longestGreenStreak sums total_pnl (2dp) and never total_pnl_precise', () => {
+    longestGreenStreak()
+    const sql = store.sqls.join(' ')
+    expect(sql).toMatch(/SUM\(total_pnl\)/i)
+    expect(sql).not.toMatch(/total_pnl_precise/i)
+  })
+})

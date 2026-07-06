@@ -20,18 +20,27 @@ import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 // cached singleton connection (db/database.ts), and better-sqlite3 prepared
 // statements bind to the connection that prepared them, so every statement
 // here runs inside whatever db.transaction the caller has open.
+// Precision pass Beat F3 — total_pnl_precise is the full-precision daily net the headline
+// equity/month readers sum: DERIVED as SUM(gross_pnl_precise) - SUM(total_fees_precise)
+// (NOT SUM(net_pnl_precise); an Ocean One import can leave that 0 pre-F3, and gross/fee
+// precise are populated on every row). total_pnl stays the 2dp SUM(net_pnl) so the
+// green-days badges keep byte-identical history; total_fees / gross_pnl move to their
+// precise sources; winners/losers + MAX/MIN stay on the 2dp net (classification + per-trip
+// display extremes). The derived expression is columns-only — it adds NO bind parameter, so
+// the .run(SCRATCH_EPSILON, -SCRATCH_EPSILON, d) order below is unchanged.
 const insertGrouped = `
   INSERT INTO daily_summary
-    (date, account_id, total_pnl, total_fees, trade_count, winners, losers, gross_pnl, largest_win, largest_loss)
+    (date, account_id, total_pnl, total_pnl_precise, total_fees, trade_count, winners, losers, gross_pnl, largest_win, largest_loss)
   SELECT
     date,
     account_id,
     COALESCE(SUM(net_pnl), 0),
-    COALESCE(SUM(total_fees), 0),
+    COALESCE(SUM(gross_pnl_precise), 0) - COALESCE(SUM(total_fees_precise), 0),
+    COALESCE(SUM(total_fees_precise), 0),
     COUNT(*),
     SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END),
     SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END),
-    COALESCE(SUM(gross_pnl), 0),
+    COALESCE(SUM(gross_pnl_precise), 0),
     COALESCE(MAX(net_pnl), 0),
     COALESCE(MIN(net_pnl), 0)
   FROM trades WHERE date = ? AND deleted_at IS NULL GROUP BY account_id

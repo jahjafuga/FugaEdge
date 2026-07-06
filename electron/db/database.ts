@@ -27,6 +27,7 @@ import { migrateAddDayFeesOoColumns } from './migrate-add-day-fees-oo-columns'
 import { migrateAddTradesPreciseColumns } from './migrate-add-trades-precise-columns'
 import { migrateBackfillPreciseColumns } from './migrate-backfill-precise-columns'
 import { migrateAddNetPreciseAndFixFees } from './migrate-add-net-precise-and-fix-fees'
+import { migrateAddDailySummaryNetPrecise } from './migrate-add-daily-summary-net-precise'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
@@ -50,6 +51,8 @@ const PRECISE_BACKFILL_BACKUP_LATCH_KEY = 'precise_backfill_migration_backup_don
 
 // Latch for the Beat F0 net-precise migration's pre-migration backup (schema 42→43).
 const NET_PRECISE_BACKUP_LATCH_KEY = 'net_precise_migration_backup_done'
+const DAILY_SUMMARY_NET_PRECISE_BACKUP_LATCH_KEY =
+  'daily_summary_net_precise_migration_backup_done'
 
 // Latch for the v0.2.3 mae/mfe-reset migration's pre-migration backup (schema 24→25).
 const RESET_MAE_MFE_BACKUP_LATCH_KEY = 'mae_mfe_reset_migration_backup_done'
@@ -540,6 +543,64 @@ function backupBeforeNetPreciseMigration(
   } catch (e) {
     console.error(
       `[FE db] net-precise backup latch write failed: ${e}`,
+    )
+  }
+}
+
+// Pre-migration backup for the Beat F3 daily_summary precise-cache rebuild (schema
+// 43 -> 44). The rebuild is non-destructive (the cache is derivable from trades), but a
+// backup is taken anyway for consistency with the other data migrations; the caller passes
+// this closure and a throw aborts the rebuild instead of half-writing the cache. Latched so
+// a retry after a failed rebuild doesn't re-copy an already-backed-up DB.
+function backupBeforeDailySummaryNetPreciseMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(DAILY_SUMMARY_NET_PRECISE_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall
+    // through and attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(
+    backupDir,
+    `fugaedge.db.pre-schema44-daily-summary-net-precise-${ts}.bak`,
+  )
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(
+      `[FE db] wal_checkpoint before daily-summary net-precise backup failed: ${e}`,
+    )
+  }
+
+  // Deliberately NOT try/catch wrapped — a copy failure MUST propagate so the
+  // migration aborts instead of rewriting the cache with no safety net.
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] daily-summary net-precise pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(DAILY_SUMMARY_NET_PRECISE_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(
+      `[FE db] daily-summary net-precise backup latch write failed: ${e}`,
     )
   }
 }
@@ -1345,6 +1406,19 @@ function migrateAfterSchema(
   // idiom; lets the §K.1.1 worklist predicate retry transient throws while
   // leaving out-of-coverage keys locked.
   migrateAddWarmupError(conn)
+
+  // Precision pass Beat F3 (schema 43 -> 44) — the precise daily_summary cache: ADD
+  // daily_summary.total_pnl_precise (always, PRAGMA-gated) + a one-time rebuild of every
+  // live date so the headline equity/month readers sum precise net without round-then-sum
+  // drift. Registered LAST — after migrateDailySummaryAccount (the (date, account_id) re-key
+  // the grouped rebuild INSERT needs) and after the trades precise columns (F0), and after
+  // migrateScratchReclassify (the other recompute-based migration). Version-gated
+  // (priorVersion < 44) + latch + backup + the rebuild wrapped in one transaction. The 2dp
+  // total_pnl is KEPT so the green-days badges stay byte-identical. See
+  // migrate-add-daily-summary-net-precise.ts.
+  migrateAddDailySummaryNetPrecise(conn, priorVersion, {
+    backup: () => backupBeforeDailySummaryNetPreciseMigration(conn, dbPath),
+  })
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The
