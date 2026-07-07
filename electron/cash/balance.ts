@@ -60,7 +60,7 @@ export function balanceForAccount(accountId: string): AccountBalance | null {
   )
   const netPnl = sumSince(
     db,
-    `SELECT COALESCE(SUM(net_pnl), 0) AS total FROM trades
+    `SELECT COALESCE(SUM(net_pnl_precise), 0) AS total FROM trades
      WHERE deleted_at IS NULL AND account_id = ? AND date >= ?`,
     accountId,
     anchor,
@@ -159,7 +159,7 @@ export function balanceSeries(scope: AccountScope = 'all'): BalancePoint[] {
     // Identical trades semantics to the point reader, grouped by day.
     const tradeRows = db
       .prepare(
-        `SELECT date, SUM(net_pnl) AS delta FROM trades
+        `SELECT date, SUM(net_pnl_precise) AS delta FROM trades
          WHERE deleted_at IS NULL AND account_id = ? AND date >= ? GROUP BY date`,
       )
       .all(id, anchor) as { date: string; delta: number }[]

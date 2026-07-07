@@ -119,3 +119,34 @@ describe('calendar reads — single-account scope', () => {
     expect(cte.sql).toMatch(/GROUP BY date/i)
   })
 })
+
+// Precision pass Beat F4 — the calendar's money aggregates (month day-cells +
+// year roll-up) read the precise columns; the win/loss counts, the per-side
+// AVG, and the weekly green/red streak map stay 2dp (carve-out).
+describe('calendar — F4 precise money aggregates', () => {
+  it('month day-cell CTE sums net_pnl_precise / gross_pnl_precise / total_fees_precise', () => {
+    getCalendarMonth(2026, 6)
+    const cte = tradeReads().find((r) => /WITH tr AS/i.test(r.sql))!
+    expect(cte.sql).toMatch(/SUM\(net_pnl_precise\)\s+AS net_pnl/i)
+    expect(cte.sql).toMatch(/SUM\(gross_pnl_precise\)\s+AS gross_pnl/i)
+    expect(cte.sql).toMatch(/SUM\(total_fees_precise\)\s+AS total_fees/i)
+    // Carve-out: win/loss counts + per-side AVG classify on the 2dp net_pnl.
+    expect(cte.sql).toMatch(/CASE WHEN net_pnl > \?/)
+    expect(cte.sql).toMatch(/AVG\(CASE WHEN .* THEN net_pnl END\)/)
+  })
+
+  it('the year roll-up sums the precise columns', () => {
+    getCalendarYear(2026)
+    const roll = tradeReads().find((r) => /substr\(date, 1, 7\)/i.test(r.sql))!
+    expect(roll.sql).toMatch(/SUM\(net_pnl_precise\)/i)
+    expect(roll.sql).toMatch(/SUM\(gross_pnl_precise\)/i)
+    expect(roll.sql).toMatch(/SUM\(total_fees_precise\)/i)
+  })
+
+  it('carve-out: the weekly green/red streak map stays SUM(net_pnl) (2dp), never precise', () => {
+    getCalendarMonth(2026, 6)
+    const streak = tradeReads().find((r) => /SUM\(net_pnl\) AS pnl/i.test(r.sql))!
+    expect(streak).toBeTruthy()
+    expect(streak.sql).not.toMatch(/net_pnl_precise/i)
+  })
+})

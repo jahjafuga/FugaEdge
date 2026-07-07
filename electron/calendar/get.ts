@@ -89,9 +89,9 @@ function readMonthDays(
       WITH tr AS (
         SELECT
           date,
-          SUM(net_pnl)    AS net_pnl,
-          SUM(gross_pnl)  AS gross_pnl,
-          SUM(total_fees) AS total_fees,
+          SUM(net_pnl_precise)    AS net_pnl,
+          SUM(gross_pnl_precise)  AS gross_pnl,
+          SUM(total_fees_precise) AS total_fees,
           COUNT(*)        AS trade_count,
           SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END) AS winners,
           SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers,
@@ -294,9 +294,9 @@ function readYearMonths(
     .prepare(`
       SELECT
         substr(date, 1, 7)   AS ym,
-        SUM(net_pnl)         AS net_pnl,
-        SUM(gross_pnl)       AS gross_pnl,
-        SUM(total_fees)      AS total_fees,
+        SUM(net_pnl_precise)         AS net_pnl,
+        SUM(gross_pnl_precise)       AS gross_pnl,
+        SUM(total_fees_precise)      AS total_fees,
         COUNT(*)             AS trade_count,
         SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END)  AS winners,
         SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END) AS losers,

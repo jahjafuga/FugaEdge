@@ -102,3 +102,17 @@ describe('getJournalDay — the day summary through the seam', () => {
     }
   })
 })
+
+// Precision pass Beat F4 — the journal day summary's money totals read the
+// precise columns; the win/loss counts stay 2dp (carve-out).
+describe('getJournalDay — F4 precise day-summary money totals', () => {
+  it('sums net_pnl_precise / gross_pnl_precise / total_fees_precise; win/loss CASE stays 2dp', () => {
+    getJournalDay(DATE, 'all')
+    const r = summaryReads()[0]
+    expect(r.sql).toMatch(/COALESCE\(SUM\(net_pnl_precise\), 0\)\s+AS net_pnl/i)
+    expect(r.sql).toMatch(/COALESCE\(SUM\(gross_pnl_precise\), 0\)\s+AS gross_pnl/i)
+    expect(r.sql).toMatch(/COALESCE\(SUM\(total_fees_precise\), 0\)\s+AS total_fees/i)
+    // Carve-out: winners/losers classify on the 2dp net_pnl.
+    expect(r.sql).toMatch(/CASE WHEN net_pnl > \?/)
+  })
+})

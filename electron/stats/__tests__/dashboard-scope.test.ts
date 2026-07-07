@@ -22,7 +22,7 @@ const mockDb = {
     return {
       get: (...args: unknown[]) => {
         gets.push({ sql, args })
-        if (/COALESCE\(SUM\(net_pnl\), 0\)\s+AS net_pnl/i.test(sql)) {
+        if (/COALESCE\(SUM\(net_pnl(_precise)?\), 0\)\s+AS net_pnl/i.test(sql)) {
           return { net_pnl: 0, gross_pnl: 0, total_fees: 0, trade_count: 0, scratches: 0 }
         }
         if (/MAX\(net_pnl\) AS max/i.test(sql)) return { n: 0, sum: 0, max: null }
@@ -78,7 +78,9 @@ describe("getDashboardData — 'all' scope (the default)", () => {
     const reads = summaryReads()
     expect(reads).toHaveLength(2) // readDailySeries + readMonth
     for (const r of reads) {
-      expect(r.sql).toMatch(/SUM\(total_pnl\)/i)
+      // Precision pass F4: the equity-curve + month-calendar cache readers now
+      // sum the precise cache column, not the 2dp total_pnl.
+      expect(r.sql).toMatch(/SUM\(total_pnl_precise\)/i)
       expect(r.sql).toMatch(/GROUP BY date/i)
       expect(r.sql).toContain(SIM_WALL)
     }
@@ -124,5 +126,35 @@ describe('the showing-up streak — wall-free by ruling (sim days count)', () =>
     for (const r of streakReads) {
       expect(r.sql).not.toMatch(/account_id/i)
     }
+  })
+})
+
+// Precision pass Beat F4 — the headline dashboard aggregates read the PRECISE
+// companion columns (kills round-then-sum drift), while per-trip extremes
+// (MAX/MIN winner/loser) and the win/loss classification stay 2dp.
+describe('getDashboardData — F4 precise headline aggregates', () => {
+  it('the totals read sums net_pnl_precise / gross_pnl_precise / total_fees_precise', () => {
+    getDashboardData('all')
+    const totals = tradeStatReads().find(
+      (g) => /AS net_pnl\b/.test(g.sql) && /AS gross_pnl\b/.test(g.sql),
+    )!
+    expect(totals).toBeTruthy()
+    expect(totals.sql).toMatch(/COALESCE\(SUM\(net_pnl_precise\), 0\)\s+AS net_pnl/i)
+    expect(totals.sql).toMatch(/COALESCE\(SUM\(gross_pnl_precise\), 0\)\s+AS gross_pnl/i)
+    expect(totals.sql).toMatch(/COALESCE\(SUM\(total_fees_precise\), 0\)\s+AS total_fees/i)
+  })
+
+  it('winners/losers sum net_pnl_precise, but MAX/MIN extremes + the win/loss CASE stay 2dp', () => {
+    getDashboardData('all')
+    const winners = gets.find((g) => /MAX\(net_pnl\) AS max/.test(g.sql))!
+    const losers = gets.find((g) => /MIN\(net_pnl\) AS min/.test(g.sql))!
+    expect(winners.sql).toMatch(/COALESCE\(SUM\(net_pnl_precise\), 0\) AS sum/i)
+    expect(losers.sql).toMatch(/COALESCE\(SUM\(net_pnl_precise\), 0\) AS sum/i)
+    // Carve-out: per-trip extremes stay the 2dp column.
+    expect(winners.sql).toMatch(/MAX\(net_pnl\) AS max/)
+    expect(losers.sql).toMatch(/MIN\(net_pnl\) AS min/)
+    // Carve-out: the win/loss classification (sqlIsWin/sqlIsLoss) stays 2dp.
+    expect(winners.sql).toMatch(/net_pnl > \?/)
+    expect(losers.sql).toMatch(/net_pnl < \?/)
   })
 })

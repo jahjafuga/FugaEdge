@@ -76,3 +76,20 @@ describe('getTrade — by-id, unscoped (ruling pin)', () => {
     expect(gets[0].args).toEqual([7])
   })
 })
+
+// Precision pass Beat F4 display carve-out: the trades list + detail render the
+// per-trip net_pnl (2dp) — F4 only repoints aggregate SUMs, never per-row
+// display, so these reads must stay on the 2dp column.
+describe('display carve-out (F4): trades list + detail read the 2dp per-trip net_pnl', () => {
+  it('listTrades projects the 2dp t.net_pnl and never net_pnl_precise', () => {
+    listTrades({ date: '2026-06-09' })
+    expect(alls[0].sql).toMatch(/t\.net_pnl\b/)
+    expect(alls[0].sql).not.toMatch(/net_pnl_precise/i)
+  })
+
+  it('getTrade (detail) reads the 2dp t.net_pnl and never net_pnl_precise', () => {
+    getTrade(7)
+    expect(gets[0].sql).toMatch(/t\.net_pnl\b/)
+    expect(gets[0].sql).not.toMatch(/net_pnl_precise/i)
+  })
+})

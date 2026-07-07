@@ -54,7 +54,7 @@ const mockDb = {
           const k = anchoredKey(sql, args)
           return { total: k ? (withdrawalSums[k] ?? 0) : POISON }
         }
-        if (/SUM\(net_pnl\)/.test(sql) && /FROM trades/.test(sql)) {
+        if (/SUM\(net_pnl(_precise)?\)/.test(sql) && /FROM trades/.test(sql)) {
           const k = anchoredKey(sql, args)
           return { total: k ? (pnlSums[k] ?? 0) : POISON }
         }
@@ -178,7 +178,7 @@ describe('combinedBalance — the composing sim-walled roll-up with coverage', (
     // B: 2000+0-0+25 = 2025 (the same trade OUTSIDE its later window).
     expect(c.total).toBe(1250 + 2025)
     // The per-account trades sums were issued with DISTINCT anchors.
-    const tradeSums = gets.filter((g) => /SUM\(net_pnl\)/.test(g.sql))
+    const tradeSums = gets.filter((g) => /SUM\(net_pnl(_precise)?\)/.test(g.sql))
     const bindPairs = tradeSums.map((g) => `${g.args[0]}|${g.args[1]}`)
     expect(bindPairs).toContain('ACCT-A|2026-01-01')
     expect(bindPairs).toContain('ACCT-B|2026-06-01')
@@ -261,5 +261,22 @@ describe('balanceSeries — the balance-over-time reader', () => {
     const s = balanceSeries({ accountId: 'ACCT-SIM' })
     expect(s[0]).toEqual({ date: '2026-01-01', balance: 5000 })
     expect(s[s.length - 1].balance).toBe(5999)
+  })
+})
+
+// Precision pass Beat F4 — the balance's trade-P&L component reads the precise
+// net column (point sum + the date-grouped series delta), so a sub-cent tail
+// survives into the cash balance instead of being lost to round-then-sum.
+describe('F4: the balance P&L sums are precise', () => {
+  it('balanceForAccount sums net_pnl_precise (point total)', () => {
+    balanceForAccount('ACCT-A')
+    const pnl = gets.find((g) => /FROM trades/.test(g.sql) && /SUM\(/.test(g.sql))!
+    expect(pnl.sql).toMatch(/SUM\(net_pnl_precise\)/i)
+  })
+
+  it('balanceSeries sums net_pnl_precise (date-grouped delta)', () => {
+    balanceSeries({ accountId: 'ACCT-A' })
+    const series = alls.find((a) => /FROM trades/.test(a.sql) && /GROUP BY date/.test(a.sql))!
+    expect(series.sql).toMatch(/SUM\(net_pnl_precise\)\s+AS delta/i)
   })
 })

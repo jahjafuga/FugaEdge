@@ -126,4 +126,14 @@ describe('getWeekDetail — the streak map through the seam', () => {
       expect(m.sql).not.toMatch(/account_id/i)
     }
   })
+
+  // Precision pass Beat F4 carve-out: the week's green/red-day P&L STREAK is a
+  // sign classification (like green-days), not a headline money total — F4
+  // leaves it on the 2dp net_pnl so a sub-cent tail never flips a day's colour.
+  it('carve-out (F4): the streak map stays SUM(net_pnl) (2dp), never net_pnl_precise', () => {
+    getWeekDetail(WEEK, { accountScope: 'all' })
+    const map = streakMapReads()[0]
+    expect(map).toBeTruthy()
+    expect(map.sql).not.toMatch(/net_pnl_precise/i)
+  })
 })

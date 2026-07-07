@@ -79,4 +79,11 @@ describe('profitPeak — the high-water mark of cumulative earned P&L', () => {
     expect(sqls[0]).toMatch(/GROUP BY date/i)
     expect(sqls[0]).toMatch(/ORDER BY date/i)
   })
+
+  // Precision pass Beat F4 carve-out: profitPeak is a gamification money fact —
+  // it stays on the 2dp net_pnl so the granted profit-peak badge never shifts.
+  it('carve-out (F4): stays on the 2dp net_pnl, never net_pnl_precise', () => {
+    profitPeak()
+    expect(sqls.join(' ')).not.toMatch(/net_pnl_precise/i)
+  })
 })

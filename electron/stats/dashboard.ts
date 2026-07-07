@@ -54,9 +54,9 @@ function readOverview(
   const totals = db
     .prepare(`
       SELECT
-        COALESCE(SUM(net_pnl), 0)    AS net_pnl,
-        COALESCE(SUM(gross_pnl), 0)  AS gross_pnl,
-        COALESCE(SUM(total_fees), 0) AS total_fees,
+        COALESCE(SUM(net_pnl_precise), 0)    AS net_pnl,
+        COALESCE(SUM(gross_pnl_precise), 0)  AS gross_pnl,
+        COALESCE(SUM(total_fees_precise), 0) AS total_fees,
         COUNT(*)                      AS trade_count,
         COALESCE(SUM(CASE WHEN ${sqlIsScratch()} THEN 1 ELSE 0 END), 0) AS scratches
       FROM trades ${where}
@@ -79,14 +79,14 @@ function readOverview(
 
   const winners = db
     .prepare(`
-      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MAX(net_pnl) AS max
+      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl_precise), 0) AS sum, MAX(net_pnl) AS max
       FROM trades ${winnersWhere}
     `)
     .get(SCRATCH_EPSILON, ...params) as { n: number; sum: number; max: number | null }
 
   const losers = db
     .prepare(`
-      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl), 0) AS sum, MIN(net_pnl) AS min
+      SELECT COUNT(*) AS n, COALESCE(SUM(net_pnl_precise), 0) AS sum, MIN(net_pnl) AS min
       FROM trades ${losersWhere}
     `)
     .get(-SCRATCH_EPSILON, ...params) as { n: number; sum: number; min: number | null }
@@ -139,7 +139,7 @@ function readDailySeries(
   const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
-      SELECT date, SUM(total_pnl) AS net_pnl, SUM(trade_count) AS trade_count
+      SELECT date, SUM(total_pnl_precise) AS net_pnl, SUM(trade_count) AS trade_count
       FROM daily_summary
       WHERE ${sf.clause}${start ? ' AND date >= ?' : ''}
       GROUP BY date
@@ -237,7 +237,7 @@ function readMonth(
   const sf = scopeFilter(scope)
   const rows = db
     .prepare(`
-      SELECT date, SUM(total_pnl) AS net_pnl, SUM(trade_count) AS trade_count
+      SELECT date, SUM(total_pnl_precise) AS net_pnl, SUM(trade_count) AS trade_count
       FROM daily_summary
       WHERE ${sf.clause} AND date LIKE ?
       GROUP BY date

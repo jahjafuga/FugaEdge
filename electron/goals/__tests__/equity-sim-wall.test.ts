@@ -41,4 +41,12 @@ describe('cumulativeNetPnlSince — the sim wall on equity-goal progress', () =>
     expect(sqls[0]).toMatch(/deleted_at IS NULL/i)
     expect(getArgs[0]).toEqual(['2026-01-01'])
   })
+
+  // Precision pass Beat F4 carve-out: equity-goal progress is a gamification
+  // read — it stays on the 2dp net_pnl so goal completion never shifts onto
+  // precise net.
+  it('carve-out (F4): equity progress stays on the 2dp net_pnl, never net_pnl_precise', () => {
+    cumulativeNetPnlSince('2026-01-01')
+    expect(sqls.join(' ')).not.toMatch(/net_pnl_precise/i)
+  })
 })

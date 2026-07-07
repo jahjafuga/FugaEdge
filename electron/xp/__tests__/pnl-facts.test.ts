@@ -62,4 +62,12 @@ describe('netPnlByDate (the §A2-exception P&L reader)', () => {
     expect(sql).toMatch(/date IN \(\?, \?\)/i)
     expect(store.params[0]).toEqual(['2026-06-29', '2026-06-28'])
   })
+
+  // Precision pass Beat F4 carve-out: the maxloss XP fact is a gamification
+  // read — it stays on the 2dp net_pnl so award thresholds never shift onto
+  // precise net (award continuity + byte-identical history).
+  it('carve-out (F4): stays on the 2dp net_pnl, never net_pnl_precise', () => {
+    netPnlByDate()
+    expect(store.sqls.join(' ')).not.toMatch(/net_pnl_precise/i)
+  })
 })

@@ -96,9 +96,9 @@ function readDaySummary(
     .prepare(`
       SELECT
         COUNT(*)                                      AS trade_count,
-        COALESCE(SUM(net_pnl), 0)                     AS net_pnl,
-        COALESCE(SUM(gross_pnl), 0)                   AS gross_pnl,
-        COALESCE(SUM(total_fees), 0)                  AS total_fees,
+        COALESCE(SUM(net_pnl_precise), 0)                     AS net_pnl,
+        COALESCE(SUM(gross_pnl_precise), 0)                   AS gross_pnl,
+        COALESCE(SUM(total_fees_precise), 0)                  AS total_fees,
         SUM(CASE WHEN ${sqlIsWin()} THEN 1 ELSE 0 END)  AS winners,
         SUM(CASE WHEN ${sqlIsLoss()} THEN 1 ELSE 0 END)  AS losers
       FROM trades WHERE date = ? AND deleted_at IS NULL AND ${sf.clause}
