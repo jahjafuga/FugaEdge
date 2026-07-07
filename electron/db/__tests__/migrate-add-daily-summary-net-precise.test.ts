@@ -198,7 +198,9 @@ describe('migrateAddDailySummaryNetPrecise — add daily_summary.total_pnl_preci
     expect(latchWrites(runLog)).toHaveLength(0)
   })
 
-  it('bumps SCHEMA_VERSION to 44', () => {
-    expect(SCHEMA_VERSION).toBe('44')
+  it('holds SCHEMA_VERSION at the F3 floor of 44 or later (later beats advance it)', () => {
+    // De-brittled from an exact-'44' assertion when the mistakes-backfill beat bumped it to
+    // 45; a floor keeps this canary meaningful without breaking on every later bump.
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(44)
   })
 })

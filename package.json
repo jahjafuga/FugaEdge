@@ -17,6 +17,7 @@
     "test": "vitest run",
     "inspect:schema": "cross-env ELECTRON_RUN_AS_NODE=1 electron scripts/inspect-schema.cjs",
     "test:watch": "vitest",
+    "test:mistakes-backfill": "esbuild electron/mistakes/__tests__/backfill.inmemory.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --alias:@shared=./shared --outfile=node_modules/.cache/fuga-harness/backfill.cjs && cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/.cache/fuga-harness/backfill.cjs",
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && prebuild-install --runtime electron --target 33.4.11 --arch x64 --platform win32",
     "postinstall": "npm run rebuild:sqlite",
     "pack": "npm run build && electron-builder --dir",
