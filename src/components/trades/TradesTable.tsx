@@ -53,6 +53,9 @@ interface TradesTableProps {
   onSaveCatalyst: (input: UpdateCatalystInput) => Promise<void>
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** Symptom B — forwarded to the row's TradeDetailModal mistakes picker so a
+   *  tag write patches the row in the parent's `trades` with no remount. */
+  onMistakesChange?: (updated: TradeListRow) => void
   /** v0.2.3 soft-delete lifecycle — threaded into the row's TradeDetailModal. */
   onSoftDelete?: (trade_id: number) => Promise<void>
   onRestore?: (trade_id: number) => Promise<void>
@@ -206,6 +209,7 @@ export default function TradesTable({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  onMistakesChange,
   onSoftDelete,
   onRestore,
   onBulkSoftDelete,
@@ -1012,6 +1016,7 @@ export default function TradesTable({
         onSaveCatalyst={onSaveCatalyst}
         onSaveCountry={onSaveCountry}
         onSaveCountrySymbol={onSaveCountrySymbol}
+        onMistakesChange={onMistakesChange}
         onSoftDelete={
           onSoftDelete
             ? async (id) => {

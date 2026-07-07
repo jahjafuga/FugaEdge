@@ -54,6 +54,10 @@ interface TradeDetailModalProps {
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** Symptom B — after the mistakes picker writes, hand the refreshed row to the
+   *  list owner so the trades table cell updates with no remount. Optional; only
+   *  hosts that own a trades list wire it. */
+  onMistakesChange?: (updated: TradeListRow) => void
   /** v0.2.3 soft-delete lifecycle. When provided, the modal shows a footer
    *  action: "Move to Trash" (live trades) or "Restore" (deleted trades).
    *  Hosts that omit both render no footer (e.g. the calendar/review hosts). */
@@ -94,6 +98,7 @@ export default function TradeDetailModal({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  onMistakesChange,
   onSoftDelete,
   onRestore,
   onNavigate,
@@ -238,6 +243,7 @@ export default function TradeDetailModal({
               onSaveCatalyst={onSaveCatalyst}
               onSaveCountry={onSaveCountry}
               onSaveCountrySymbol={onSaveCountrySymbol}
+              onMistakesChange={onMistakesChange}
               isFullscreen={isFullscreen}
               onToggleFullscreen={() => setIsFullscreen((v) => !v)}
             />
@@ -427,6 +433,9 @@ interface OverviewTabProps {
   onSaveCountry: (input: UpdateCountryInput) => Promise<void>
   /** Bulk per-symbol manual override (optional — both modal hosts provide it). */
   onSaveCountrySymbol?: (input: UpdateCountryForSymbolInput) => Promise<void>
+  /** Symptom B — forwarded to the mistakes picker so a tag write patches the
+   *  trades table row in place. */
+  onMistakesChange?: (updated: TradeListRow) => void
   /** Fullscreen flag + toggle, owned by the modal. A3a drills them through to
    *  the embedded chart so its toolbar fullscreen button keeps working as today
    *  (A3b re-scopes fullscreen to just the chart region). */
@@ -444,6 +453,7 @@ function OverviewTab({
   onSaveCatalyst,
   onSaveCountry,
   onSaveCountrySymbol,
+  onMistakesChange,
   isFullscreen,
   onToggleFullscreen,
 }: OverviewTabProps) {
@@ -617,7 +627,7 @@ function OverviewTab({
               other non-chart sections; Beat 2's two-column shell relocates it to the
               right column. */}
           <Card title="Mistakes" subtitle="Tag what went wrong — these roll up in Analytics → Psychology." className={isFullscreen ? 'hidden' : ''}>
-            <TradeMistakePicker trade={t} />
+            <TradeMistakePicker trade={t} onMistakesChange={onMistakesChange} />
           </Card>
         </div>
       </div>

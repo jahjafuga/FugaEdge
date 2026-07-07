@@ -197,6 +197,15 @@ export default function Trades() {
     )
   }, [])
 
+  // Symptom B — the mistakes picker already made the add/remove IPC call and
+  // holds the refreshed row, so this handler only patches it into the list (no
+  // second IPC round-trip), mirroring the map-replace of the save handlers above.
+  const handleMistakesChange = useCallback((updated: TradeListRow) => {
+    setTrades((prev) =>
+      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+    )
+  }, [])
+
   const handleSaveCountry = useCallback(async (input: UpdateCountryInput) => {
     const updated = await ipc.tradeCountrySave(input)
     if (!updated) return
@@ -461,6 +470,7 @@ export default function Trades() {
             onSavePlannedStopLoss={handleSavePlannedStopLoss}
             onSaveFloat={handleSaveFloat}
             onSaveCatalyst={handleSaveCatalyst}
+            onMistakesChange={handleMistakesChange}
             onSaveCountry={handleSaveCountry}
             onSaveCountrySymbol={handleSaveCountrySymbol}
             onSoftDelete={handleSoftDelete}

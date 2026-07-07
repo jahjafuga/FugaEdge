@@ -6,6 +6,13 @@ import type { MistakeAxis, MistakeDef, MistakeTag } from '@shared/mistakes-types
 
 interface TradeMistakePickerProps {
   trade: TradeListRow
+  /** Optional — after a successful add/remove, notify the list owner with the
+   *  server's updated row so the trades TABLE reflects the change immediately,
+   *  with no refetch/remount (Symptom B; mirrors the note/confidence/catalyst
+   *  save handlers). The add/remove IPCs already return the refreshed
+   *  TradeListRow. Hosts without a trades list (e.g. calendar stacks) omit it;
+   *  the picker's own chips still refresh via refetchTags either way. */
+  onMistakesChange?: (updated: TradeListRow) => void
 }
 
 // Beat 5 — the two axes render SIDE-BY-SIDE as two bordered premium panels in a
@@ -24,7 +31,7 @@ const AXES: { axis: MistakeAxis; label: string }[] = [
 // dual-writes trades.mistakes_json behind tradeMistakeTagAdd/Remove, so this picker
 // is purely junction-facing and the existing mistakes_json readers stay correct.
 // Self-contained + relocatable — it moves into the future Trades remodel as a unit.
-export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
+export default function TradeMistakePicker({ trade, onMistakesChange }: TradeMistakePickerProps) {
   const [tags, setTags] = useState<MistakeTag[] | null>(null)
   const [defs, setDefs] = useState<MistakeDef[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -73,15 +80,22 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
       if (busy) return
       setBusy(true)
       try {
-        await ipc.tradeMistakeTagAdd({ trade_id: trade.id, mistake_def_id: mistakeDefId })
+        const updated = await ipc.tradeMistakeTagAdd({
+          trade_id: trade.id,
+          mistake_def_id: mistakeDefId,
+        })
+        // Keep the picker's own chips correct...
         await refetchTags()
+        // ...AND hand the refreshed row to the list owner so the trades table
+        // patches in place (Symptom B). Null = no-op write; skip the patch.
+        if (updated) onMistakesChange?.(updated)
       } catch (e) {
         window.alert(e instanceof Error ? e.message : String(e))
       } finally {
         setBusy(false)
       }
     },
-    [busy, trade.id, refetchTags],
+    [busy, trade.id, refetchTags, onMistakesChange],
   )
 
   const removeTag = useCallback(
@@ -89,15 +103,19 @@ export default function TradeMistakePicker({ trade }: TradeMistakePickerProps) {
       if (busy) return
       setBusy(true)
       try {
-        await ipc.tradeMistakeTagRemove({ trade_id: trade.id, mistake_def_id: mistakeDefId })
+        const updated = await ipc.tradeMistakeTagRemove({
+          trade_id: trade.id,
+          mistake_def_id: mistakeDefId,
+        })
         await refetchTags()
+        if (updated) onMistakesChange?.(updated)
       } catch (e) {
         window.alert(e instanceof Error ? e.message : String(e))
       } finally {
         setBusy(false)
       }
     },
-    [busy, trade.id, refetchTags],
+    [busy, trade.id, refetchTags, onMistakesChange],
   )
 
   return (
