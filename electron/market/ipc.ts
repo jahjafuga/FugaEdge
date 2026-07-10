@@ -7,6 +7,7 @@ import { runWarmupBackfill } from './warmup-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
 import { runXpReconcile } from '../xp/reconcile'
 import { reclearStrandedWarmupMarkers, tradeCountsByKey } from './repo'
+import { bumpDataVersion } from '../lib/cache'
 
 interface RefreshInput {
   force?: boolean
@@ -19,12 +20,23 @@ interface BarsGetInput {
 }
 
 export function registerMarketIpc(): void {
-  ipcMain.handle(IPC.MARKET_REFRESH, (e, input?: RefreshInput) => {
+  ipcMain.handle(IPC.MARKET_REFRESH, async (e, input?: RefreshInput) => {
     const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
-    return refreshMarketData({
+    const result = await refreshMarketData({
       force: input?.force === true,
       emitProgress: wc ? (p) => wc.send(IPC.MARKET_REFRESH_PROGRESS, p) : undefined,
     })
+    // A market refresh rewrites market_data (float / avg_volume / daily_volumes /
+    // sector / industry), which the memoized reports payload reads via
+    // getAllMarketRows() — the byFloat / byRvol Volume Analysis and the
+    // sector / industry breakdowns (electron/reports/get.ts). reports is
+    // version-stamped against the shared global dataVersion, so without this bump
+    // Analytics > reports serves the pre-refresh rollups until TTL/restart. AFTER
+    // the await so it reflects the completed write (mirrors day/ipc.ts + the
+    // 4cf6349 cluster). analytics reads no market_data — this is the reports cache;
+    // the shared dataVersion covers it.
+    bumpDataVersion()
+    return result
   })
   ipcMain.handle(IPC.MARKET_INTRADAY_REFRESH, async (e, input?: RefreshInput) => {
     const wc = BrowserWindow.fromWebContents(e.sender)?.webContents ?? null
