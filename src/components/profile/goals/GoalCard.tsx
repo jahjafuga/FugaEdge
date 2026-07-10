@@ -39,6 +39,15 @@ export default function GoalCard({ goal, highlight = false, onAbandon }: GoalCar
     parsed?.kind === 'process' ? parsed.config.metric : null,
   )
 
+  // The "Started" date: an equity challenge begins on the user-picked
+  // start_date (stored in config_json, parsed above), NOT the row's created_at
+  // insert stamp. Process goals have no start_date — their progress window
+  // legitimately begins at creation (engine.ts:45) — so they keep created_at;
+  // a malformed equity config (parsed === null) also falls back to created_at,
+  // never blank.
+  const startedDate =
+    parsed?.kind === 'equity' ? parsed.config.start_date : goal.created_at
+
   const fraction = p ? Math.min(1, p.fraction) : 0
   const percent = p ? `${Math.round(fraction * 100)}${G.percentSuffix}` : G.corruptProgress
   const segmented = isProcess && p !== null && p.target <= SEGMENT_MAX
@@ -126,7 +135,7 @@ export default function GoalCard({ goal, highlight = false, onAbandon }: GoalCar
       {/* The story line a streamer reads aloud. */}
       <p className="mt-3 text-xs text-fg-tertiary">
         {G.startedPrefix}{' '}
-        <span className="font-mono">{fmtDate(goal.created_at)}</span>
+        <span className="font-mono">{fmtDate(startedDate)}</span>
       </p>
     </article>
   )

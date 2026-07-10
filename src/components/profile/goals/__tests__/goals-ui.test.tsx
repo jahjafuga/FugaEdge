@@ -39,6 +39,10 @@ const equityGoal = makeGoal({
   id: 'eq1',
   title: 'Make a Million',
   kind: 'equity',
+  // created_at (row insert stamp) is DIVERGED from config.start_date so the
+  // fixture can tell the two fields apart — the earlier shared value set them
+  // equal ('2026-06-01'), which is exactly why the wrong-field render slipped by.
+  created_at: '2026-07-10',
   config_json:
     '{"start_date":"2026-06-01","start_amount":25000,"target_amount":1000000}',
   progress: { current: 25000, target: 1000000, fraction: 0.025 },
@@ -116,5 +120,54 @@ describe('GoalCreateModal — preset divergence coupling (2026-06-13 fix)', () =
     // A later start change must NOT recompute Target.
     fireEvent.change(start, { target: { value: '8000' } })
     expect(targetAmt.value).toBe('6000')
+  })
+})
+
+// The "Started" line reads the challenge's real start. An EQUITY challenge begins
+// on the user-picked start_date (stored in config_json), NOT the row's created_at
+// insert stamp — the bug Dave hit was an equity card showing its creation date
+// (today) instead of the picked date. A PROCESS goal has no start_date and its
+// progress window legitimately begins at creation (engine.ts:45), so it keeps
+// created_at. Fixtures DIVERGE created_at from start_date so the assertions can
+// tell the fields apart.
+describe('GoalCard — "Started" date (equity picks start_date, process keeps created_at)', () => {
+  it('EQUITY renders the picked start_date, not the created_at stamp (Dave\'s case)', () => {
+    const goal = makeGoal({
+      id: 'eq-dave',
+      kind: 'equity',
+      created_at: '2026-07-10', // row insert stamp = "today"
+      config_json:
+        '{"start_date":"2026-01-05","start_amount":25000,"target_amount":1000000}',
+      progress: { current: 25000, target: 1000000, fraction: 0.025 },
+    })
+    const { container } = render(<GoalCard goal={goal} onAbandon={noop} />)
+    expect(container.textContent).toContain('Started 2026-01-05')
+    // The creation stamp must not leak into the card anywhere.
+    expect(container.textContent).not.toContain('2026-07-10')
+  })
+
+  it('PROCESS keeps created_at as its start (guards against over-swapping)', () => {
+    const goal = makeGoal({
+      id: 'pr-window',
+      kind: 'process',
+      created_at: '2026-07-10',
+      config_json: '{"metric":"journaled_days","target":30}',
+      progress: { current: 12, target: 30, fraction: 0.4 },
+    })
+    const { container } = render(<GoalCard goal={goal} onAbandon={noop} />)
+    expect(container.textContent).toContain('Started 2026-07-10')
+  })
+
+  it('EQUITY with an absent/malformed start_date falls back to created_at (no crash, no blank)', () => {
+    const goal = makeGoal({
+      id: 'eq-broken',
+      kind: 'equity',
+      created_at: '2026-07-10',
+      // no start_date -> parseGoalConfig returns null -> fallback to created_at
+      config_json: '{"start_amount":25000,"target_amount":1000000}',
+      progress: { current: 25000, target: 1000000, fraction: 0.025 },
+    })
+    const { container } = render(<GoalCard goal={goal} onAbandon={noop} />)
+    expect(container.textContent).toContain('Started 2026-07-10')
   })
 })
