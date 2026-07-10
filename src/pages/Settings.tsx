@@ -52,7 +52,6 @@ function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (saved.polygon_api_key !== current.polygon_api_key) return true
   if (saved.fmp_api_key !== current.fmp_api_key) return true
   if (!rulesEqual(saved.journal_rules, current.journal_rules)) return true
-  if (!arraysEqual(saved.day_tag_list, current.day_tag_list)) return true
   if (!arraysEqual(saved.daily_rule_break_list, current.daily_rule_break_list)) return true
   return false
 }
@@ -160,7 +159,6 @@ export default function Settings() {
         max_daily_loss: editor.max_daily_loss,
         account_size: editor.account_size,
         journal_rules: editor.journal_rules,
-        day_tag_list: editor.day_tag_list,
         daily_rule_break_list: editor.daily_rule_break_list,
         polygon_api_key: editor.polygon_api_key,
         fmp_api_key: editor.fmp_api_key,
@@ -418,37 +416,6 @@ export default function Settings() {
         <MistakesVocabularyEditor />
 
         <CatalystVocabularyEditor />
-
-        <div className="space-y-3">
-          <div className="flex items-end justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
-                Day note tags
-              </div>
-              <div className="mt-1 text-sm text-fg-secondary">
-                Per-day labels shown on the Calendar (FOMC, Earnings, Choppy, etc.). Click a calendar day to toggle which ones apply.
-              </div>
-            </div>
-          </div>
-          <Card
-            title="Day tags"
-            hover={false}
-            right={
-              <span className="font-mono tnum text-fg-secondary">
-                {editor.day_tag_list.length}
-              </span>
-            }
-          >
-            <RuleList
-              rules={editor.day_tag_list}
-              onChange={(next) =>
-                setEditor((prev) =>
-                  prev ? { ...prev, day_tag_list: next } : prev,
-                )
-              }
-            />
-          </Card>
-        </div>
 
         <div className="space-y-3">
           <div className="flex items-end justify-between gap-4">

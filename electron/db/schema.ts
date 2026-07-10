@@ -696,10 +696,12 @@ INSERT OR IGNORE INTO settings (key, value) VALUES ('polygon_api_key', '');
 -- market_cap + sector + country (free riders). Same convention — empty on
 -- fresh install, user pastes in Settings → Market data → FMP API key card.
 INSERT OR IGNORE INTO settings (key, value) VALUES ('fmp_api_key', '');
-INSERT OR IGNORE INTO settings (key, value) VALUES (
-  'day_tag_list',
-  '["FOMC","CPI","Earnings","News","Halt","Choppy","Trending","Holiday"]'
-);
+-- The 'day_tag_list' vocabulary seed was removed (Option A): its Settings editor
+-- and its only consumer (the orphaned DayTagsEditor/DayTradesPanel) were deleted.
+-- The journal.day_tags COLUMN stays — it still stores per-day labels + the
+-- 'no-trade-day' sentinel and is read by the calendar/analytics. Dropping the
+-- seed is inert on existing DBs (INSERT OR IGNORE already ran once) and simply
+-- stops fresh installs from creating an unused settings row. No SCHEMA_VERSION bump.
 -- Daily Rule Breaks (djsevans87) — day-level discipline-violation vocabulary,
 -- the rule-break sibling of day_tag_list (which stays market-context labels).
 -- Seeded once via INSERT OR IGNORE in SCHEMA_SQL (db.exec runs every boot; an

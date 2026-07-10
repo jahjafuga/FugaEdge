@@ -20,11 +20,11 @@ export function invalidateRuleBreakOptionsCache() {
 }
 
 // Phase 2 (djsevans87) — day-level rule-break tagger for the Day Detail modal's
-// "Rule Breaks" tab. A self-contained CLONE of DayTagsEditor (which is orphaned):
-// it reads its options from settings.daily_rule_break_list and saves through
-// dayRepo.saveRuleBreaks (journal.rule_breaks), with the same chip-toggle UX.
-// Kept separate, not generalized, so this new feature isn't coupled to the
-// orphaned day_tags editor.
+// "Rule Breaks" tab. It reads its options from settings.daily_rule_break_list and
+// saves through dayRepo.saveRuleBreaks (journal.rule_breaks), with a chip-toggle
+// UX. It began as a self-contained clone of the old DayTagsEditor (day_tag_list),
+// deliberately uncoupled from it; that editor and its vocabulary settings section
+// were later removed (Option A), leaving this as the sole day-level tagger.
 export default function RuleBreaksEditor({ date, breaks, onChange }: RuleBreaksEditorProps) {
   const [options, setOptions] = useState<string[] | null>(
     cachedOptions && Date.now() - cachedAt < 60_000 ? cachedOptions : null,
