@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from 'react'
 import { ipc } from '@/lib/ipc'
+import { subscribeRegistryChanged } from '@/lib/registryChanged'
 import type { Account, AccountScope } from '@shared/accounts-types'
 
 interface AccountScopeValue {
@@ -78,6 +79,18 @@ export function AccountScopeProvider({ children }: { children: ReactNode }) {
       // keep the last good list
     }
   }, [])
+
+  // Beat 2.5 sibling notify — registry mutations in Trading accounts (create /
+  // update / delete, including a colour change) announce via
+  // notifyRegistryChanged; the provider refetches so the shared account list
+  // stays fresh and every consumer — the trades-table colour, the switcher, the
+  // detail header — re-resolves WITHOUT a remount or restart. Mirrors
+  // BalancesCard's subscription; the returned unsubscribe is the effect cleanup
+  // (strict-mode double-mount safe).
+  useEffect(
+    () => subscribeRegistryChanged(() => void reloadAccounts()),
+    [reloadAccounts],
+  )
 
   return (
     <AccountScopeContext.Provider value={{ scope, setScope, accounts, reloadAccounts }}>
