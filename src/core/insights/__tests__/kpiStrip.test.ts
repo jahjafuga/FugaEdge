@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { TradeListRow } from '@shared/trades-types'
 import { computeKpiStrip } from '../kpiStrip'
+import { computeWeekMetrics } from '@/core/analytics/week'
 
 // A full TradeListRow with neutral defaults; override only the fields a case
 // cares about (date / symbol / playbook_name / net_pnl / r_multiple).
@@ -71,13 +72,10 @@ describe('computeKpiStrip', () => {
         symbol: 'SOLID', netPnl: 300, trades: 3, winRate: 1,
       })
     })
-    it('bestSetup: a 4-trade playbook (below the ≥5 floor) does not win', () => {
-      const trades = [
-        ...rep(4, { symbol: 'X', playbook_name: 'Thin', net_pnl: 1000 }),
-        ...rep(5, { symbol: 'Y', playbook_name: 'Qualifies', net_pnl: 100 }),
-      ]
-      expect(computeKpiStrip(trades).bestSetup?.playbook).toBe('Qualifies')
-    })
+    // NOTE: the setup dimension no longer has an anti-fluke floor — it matches the
+    // per-playbook breakdown (no minimum) and excludes the "No Setup" catch-all
+    // instead. Its coverage lives in the dedicated bestSetup describe below. The
+    // symbol floor above stays locked.
   })
 
   describe('null / honest-empty cases (never a fabricated leader)', () => {
@@ -129,6 +127,74 @@ describe('computeKpiStrip', () => {
         mk({ r_multiple: null, net_pnl: 100 }),
       ]
       expect(computeKpiStrip(trades).expectancy?.rMultiple).toBeUndefined()
+    })
+  })
+
+  // v0.2.5 fix — Best Setup must EXCLUDE the frozen "No Setup" catch-all AND drop
+  // its sample floor, so it agrees with the per-playbook breakdown (analytics/
+  // week.ts) instead of crowning a losing catch-all. The bug: "No Setup" (6t,
+  // net-negative) cleared the ≥5 floor while the genuine leader Break
+  // Micro-Pullback (3t) was dropped by it. Symbol / weekday / session are untouched.
+  describe('bestSetup — excludes the No Setup catch-all, no sample floor (matches per-playbook)', () => {
+    // Dave's week: the genuine leader is a 3-trade setup; the catch-all "No Setup"
+    // has the most trades (6) and a losing net.
+    const WEEK: TradeListRow[] = [
+      ...rep(3, { symbol: 'BRK', playbook_name: 'Break Micro-Pullback', date: '2026-06-01', net_pnl: 16.36 }),
+      ...rep(6, { symbol: 'NOS', playbook_name: 'No Setup', date: '2026-06-02', net_pnl: -11.78 }),
+      ...rep(2, { symbol: 'BRD', playbook_name: 'Break $', date: '2026-06-03', net_pnl: -20 }),
+    ]
+
+    it('CORRECTNESS: the 3-trade genuine leader wins, not the 6-trade No Setup catch-all', () => {
+      const best = computeKpiStrip(WEEK).bestSetup
+      expect(best?.playbook).toBe('Break Micro-Pullback')
+      expect(best?.trades).toBe(3)
+    })
+
+    it('CATCH-ALL EXCLUDED: No Setup never wins even when it is the max-net bucket', () => {
+      const trades = [
+        ...rep(6, { playbook_name: 'No Setup', net_pnl: 100 }), // +600, highest, most trades
+        ...rep(5, { playbook_name: 'Bull Flag', net_pnl: 50 }), // +250, a real setup
+      ]
+      const best = computeKpiStrip(trades).bestSetup
+      expect(best?.playbook).toBe('Bull Flag')
+      expect(best?.playbook).not.toBe('No Setup')
+    })
+
+    it('CATCH-ALL ONLY: with no eligible real setup, bestSetup is null (empty state), not No Setup', () => {
+      const trades = [
+        ...rep(6, { playbook_name: 'No Setup', net_pnl: 100 }),
+        ...rep(3, { playbook_name: null, net_pnl: 50 }), // untagged (dropped by groupBy)
+      ]
+      expect(computeKpiStrip(trades).bestSetup).toBeNull()
+    })
+
+    it('NO FLOOR: a low-count real setup can win now (floor dropped) — isolated from the catch-all', () => {
+      const trades = [
+        ...rep(3, { playbook_name: 'Break Micro-Pullback', net_pnl: 20 }), // +60, 3t
+        ...rep(6, { playbook_name: 'Grinder', net_pnl: 5 }), // +30, 6t
+      ]
+      // The old ≥5 floor dropped the 3-trade leader and crowned Grinder; no floor now.
+      expect(computeKpiStrip(trades).bestSetup?.playbook).toBe('Break Micro-Pullback')
+    })
+
+    it('AGREEMENT: bestSetup == the per-playbook breakdown top, excluding the catch-all', () => {
+      // Cross-check against the ACTUAL per-playbook computation (analytics/week.ts),
+      // which ranks name-keyed buckets net-descending. The two views must agree on
+      // the top REAL setup — this fails if they ever drift apart again.
+      const wk = computeWeekMetrics({ trades: WEEK, weekEnd: '2026-06-06' })
+      const topReal = wk.perPlaybook?.find((p) => p.playbook !== 'No Setup') ?? null
+      const best = computeKpiStrip(WEEK).bestSetup
+      expect(best?.playbook).toBe(topReal?.playbook)
+      expect(best?.playbook).toBe('Break Micro-Pullback')
+    })
+
+    it('SIBLING REGRESSION: symbol / weekday / session unchanged (their floors still apply)', () => {
+      const r = computeKpiStrip(NORMAL)
+      expect(r.bestSymbol).toEqual({ symbol: 'AZI', netPnl: 1500, trades: 5, winRate: 1 })
+      expect(r.bestWeekday).toEqual({ day: 'Thursday', netPnl: 1500, trades: 5, winRate: 1 })
+      expect(r.bestSession).toEqual({ date: '2026-06-04', netPnl: 1500, trades: 5, winRate: 1 })
+      // The setup dimension still resolves the max real playbook (now floor-free).
+      expect(r.bestSetup?.playbook).toBe('Bull Flag')
     })
   })
 })

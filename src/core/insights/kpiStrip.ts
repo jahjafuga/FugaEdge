@@ -46,15 +46,27 @@ export interface KpiStripData {
 // "enough":
 //   symbol  ≥3  (runSymbolExtremes)
 //   weekday ≥5  (runDayOfWeek, per-day)
-//   setup   ≥5  (runPlaybookPerformance, per-playbook)
+//   setup   NO floor (1) — matches the per-playbook BREAKDOWN (analytics/week.ts),
+//                which ranks every tagged setup with no minimum. A ≥5 floor here
+//                made Best Setup disagree with that adjacent breakdown — it dropped
+//                a genuine low-count leader and crowned whatever survived. The
+//                "No Setup" catch-all is excluded separately (below) so a real
+//                low-count setup can lead and the two views agree.
 //   session ≥1  (a day is a real session at ANY size — a factual best-day, not a
 //                repeatable-pattern claim, so no anti-fluke floor beyond "traded")
 //   rMultiple ≥5 risked trades (runExpectancy)
 const FLOOR_SYMBOL = 3
 const FLOOR_WEEKDAY = 5
-const FLOOR_SETUP = 5
+const FLOOR_SETUP = 1
 const FLOOR_SESSION = 1
 const FLOOR_R = 5
+
+// The frozen system "No Setup" playbook (is_system, un-renameable per
+// electron/playbook/repo.ts; surfaced as playbook_name = 'No Setup' through the
+// trades-list join) is a catch-all — "a trade with no setup" — not a real setup.
+// Best Setup excludes it by that frozen name (the same key the setup dimension and
+// the per-playbook breakdown both group on), so it can never be crowned "best".
+const NO_SETUP_PLAYBOOK = 'No Setup'
 
 /** The max-net bucket meeting `floor`, sign-agnostic (the honest "best" even if
  *  the leader is net-negative; null = no qualifying bucket). Ties resolve to the
@@ -79,7 +91,15 @@ function bestOf(
 export function computeKpiStrip(trades: TradeListRow[]): KpiStripData {
   const sym = bestOf(trades, (t) => t.symbol, FLOOR_SYMBOL)
   const wk = bestOf(trades, (t) => dowName(t.date), FLOOR_WEEKDAY)
-  const setup = bestOf(trades, (t) => t.playbook_name, FLOOR_SETUP)
+  // Setup: exclude the "No Setup" catch-all and apply no floor (FLOOR_SETUP = 1) so
+  // Best Setup matches the per-playbook breakdown's top real setup. Pre-filtering
+  // the trades keeps the shared bestOf() body + the symbol/weekday/session calls
+  // byte-identical — only this dimension changes.
+  const setup = bestOf(
+    trades.filter((t) => t.playbook_name !== NO_SETUP_PLAYBOOK),
+    (t) => t.playbook_name,
+    FLOOR_SETUP,
+  )
   const session = bestOf(trades, (t) => t.date, FLOOR_SESSION)
 
   // Realized payoff ratio — whole-window avg winner ÷ |avg loser|. Null unless
