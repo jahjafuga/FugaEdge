@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Target, Trophy, Info } from 'lucide-react'
 import { ipc } from '@/lib/ipc'
-import { int, percent } from '@/lib/format'
+import { int, percent, pnlClass } from '@/lib/format'
 import { dailyTargetProgress } from '@/core/dailyTarget/progress'
 import { remainingRisk } from '@/core/dailyTarget/remainingRisk'
 import { pickMainChallenge } from '@/core/goals/mainChallenge'
@@ -28,6 +28,12 @@ import type { GoalWithProgress } from '@shared/identity-types'
 const whole = (n: number): string => `$${int(Math.round(n))}`
 const wholeSigned = (n: number): string =>
   `${n >= 0 ? '+' : '-'}$${int(Math.abs(Math.round(n)))}`
+
+// Sign-driven tone for the Daily Goal's non-text surfaces — the icon ring and
+// the progress-bar fill — where a text-* utility like pnlClass can't reach.
+// Mirrors pnlClass's buckets: positive → win, negative → loss, zero → neutral.
+type PnlTone = 'win' | 'loss' | 'neutral'
+const pnlTone = (n: number): PnlTone => (n > 0 ? 'win' : n < 0 ? 'loss' : 'neutral')
 
 interface GoalChallengeBandProps {
   todayPnl: number
@@ -95,23 +101,27 @@ function DailyGoalCard({
         <>
           {/* Top — icon + label + today's P&L vs target, with the % headline. */}
           <div className="flex items-center gap-4">
-            <IconBadge Icon={Target} tone="win" />
+            <IconBadge Icon={Target} tone={pnlTone(todayPnl)} />
             <div className="min-w-0">
               <Eyebrow label="Daily goal" tone="text-win" />
               <div className="mt-1 flex items-baseline gap-2">
-                <span className="font-mono text-4xl font-bold leading-none tabular-nums text-win">
+                <span
+                  className={`font-mono text-4xl font-bold leading-none tabular-nums ${pnlClass(todayPnl)}`}
+                >
                   {wholeSigned(todayPnl)}
                 </span>
                 <span className="font-mono text-xl text-fg-muted">/ {whole(target)}</span>
               </div>
             </div>
-            <span className="ml-auto font-mono text-3xl font-bold tabular-nums text-win">
+            <span
+              className={`ml-auto font-mono text-3xl font-bold tabular-nums ${pnlClass(todayPnl)}`}
+            >
               {percent(prog.fraction, 0)}
             </span>
           </div>
 
           {/* Progress — thick, with room above (ProgressBar) and below (stats). */}
-          <ProgressBar fraction={prog.fraction} tone="win" thick />
+          <ProgressBar fraction={prog.fraction} tone={pnlTone(todayPnl)} thick />
 
           {/* Stats — Max loss / Remaining risk / Status, on their own row. */}
           <div className="mt-6 flex items-center gap-5 sm:gap-7">
@@ -242,10 +252,17 @@ function IconBadge({
   muted = false,
 }: {
   Icon: typeof Target
-  tone: 'win' | 'gold'
+  tone: 'win' | 'loss' | 'neutral' | 'gold'
   muted?: boolean
 }) {
-  const ring = tone === 'win' ? 'bg-win/10 ring-win/20 text-win' : 'bg-gold/10 ring-gold/20 text-gold'
+  const ring =
+    tone === 'win'
+      ? 'bg-win/10 ring-win/20 text-win'
+      : tone === 'loss'
+        ? 'bg-loss/10 ring-loss/20 text-loss'
+        : tone === 'neutral'
+          ? 'bg-fg-tertiary/10 ring-fg-tertiary/20 text-fg-tertiary'
+          : 'bg-gold/10 ring-gold/20 text-gold'
   return (
     <span
       className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-1 ${ring} ${muted ? 'opacity-60' : ''}`}
@@ -293,14 +310,22 @@ function ProgressBar({
   thick = false,
 }: {
   fraction: number
-  tone: 'win' | 'gold'
+  tone: 'win' | 'loss' | 'neutral' | 'gold'
   thick?: boolean
 }) {
   const pct = Math.max(0, Math.min(1, fraction)) * 100
+  const fill =
+    tone === 'win'
+      ? 'bg-win'
+      : tone === 'loss'
+        ? 'bg-loss'
+        : tone === 'neutral'
+          ? 'bg-fg-tertiary'
+          : 'bg-gold'
   return (
     <div className={`mt-5 w-full overflow-hidden rounded-full bg-bg-3 ${thick ? 'h-2.5' : 'h-1.5'}`}>
       <div
-        className={`h-full rounded-full ${tone === 'win' ? 'bg-win' : 'bg-gold'}`}
+        className={`h-full rounded-full ${fill}`}
         style={{ width: `${pct}%` }}
       />
     </div>
