@@ -50,16 +50,26 @@ export default function NoTradeDayModal({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // Whether the open day is CURRENTLY a no-trade-day via EITHER store — the
+  // calendar day's no_trade_day is the OR of the journal.day_tags chip and
+  // session_meta.no_trade_day (electron/calendar/get.ts). Drives the Remove
+  // affordance; priorTags carries the day's existing tags so a remove strips
+  // only the chip and preserves the rest.
+  const [isNoTradeDay, setIsNoTradeDay] = useState(false)
+  const [priorTags, setPriorTags] = useState<string[]>([])
 
-  // Load existing journal for this date so we can pre-select the user's last
-  // answer if they're editing.
+  // Load the existing journal (to pre-select the user's last answer if they're
+  // editing) AND the calendar day (to know whether the day is already a
+  // no-trade-day, via either store, and what other day_tags it carries).
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setErr(null)
-    ipc
-      .journalGet(date)
-      .then((j) => {
+    Promise.all([
+      ipc.journalGet(date),
+      ipc.calendarGet(Number(date.slice(0, 4)), Number(date.slice(5, 7))),
+    ])
+      .then(([j, month]) => {
         if (cancelled) return
         setExisting(j)
         const prior = extractReason(j.entry?.postsession_notes)
@@ -72,6 +82,9 @@ export default function NoTradeDayModal({
             setOtherText(prior)
           }
         }
+        const day = month.days.find((d) => d.date === date)
+        setIsNoTradeDay(day?.no_trade_day ?? false)
+        setPriorTags(day?.day_tags ?? [])
         setLoading(false)
       })
       .catch((e: Error) => {
@@ -129,6 +142,56 @@ export default function NoTradeDayModal({
         ? priorTags
         : [...priorTags, NO_TRADE_TAG]
       await ipc.dayTagsSave({ date, tags })
+
+      onSaved()
+      onClose()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Remove — fully un-mark the day. Clears BOTH stores (the journal.day_tags
+  // chip AND session_meta.no_trade_day) plus the "Sat out:" reason note, while
+  // preserving every OTHER day_tag and any unrelated journal text. A NEW action,
+  // separate from the affirmative Mark-sit-out save above.
+  const handleRemove = async () => {
+    if (saving) return
+    setSaving(true)
+    setErr(null)
+    try {
+      // 1. day_tags — strip ONLY the chip; preserve the rest (mirrors the add
+      //    path's preserve logic, NEVER a blind []). Skip when there's no chip
+      //    (e.g. a session_meta-only sit-out) so day_tags is left untouched.
+      if (priorTags.includes(NO_TRADE_TAG)) {
+        await ipc.dayTagsSave({
+          date,
+          tags: priorTags.filter((t) => t !== NO_TRADE_TAG),
+        })
+      }
+      // 2. session_meta — clear the flag + reason (reuses the dashboard's own
+      //    setter with false). Safe no-op when the day was never flagged there.
+      await ipc.sessionNoTradeSave({
+        date,
+        no_trade_day: false,
+        no_trade_reason: '',
+      })
+      // 3. reason note — blank ONLY the "Sat out:" line; leave a genuine
+      //    post-session note (a session_meta-only day) and every other journal
+      //    field intact. journalSave is a full-row upsert, so the preserved
+      //    fields are passed back explicitly (the Mark-sit-out precedent).
+      const entry = existing?.entry
+      if ((entry?.postsession_notes ?? '').trim().startsWith(STORED_PREFIX)) {
+        await ipc.journalSave({
+          date,
+          premarket_notes: entry?.premarket_notes ?? '',
+          postsession_notes: '',
+          emotion_rating: entry?.emotion_rating ?? null,
+          rules_followed: entry?.rules_followed ?? [],
+          rule_violations: entry?.rule_violations ?? [],
+        })
+      }
 
       onSaved()
       onClose()
@@ -214,6 +277,19 @@ export default function NoTradeDayModal({
           )}
 
           <div className="flex items-center justify-end gap-3 border-t border-border-subtle/40 pt-4">
+            {/* Remove — only when the day is already a no-trade-day (either
+                store). mr-auto pushes it to the far left, away from the
+                affirmative Cancel / Mark-sit-out cluster. */}
+            {isNoTradeDay && (
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={saving}
+                className="mr-auto rounded-md border border-loss/50 px-3 py-1.5 text-xs text-loss transition-colors duration-150 hover:border-loss hover:bg-loss/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Remove no-trade-day
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
