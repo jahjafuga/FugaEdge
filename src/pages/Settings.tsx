@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle, ArrowUpRight, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
+import { useNumberDraft } from '@/lib/useNumberDraft'
 import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
@@ -843,6 +844,14 @@ function CategoryPane({ active, children }: { active: boolean; children: ReactNo
   return <div className={active ? 'space-y-5' : 'hidden'}>{children}</div>
 }
 
+// The value is bound as a STRING draft (useNumberDraft), not a number. That is what fixes
+// the "050" append bug: React's DOM sync for type="number" compares node.value against a
+// NUMBER prop with a loose `!=`, so "050" tests equal to 50 and the leading zero never gets
+// repainted away — and it force-writes "0" back the moment the field is emptied. A string
+// prop takes React's strict-compare path instead. type="number" is unchanged; 0 now shows
+// as an empty box behind the "0" placeholder, so there is nothing to append to. The number
+// handed to onChange is coerced exactly as before (parseFloat, >= 0, NaN -> 0), so the
+// parse/store path is untouched.
 function NumberField({
   label,
   hint,
@@ -856,6 +865,7 @@ function NumberField({
   value: number
   onChange: (next: number) => void
 }) {
+  const { draft, onDraftChange } = useNumberDraft(value)
   return (
     <div>
       <div className="flex items-baseline justify-between">
@@ -871,11 +881,10 @@ function NumberField({
           inputMode="decimal"
           min={0}
           step={1}
-          value={Number.isFinite(value) ? value : 0}
-          onChange={(e) => {
-            const v = Number.parseFloat(e.target.value)
-            onChange(Number.isFinite(v) && v >= 0 ? v : 0)
-          }}
+          aria-label={label}
+          placeholder="0"
+          value={draft}
+          onChange={(e) => onChange(onDraftChange(e.target.value))}
           className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 font-mono text-sm text-fg-primary outline-none transition-colors duration-150 focus:border-gold"
         />
       </div>

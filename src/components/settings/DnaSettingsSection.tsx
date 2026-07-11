@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import { ipc } from '@/lib/ipc'
+import { useNumberDraft } from '@/lib/useNumberDraft'
 import type { SettingsValues } from '@shared/settings-types'
 
 // v0.2.5 EdgeIQ Trader DNA — the user's 5-pillar stock-selection profile.
@@ -174,6 +175,12 @@ export default function DnaSettingsSection() {
 // ships its own (prefix/suffix per pillar). `scale` lets the float fields show
 // millions while storing the raw share count. Per-field coercion matches
 // NumberField: parseFloat, clamp ≥ 0, NaN → 0.
+//
+// The value is bound as a STRING draft (useNumberDraft) — see that module for why a number
+// prop makes React stick a leading zero to <input type="number"> and refuse to let the "0"
+// be deleted. The draft holds the DISPLAY-space string (already divided by `scale`) and the
+// hook multiplies back to STORED space on commit, so the exact `value / scale` <-> `n * scale`
+// conversion this field already used is preserved in both directions.
 function PillarNumber({
   label,
   value,
@@ -191,7 +198,7 @@ function PillarNumber({
   hint?: string
   scale?: number
 }) {
-  const shown = Number.isFinite(value) ? value / scale : 0
+  const { draft, onDraftChange } = useNumberDraft(value, scale)
   return (
     <div>
       <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">{label}</div>
@@ -201,13 +208,11 @@ function PillarNumber({
           type="number"
           inputMode="decimal"
           min={0}
-          value={shown}
-          onChange={(e) => {
-            const v = Number.parseFloat(e.target.value)
-            const clean = Number.isFinite(v) && v >= 0 ? v : 0
-            onChange(clean * scale)
-          }}
-          className="w-full bg-transparent font-mono text-sm text-fg-primary outline-none"
+          aria-label={label}
+          placeholder="0"
+          value={draft}
+          onChange={(e) => onChange(onDraftChange(e.target.value))}
+          className="w-full bg-transparent font-mono text-sm text-fg-primary placeholder:text-fg-muted outline-none"
         />
         {suffix && <span className="font-mono text-sm text-fg-tertiary">{suffix}</span>}
       </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import { ipc } from '@/lib/ipc'
+import { useNumberDraft } from '@/lib/useNumberDraft'
 import type { SettingsValues } from '@shared/settings-types'
 
 // v0.2.5 — Daily profit target. SELF-CONTAINED + RELOCATABLE (the
@@ -48,6 +49,13 @@ export default function DailyTargetSection() {
   const set = (patch: Partial<DailyTargetConfig>) =>
     setEditor((prev) => (prev ? { ...prev, ...patch } : prev))
 
+  // STRING-draft binding — see src/lib/useNumberDraft.ts for why a number prop makes React
+  // stick a leading zero to <input type="number"> and refuse to let the "0" be deleted.
+  // `editor` is null until the load lands, so the hook starts at 0 (empty draft) and its
+  // sync guard fills the draft in when the real value arrives — the skeleton is up until
+  // then, so nothing flickers. The committed number is coerced exactly as before.
+  const { draft, onDraftChange } = useNumberDraft(editor?.daily_profit_target ?? 0)
+
   const dirty =
     editor !== null && snapshot !== null && !dailyTargetEqual(editor, snapshot)
 
@@ -89,13 +97,11 @@ export default function DailyTargetSection() {
                 type="number"
                 inputMode="decimal"
                 min={0}
-                value={Number.isFinite(editor.daily_profit_target) ? editor.daily_profit_target : 0}
-                onChange={(e) => {
-                  const v = Number.parseFloat(e.target.value)
-                  const clean = Number.isFinite(v) && v >= 0 ? v : 0
-                  set({ daily_profit_target: clean })
-                }}
-                className="w-full bg-transparent font-mono text-sm text-fg-primary outline-none"
+                aria-label="Daily profit target"
+                placeholder="0"
+                value={draft}
+                onChange={(e) => set({ daily_profit_target: onDraftChange(e.target.value) })}
+                className="w-full bg-transparent font-mono text-sm text-fg-primary placeholder:text-fg-muted outline-none"
               />
             </div>
             <div className="mt-1 text-[11px] text-fg-tertiary">
