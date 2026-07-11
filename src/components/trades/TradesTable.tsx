@@ -105,6 +105,12 @@ const MAX_BULK = 500
 
 const col = createColumnHelper<TradeListRow>()
 
+// A row's mistake count — the Mistakes column's sort key (and its accessor).
+// `mistakes` is typed required and every production read populates it, but the
+// cell already guards `!m` defensively; this does too, so a malformed row sorts
+// as 0 rather than throwing mid-comparison.
+const mistakeCount = (t: TradeListRow): number => t.mistakes?.length ?? 0
+
 const COLUMN_WIDTHS = {
   date: 110,
   open: 80,
@@ -321,14 +327,24 @@ export default function TradesTable({
         )
       },
     })
-    // Mistakes — "first + +N more". Display column (not sortable): the array is
-    // ordered by axis/sort_position in the SQL, so m[0] is a stable first. Empty
-    // renders an em-dash (no-fabrication rule — never "0 mistakes").
-    const mistakesColumn = col.display({
+    // Mistakes — "first + +N more". The array is ordered by axis/sort_position in
+    // the SQL, so m[0] is a stable first. Empty renders an em-dash (no-fabrication
+    // rule — never "0 mistakes").
+    //
+    // Sorts by mistake COUNT, mirroring the Playbook column's derived-key pattern
+    // below (`(a, b) => tierRank(a.original) - tierRank(b.original)`): the sort key
+    // is computed from the row, not read off the cell's value.
+    //
+    // It must be an ACCESSOR column, not `col.display` — TanStack's getCanSort()
+    // ANDs `!!column.accessorFn`, so a display column can never sort no matter what
+    // enableSorting says. Accessing the count (a number, not a string) also makes
+    // the first click DESCENDING via getAutoSortDir — same as the numeric siblings
+    // (Net P&L, Bought, …) — so the most-mistakes trades surface first.
+    const mistakesColumn = col.accessor(mistakeCount, {
       id: 'mistakes',
       header: 'Mistakes',
       size: COLUMN_WIDTHS.mistakes,
-      enableSorting: false,
+      sortingFn: (a, b) => mistakeCount(a.original) - mistakeCount(b.original),
       cell: ({ row }) => {
         const m = row.original.mistakes
         if (!m || m.length === 0)
