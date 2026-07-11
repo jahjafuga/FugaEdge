@@ -51,6 +51,11 @@ export interface VocabCopy {
   addPlaceholder: string
   /** The exact "kept in history" note shown when a delete archives instead. */
   keptInHistoryNote: (name: string) => string
+  /** The note shown when a delete really DID hard-delete. The repo's guard permits that
+   *  only for a custom entry with zero usages — a correct outcome, but it used to happen
+   *  in total silence, so the row simply vanished and read as data loss. Neither branch
+   *  of the delete may be wordless. */
+  permanentlyRemovedNote: (name: string) => string
 }
 
 interface VocabularyEditorProps {
@@ -195,13 +200,26 @@ export default function VocabularyEditor({ groups, operations, copy }: Vocabular
   }
 
   // ── remove (single confirm; guard decides delete vs archive via the result) ──
+  //
+  // The SERVER decides. The repo's guard hard-deletes only a custom entry with zero usages
+  // and archives everything else, and the renderer cannot predict which: VocabDef carries no
+  // is_custom and no usage count, and no repo/IPC exposes one. So the outcome is reported
+  // AFTER the fact, from the { deleted, archivedInstead } result — and BOTH branches must
+  // report it. The delete branch used to setFeedback(null), which is why a correct, guarded
+  // removal looked like the row had silently vanished.
   const confirmRemove = async (d: VocabDef) => {
     setConfirmingId(null)
     try {
       const result = await operations.delete({ id: d.id })
       if (result.deleted) {
+        // Really gone (custom + unused). Say so — this is the branch that used to be silent.
         setDefs((prev) => (prev ?? []).filter((x) => x.id !== d.id))
-        setFeedback(null)
+        setFeedback({
+          tone: 'note',
+          groupKey: d.group,
+          id: null,
+          text: copy.permanentlyRemovedNote(d.name),
+        })
       } else {
         // Archived instead — mark archived in place (drops out of the active list;
         // visible under "Show archived").

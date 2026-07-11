@@ -40,6 +40,8 @@ const COPY: VocabCopy = {
   addPlaceholder: 'Add a catalyst (press Enter)',
   keptInHistoryNote: (name) =>
     `“${name}” was kept in your history — it’s a default or it’s used on trades.`,
+  permanentlyRemovedNote: (name) =>
+    `“${name}” was permanently removed — it was a custom catalyst with no trades using it.`,
 }
 
 export default function CatalystVocabularyEditor() {

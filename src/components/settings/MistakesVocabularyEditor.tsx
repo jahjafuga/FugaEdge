@@ -47,6 +47,8 @@ const COPY: VocabCopy = {
   addPlaceholder: 'Add a mistake (press Enter)',
   keptInHistoryNote: (name) =>
     `“${name}” was kept in your history — it's a default or it's on existing trades.`,
+  permanentlyRemovedNote: (name) =>
+    `“${name}” was permanently removed — it was a custom mistake with no trades tagged.`,
 }
 
 export default function MistakesVocabularyEditor() {
