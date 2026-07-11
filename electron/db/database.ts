@@ -30,6 +30,7 @@ import { migrateAddNetPreciseAndFixFees } from './migrate-add-net-precise-and-fi
 import { migrateAddDailySummaryNetPrecise } from './migrate-add-daily-summary-net-precise'
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 import { migrateMistakesBackfill } from './migrate-mistakes-backfill'
+import { migrateCatalystBackfill } from './migrate-catalyst-backfill'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -66,6 +67,9 @@ const TRADES_REBUILD_BACKUP_LATCH_KEY = 'trades_rebuild_dedup_backup_done'
 
 // Latch for the mistakes-recovery Beat 1 backfill pre-migration backup (schema 44→45).
 const MISTAKES_BACKFILL_BACKUP_LATCH_KEY = 'mistakes_backfill_backup_done'
+
+// Latch for the catalyst-recovery Beat 1 backfill pre-migration backup (schema 45→46).
+const CATALYST_BACKFILL_BACKUP_LATCH_KEY = 'catalyst_backfill_backup_done'
 
 let db: Database.Database | null = null
 
@@ -886,6 +890,54 @@ function backupBeforeMistakesBackfillMigration(
   }
 }
 
+// Pre-migration backup for the catalyst-recovery Beat 1 backfill (schema 45→46).
+// Mirrors backupBeforeMistakesBackfillMigration: latch-checked, WAL-checkpointed, db + sidecars
+// copied, latch set after. The copy failure deliberately propagates — the backfill catches the
+// throw and aborts (boot survives), so vocabulary rows are never written without a safety net.
+function backupBeforeCatalystBackfillMigration(
+  conn: Database.Database,
+  dbPath: string,
+): void {
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(CATALYST_BACKFILL_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall through and
+    // attempt the copy anyway so we never silently skip safety.
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `fugaedge.db.pre-catalyst-backfill-${ts}.bak`)
+
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(`[FE db] wal_checkpoint before catalyst-backfill backup failed: ${e}`)
+  }
+
+  mkdirSync(backupDir, { recursive: true })
+  copyFileSync(dbPath, backupPath)
+  for (const suffix of ['-wal', '-shm']) {
+    const src = dbPath + suffix
+    if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+  }
+  console.info(`[FE db] catalyst-backfill pre-migration backup → ${backupPath}`)
+
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(CATALYST_BACKFILL_BACKUP_LATCH_KEY)
+  } catch (e) {
+    console.error(`[FE db] catalyst-backfill backup latch write failed: ${e}`)
+  }
+}
+
 // Migrations that need to run BEFORE the v2 schema CREATEs (since they drop
 // incompatible tables that the CREATE TABLE IF NOT EXISTS would otherwise
 // leave in their old shape).
@@ -1218,9 +1270,14 @@ function migrateAfterSchema(
   // vocabulary foundation: the catalyst_def table (seeded 15 defaults on an empty
   // table). Additive + idempotent; runs every launch (NOT version-gated) so fresh
   // installs are covered too; seed runs only when catalyst_def is empty. Catalyst
-  // stays a string on trades.catalyst_type (no junction). NOTHING reads this table
-  // yet — the modal's CatalystEditor keeps using the static CATALYST_TYPES until a
-  // later beat. See migrate-catalyst-vocabulary.ts.
+  // stays a string on trades.catalyst_type (no junction).
+  //
+  // catalyst_def IS THE SOURCE OF TRUTH for the Settings vocabulary list, the trade
+  // modal's picker, and the bulk picker; the static CATALYST_TYPES constant is dead.
+  // The seed is hardcoded and backfills NOTHING from the data, which orphaned every
+  // catalyst already on trades that the 15 names didn't cover — repaired by the
+  // schema-46 backfill registered at the end of this function.
+  // See migrate-catalyst-vocabulary.ts.
   migrateCatalystVocabulary(conn)
 
   // Catalyst-customizable beat 4a (schema 36) — normalize the two legacy catalyst
@@ -1483,6 +1540,25 @@ function migrateAfterSchema(
   // migrate-mistakes-backfill.ts.
   migrateMistakesBackfill(conn, priorVersion, {
     backup: () => backupBeforeMistakesBackfillMigration(conn, dbPath),
+  })
+
+  // Catalyst-recovery Beat 1 (schema 45 -> 46) — backfill the catalyst vocabulary from the DATA.
+  // schema-35 seeded catalyst_def from a hardcoded 15-name list and backfilled nothing, and
+  // schema-36 normalized only two legacy strings, so any trades.catalyst_type the seed never
+  // covered ("Reverse Split", "Offering", …) has no vocabulary row: it buckets in Analytics (which
+  // groups by the raw string) but is invisible in Settings — un-renameable, un-archivable, absent
+  // even from "Show archived". This ADDS the missing rows (active + is_custom) and NEVER touches
+  // trades.catalyst_type. Orphans are enumerated from the data, never a fixed list — a fixed list
+  // is exactly what caused this.
+  //
+  // Registered LAST, after migrateCatalystVocabulary created + seeded the table, after
+  // migrateCatalystLegacyStrings normalized the two renamed strings (so they match a seed and are
+  // NOT recovered as duplicates), and after the trades rebuild stabilised the trades table — the
+  // same "registered last" discipline as the mistakes backfill above. Version-gated
+  // (priorVersion < 46) + latch + backup that aborts on throw + one transaction (the idempotent
+  // core makes a retry safe). See migrate-catalyst-backfill.ts.
+  migrateCatalystBackfill(conn, priorVersion, {
+    backup: () => backupBeforeCatalystBackfillMigration(conn, dbPath),
   })
 }
 

@@ -18,8 +18,15 @@
 // priorVersion), fresh installs (priorVersion 0) are covered too — a version gate
 // would silently skip them, leaving a new user with no catalyst vocabulary. The
 // schema-35 bump is for release-tracking only; it does not gate this migration.
-// NOTHING reads this table yet — this beat is purely the additive foundation; the
-// modal's CatalystEditor keeps using the static CATALYST_TYPES until a later beat.
+//
+// catalyst_def IS NOW THE SOURCE OF TRUTH — it is read by the Settings vocabulary
+// list (CatalystVocabularyEditor -> VocabularyEditor), the trade modal's picker
+// (CatalystEditor), and the bulk picker (BulkSetCatalystModal). The static
+// CATALYST_TYPES constant is dead. (An earlier revision of this comment claimed
+// "NOTHING reads this table yet" long after that stopped being true, which made the
+// seed-without-backfill below look harmless — it is not: see the schema-46 backfill
+// in migrate-catalyst-backfill.ts, which recovers the catalyst values that were
+// already on trades when this hardcoded seed landed.)
 //
 // SEED uses a SEED-IF-EMPTY check (COUNT(*) = 0), not a settings latch or
 // INSERT OR IGNORE: the 15 defaults are inserted only when catalyst_def is empty,

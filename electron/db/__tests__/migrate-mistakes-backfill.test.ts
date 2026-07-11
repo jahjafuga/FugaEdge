@@ -10,8 +10,11 @@ import { SCHEMA_VERSION } from '../schema'
 import { MISTAKES_BACKFILL_TARGET_SCHEMA_VERSION } from '../migrate-mistakes-backfill'
 
 describe('migrate-mistakes-backfill — schema 44 -> 45 version bump', () => {
-  it('bumps SCHEMA_VERSION to exactly 45', () => {
-    expect(SCHEMA_VERSION).toBe('45')
+  it('holds SCHEMA_VERSION at the mistakes-recovery floor of 45 or later (later beats advance it)', () => {
+    // Relaxed from an exact-45 assertion when catalyst-recovery Beat 1 bumped the head to 46 —
+    // the same floor convention the F0 / F3 / B1 / B2b migration tests already use. The gate
+    // constant below stays EXACT: it is this migration's boundary, not the head version.
+    expect(Number(SCHEMA_VERSION)).toBeGreaterThanOrEqual(45)
   })
 
   it('targets schema 45 (the wrapper gate boundary)', () => {

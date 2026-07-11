@@ -148,7 +148,12 @@
 // registered AFTER migrateDayFeesAccount (whose rebuild copies a fixed column
 // list). Additive + idempotent — no backup/latch/version gate; the bump is
 // release-tracking (the cohort runs it on next update).
-export const SCHEMA_VERSION = '45'
+// Bumped to 46 for catalyst-recovery Beat 1 — the orphan-catalyst backfill. schema-35 seeded
+// catalyst_def from a hardcoded list and backfilled nothing, so any trades.catalyst_type the seed
+// didn't cover ("Reverse Split", "Offering", …) has no vocabulary row: it buckets in Analytics but
+// is invisible in Settings. The bump arms the version-gated backfill in
+// migrate-catalyst-backfill.ts, which ADDS the missing rows and never touches trades.
+export const SCHEMA_VERSION = '46'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
