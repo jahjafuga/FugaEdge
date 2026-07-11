@@ -69,6 +69,23 @@ export default function TechnicalsTab({ allTimeTotal }: TechnicalsTabProps) {
   const [rows, setRows] = useState<TradeWithTechnicalsRow[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
+  // Scoped aurora calm: while THIS tab is showing, dim the app-wide aurora
+  // (index.css `body.analytics-technicals .app-aurora`) — its gold diagonal would
+  // otherwise streak through this tab's widgets. Technicals is the ONLY Analytics
+  // tab that doesn't wrap its widgets in the 0.92-opaque .card-premium surface: the
+  // MACD grid cards (BucketCard) and VWAP/EMA band rows (BucketRow) carry only a
+  // ~0.12 semantic tint, so the aurora reads through them at ~88% instead of the
+  // designed ~8% and reads as if it were painted on top.
+  //
+  // Mount/unmount IS the active/inactive signal — Analytics.tsx renders this tab
+  // conditionally (`{tab === 'technicals' && <TechnicalsTab .../>}`) — so the
+  // cleanup drops the class on a tab switch AND on leaving the page, and every
+  // other tab/page stays pixel-identical. Mirrors Calendar.tsx's cal-year-view.
+  useEffect(() => {
+    document.body.classList.add('analytics-technicals')
+    return () => document.body.classList.remove('analytics-technicals')
+  }, [])
+
   // Fetch on mount + on date-range change only. The cancelled-flag idiom is
   // lifted from src/pages/Analytics.tsx, single-call version. Ticker /
   // playbook / timeframe edits are renderer-side (the useMemos below

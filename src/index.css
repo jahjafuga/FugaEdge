@@ -763,4 +763,20 @@
   body.cal-year-view .app-aurora {
     opacity: 0.08;
   }
+
+  /* Technicals calm: the Analytics > Technicals tab dims the app aurora for the
+     same reason the year grid does — its gold diagonal would otherwise streak
+     through the tab's widgets. Technicals is the ONLY Analytics tab that does not
+     wrap its widgets in the 0.92-opaque .card-premium surface: the MACD grid cards
+     (BucketCard) and the VWAP/EMA band rows (BucketRow) carry only a ~0.12 semantic
+     tint, so the aurora reads through them at ~88% instead of the designed ~8%.
+     Dimming the aurora — rather than raising that tint — keeps the §G-tuned bucket
+     colours (0.12 rest / 0.18 active) intact, since that alpha is the data encoding,
+     not a surface. Toggled via `body.analytics-technicals` (added/removed by
+     TechnicalsTab.tsx) ONLY while that tab is mounted, so every other tab and page
+     stays pixel-identical. Works in both themes (dims whichever aurora SVG is
+     active). */
+  body.analytics-technicals .app-aurora {
+    opacity: 0.08;
+  }
 }
