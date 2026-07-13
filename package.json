@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "test:mistakes-backfill": "esbuild electron/mistakes/__tests__/backfill.inmemory.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --alias:@shared=./shared --outfile=node_modules/.cache/fuga-harness/backfill.cjs && cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/.cache/fuga-harness/backfill.cjs",
     "test:catalyst-backfill": "esbuild electron/catalyst/__tests__/backfill.inmemory.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --alias:@shared=./shared --outfile=node_modules/.cache/fuga-harness/catalyst-backfill.cjs && cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/.cache/fuga-harness/catalyst-backfill.cjs",
+    "test:rule-breaks-backfill": "esbuild electron/ruleBreaks/__tests__/backfill.inmemory.ts --bundle --platform=node --format=cjs --external:better-sqlite3 --alias:@shared=./shared --outfile=node_modules/.cache/fuga-harness/rule-breaks-backfill.cjs && cross-env ELECTRON_RUN_AS_NODE=1 electron node_modules/.cache/fuga-harness/rule-breaks-backfill.cjs",
     "rebuild:sqlite": "cd node_modules/better-sqlite3 && prebuild-install --runtime electron --target 33.4.11 --arch x64 --platform win32",
     "postinstall": "npm run rebuild:sqlite",
     "pack": "npm run build && electron-builder --dir",
