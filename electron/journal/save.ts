@@ -27,14 +27,17 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
     (input.rule_violations ?? []).length === 0
 
   if (empty) {
-    // Don't drop the row if it still carries day_tags — those live on the same
-    // journal row and a clean journal entry shouldn't clobber per-day tags.
+    // Don't drop the row if it still carries data this save does NOT own.
+    // day_tags (DAY_TAGS_SAVE) and rule_breaks (DAY_RULE_BREAKS_SAVE) live on the
+    // same journal row but are written by their own IPC paths and are absent from
+    // SaveJournalInput — so `empty` above cannot see them, and the row must be
+    // read back to find out. Dropping it would destroy them with no trace.
     const existing = db
-      .prepare('SELECT day_tags FROM journal WHERE date = ?')
-      .get(input.date) as { day_tags: string } | undefined
-    const hasTags =
-      !!existing && existing.day_tags && existing.day_tags !== '[]' && existing.day_tags !== ''
-    if (hasTags) {
+      .prepare('SELECT day_tags, rule_breaks FROM journal WHERE date = ?')
+      .get(input.date) as { day_tags: string; rule_breaks: string } | undefined
+    const keep =
+      !!existing && (nonEmptyJsonArray(existing.day_tags) || nonEmptyJsonArray(existing.rule_breaks))
+    if (keep) {
       db.prepare(`
         UPDATE journal SET
           premarket_notes = '',
@@ -65,6 +68,13 @@ export function saveJournalDay(input: SaveJournalInput): JournalDay {
   }
 
   return getJournalDay(input.date)
+}
+
+/** Does a stored JSON-array column actually carry anything? The original day_tags
+ *  predicate, verbatim (NOT NULL, not '', not '[]') — now shared with rule_breaks
+ *  so the two can never diverge on what "still has data" means. */
+function nonEmptyJsonArray(v: string | null | undefined): boolean {
+  return v != null && v !== '' && v !== '[]'
 }
 
 /** Coerce a recording-duration input to a non-negative integer of seconds, or
