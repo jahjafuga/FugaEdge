@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { IPC } from '@shared/ipc-channels'
 import { resolveDataDirs } from '@/core/runtime/dataDirs'
 import { nextZoomLevel } from '@/core/zoom/zoomLevel'
 import { openDatabase, closeDatabase, setDbPathOverride } from '../db/database'
+import { bootOrFail } from './startup'
 import { registerIpcHandlers } from '../db/ipc'
 import { registerImportIpc } from '../import/ipc'
 import { registerStatsIpc } from '../stats/ipc'
@@ -184,7 +185,32 @@ ipcMain.handle(IPC.APP_OPEN_EXTERNAL, async (_e, url: unknown): Promise<boolean>
 })
 
 app.whenReady().then(() => {
-  openDatabase()
+  // openDatabase() is the one startup step allowed to abort the launch. The rule-breaks
+  // pre-migration backup (database.ts, maybeBackupForRuleBreaksBackfill) lets a failed copy
+  // PROPAGATE on purpose: a machine that cannot be backed up must never advance its schema
+  // past the point where the migration is still reachable. Unguarded, that throw is an
+  // unhandled rejection right here — no window, no dialog, the app just never opens. bootOrFail
+  // gives it an ending the user can act on, and returns false so nothing below runs on a DB we
+  // failed to open. It does NOT swallow the throw: SCHEMA_SQL never ran, _meta is untouched,
+  // and a relaunch after freeing disk space resumes exactly where this stopped.
+  const booted = bootOrFail(openDatabase, {
+    logError: (message) => console.error(message),
+    showDialog: (d) =>
+      dialog.showMessageBoxSync({
+        type: d.type,
+        title: d.title,
+        message: d.message,
+        detail: d.detail,
+        buttons: d.buttons,
+      }),
+    exit: (code) => {
+      // app.exit() does not fire 'before-quit', so close the handle here rather than leak it.
+      closeDatabase()
+      app.exit(code)
+    },
+  })
+  if (!booted) return
+
   registerIpcHandlers()
   registerImportIpc()
   registerStatsIpc()

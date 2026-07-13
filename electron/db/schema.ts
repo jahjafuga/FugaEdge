@@ -153,7 +153,14 @@
 // didn't cover ("Reverse Split", "Offering", …) has no vocabulary row: it buckets in Analytics but
 // is invisible in Settings. The bump arms the version-gated backfill in
 // migrate-catalyst-backfill.ts, which ADDS the missing rows and never touches trades.
-export const SCHEMA_VERSION = '46'
+// Bumped to 47 for rule-breaks reshape Beat 3a — the id-stable rule-break model. Rule-breaks
+// were stored as a JSON array of NAME strings on journal.rule_breaks, so renaming a rule in
+// Settings silently detached every day already tagged with it, and deleting one orphaned that
+// history outright. The bump arms the version-gated backfill in migrate-rule-breaks-backfill.ts,
+// which links each day into the journal_rule_break junction and NEVER touches the column — it
+// stays the permanent fallback. Its pre-migration backup is taken up in openDatabase, BEFORE
+// this constant is stamped, which is what makes the .bak restorable.
+export const SCHEMA_VERSION = '47'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

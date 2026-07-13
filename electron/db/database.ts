@@ -4,6 +4,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { SCHEMA_SQL } from './schema'
 import { suggestTierForPlaybookName } from '@/core/playbook/tierSeed'
+import { backupFailedError } from '@/core/startup/bootFailure'
 import { migrateTimestampsToUtc } from './migrate-tz-utc'
 import { migrateContentHash } from './migrate-content-hash'
 import { migrateFloatRename } from './migrate-float-rename'
@@ -31,6 +32,15 @@ import { migrateAddDailySummaryNetPrecise } from './migrate-add-daily-summary-ne
 import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 import { migrateMistakesBackfill } from './migrate-mistakes-backfill'
 import { migrateCatalystBackfill } from './migrate-catalyst-backfill'
+import { migrateRuleBreaksTaxonomy } from './migrate-rule-breaks-taxonomy'
+// The latch key and target version are IMPORTED, not re-declared: this backup writes the
+// same key migrateRuleBreaksBackfill reads to decide whether it is safe to run. Two local
+// consts could drift; one exported const cannot.
+import {
+  migrateRuleBreaksBackfill,
+  RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY,
+  RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION,
+} from './migrate-rule-breaks-backfill'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -165,6 +175,12 @@ export function openDatabase(): Database.Database {
   // Day 8.5 tz-utc migration is gated on the pre-launch version.
   const priorVersion = readSchemaVersion(db)
   maybeBackupForV020(db, path)
+  // MUST stay here — above migrateBeforeSchema (which DROPs tables on a v1 DB) and above
+  // db.exec(SCHEMA_SQL) (which re-stamps _meta.schema_version to the new version). A backup
+  // taken any later carries the NEW stamp, and restoring it would land a DB whose version
+  // gate says "already migrated" on a junction that was never built. That is the one-way
+  // door the shipped mistakes/catalyst backups walked into; this one does not.
+  maybeBackupForRuleBreaksBackfill(db, path)
   migrateBeforeSchema(db)
   db.exec(SCHEMA_SQL)
   migrateAfterSchema(db, priorVersion, path)
@@ -266,6 +282,115 @@ function maybeBackupForV020(conn: Database.Database, dbPath: string): void {
       .run(V020_BACKUP_LATCH_KEY)
   } catch (e) {
     console.error(`[FE db] v0.2.0 backup latch write failed: ${e}`)
+  }
+}
+
+// Pre-migration backup for the rule-breaks backfill (schema 46→47). Takes maybeBackupForV020's
+// STRUCTURE — _meta read, version gate, latch check, WAL checkpoint, copy db + sidecars, latch
+// AFTER the copy — but diverges on one line, deliberately, and the divergence is the point.
+//
+// WHY IT IS CALLED FROM openDatabase AND NOT AS AN opts.backup CLOSURE. The mistakes and
+// catalyst backfills take their backup from inside migrateAfterSchema, i.e. after
+// db.exec(SCHEMA_SQL) has already re-stamped _meta.schema_version. Their .bak therefore
+// carries the NEW version, and restoring it lands a DB whose own version gate immediately
+// says "already-migrated" — the backup cannot undo the migration it was taken to protect
+// against. Running BEFORE SCHEMA_SQL is what makes this one an actual restore point.
+//
+// WHY A COPY FAILURE PROPAGATES (maybeBackupForV020 swallows its own; this must not).
+// maybeBackupForV020 guards an ALTER TABLE ADD COLUMN — non-destructive, so a missing backup
+// costs only the manual-rollback option, and it can afford to log-and-continue. This one
+// guards a VERSION-GATED ONE-SHOT, and that changes the arithmetic completely. Swallow the
+// failure and the launch keeps going: SCHEMA_SQL stamps 47, the backfill sees no backup latch
+// and aborts, and on the NEXT launch priorVersion is 47 — so the version gate returns
+// 'already-migrated' and this backup's own gate returns early too. Neither ever runs again.
+// One full disk, and that user's rule-break history silently never links, permanently, with
+// nothing in the UI to say so. Letting the throw escape openDatabase is what prevents that:
+// SCHEMA_SQL never runs, _meta stays at 46, and a repaired launch picks up exactly where it
+// left off. The app failing to start is a bad day; a migration that can never run again is a
+// bad release. Fail closed.
+function maybeBackupForRuleBreaksBackfill(conn: Database.Database, dbPath: string): void {
+  // 1) Current on-disk version. _meta missing == fresh install == nothing to back up.
+  let currentVersion = 0
+  try {
+    const row = conn
+      .prepare("SELECT value FROM _meta WHERE key='schema_version'")
+      .get() as { value: string } | undefined
+    if (row) currentVersion = Number.parseInt(row.value, 10) || 0
+  } catch {
+    return
+  }
+  if (currentVersion === 0) return
+  if (currentVersion >= RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION) return
+
+  // 2) Latch check — already backed up on a previous (aborted) launch?
+  try {
+    const row = conn
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY) as { value: string } | undefined
+    if (row?.value === 'true') return
+  } catch {
+    // settings unreadable on a versioned DB is wildly inconsistent — fall through and copy
+    // anyway rather than silently skip safety (the catalyst-backup precedent).
+  }
+
+  const backupDir = join(app.getPath('userData'), 'backups')
+  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const backupPath = join(backupDir, `fugaedge.db.pre-rule-breaks-backfill-${ts}.bak`)
+
+  // 3) Checkpoint WAL into the main file so the copy is self-contained.
+  try {
+    conn.pragma('wal_checkpoint(TRUNCATE)')
+  } catch (e) {
+    console.info(`[FE db] wal_checkpoint before rule-breaks-backfill backup failed: ${e}`)
+  }
+
+  // 4) Copy. The throw still PROPAGATES out of openDatabase and still takes the launch down —
+  //    that is the entire design (see the header). This try/catch does NOT swallow it; it
+  //    RETHROWS it TAGGED. The tag is what lets the startup dialog distinguish "the backup
+  //    failed and your journal is untouched" — true here, and ONLY here, because we run before
+  //    migrateBeforeSchema and before SCHEMA_SQL — from any other DB failure, where that
+  //    promise would be a lie. Swallowing would reintroduce the permanent-skip this whole
+  //    design exists to prevent. See src/core/startup/bootFailure.ts.
+  try {
+    mkdirSync(backupDir, { recursive: true })
+    copyFileSync(dbPath, backupPath)
+    for (const suffix of ['-wal', '-shm']) {
+      const src = dbPath + suffix
+      if (existsSync(src)) copyFileSync(src, backupPath + suffix)
+    }
+  } catch (e) {
+    throw backupFailedError(backupPath, e)
+  }
+  console.info(
+    `[FE db] rule-breaks-backfill pre-migration backup → ${backupPath} ` +
+      `(schema v${currentVersion} → v${RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION})`,
+  )
+
+  // 5) Latch — AFTER the copy, and only reachable when the copy succeeded. That ordering is
+  //    load-bearing twice over: the migration reads this latch as proof a .bak exists, and the
+  //    .bak itself (copied above) therefore carries the latch UNSET, so a restored file takes a
+  //    fresh backup and re-runs the migration cleanly.
+  //
+  //    THIS FAILURE IS FATAL TOO, and it has to be. maybeBackupForV020 swallows its equivalent
+  //    (:267-269) and is right to: nothing downstream reads that latch, so a lost flag only
+  //    costs a redundant backup next launch. THIS latch is read by the migration's backup gate,
+  //    which turns a swallowed failure into the very defect this design exists to prevent — the
+  //    .bak is on disk, the flag says it is not, SCHEMA_SQL stamps 47 regardless, the migration
+  //    aborts as 'backup-failed', and on the NEXT launch priorVersion is 47 so both this
+  //    function and the migration gate themselves out forever. The user's history never links,
+  //    permanently, while a perfectly good backup sits unused beside it. And disk-full is
+  //    exactly how it happens: the copy succeeds by consuming the last free bytes, then this
+  //    INSERT hits SQLITE_FULL. So it fails closed like the copy does — _meta never reaches 47,
+  //    and a repaired launch retries the whole thing from a clean 46.
+  try {
+    conn
+      .prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      .run(RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY)
+  } catch (e) {
+    throw backupFailedError(backupPath, e)
   }
 }
 
@@ -1287,6 +1412,21 @@ function migrateAfterSchema(
   // (a re-run matches zero rows) + deletion-blind. See migrate-catalyst-legacy-strings.ts.
   migrateCatalystLegacyStrings(conn)
 
+  // Rule-breaks reshape Beat 3a (schema 47) — the id-stable rule-break taxonomy: the
+  // rule_break_def vocabulary + the journal_rule_break day junction. Additive + idempotent;
+  // runs every launch (NOT version-gated), like migrateMistakesTaxonomy, so fresh installs
+  // get the tables too. The seed runs only when rule_break_def is empty, and it seeds from
+  // the user's OWN settings.daily_rule_break_list rather than a hardcoded list — seeding from
+  // a fixed list is the exact defect that orphaned the catalyst vocabulary (2f792ce).
+  //
+  // ORDER NOTE: this reads settings.daily_rule_break_list, which SCHEMA_SQL seeds via
+  // INSERT OR IGNORE (schema.ts:716-719). SCHEMA_SQL runs at openDatabase :169, this at :170
+  // — so on a fresh install the key is already there and the four defaults seed as
+  // is_custom = 0. That SCHEMA_SQL seed must NOT be removed until the read paths move to the
+  // def table (the key's full retirement is its own beat). Nothing reads the junction yet.
+  // See migrate-rule-breaks-taxonomy.ts.
+  migrateRuleBreaksTaxonomy(conn)
+
   // Journal-rules data-model migration (schema 37). Registered +
   // version-bumped, but converts NO DATA this beat: it detects whether
   // settings.journal_rules is still legacy string[] vs migrated JournalRule[] and
@@ -1560,6 +1700,23 @@ function migrateAfterSchema(
   migrateCatalystBackfill(conn, priorVersion, {
     backup: () => backupBeforeCatalystBackfillMigration(conn, dbPath),
   })
+
+  // Rule-breaks reshape Beat 3a (schema 46 -> 47) — link every day's journal.rule_breaks
+  // labels into the schema-47 rule_break_def + journal_rule_break model. PRESERVE: a label
+  // the vocabulary no longer knows is resurrected as an ARCHIVED, is_custom def (the user
+  // removed or renamed it — re-adding it to their active picker would override that choice)
+  // and journal.rule_breaks is NEVER modified, so it stays the permanent fallback.
+  //
+  // Registered LAST, after migrateRuleBreaksTaxonomy created and seeded the two tables — the
+  // same "registered last" discipline as the two backfills above. Version-gated
+  // (priorVersion < 47) + latch + one transaction.
+  //
+  // NO backup closure, and that is the difference that matters: its .bak was already taken by
+  // maybeBackupForRuleBreaksBackfill up in openDatabase, BEFORE SCHEMA_SQL re-stamped the
+  // version, so it is a real restore point rather than a one-way door. All this call does is
+  // read the latch that copy set and refuse to run if it is missing.
+  // See migrate-rule-breaks-backfill.ts.
+  migrateRuleBreaksBackfill(conn, priorVersion)
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

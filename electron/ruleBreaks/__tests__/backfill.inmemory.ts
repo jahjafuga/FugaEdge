@@ -17,6 +17,11 @@ import {
   migrateRuleBreaksTaxonomy,
   DEFAULT_RULE_BREAKS,
 } from '../../db/migrate-rule-breaks-taxonomy'
+import {
+  migrateRuleBreaksBackfill,
+  RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY,
+  RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY,
+} from '../../db/migrate-rule-breaks-backfill'
 import { backfillRuleBreaks } from '../backfill'
 
 // ── tiny test runner (the mistakes-harness convention) ──────────────────────
@@ -378,11 +383,301 @@ it('PRESERVE: journal.rule_breaks is byte-identical before and after the backfil
   db.close()
 })
 
+// ── THE GATED WRAPPER (Beat 3a-2) ───────────────────────────────────────────
+//
+// The wrapper adds four gates + one atomic transaction around the pure core above.
+//
+// It takes NO backup closure, which is the one real divergence from the mistakes/catalyst
+// wrappers. Theirs invoke opts.backup() from inside migrateAfterSchema — i.e. AFTER
+// db.exec(SCHEMA_SQL) has already re-stamped _meta.schema_version — so their .bak carries
+// the NEW version and, on restore, the version gate refuses to re-run: a one-way door.
+// Ours is taken by database.ts BEFORE SCHEMA_SQL, and the wrapper only VERIFIES it landed,
+// by reading the backup latch. [19] is that difference, executable.
+
+const migrationLatchSet = (db: Database.Database) =>
+  (
+    db
+      .prepare('SELECT value FROM settings WHERE key = ?')
+      .get(RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY) as { value: string } | undefined
+  )?.value === 'true'
+
+/** Everything database.ts's maybeBackupForRuleBreaksBackfill does TO THE DB — and it only
+ *  gets here when the file copy actually succeeded (the copy's failure path returns without
+ *  latching). "Latch set" therefore means "a restorable .bak exists on disk". */
+const setBackupLatch = (db: Database.Database) =>
+  db
+    .prepare(
+      "INSERT INTO settings (key, value) VALUES (?, 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'",
+    )
+    .run(RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY)
+
+const unsetMigrationLatch = (db: Database.Database) =>
+  db.prepare('DELETE FROM settings WHERE key = ?').run(RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY)
+
+it('[20] RENAME-RESURRECTION: the version gate is what stops a rename from being undone', () => {
+  // The user's real vocabulary: the four shipped defaults plus one of their own, so
+  // 'Overtrading' seeds as def id 5.
+  const db = freshDb([...DEFAULT_RULE_BREAKS, 'Overtrading'])
+  addDay(db, '2026-03-02', ['Overtrading'])
+
+  // The real upgrade: schema 46 -> 47. Backup landed, gates pass, migration runs.
+  setBackupLatch(db)
+  const first = migrateRuleBreaksBackfill(db, 46)
+  assert(first.ran === true, `the first run must migrate, got ${JSON.stringify(first)}`)
+  const overtradingId = defByName(db, 'Overtrading')[0]?.id
+  assert(overtradingId === 5, `'Overtrading' should be def 5, got ${overtradingId}`)
+  eqJson(
+    links(db),
+    [{ date: '2026-03-02', name: 'Overtrading', is_archived: 0 }],
+    'the day links to def 5',
+  )
+
+  // The source column is FROZEN. It still says "Overtrading" and always will — that is the
+  // PRESERVE model, and it is also the loaded gun this fixture exists to keep unloaded.
+  eqJson(
+    db.prepare("SELECT rule_breaks FROM journal WHERE date = '2026-03-02'").get(),
+    { rule_breaks: '["Overtrading"]' },
+    'journal.rule_breaks keeps the OLD name after a rename — by design',
+  )
+
+  // The user renames the def. (3b does this through the repo; a plain UPDATE here.)
+  db.prepare("UPDATE rule_break_def SET name = 'Over-trading' WHERE id = ?").run(overtradingId)
+
+  // The latch is LOST — corruption, a hand-edited settings row, or the planned
+  // restore-from-backup UI. The version gate is now the ONLY thing left standing.
+  unsetMigrationLatch(db)
+  assert(!migrationLatchSet(db), 'latch unset: the wrapper is down to its version gate alone')
+
+  const second = migrateRuleBreaksBackfill(db, 47)
+  assert(
+    second.ran === false && second.reason === 'already-migrated',
+    `the version gate must refuse, got ${JSON.stringify(second)}`,
+  )
+  assert(countDefs(db) === 5, `ZERO new defs: expected 5, got ${countDefs(db)}`)
+  assert(countLinks(db) === 1, `ZERO new links: expected 1, got ${countLinks(db)}`)
+  eqJson(
+    links(db),
+    [{ date: '2026-03-02', name: 'Over-trading', is_archived: 0 }],
+    'the day still carries EXACTLY ONE def, and it is the renamed one',
+  )
+  assert(defByName(db, 'Overtrading').length === 0, "'Overtrading' must NOT be resurrected")
+
+  // ── THE COUNTER-ASSERTION: this is WHY the gate exists ────────────────────
+  // Same DB, same state the wrapper just refused. Call the CORE directly — no gates — and
+  // watch the damage land. The frozen column still says "Overtrading"; that name is no
+  // longer in the vocabulary; so the core faithfully does its job and resurrects it as a
+  // SECOND def, then links it. The day now carries the same real-world rule TWICE, under
+  // two names, and the Analytics rollup counts it twice. The gate is the only thing between
+  // a user renaming a rule and their history quietly doubling.
+  const damage = backfillRuleBreaks(db)
+  assert(
+    damage.defsCreated === 1,
+    `the ungated core DOES resurrect the old name, got ${damage.defsCreated}`,
+  )
+  eqJson(damage.resurrectedNames, ['Overtrading'], 'and the name it brings back is the pre-rename one')
+  assert(damage.linksCreated === 1, 'and it DOES add a second link to the same day')
+  assert(countDefs(db) === 6, 'the ungated core leaves 6 defs where the wrapper left 5')
+  eqJson(
+    links(db),
+    [
+      { date: '2026-03-02', name: 'Over-trading', is_archived: 0 },
+      { date: '2026-03-02', name: 'Overtrading', is_archived: 1 },
+    ],
+    'ONE day, ONE rule, TWO defs — the double-count the version gate prevents',
+  )
+  db.close()
+})
+
+it('[13a] wrapper gate: fresh install (priorVersion 0) is a no-op', () => {
+  const db = freshDb(['Overtrading'])
+  addDay(db, '2026-03-02', ['Overtrading'])
+  setBackupLatch(db)
+  const r = migrateRuleBreaksBackfill(db, 0)
+  assert(r.ran === false && r.reason === 'fresh-install', `expected fresh-install, got ${JSON.stringify(r)}`)
+  assert(countLinks(db) === 0, 'no links created on a fresh-install no-op')
+  db.close()
+})
+
+it('[13b] wrapper gate: priorVersion >= 47 is a no-op (already-migrated)', () => {
+  const db = freshDb(['Overtrading'])
+  addDay(db, '2026-03-02', ['Overtrading'])
+  setBackupLatch(db)
+  const r = migrateRuleBreaksBackfill(db, 47)
+  assert(r.ran === false && r.reason === 'already-migrated', `expected already-migrated, got ${JSON.stringify(r)}`)
+  assert(countLinks(db) === 0, 'no links created on a gated no-op')
+  db.close()
+})
+
+it('[13c] wrapper gate: the migration latch is a no-op (latched)', () => {
+  const db = freshDb(['Overtrading'])
+  addDay(db, '2026-03-02', ['Overtrading'])
+  setBackupLatch(db)
+  db.prepare("INSERT INTO settings (key, value) VALUES (?, 'true')").run(
+    RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY,
+  )
+  const r = migrateRuleBreaksBackfill(db, 46)
+  assert(r.ran === false && r.reason === 'latched', `expected latched, got ${JSON.stringify(r)}`)
+  assert(countLinks(db) === 0, 'no links created when latched')
+  db.close()
+})
+
+it('[13d] wrapper gate: NO pre-migration backup -> ABORT (backup-failed)', () => {
+  const db = freshDb(['Overtrading'])
+  addDay(db, '2026-03-02', ['Overtrading'])
+  // The backup latch is deliberately NOT set: database.ts's copy never landed.
+  const r = migrateRuleBreaksBackfill(db, 46)
+  assert(r.ran === false && r.reason === 'backup-failed', `expected backup-failed, got ${JSON.stringify(r)}`)
+  assert(countLinks(db) === 0, 'the migration must not run without a restorable backup behind it')
+  assert(!migrationLatchSet(db), 'and it must NOT latch, so a repaired launch still retries')
+  db.close()
+})
+
+it('[13e] wrapper HAPPY PATH: gates pass -> runs, links, and latches', () => {
+  const db = freshDb(['Ignored daily max loss'])
+  addDay(db, '2026-03-02', ['Ignored daily max loss'])
+  addDay(db, '2026-03-03', ['Ignored daily max loss', 'Deleted long ago'])
+  setBackupLatch(db)
+  const r = migrateRuleBreaksBackfill(db, 46)
+  assert(r.ran === true, `expected ran:true, got ${JSON.stringify(r)}`)
+  eqJson(r.report?.resurrectedNames, ['Deleted long ago'], 'the orphan is reported by name')
+  assert(r.report?.defsCreated === 1 && r.report?.linksCreated === 3, `report: ${JSON.stringify(r.report)}`)
+  assert(migrationLatchSet(db), 'a successful run sets the migration latch')
+  db.close()
+})
+
+it('[13f] wrapper: the latch lives INSIDE the txn — a mid-run throw rolls BOTH back', () => {
+  const db = freshDb(['Ignored daily max loss'])
+  addDay(db, '2026-03-02', ['Overtrading']) // orphan: creates a def, then links it
+  addDay(db, '2026-03-09', ['Late entry']) // orphan: creates a def, then EXPLODES
+  setBackupLatch(db)
+  // Blow up the SECOND day's link insert, after the first day has already written rows.
+  db.exec(`
+    CREATE TRIGGER boom BEFORE INSERT ON journal_rule_break
+    WHEN NEW.date = '2026-03-09'
+    BEGIN
+      SELECT RAISE(ABORT, 'boom');
+    END;
+  `)
+  const r = migrateRuleBreaksBackfill(db, 46)
+  assert(
+    r.ran === false && r.reason === 'transaction-failed',
+    `expected transaction-failed, got ${JSON.stringify(r)}`,
+  )
+  assert(countLinks(db) === 0, "day 1's link must roll back along with day 2's failure")
+  assert(countDefs(db) === 1, 'both resurrected defs roll back — only the seeded one survives')
+  assert(!migrationLatchSet(db), 'the latch is INSIDE the txn: a rollback un-sets it, so it retries')
+
+  // Repair and relaunch. The idempotent core makes the retry clean.
+  db.exec('DROP TRIGGER boom')
+  const retry = migrateRuleBreaksBackfill(db, 46)
+  assert(retry.ran === true, `the retry must run, got ${JSON.stringify(retry)}`)
+  assert(countLinks(db) === 2, 'the retry rebuilds both links')
+  assert(countDefs(db) === 3, 'and both resurrected defs')
+  assert(migrationLatchSet(db), 'and latches')
+  db.close()
+})
+
+// ── [19] THE RESTORE WALK — the .bak-is-restorable proof ────────────────────
+//
+// This SIMULATES database.ts's boot sequence (openDatabase, :166-170) in memory. Its
+// fidelity rests on three facts read out of that file, which an in-memory harness cannot
+// observe for itself (there is no fs here):
+//
+//   1. maybeBackupForRuleBreaksBackfill runs BEFORE db.exec(SCHEMA_SQL) (:169) re-stamps
+//      _meta.schema_version — so the .bak carries the OLD version, 46.
+//   2. Its backup latch is written AFTER the copy (maybeBackupForV020's shape, :239-269:
+//      the copy's catch RETURNS at :254 without latching) — so the .bak carries it UNSET.
+//   3. The migration latch is written inside the migration's transaction, over in
+//      migrateAfterSchema (:170) — so the .bak carries that unset too.
+//
+// Net: a restored .bak looks exactly like a schema-46 DB that never migrated. No def
+// tables, no latches, journal.rule_breaks intact. A normal launch rebuilds all of it.
+
+/** The state a restored .bak is actually in: pre-SCHEMA_SQL, pre-taxonomy, pre-backfill. */
+function restoredBakDb(vocab: string[], days: [string, string[]][]): Database.Database {
+  const db = new Database(':memory:')
+  db.pragma('foreign_keys = ON')
+  db.exec(`CREATE TABLE journal (date TEXT PRIMARY KEY, rule_breaks TEXT NOT NULL DEFAULT '[]')`)
+  db.exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)')
+  db.prepare("INSERT INTO settings (key, value) VALUES ('daily_rule_break_list', ?)").run(
+    JSON.stringify(vocab),
+  )
+  for (const [date, breaks] of days) {
+    db.prepare('INSERT INTO journal (date, rule_breaks) VALUES (?, ?)').run(date, JSON.stringify(breaks))
+  }
+  // migrateRuleBreaksTaxonomy is deliberately NOT called — the .bak predates it.
+  return db
+}
+
+/** One launch of openDatabase() against a DB whose on-disk version is `priorVersion`. */
+function boot(db: Database.Database, priorVersion: number) {
+  setBackupLatch(db) // :167  maybeBackupForRuleBreaksBackfill — the copy landed
+  //                    :169  db.exec(SCHEMA_SQL) — stamps 47; nothing to do in memory
+  migrateRuleBreaksTaxonomy(db) // :170  migrateAfterSchema -> the table creator (unconditional)
+  return migrateRuleBreaksBackfill(db, priorVersion) //   -> the gated backfill (registered LAST)
+}
+
+const RESTORE_VOCAB = ['Ignored daily max loss', 'Overtrading']
+const RESTORE_DAYS: [string, string[]][] = [
+  ['2026-03-02', ['Overtrading']],
+  ['2026-03-03', ['Ignored daily max loss', 'Deleted long ago']], // carries an orphan
+  ['2026-03-04', ['Overtrading', 'Ignored daily max loss']],
+]
+
+it('[19] RESTORE: the .bak carries NO def tables and NO latches — it predates all of them', () => {
+  const bak = restoredBakDb(RESTORE_VOCAB, RESTORE_DAYS)
+  const tables = (
+    bak.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as {
+      name: string
+    }[]
+  ).map((t) => t.name)
+  eqJson(tables, ['journal', 'settings'], 'the .bak predates the taxonomy migration')
+  assert(!migrationLatchSet(bak), 'the migration latch is written in the txn, long after the copy')
+  const backupLatch = bak
+    .prepare('SELECT value FROM settings WHERE key = ?')
+    .get(RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY)
+  assert(backupLatch === undefined, 'the backup latch is written AFTER the copy (database.ts:257-269)')
+  bak.close()
+})
+
+it('[19] RESTORE: schema 46 + no latches -> the migration RE-RUNS and rebuilds identically', () => {
+  // Launch 1 — the real upgrade.
+  const live = restoredBakDb(RESTORE_VOCAB, RESTORE_DAYS)
+  const first = boot(live, 46)
+  assert(first.ran === true, `launch 1 must migrate, got ${JSON.stringify(first)}`)
+  const defsAfterFirst = defs(live)
+  const linksAfterFirst = links(live)
+  assert(migrationLatchSet(live), 'launch 1 latches')
+  assert(linksAfterFirst.length === 5, `expected 5 links, got ${linksAfterFirst.length}`)
+  live.close()
+
+  // Launch 2 — the user restores the .bak and relaunches. The restored file IS the state
+  // restoredBakDb() produces, because that is precisely what got copied.
+  const restored = restoredBakDb(RESTORE_VOCAB, RESTORE_DAYS)
+  const second = boot(restored, 46)
+  assert(second.ran === true, `the restored .bak must migrate again, got ${JSON.stringify(second)}`)
+  eqJson(defs(restored), defsAfterFirst, 'the rebuilt vocabulary is identical')
+  eqJson(links(restored), linksAfterFirst, 'the rebuilt junction is identical')
+  assert(migrationLatchSet(restored), 'and it latches again')
+  restored.close()
+})
+
+it('[19] RESTORE: a NORMAL second launch still adds nothing — restore is not a re-entry hatch', () => {
+  const db = restoredBakDb(RESTORE_VOCAB, RESTORE_DAYS)
+  boot(db, 46)
+  const n = countLinks(db)
+  const d = countDefs(db)
+  // Same file, relaunched: SCHEMA_SQL stamped 47 last time, so priorVersion is 47 now.
+  const again = boot(db, 47)
+  assert(
+    again.ran === false && again.reason === 'already-migrated',
+    `expected already-migrated, got ${JSON.stringify(again)}`,
+  )
+  assert(countLinks(db) === n && countDefs(db) === d, 'a normal second launch adds nothing')
+  db.close()
+})
+
 // ── summary ─────────────────────────────────────────────────────────────────
-console.log('\nDEFERRED to 3a-2 (they exercise the GATED WRAPPER, which this beat does not build):')
-console.log('  [13] wrapper gates: fresh-install / already-migrated / latched / backup-failed')
-console.log('  [20] rename-resurrection: rename a def, unset the latch, re-run')
-console.log('  [19] latch-manipulation half (its CORE half — rebuild from the frozen column — runs above)')
 
 console.log(`\n${passed} passed / ${passed + failed} total`)
 if (failed > 0) {
