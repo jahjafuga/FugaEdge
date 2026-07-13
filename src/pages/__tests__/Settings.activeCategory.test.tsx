@@ -20,6 +20,8 @@ vi.mock('@/lib/ipc', () => ({
     // Stage 3 beat 2 — BalancesCard mounts inside Settings and fetches on mount.
     cashEventsList: vi.fn(async () => []),
     cashBalanceGet: vi.fn(async () => null),
+    // Beat 2 — the Rule Breaks editor reads rule-break usage on mount (READ-ONLY).
+    ruleBreakUsage: vi.fn(async () => ({})),
     countryOnBackfillProgress: vi.fn(() => () => {}),
     floatOnBackfillProgress: vi.fn(() => () => {}),
     profileOnBackfillProgress: vi.fn(() => () => {}),

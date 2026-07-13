@@ -144,6 +144,10 @@ export const IPC = {
   // Phase 2 (djsevans87) — Day Detail writable field: per-day rule breaks,
   // stored on journal.rule_breaks (the day_tags column pattern).
   DAY_RULE_BREAKS_SAVE: 'day:ruleBreaksSave',
+  // Beat 2 — READ-ONLY usage read (label -> distinct journal days) behind the Settings
+  // freeze guard: a rule-break used on >= 1 day cannot be renamed or deleted until Beat 3
+  // ships a history-preserving rename. A pure read, so its handler must NOT bumpDataVersion.
+  DAY_RULE_BREAK_USAGE_GET: 'day:ruleBreakUsageGet',
   // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
   // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
   WEEK_GET_DETAIL: 'week:getDetail',

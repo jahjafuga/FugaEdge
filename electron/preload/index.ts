@@ -458,6 +458,9 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_NOTE_SAVE, { date, body }),
   ruleBreaksSave: (date: string, breaks: string[]): Promise<RuleBreaksResult> =>
     ipcRenderer.invoke(IPC.DAY_RULE_BREAKS_SAVE, { date, breaks }),
+  // Beat 2 — READ-ONLY: label -> distinct journal days, for the Settings freeze guard.
+  ruleBreakUsageGet: (): Promise<Record<string, number>> =>
+    ipcRenderer.invoke(IPC.DAY_RULE_BREAK_USAGE_GET),
   weekDetailGet: (weekStart: string, opts?: { accountScope?: AccountScope }): Promise<WeekDetail> =>
     ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart, opts),
 }

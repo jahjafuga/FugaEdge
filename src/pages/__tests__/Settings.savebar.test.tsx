@@ -32,6 +32,10 @@ vi.mock('@/lib/ipc', () => ({
     // Stage 3 beat 2 — BalancesCard mounts inside Settings and fetches on mount.
     cashEventsList: vi.fn(async () => []),
     cashBalanceGet: vi.fn(async () => null),
+    // Beat 2 — the Rule Breaks editor reads rule-break usage on mount (READ-ONLY) to freeze
+    // labels that are used on journal days. Default: nothing used, so every row stays as it
+    // was and these characterization tests are unaffected.
+    ruleBreakUsage: vi.fn(async () => ({})),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     tradesRestoreBulk: vi.fn(),

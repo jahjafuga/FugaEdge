@@ -35,6 +35,8 @@ vi.mock('@/lib/ipc', () => ({
     accountsList: vi.fn(async () => []),
     cashEventsList: vi.fn(async () => []),
     cashBalanceGet: vi.fn(async () => null),
+    // Beat 2 — the Rule Breaks editor reads rule-break usage on mount (READ-ONLY).
+    ruleBreakUsage: vi.fn(async () => ({})),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     tradesRestoreBulk: vi.fn(),

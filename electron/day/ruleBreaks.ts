@@ -1,5 +1,6 @@
 import { openDatabase } from '../db/database'
 import type { RuleBreaksResult, SaveRuleBreaksInput } from '@shared/day-types'
+import { tallyRuleBreakUsage, type RuleBreakUsage } from '@/core/ruleBreaks/usage'
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -53,6 +54,30 @@ export function saveRuleBreaks(input: SaveRuleBreaksInput): RuleBreaksResult {
     ON CONFLICT(date) DO UPDATE SET rule_breaks = excluded.rule_breaks
   `).run(input.date, json)
   return { date: input.date, breaks }
+}
+
+// Beat 2 "stop the bleeding" — the usage read behind the Settings freeze guard: for each
+// rule-break label, how many DISTINCT journal days carry it. A label with a count > 0 cannot be
+// renamed or deleted in Settings until Beat 3 ships a history-preserving rename, because days
+// link by NAME and Analytics groups by the raw string, so either edit orphans that history.
+//
+// The SELECT text is COPIED VERBATIM from the analytics rollup (electron/analytics/get.ts:963-968)
+// rather than imported from it, so the guard can never read a different row set than the rollup
+// the user is looking at. The tally itself is the PURE core (src/core/ruleBreaks/usage), which
+// reuses the same JSON-or-[] parse — one parse path, so a malformed cell counts the same way in
+// both places (json_each would instead THROW on the rows JS reads as []).
+//
+// READ-ONLY: no write, therefore NO bumpDataVersion. day/ipc.ts:27-34 mandates the bump for
+// WRITES that feed the analytics rollup; DAY_GET_DETAIL (a read, :19-23) deliberately does not.
+export function getRuleBreakUsage(): RuleBreakUsage {
+  const db = openDatabase()
+  const rows = db
+    .prepare(`
+      SELECT date, rule_breaks FROM journal
+      WHERE rule_breaks IS NOT NULL AND rule_breaks != '' AND rule_breaks != '[]'
+    `)
+    .all() as { date: string; rule_breaks: string }[]
+  return tallyRuleBreakUsage(rows)
 }
 
 // Read the per-day rule-breaks for the day view. A single-column journal read

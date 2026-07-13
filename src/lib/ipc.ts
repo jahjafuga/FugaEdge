@@ -186,6 +186,13 @@ export const ipc = {
     window.api.mistakeDefDelete(input),
   // Beat 2 — catalyst_def vocabulary writes (Electron-IPC adapter; web port swaps
   // for fetch/tRPC). The delete guard + rename propagation are enforced in the repo.
+  // Beat 2 — READ-ONLY: rule-break label -> the number of DISTINCT journal days it is used
+  // on. Drives the Settings freeze guard: a rule-break used on >= 1 day cannot be renamed or
+  // deleted until Beat 3 ships a history-preserving rename, because days link to it by NAME
+  // (journal.rule_breaks) and either edit would orphan that history. Lives here rather than
+  // in dayRepo because Settings — its only consumer — reaches every one of its data sources
+  // through this client, and a page with two IPC seams is a page whose fakes drift.
+  ruleBreakUsage: () => window.api.ruleBreakUsageGet(),
   catalystDefsGet: (includeArchived?: boolean) =>
     window.api.catalystDefsGet(includeArchived),
   catalystDefCreate: (input: CreateCatalystDefInput) =>

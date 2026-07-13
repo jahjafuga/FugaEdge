@@ -3,7 +3,7 @@ import { IPC } from '@shared/ipc-channels'
 import type { SaveRuleBreaksInput } from '@shared/day-types'
 import type { AccountScope } from '@shared/accounts-types'
 import { getDayDetail } from './repo'
-import { saveRuleBreaks } from './ruleBreaks'
+import { getRuleBreakUsage, saveRuleBreaks } from './ruleBreaks'
 import { saveDayNote } from '../session/repo'
 import { bumpDataVersion } from '../lib/cache'
 
@@ -37,4 +37,8 @@ export function registerDayIpc(): void {
     bumpDataVersion()
     return result
   })
+  // Beat 2 — the Settings freeze guard's usage read. A pure READ: it must NOT bump (a bump
+  // would needlessly invalidate the whole analytics cache on every Settings open). Mirrors
+  // DAY_GET_DETAIL above, which is likewise a read and likewise does not bump.
+  ipcMain.handle(IPC.DAY_RULE_BREAK_USAGE_GET, () => getRuleBreakUsage())
 }

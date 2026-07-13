@@ -95,6 +95,30 @@ export default function Settings() {
   const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
   const [exportError, setExportError] = useState<string | null>(null)
 
+  // Beat 2 "stop the bleeding" — rule-break usage (label -> distinct journal days). READ-ONLY;
+  // it drives the frozen-row guard in the Rule Breaks editor: a label used on >= 1 day cannot
+  // be renamed or deleted until Beat 3 ships a history-preserving rename, because days link to
+  // it by NAME and either edit would orphan that history.
+  //
+  // Fetched once on mount, independently of the settings load (the vocabulary-editor idiom).
+  // Left null on failure: the rows then behave exactly as they did before the guard existed —
+  // deliberately fail-OPEN, because a transient read error must not brick the editor.
+  const [ruleBreakUsage, setRuleBreakUsage] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .ruleBreakUsage()
+      .then((u) => {
+        if (!cancelled) setRuleBreakUsage(u)
+      })
+      .catch(() => {
+        /* non-fatal — guard stays off, editor keeps working */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Active settings category (left rail). Persisted renderer-side; default first.
   const [activeCategory, setActiveCategory] = useState<string>(readActiveCategory)
 
@@ -440,6 +464,7 @@ export default function Settings() {
           >
             <RuleList
               rules={editor.daily_rule_break_list}
+              usageByLabel={ruleBreakUsage ?? undefined}
               onChange={(next) =>
                 setEditor((prev) =>
                   prev ? { ...prev, daily_rule_break_list: next } : prev,
