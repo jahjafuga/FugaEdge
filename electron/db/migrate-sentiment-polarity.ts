@@ -22,13 +22,32 @@
 // launch is 29 and Guard 1 blocks any re-run regardless of the latch. KEEP
 // BOTH guards — do NOT simplify to latch-only.
 //
-// Idempotency / safety: two guards plus an ordered latch write.
+// Idempotency / safety: two guards plus an ATOMIC flip+latch.
 //   1. Version gate — runs only on a DB that predates schema 29 (priorVersion
 //      0 = fresh install → skip; fresh DBs are written under the NEW labels,
 //      so flipping them would corrupt).
-//   2. Settings latch — checked up front; WRITTEN ONLY AFTER the flip returns
-//      successfully, so a crash between UPDATE and latch retries next launch
-//      (the version gate still guards against a double-flip across launches).
+//   2. Settings latch — checked up front, and WRITTEN IN THE SAME TRANSACTION AS
+//      THE FLIP. Either both land or neither does.
+//
+// *** THE LATCH USED TO BE A SEPARATE STATEMENT, AND ITS FAILURE WAS SWALLOWED. ***
+//
+// The flip committed in its own implicit transaction; the latch INSERT then ran separately and
+// its failure was logged and ignored. So a disk-full could leave the data FLIPPED with the latch
+// UNSET — "ran" and "latched" disagreeing about the same event. That was survivable only because
+// the version gate had already been moved to 29 by SCHEMA_SQL, so the next boot refused to
+// re-run. The stamp was doing the latch's job.
+//
+// *** THIS FIX IS ONLY CORRECT BECAUSE OF THE IN-PROGRESS MARKER, AND VICE VERSA. ***
+//
+//   Marker WITHOUT this fix: a crashed boot resumes from 28, the gate opens, the latch is unset
+//     because it silently never landed — and the flip runs a SECOND time. It is an involution.
+//     Every sentiment rating inverts. Silent corruption.
+//   This fix WITHOUT the marker: the latch write fails, the whole transaction rolls back, the
+//     flip is undone — but _meta was already stamped 29+ at database.ts:185, so the next boot
+//     gates out at 'already-migrated' and the flip NEVER runs. The polarity stays wrong forever.
+//     Silent corruption, in the other direction.
+//
+// Neither half is shippable alone. See src/core/db/migrationChain.ts.
 
 import type Database from 'better-sqlite3'
 
@@ -99,34 +118,38 @@ export function migrateSentimentPolarity(
 
   const started = Date.now()
 
-  // The flip. Single statement, full table. WHERE excludes NULL (unrated)
-  // rows. Safe-on-failure: a throw here leaves the latch unset → the migration
-  // retries next launch (with a fresh backup); a partially-applied UPDATE is
-  // impossible (single SQL statement).
+  // The flip AND the latch, in ONE transaction. WHERE excludes NULL (unrated) rows.
+  //
+  // The latch is not a footnote here — it is the ONLY record that this flip ever happened.
+  // The transform is its own inverse, so the data cannot tell you whether it has been applied:
+  // a flipped 4 and an unflipped 2 are the same 2. If the flip could commit while the latch
+  // silently did not, nothing on disk would know, and the next boot's decision to re-run would
+  // be a coin toss on a value that corrupts when re-applied. Atomicity is not defensive
+  // programming here; it is the only thing that makes the event observable at all.
+  //
+  // A throw rolls BOTH back, so the DB is exactly as it was, and the in-progress marker keeps
+  // priorVersion at its pre-migration value — so the retry the message promises is real now.
   let rowsFlipped = 0
   try {
-    const info = conn
-      .prepare('UPDATE session_meta SET sentiment = 6 - sentiment WHERE sentiment IS NOT NULL')
-      .run()
-    rowsFlipped = info.changes
+    const run = conn.transaction(() => {
+      const info = conn
+        .prepare('UPDATE session_meta SET sentiment = 6 - sentiment WHERE sentiment IS NOT NULL')
+        .run()
+      rowsFlipped = info.changes
+      conn
+        .prepare(
+          `INSERT INTO settings (key, value) VALUES (?, 'true')
+           ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+        )
+        .run(SENTIMENT_POLARITY_MIGRATION_LATCH_KEY)
+    })
+    run()
   } catch (e) {
     console.error(
-      `[FE db] sentiment-polarity migration: flip failed, latch NOT set, ` +
-        `will retry next launch: ${e}`,
+      `[FE db] sentiment-polarity migration: transaction failed and rolled back, ` +
+        `sentiment UNCHANGED, will retry next launch: ${e}`,
     )
     return { ran: false, reason: 'flip-failed', rowsFlipped: 0 }
-  }
-
-  // Latch only after a successful flip.
-  try {
-    conn
-      .prepare(
-        `INSERT INTO settings (key, value) VALUES (?, 'true')
-         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
-      )
-      .run(SENTIMENT_POLARITY_MIGRATION_LATCH_KEY)
-  } catch (e) {
-    console.error(`[FE db] sentiment-polarity migration: latch write failed: ${e}`)
   }
 
   console.info(

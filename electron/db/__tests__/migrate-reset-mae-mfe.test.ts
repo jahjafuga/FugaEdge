@@ -26,6 +26,14 @@ const mockEvents: string[] = []
 // latch) to the in-memory settings map.
 function makeConn() {
   return {
+    // The migration now wraps its data write(s) AND its latch in ONE conn.transaction, so they
+    // can never disagree — a latch that silently failed to land while the data committed is the
+    // defect this beat exists to kill. This shim RUNS the callback and PROPAGATES a throw; it
+    // does not model ROLLBACK. Rollback is a real-engine claim and is proven as such in
+    // electron/db/__tests__/migration-chain.inmemory.ts, fixture [B1].
+    transaction(fn: (...a: unknown[]) => unknown) {
+      return (...a: unknown[]) => fn(...a)
+    },
     prepare(sql: string) {
       return {
         get: (...args: unknown[]) => {

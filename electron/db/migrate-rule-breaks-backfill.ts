@@ -3,6 +3,14 @@
 // the work in one transaction (the latch lives INSIDE the txn, so a rollback un-sets it and
 // the migration retries next launch).
 //
+// *** THE RETRY THIS PROMISES IS REAL -- BUT ONLY SINCE THE IN-PROGRESS MARKER. ***
+// Until it shipped, this sentence was FALSE. db.exec(SCHEMA_SQL) (database.ts:185) DURABLY
+// stamps _meta.schema_version BEFORE any migration in migrateAfterSchema runs, so the next boot
+// read the NEW version and this migration's version gate returned 'already-migrated' -- BEFORE
+// its latch, the one thing that knew it never ran, was ever consulted. A rolled-back migration
+// was simply dead. The marker records the version the chain STARTED from and is cleared only on
+// SUCCESS, so an unfinished run really is resumed. See src/core/db/migrationChain.ts.
+//
 // THE ONE DELIBERATE DIVERGENCE from migrate-mistakes-backfill / migrate-catalyst-backfill:
 // this wrapper takes NO opts.backup closure. Theirs invoke the backup from inside
 // migrateAfterSchema — that is, AFTER db.exec(SCHEMA_SQL) has re-stamped

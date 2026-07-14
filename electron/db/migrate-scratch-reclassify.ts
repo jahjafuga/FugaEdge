@@ -17,12 +17,23 @@
 // pre-migration backup is taken anyway — defense-in-depth + consistency with
 // the other schema migrations; the caller passes the backup closure.
 //
-// Idempotency / safety: two guards plus an ordered latch write.
+// Idempotency / safety: two guards plus an ATOMIC recompute+latch.
 //   1. Version gate — runs only on a DB that predates schema 24.
-//   2. Settings latch — checked up front; WRITTEN ONLY AFTER the recompute
-//      returns successfully. If recompute throws, the latch stays unset so the
-//      migration retries on the next launch (with a fresh backup). recompute is
-//      idempotent (deterministic from `trades`), so a retry is safe.
+//   2. Settings latch — checked up front, and WRITTEN IN THE SAME TRANSACTION AS the recompute.
+//      A throw rolls back both, so the latch stays unset and the migration retries on the next
+//      launch. recompute is idempotent (deterministic from `trades`), so a retry is safe.
+//
+// *** THE RETRY THIS PROMISES IS REAL -- BUT ONLY SINCE THE IN-PROGRESS MARKER. ***
+// Until it shipped, this sentence was FALSE. db.exec(SCHEMA_SQL) (database.ts:185) DURABLY
+// stamps _meta.schema_version BEFORE any migration in migrateAfterSchema runs, so the next boot
+// read the NEW version and this migration's version gate returned 'already-migrated' -- BEFORE
+// its latch, the one thing that knew it never ran, was ever consulted. A rolled-back migration
+// was simply dead. The marker records the version the chain STARTED from and is cleared only on
+// SUCCESS, so an unfinished run really is resumed. See src/core/db/migrationChain.ts.
+//
+// The latch write used to sit OUTSIDE the recompute, and its failure was logged and SWALLOWED —
+// the cache could be rewritten with nothing on disk recording it. Harmless here (the recompute
+// is deterministic), but it is the same shape as the sentiment-polarity defect, where it was not.
 
 import type Database from 'better-sqlite3'
 import { recomputeSummaryForDates } from '../trades/recompute-summary'
@@ -108,30 +119,37 @@ export function migrateScratchReclassify(
       `${dates.length} live date(s)`,
   )
 
-  // Safe-on-failure: recompute FIRST; the latch is written only if it returns.
-  // A throw here leaves the latch unset → the migration retries next launch.
+  // The recompute AND the latch, in ONE transaction — the migrate-add-daily-summary-net-precise
+  // idiom (the other recompute-based migration, which already does exactly this).
+  //
+  // recomputeSummaryForDates is safe to enclose: it opens no transaction of its own, and it
+  // reaches the SAME connection we hold — openDatabase() returns a cached singleton, and
+  // database.ts assigns it (:161) before migrateAfterSchema (:186) ever calls us. Its own
+  // header states the contract: "every statement here runs inside whatever db.transaction the
+  // caller has open" (trades/recompute-summary.ts:19-22).
+  //
+  // The latch used to be a separate statement whose failure was logged and SWALLOWED, so the
+  // cache could be rewritten with nothing on disk recording that it had been. Harmless in
+  // isolation — the recompute is deterministic from `trades`, so a re-run reproduces it — but it
+  // is the same shape as the sentiment defect, and a swallowed latch sitting next to a fixed one
+  // is how the next person concludes the swallow was deliberate.
   try {
-    recomputeSummaryForDates(new Set(dates))
+    const run = conn.transaction(() => {
+      recomputeSummaryForDates(new Set(dates))
+      conn
+        .prepare(
+          `INSERT INTO settings (key, value) VALUES (?, 'true')
+           ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+        )
+        .run(SCRATCH_RECLASSIFY_MIGRATION_LATCH_KEY)
+    })
+    run()
   } catch (e) {
     console.error(
-      `[FE db] scratch-reclassify migration: recompute failed, latch NOT set, ` +
-        `will retry next launch: ${e}`,
+      `[FE db] scratch-reclassify migration: transaction failed and rolled back, ` +
+        `daily_summary UNCHANGED, will retry next launch: ${e}`,
     )
     return { ran: false, reason: 'recompute-failed', datesRecomputed: 0 }
-  }
-
-  // Latch only after a successful recompute.
-  try {
-    conn
-      .prepare(
-        `INSERT INTO settings (key, value) VALUES (?, 'true')
-         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
-      )
-      .run(SCRATCH_RECLASSIFY_MIGRATION_LATCH_KEY)
-  } catch (e) {
-    console.error(
-      `[FE db] scratch-reclassify migration: latch write failed: ${e}`,
-    )
   }
 
   console.info(

@@ -95,46 +95,48 @@ export function migrateResetMaeMfe(
 
   const started = Date.now()
 
-  // The wipe. Single statement, full table — symmetric with backfillAllMaeMfe,
-  // which also operates over all of `trades`. Safe-on-failure: a throw here
-  // leaves the latch unset → the migration retries next launch (with a fresh
-  // backup); a partially-applied UPDATE is impossible (single SQL statement).
+  // The wipe, the recompute-arming flag, and the latch — ALL THREE IN ONE TRANSACTION.
+  //
+  // The flag is not optional company for the wipe: it is what schedules the recompute that
+  // puts the values BACK. Wipe-without-flag nulls every trade's excursion data and arms
+  // nothing to rebuild it. It was previously a separate statement whose failure was logged
+  // and swallowed, so a disk-full landed exactly that state. All three now stand or fall
+  // together.
+  //
+  // ┌─ *** CROSS-FILE LANDMINE. READ THIS BEFORE MOVING THE RECOMPUTE. *** ────────────────┐
+  // │                                                                                       │
+  // │ Under the in-progress marker (src/core/db/migrationChain.ts), an interrupted boot     │
+  // │ RE-RUNS this migration from the original priorVersion. That re-run is only harmless   │
+  // │ because `UPDATE trades SET mae = NULL, mfe = NULL` is a no-op when the values are     │
+  // │ ALREADY NULL — and they are still NULL, because runPendingMaeMfeBackfill (the thing   │
+  // │ that recomputes them) is scheduled by the main process at READY-TO-SHOW, which a      │
+  // │ boot that died inside migrateAfterSchema never reached.                               │
+  // │                                                                                       │
+  // │ MOVE THAT RECOMPUTE ANYWHERE BEFORE migrateAfterSchema AND THIS BECOMES A DATA WIPE:  │
+  // │ the retry would null freshly-computed excursion values that no longer have a pending  │
+  // │ flag behind them. The idempotency of this migration is NOT self-contained — it is     │
+  // │ borrowed from an ordering invariant that lives in electron/main/index.ts.             │
+  // └───────────────────────────────────────────────────────────────────────────────────────┘
   let rowsReset = 0
   try {
-    const info = conn.prepare('UPDATE trades SET mae = NULL, mfe = NULL').run()
-    rowsReset = info.changes
+    const run = conn.transaction(() => {
+      const info = conn.prepare('UPDATE trades SET mae = NULL, mfe = NULL').run()
+      rowsReset = info.changes
+
+      const setFlag = conn.prepare(
+        `INSERT INTO settings (key, value) VALUES (?, 'true')
+         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
+      )
+      setFlag.run(MAE_MFE_BACKFILL_PENDING_KEY) // arm the recompute
+      setFlag.run(RESET_MAE_MFE_MIGRATION_LATCH_KEY) // and record that we did all of this
+    })
+    run()
   } catch (e) {
     console.error(
-      `[FE db] mae/mfe-reset migration: wipe failed, latch NOT set, ` +
-        `will retry next launch: ${e}`,
+      `[FE db] mae/mfe-reset migration: transaction failed and rolled back, ` +
+        `mae/mfe UNCHANGED, will retry next launch: ${e}`,
     )
     return { ran: false, reason: 'wipe-failed', rowsReset: 0 }
-  }
-
-  // Arm the background recompute (consumed by runPendingMaeMfeBackfill).
-  try {
-    conn
-      .prepare(
-        `INSERT INTO settings (key, value) VALUES (?, 'true')
-         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
-      )
-      .run(MAE_MFE_BACKFILL_PENDING_KEY)
-  } catch (e) {
-    console.error(
-      `[FE db] mae/mfe-reset migration: backfill-pending flag write failed: ${e}`,
-    )
-  }
-
-  // Latch only after a successful wipe.
-  try {
-    conn
-      .prepare(
-        `INSERT INTO settings (key, value) VALUES (?, 'true')
-         ON CONFLICT(key) DO UPDATE SET value = 'true'`,
-      )
-      .run(RESET_MAE_MFE_MIGRATION_LATCH_KEY)
-  } catch (e) {
-    console.error(`[FE db] mae/mfe-reset migration: latch write failed: ${e}`)
   }
 
   console.info(

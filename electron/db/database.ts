@@ -41,6 +41,17 @@ import {
   RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY,
   RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION,
 } from './migrate-rule-breaks-backfill'
+import {
+  readMigrationMarker,
+  writeMigrationMarker,
+  clearMigrationMarker,
+} from './migration-marker'
+import {
+  chainSucceeded,
+  isMigrationOk,
+  resolveEffectivePriorVersion,
+  type MigrationOutcome,
+} from '@/core/db/migrationChain'
 
 // v0.2.0 introduces the universal-import schema (schema_version 18).
 // maybeBackupForV020() copies the on-disk DB before any structural change
@@ -174,6 +185,11 @@ export function openDatabase(): Database.Database {
   // Capture the on-disk schema version BEFORE SCHEMA_SQL re-stamps it — the
   // Day 8.5 tz-utc migration is gated on the pre-launch version.
   const priorVersion = readSchemaVersion(db)
+  // ...and the version the LAST boot was migrating from, if it never finished. The stamp only
+  // tells us what the schema physically IS; the marker tells us where the chain was going. When
+  // they disagree, the marker is the truth — see src/core/db/migrationChain.ts for why every
+  // "retries next launch" in this repo was a lie until it existed.
+  const effectiveVersion = resolveEffectivePriorVersion(readMigrationMarker(db), priorVersion)
   maybeBackupForV020(db, path)
   // MUST stay here — above migrateBeforeSchema (which DROPs tables on a v1 DB) and above
   // db.exec(SCHEMA_SQL) (which re-stamps _meta.schema_version to the new version). A backup
@@ -181,9 +197,40 @@ export function openDatabase(): Database.Database {
   // gate says "already migrated" on a junction that was never built. That is the one-way
   // door the shipped mistakes/catalyst backups walked into; this one does not.
   maybeBackupForRuleBreaksBackfill(db, path)
+
+  // Record where this chain STARTED, durably, before anything irreversible.
+  //
+  // *** THE BACKUPS ABOVE DELIBERATELY DO NOT SEE effectiveVersion. DO NOT "FIX" THAT. ***
+  // They re-read _meta themselves (:220, :316) and they must keep doing so. On a RESUMED boot
+  // the DB is HALF-MIGRATED and _meta already reads the NEW version, so a backup taken now would
+  // carry the new stamp — and restoring it would land a DB whose version gate says
+  // 'already-migrated' on a junction that was never built. That is precisely the one-way door
+  // this beat's predecessor eliminated. The correct restore point is the .bak from the boot that
+  // FAILED, taken above, before the stamp. It is already on disk and its latch keeps it there.
+  //
+  // effectiveVersion > 0 is LOAD-BEARING, not an optimisation: on a fresh install _meta does not
+  // exist yet (that is why readSchemaVersion returns 0 via its catch), so this write would throw
+  // `no such table: _meta` and our own fail-closed boot would brick every first launch.
+  if (effectiveVersion > 0) writeMigrationMarker(db, effectiveVersion)
+
   migrateBeforeSchema(db)
-  db.exec(SCHEMA_SQL)
-  migrateAfterSchema(db, priorVersion, path)
+  db.exec(SCHEMA_SQL) // <- DURABLY stamps _meta.schema_version. The chain below has not run yet.
+  const chain = migrateAfterSchema(db, effectiveVersion, path)
+
+  // Clear ONLY on success. Clearing on mere RETURN is the trap: migrateAfterSchema returns
+  // normally even when a migration soft-failed, so a clear-on-return would fix the crash window
+  // and leave the far more reachable soft-failure window wide open.
+  if (chainSucceeded(chain.outcomes)) {
+    clearMigrationMarker(db)
+  } else {
+    const failed = chain.outcomes
+      .filter((o) => !isMigrationOk(o))
+      .map((o) => `${o.name}(${o.reason ?? 'no reason given'}${o.detail ? `: ${o.detail}` : ''})`)
+    console.warn(
+      `[FE db] migration chain did NOT complete — keeping the in-progress marker at v${effectiveVersion} ` +
+        `so the next launch resumes instead of forgetting. Unfinished: ${failed.join(', ')}`,
+    )
+  }
   return db
 }
 
@@ -1092,13 +1139,43 @@ function migrateBeforeSchema(conn: Database.Database): void {
   }
 }
 
-// After-schema migrations are additive (ALTER TABLE … ADD COLUMN). They run
-// every launch and are gated by PRAGMA inspection so they're idempotent.
+/** One migration's verdict, plus which migration gave it — the name is for the log line that
+ *  tells a human WHICH step is holding the marker open. `detail` carries free-form text that must
+ *  NOT reach the classifier (trades-rebuild's abort message is the only one today); the classifier
+ *  sees only the typed MigrationReason. */
+interface NamedOutcome extends MigrationOutcome {
+  name: string
+  detail?: string
+}
+
+export interface MigrationChainResult {
+  outcomes: NamedOutcome[]
+}
+
+// After-schema migrations. The additive ones (ALTER TABLE … ADD COLUMN) run every launch and are
+// gated by PRAGMA inspection so they're idempotent; they report nothing because they cannot
+// half-succeed — and if one throws, the throw escapes openDatabase, the marker written above
+// stays put, and the next launch resumes. It is the VERSION-GATED ones that must report.
+//
+// *** THIS USED TO RETURN void AND THROW EVERY RESULT AWAY. ***
+// That is why 24 "the latch is unset, so it retries next launch" comments across 8 files were
+// all false: a soft-failed migration reported its failure to nobody, openDatabase returned
+// happily, and the next boot read the version SCHEMA_SQL had already stamped and gated out at
+// 'already-migrated' before the latch was ever consulted. See src/core/db/migrationChain.ts.
 function migrateAfterSchema(
   conn: Database.Database,
   priorVersion: number,
   dbPath: string,
-): void {
+): MigrationChainResult {
+  const outcomes: NamedOutcome[] = []
+  // `outcome` is typed MigrationOutcome, whose `reason` is the CLOSED MigrationReason union. That
+  // is the enforcement: a migration that invents a reason nobody classified cannot be passed here
+  // — this call stops compiling until the reason is added to HEALTHY_SKIP_REASONS or
+  // FAILURE_REASONS, which forces someone to decide which it is.
+  const record = (name: string, outcome: MigrationOutcome, detail?: string): void => {
+    outcomes.push({ name, ran: outcome.ran, reason: outcome.reason, detail })
+  }
+
   const cols = conn.prepare('PRAGMA table_info(trades)').all() as { name: string }[]
   const has = (name: string) => cols.some((c) => c.name === name)
 
@@ -1449,9 +1526,12 @@ function migrateAfterSchema(
   // Day 8.5 Commit B — convert any pre-existing bare-local-Eastern timestamps
   // to true UTC. Gated on priorVersion (< 19) so it runs at most once; the
   // backup closure is the only fresh safety net for existing v0.2.0 users.
-  migrateTimestampsToUtc(conn, priorVersion, {
-    backup: () => backupBeforeTzMigration(conn, dbPath),
-  })
+  record(
+    'tz-utc',
+    migrateTimestampsToUtc(conn, priorVersion, {
+      backup: () => backupBeforeTzMigration(conn, dbPath),
+    }),
+  )
 
   // v0.2.1 — add content_hash column + backfill from executions_json + create
   // partial UNIQUE index. Three ordered steps so the constraint can't fail
@@ -1475,6 +1555,7 @@ function migrateAfterSchema(
       }
     },
   })
+  record('content-hash', result)
   // Partial UNIQUE index — created idempotently every launch so fresh
   // installs (which never run the migration) also get it. NULLs are
   // excluded by the WHERE clause, so legacy rows the migration couldn't
@@ -1513,9 +1594,20 @@ function migrateAfterSchema(
   // composite-index gate; fresh new-shape installs take a no-copy fast path;
   // any failure rolls back and boot continues on the old table. See
   // migrate-trades-rebuild-dedup.ts.
-  migrateTradesRebuildDedup(conn, {
+  // *** THE OUTLIER. TradesRebuildResult has NO `ran` field — only `status` and a free-form
+  // `reason` string (migrate-trades-rebuild-dedup.ts:30-35). Feeding it to the collector raw
+  // would read `.ran` as undefined and its reason as an unrecognised failure, so it would report
+  // FAILED ON EVERY BOOT: the marker would never clear and every launch would re-run the chain
+  // forever. It is normalised here, where its shape is actually known. 'aborted' is the only
+  // unhealthy status — noop / fastpath / rebuilt are all fine.
+  const rebuild = migrateTradesRebuildDedup(conn, {
     backup: () => backupBeforeTradesRebuildMigration(conn, dbPath),
   })
+  record(
+    'trades-rebuild-dedup',
+    rebuild.status === 'aborted' ? { ran: false, reason: 'aborted' } : { ran: true },
+    rebuild.reason, // its free-form detail, kept for the log line and OUT of the classifier
+  )
 
   // Precision pass Beat B1 (schema 40 -> 41) — add trades.total_fees_precise +
   // gross_pnl_precise so a later beat can SUM full-precision fees/gross without
@@ -1534,9 +1626,12 @@ function migrateAfterSchema(
   // (priorVersion < 42) + both-zero WHERE (never clobbers a B2a-precise row) +
   // latch + backup + transaction — the migrate-content-hash idiom. See
   // migrate-backfill-precise-columns.ts.
-  migrateBackfillPreciseColumns(conn, priorVersion, {
-    backup: () => backupBeforePreciseBackfillMigration(conn, dbPath),
-  })
+  record(
+    'backfill-precise-columns',
+    migrateBackfillPreciseColumns(conn, priorVersion, {
+      backup: () => backupBeforePreciseBackfillMigration(conn, dbPath),
+    }),
+  )
 
   // Precision pass Beat F0 (schema 42 -> 43) — add net_pnl_precise, corrective-fix the
   // stale total_fees_precise the allocator left at 0 on post-B2a fees_reported=0 rows,
@@ -1546,9 +1641,12 @@ function migrateAfterSchema(
   // + net backfill are version-gated (priorVersion < 43) + clobber-safe WHERE + latch +
   // backup + transaction — the migrate-content-hash idiom. See
   // migrate-add-net-precise-and-fix-fees.ts.
-  migrateAddNetPreciseAndFixFees(conn, priorVersion, {
-    backup: () => backupBeforeNetPreciseMigration(conn, dbPath),
-  })
+  record(
+    'add-net-precise-and-fix-fees',
+    migrateAddNetPreciseAndFixFees(conn, priorVersion, {
+      backup: () => backupBeforeNetPreciseMigration(conn, dbPath),
+    }),
+  )
 
   // Multi-account Beat 2 — day_fees rebuild: PK (date, symbol) →
   // (date, symbol, account_id); existing rows assigned to the default
@@ -1578,31 +1676,42 @@ function migrateAfterSchema(
   // old columns so Commit B's FMP enrichment can repopulate. Gated by
   // priorVersion + settings latch so it runs exactly once on the v20→v21
   // upgrade and never on fresh installs or subsequent launches.
-  migrateFloatRename(conn, priorVersion, {
-    backup: () => backupBeforeFloatRenameMigration(conn, dbPath),
-  })
+  record(
+    'float-rename',
+    migrateFloatRename(conn, priorVersion, {
+      backup: () => backupBeforeFloatRenameMigration(conn, dbPath),
+    }),
+  )
 
   // v0.2.3 scratch-fix — recompute daily_summary for every live date so the
   // stored winners/losers match the new |net_pnl| <= SCRATCH_EPSILON definition
   // (Commit 2b changed the write path; pre-existing rows still hold old counts).
   // Gated by priorVersion + settings latch; the latch is set only AFTER the
-  // recompute succeeds, so a failure retries on the next launch. Non-destructive
+  // recompute succeeds, so a failure retries on the next launch -- REAL since the in-progress
+  // marker; before it, the stamp had already moved and the retry never happened. Non-destructive
   // (derived cache rebuilt from trades), but takes a backup for consistency
   // with the other data migrations.
-  migrateScratchReclassify(conn, priorVersion, {
-    backup: () => backupBeforeScratchReclassifyMigration(conn, dbPath),
-  })
+  record(
+    'scratch-reclassify',
+    migrateScratchReclassify(conn, priorVersion, {
+      backup: () => backupBeforeScratchReclassifyMigration(conn, dbPath),
+    }),
+  )
 
   // v0.2.3 (schema 24 → 25) — null every trades.mae/mfe so the columns drop the
   // values computed under the old (pre-α) excursion rule, then arm the
   // background recompute (runPendingMaeMfeBackfill, scheduled by main at
   // ready-to-show). Gated by priorVersion + settings latch; the latch is set
-  // only AFTER the wipe succeeds, so a failure retries next launch. The backup
+  // only AFTER the wipe succeeds, so a failure retries next launch -- REAL since the in-progress
+  // marker (and the wipe + arming flag + latch are now ONE transaction). The backup
   // closure throws-to-abort because this wipe — unlike the additive/derived
   // migrations above — destroys values only recoverable from cached bars.
-  migrateResetMaeMfe(conn, priorVersion, {
-    backup: () => backupBeforeMaeMfeResetMigration(conn, dbPath),
-  })
+  record(
+    'reset-mae-mfe',
+    migrateResetMaeMfe(conn, priorVersion, {
+      backup: () => backupBeforeMaeMfeResetMigration(conn, dbPath),
+    }),
+  )
 
   // v0.2.5 (schema 28 → 29) — flip session_meta.sentiment polarity to the
   // intuitive 5 = best / 1 = worst. Gated by priorVersion + settings latch; the
@@ -1610,9 +1719,12 @@ function migrateAfterSchema(
   // load-bearing guard against a double-apply (which would flip back and
   // corrupt). The backup closure throws-to-abort because this rewrites real
   // user-entered values in place.
-  migrateSentimentPolarity(conn, priorVersion, {
-    backup: () => backupBeforeSentimentPolarityMigration(conn, dbPath),
-  })
+  record(
+    'sentiment-polarity',
+    migrateSentimentPolarity(conn, priorVersion, {
+      backup: () => backupBeforeSentimentPolarityMigration(conn, dbPath),
+    }),
+  )
 
   // v0.2.5 (schema 30 → 31) — arm the daily_change_pct backfill EXACTLY ONCE.
   // No data change: just set the pending flag on the upgrade (skip fresh
@@ -1666,9 +1778,12 @@ function migrateAfterSchema(
   // (priorVersion < 44) + latch + backup + the rebuild wrapped in one transaction. The 2dp
   // total_pnl is KEPT so the green-days badges stay byte-identical. See
   // migrate-add-daily-summary-net-precise.ts.
-  migrateAddDailySummaryNetPrecise(conn, priorVersion, {
-    backup: () => backupBeforeDailySummaryNetPreciseMigration(conn, dbPath),
-  })
+  record(
+    'add-daily-summary-net-precise',
+    migrateAddDailySummaryNetPrecise(conn, priorVersion, {
+      backup: () => backupBeforeDailySummaryNetPreciseMigration(conn, dbPath),
+    }),
+  )
 
   // Mistakes-recovery Beat 1 (schema 44 -> 45) — backfill orphaned trades.mistakes_json
   // tags into the schema-34 mistake_def + trade_mistake model. PRESERVE: each dictionary-
@@ -1678,9 +1793,12 @@ function migrateAfterSchema(
   // trades rebuild stabilised ids. Version-gated (priorVersion < 45) + latch + backup that
   // aborts on throw + one transaction (the idempotent core makes a retry safe). See
   // migrate-mistakes-backfill.ts.
-  migrateMistakesBackfill(conn, priorVersion, {
-    backup: () => backupBeforeMistakesBackfillMigration(conn, dbPath),
-  })
+  record(
+    'mistakes-backfill',
+    migrateMistakesBackfill(conn, priorVersion, {
+      backup: () => backupBeforeMistakesBackfillMigration(conn, dbPath),
+    }),
+  )
 
   // Catalyst-recovery Beat 1 (schema 45 -> 46) — backfill the catalyst vocabulary from the DATA.
   // schema-35 seeded catalyst_def from a hardcoded 15-name list and backfilled nothing, and
@@ -1697,9 +1815,12 @@ function migrateAfterSchema(
   // same "registered last" discipline as the mistakes backfill above. Version-gated
   // (priorVersion < 46) + latch + backup that aborts on throw + one transaction (the idempotent
   // core makes a retry safe). See migrate-catalyst-backfill.ts.
-  migrateCatalystBackfill(conn, priorVersion, {
-    backup: () => backupBeforeCatalystBackfillMigration(conn, dbPath),
-  })
+  record(
+    'catalyst-backfill',
+    migrateCatalystBackfill(conn, priorVersion, {
+      backup: () => backupBeforeCatalystBackfillMigration(conn, dbPath),
+    }),
+  )
 
   // Rule-breaks reshape Beat 3a (schema 46 -> 47) — link every day's journal.rule_breaks
   // labels into the schema-47 rule_break_def + journal_rule_break model. PRESERVE: a label
@@ -1716,7 +1837,9 @@ function migrateAfterSchema(
   // version, so it is a real restore point rather than a one-way door. All this call does is
   // read the latch that copy set and refuse to run if it is missing.
   // See migrate-rule-breaks-backfill.ts.
-  migrateRuleBreaksBackfill(conn, priorVersion)
+  record('rule-breaks-backfill', migrateRuleBreaksBackfill(conn, priorVersion))
+
+  return { outcomes }
 }
 
 // First-run-only seed for the starter set of momentum playbooks. The

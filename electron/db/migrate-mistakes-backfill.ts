@@ -17,6 +17,14 @@ export const MISTAKES_BACKFILL_TARGET_SCHEMA_VERSION = 45
 // Settings latch — redundant given the version gate, kept as a third layer (the prior data
 // migrations all set one) and, living inside the transaction, doubles as the crash marker:
 // a rolled-back backfill leaves it unset so the migration retries next launch.
+//
+// *** THE RETRY THIS PROMISES IS REAL -- BUT ONLY SINCE THE IN-PROGRESS MARKER. ***
+// Until it shipped, this sentence was FALSE. db.exec(SCHEMA_SQL) (database.ts:185) DURABLY
+// stamps _meta.schema_version BEFORE any migration in migrateAfterSchema runs, so the next boot
+// read the NEW version and this migration's version gate returned 'already-migrated' -- BEFORE
+// its latch, the one thing that knew it never ran, was ever consulted. A rolled-back migration
+// was simply dead. The marker records the version the chain STARTED from and is cleared only on
+// SUCCESS, so an unfinished run really is resumed. See src/core/db/migrationChain.ts.
 export const MISTAKES_BACKFILL_MIGRATION_LATCH_KEY = 'mistakes_backfill_migration_done'
 
 export interface MistakesBackfillMigrationResult {
