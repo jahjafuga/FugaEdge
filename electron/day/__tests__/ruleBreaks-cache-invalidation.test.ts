@@ -18,7 +18,18 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 
 const { handlers, state } = vi.hoisted(() => ({
   handlers: new Map<string, (e: unknown, input: unknown) => unknown>(),
-  state: { journalHasBreak: false },
+  state: {
+    // 3b-1 — the fake models the JUNCTION, not journal.rule_breaks, because the junction
+    // is what the analytics rollup reads now (analytics/get.ts -> ruleBreaks/repo.ts).
+    // Modelling the column would keep this test passing today and go silently stale in
+    // 3b-2, when the dual-write dies and nothing writes that column at all — a fixture
+    // that no longer models the thing under test still goes green, which is the worst
+    // failure a contract test has.
+    linkCount: 0,
+    get journalHasBreak(): boolean {
+      return this.linkCount > 0
+    },
+  },
 }))
 
 vi.mock('electron', () => ({
@@ -29,21 +40,30 @@ vi.mock('electron', () => ({
   },
 }))
 
-// Fake DB: the rule-breaks upsert flips journalHasBreak to model "the day now
-// carries a non-empty rule_breaks array"; every other query is inert so the note
-// handler's session_meta upsert also runs without better-sqlite3.
+// Fake DB: the junction write flips linkCount to model "the day now carries rule-break
+// links"; every other query is inert so the note handler's session_meta upsert also runs
+// without better-sqlite3.
+//
+// 3b-1 — saveRuleBreaks DUAL-WRITES inside a db.transaction(): the journal.rule_breaks
+// column first (it creates the journal row the junction's FK needs), then the
+// journal_rule_break links. So the fake grew a .transaction and a lastInsertRowid.
+// THE CONTRACT ASSERTIONS ARE UNCHANGED — this is a fixture change, not a contract change.
 vi.mock('../../db/database', () => ({
   getDbPath: () => '/fake/db/path',
   openDatabase: () => ({
+    transaction: (fn: () => unknown) => () => fn(),
     prepare: (sql: string) => ({
-      run: (...args: unknown[]) => {
-        if (/INSERT INTO journal/i.test(sql) && /rule_breaks/i.test(sql)) {
-          const json = String(args[1] ?? '[]')
-          state.journalHasBreak = json !== '[]' && json !== ''
-        }
-        return { changes: 1 }
+      run: () => {
+        // replace-all semantics: writeRuleBreakLinksForDate clears the day, then inserts
+        // one row per resolved def id. Matching `journal_rule_break` exactly (not a
+        // `journal` prefix) keeps this from also catching the column upsert.
+        if (/DELETE FROM journal_rule_break/i.test(sql)) state.linkCount = 0
+        else if (/INSERT INTO journal_rule_break/i.test(sql)) state.linkCount += 1
+        return { changes: 1, lastInsertRowid: 1 }
       },
-      get: () => undefined,
+      // find-or-create asks for the next sort_position before minting; an unknown label
+      // then mints a def with id = lastInsertRowid = 1. Every other single-row read is inert.
+      get: () => (/COALESCE\(MAX\(sort_position\)/i.test(sql) ? { n: 0 } : undefined),
       all: () => [],
     }),
   }),
@@ -66,7 +86,7 @@ const analyticsPayload = () => ({
 
 beforeEach(() => {
   clearCache()
-  state.journalHasBreak = false
+  state.linkCount = 0 // journalHasBreak is derived from it
 })
 
 describe('DAY_RULE_BREAKS_SAVE — analytics cache invalidation', () => {

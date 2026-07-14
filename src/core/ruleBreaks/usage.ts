@@ -1,16 +1,25 @@
 // Rule-break USAGE tally — PURE (zero electron / db / DOM imports, per ARCHITECTURE #1).
 //
-// Beat 2 "stop the bleeding". Rule-breaks have no id and no archived flag: a day links to one
-// by NAME (journal.rule_breaks, a JSON array of label strings) and Analytics groups by that raw
-// string (electron/analytics/get.ts:963-975 -> src/core/analytics/ruleBreaks.ts). So renaming or
-// deleting a label in Settings silently ORPHANS every day carrying it — the label keeps counting
-// in Analytics while vanishing from the vocabulary, un-restorable.
+// Beat 2 "stop the bleeding". Rule-breaks had no id and no archived flag: a day linked to one
+// by NAME (journal.rule_breaks, a JSON array of label strings) and Analytics grouped by that raw
+// string. So renaming or deleting a label in Settings silently ORPHANED every day carrying it —
+// the label kept counting in Analytics while vanishing from the vocabulary, un-restorable.
 //
 // Until Beat 3 ships a history-preserving rename + an archive model, a label used on >= 1 day is
 // FROZEN in Settings. This module answers the only question that guard needs: for each label, on
 // how many DISTINCT days does it appear?
+//
+// 3b-1 STATUS — half of that premise is now fixed and half is not, so read this carefully.
+// Analytics no longer groups by the raw string: it reads the journal_rule_break JUNCTION and
+// resolves each rule's CURRENT name (electron/analytics/get.ts -> electron/ruleBreaks/repo.ts).
+// But the SETTINGS FREEZE GUARD still runs on this module, over the COLUMN, and deliberately so —
+// the junction folds case and this guard must not (see :42 below). That means this module is now
+// the LAST reader of journal.rule_breaks. It is correct only because saveRuleBreaks dual-writes
+// the column; when 3b-2 retires that write, this guard must move to a def-ID count over the
+// junction or it will silently report 0 for every rule tagged after the freeze. The full
+// reasoning is at electron/day/ruleBreaks.ts:getRuleBreakUsage, its only caller.
 
-/** One journal row, in the shape the repo reads it (electron/analytics/get.ts:963-968). */
+/** One journal row, in the shape getRuleBreakUsage reads it (electron/day/ruleBreaks.ts). */
 export interface JournalRuleBreakRow {
   date: string
   rule_breaks: string | null
@@ -19,10 +28,12 @@ export interface JournalRuleBreakRow {
 /** label (trimmed) -> number of DISTINCT journal days it appears on. */
 export type RuleBreakUsage = Record<string, number>
 
-// VERBATIM copy of electron/analytics/get.ts:875-883. COPIED, not imported: that module is
-// electron-side and core must not import it. It is JSON-or-[] with NO comma fallback — the comma
-// fallback in settings/repo.ts:67-80 belongs to the SETTINGS vocabulary and must never leak into
-// how a DAY's array is read, or a malformed day cell would silently split into phantom labels.
+// The journal.rule_breaks cell parser. It began as a verbatim copy of the analytics rollup's
+// parser — COPIED, not imported, because that module is electron-side and core must not import
+// it. 3b-1 moved the rollup onto the junction and deleted its copy, so this is now the ONLY one
+// left, and it is still live (see the header). It is JSON-or-[] with NO comma fallback — the
+// comma fallback in settings/repo.ts:67-80 belongs to the SETTINGS vocabulary and must never leak
+// into how a DAY's array is read, or a malformed day cell would silently split into phantom labels.
 function parseRuleBreaks(raw: string | null | undefined): string[] {
   if (!raw) return []
   try {

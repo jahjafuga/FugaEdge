@@ -1,6 +1,7 @@
 import { openDatabase } from '../db/database'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
+import { readRuleBreaksByDate } from '../ruleBreaks/repo'
 import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
@@ -869,18 +870,11 @@ function computeCatalystAnalytics(rows: TradeRow[]): CatalystAnalytics {
   return { buckets, tagged_trades: tagged, total_trades: rows.length }
 }
 
-// Phase 3 — parse a journal.rule_breaks cell (a JSON string array) into string[].
-// Malformed / empty reads back as []. The pure computeRuleBreaks dedups; this just
-// marshals the stored JSON.
-function parseRuleBreaks(raw: string | null | undefined): string[] {
-  if (!raw) return []
-  try {
-    const arr = JSON.parse(raw)
-    return Array.isArray(arr) ? arr.map((s) => String(s)).filter(Boolean) : []
-  } catch {
-    return []
-  }
-}
+// (3b-1 removed parseRuleBreaks from here. The rollup below no longer reads the
+// journal.rule_breaks JSON column, so nothing in this module parses it. The parser still
+// exists — and is still live — in src/core/ruleBreaks/usage.ts, which backs the Settings
+// freeze guard, the one remaining column reader. See day/ruleBreaks.ts:getRuleBreakUsage
+// for why that one deliberately did NOT follow the rollup onto the junction.)
 
 export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
   const db = openDatabase()
@@ -955,20 +949,28 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
   const exitQuality = computeExitQuality(rows)
   const discipline = computeDiscipline(db, rows)
 
-  // Phase 3 — per-day rule-break rollup. Read the journal rows carrying rule
-  // breaks (the journal-read precedent in computeDiscipline above), parse the JSON
-  // arrays into a date->breaks map, and pair with the per-date net P&L the equity
-  // curve already computed. The aggregation is the pure computeRuleBreaks
-  // (src/core); getAnalytics only marshals the inputs.
-  const ruleBreakRows = db
-    .prepare(`
-      SELECT date, rule_breaks FROM journal
-      WHERE rule_breaks IS NOT NULL AND rule_breaks != '' AND rule_breaks != '[]'
-    `)
-    .all() as { date: string; rule_breaks: string }[]
-  const ruleBreaksByDate = new Map<string, string[]>(
-    ruleBreakRows.map((r) => [r.date, parseRuleBreaks(r.rule_breaks)]),
-  )
+  // Phase 3 — per-day rule-break rollup, paired with the per-date net P&L the equity
+  // curve already computed. The aggregation is the pure computeRuleBreaks (src/core);
+  // getAnalytics only marshals the inputs.
+  //
+  // 3b-1 — THE READ SWAP. This used to scan journal.rule_breaks (a JSON array of NAME
+  // strings) and group by the raw string. It now reads the journal_rule_break JUNCTION
+  // JOINed to rule_break_def, so a rule is counted under its CURRENT name. That is what
+  // makes 3b-2's rename history-preserving instead of history-orphaning: renaming a def
+  // re-labels every day that ever broke it, rather than stranding them under the old
+  // string while the vocabulary moves on.
+  //
+  // The JOIN carries NO is_archived filter — a day that broke a since-archived rule still
+  // broke it, and dropping it would silently rewrite history. That is the mistakes rollup's
+  // precedent, verbatim (:911-917 above JOINs mistake_def with no archived filter).
+  //
+  // computeRuleBreaks is UNCHANGED: it took date->label[] before and it takes date->label[]
+  // now. The one behaviour change is a merge it inherits from the junction — a legacy day
+  // whose column held both "Overtrading" and "overtrading" was TWO buckets and is now ONE,
+  // because ux_rule_break_def_name is UNIQUE(lower(name)). They are the same rule, so the
+  // merge is a correction, and it is pinned explicitly rather than left to surprise someone:
+  // electron/ruleBreaks/__tests__/repo.inmemory.ts, fixture [A].
+  const ruleBreaksByDate = readRuleBreaksByDate(db)
   const netPnlByDate = new Map<string, number>(
     equity.map((p) => [p.date, p.daily_pnl]),
   )

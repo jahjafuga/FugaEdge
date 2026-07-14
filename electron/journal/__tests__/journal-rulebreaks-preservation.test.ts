@@ -95,6 +95,9 @@ function storedRow(over: Record<string, unknown> = {}): Record<string, unknown> 
     rule_violations: '[]',
     day_tags: '[]',
     rule_breaks: '[]',
+    // 3b-1 — the guard now also asks the JUNCTION. 0 = this day has no journal_rule_break
+    // rows. Once the column is retired in 3b-2 this is the ONLY thing keeping the row alive.
+    has_links: 0,
     premarket_recording_duration: null,
     postsession_recording_duration: null,
     ...over,
@@ -104,8 +107,9 @@ function storedRow(over: Record<string, unknown> = {}): Record<string, unknown> 
 const deleteSql = () => prepared.find((s) => /DELETE FROM journal/i.test(s))
 const updateSql = () => prepared.find((s) => /UPDATE journal\s+SET/i.test(s))
 const insertSql = () => prepared.find((s) => /INSERT INTO journal/i.test(s))
+// [\s\S] not . — the guard's SELECT spans lines now that it carries the junction EXISTS.
 const guardSelect = () =>
-  prepared.find((s) => /SELECT .*FROM journal WHERE date/i.test(s))
+  prepared.find((s) => /SELECT [\s\S]*FROM journal WHERE date/i.test(s))
 
 describe('saveJournalDay — rule_breaks must survive an emptied entry', () => {
   it('THE REPRO: a day with rule_breaks + a note -> empty save -> row SURVIVES, breaks INTACT', () => {
@@ -185,5 +189,77 @@ describe('saveJournalDay — the existing cleanup behaviour is PRESERVED', () =>
 
     expect(insertSql()).toBeDefined()
     expect(deleteSql()).toBeUndefined()
+  })
+})
+
+// ── 3b-1 — [G] THE GUARD RE-POINT ───────────────────────────────────────────
+//
+// The junction is now authoritative: Analytics and the day view read
+// journal_rule_break, not journal.rule_breaks. 0149c75's guard reads the COLUMN.
+//
+// Under this beat's DUAL-WRITE the column is still current, so a column-only guard would
+// keep passing — which is exactly the trap. It would go stale the instant 3b-2 retires the
+// column, and the failure mode is the one 0149c75 shipped to fix: clearing a note silently
+// destroys a day's rule-breaks. So the guard is re-pointed NOW, while the column is still
+// there to prove parity, rather than in the beat that removes its safety net.
+describe('saveJournalDay — [G] the guard consults the JUNCTION, not just the column', () => {
+  it('the guard SELECT reads journal_rule_break (it must survive the column being retired)', () => {
+    journalRow = storedRow({ has_links: 1 })
+    saveJournalDay(emptySave())
+    expect(guardSelect()).toMatch(/journal_rule_break/i)
+  })
+
+  it('*** THE 3b-2 CASE: junction links, EMPTY column -> the row SURVIVES ***', () => {
+    // This is what every day looks like once the column is frozen. A column-reading guard
+    // deletes this row and destroys the day's rule-breaks. The junction-reading guard keeps it.
+    journalRow = storedRow({ rule_breaks: '[]', day_tags: '[]', has_links: 1 })
+
+    saveJournalDay(emptySave())
+
+    expect(deleteSql()).toBeUndefined()
+    expect(updateSql()).toBeDefined()
+    // and the preserve branch must not clobber anything it does not own
+    expect(updateSql()).not.toMatch(/rule_breaks\s*=/i)
+  })
+
+  it('junction links AND a populated column (today, under dual-write) -> row SURVIVES', () => {
+    journalRow = storedRow({ rule_breaks: '["Chased entry"]', has_links: 1 })
+
+    saveJournalDay(emptySave())
+
+    expect(deleteSql()).toBeUndefined()
+    expect(updateSql()).toBeDefined()
+  })
+
+  it('column-only breaks with NO junction row still preserve (a pre-3a row, unregressed)', () => {
+    journalRow = storedRow({ rule_breaks: '["Legacy label"]', has_links: 0 })
+
+    saveJournalDay(emptySave())
+
+    expect(deleteSql()).toBeUndefined()
+    expect(updateSql()).toBeDefined()
+  })
+})
+
+// ── 3b-1 — [H] the cleanup lock, unregressed ────────────────────────────────
+describe('saveJournalDay — [H] a genuinely empty day is STILL deleted', () => {
+  it('no breaks, no links, no tags -> the tidy-up DELETE still fires', () => {
+    journalRow = storedRow({ rule_breaks: '[]', day_tags: '[]', has_links: 0 })
+
+    saveJournalDay(emptySave())
+
+    expect(deleteSql()).toBeDefined()
+    expect(updateSql()).toBeUndefined()
+  })
+
+  it('has_links = 0 does not accidentally read as truthy', () => {
+    // The EXISTS subquery returns 0/1, not a boolean. A `!!existing.has_links` on the
+    // number 0 is false, but a naive `existing.has_links != null` would be TRUE and would
+    // preserve every empty row forever — a silent leak of the cleanup contract.
+    journalRow = storedRow({ has_links: 0 })
+
+    saveJournalDay(emptySave())
+
+    expect(deleteSql()).toBeDefined()
   })
 })

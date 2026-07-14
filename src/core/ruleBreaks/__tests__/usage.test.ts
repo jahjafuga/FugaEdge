@@ -4,10 +4,15 @@
 // until Beat 3 ships a history-preserving rename. This module answers the only question the
 // guard needs: for each label, on how many DISTINCT days does it appear?
 //
-// The rows come from the SAME query the analytics rollup already runs
-// (electron/analytics/get.ts:963-968) and are parsed with the SAME parser
-// (electron/analytics/get.ts:875-883 — JSON-or-[], NO comma fallback; that fallback is
+// The rows come from electron/day/ruleBreaks.ts:getRuleBreakUsage, which reads the
+// journal.rule_breaks column, and are parsed JSON-or-[] with NO comma fallback (that fallback is
 // settings-only and must not leak in here).
+//
+// 3b-1 — the analytics rollup used to run that same query, and this tally was pinned to it. It
+// doesn't any more: Analytics reads the junction now. This module is the LAST column reader, and
+// it stays one on purpose — the junction folds case (UNIQUE(lower(name))) and test (6)'s sibling
+// decision at usage.ts:42 says this guard must not. It rides on saveRuleBreaks' dual-write to
+// stay correct, and 3b-2 must re-point it at a def-ID count when that write goes away.
 
 import { describe, expect, it } from 'vitest'
 import { tallyRuleBreakUsage } from '@/core/ruleBreaks/usage'
