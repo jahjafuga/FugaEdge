@@ -21,8 +21,18 @@ import { computeMacd } from '@/core/charts/macd'
  * by the diagnostic) — this bump exists purely to mark every
  * pre-fix row stale so the launch backfill recomputes the whole
  * book against current fills.
+ *
+ * Bumped to 3 (Entry-vs-9EMA Beat 2, 2026-07-15): the TILE HEAL.
+ * The snapshot math is again unchanged — this bump marks every
+ * pre-heal row stale so the launch backfill rewrites the whole
+ * book through upsertTradeTechnicals, whose new dual-write heals
+ * the legacy trades.entry_ema9_distance_pct column (union seed +
+ * entry-VWA convention) for the remaining column readers. The
+ * old day-only tile writer retires in the same commit; after
+ * this sweep the column is a mirror of tf_1m_ema9_dist_pct,
+ * NULL (pending) wherever the snapshot is a stub.
  */
-export const TECHNICALS_SCHEMA_VERSION = 2
+export const TECHNICALS_SCHEMA_VERSION = 3
 
 /**
  * Narrow input type — declares exactly what this module

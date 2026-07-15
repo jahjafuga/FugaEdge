@@ -179,7 +179,8 @@ export function upsertTradeTechnicals(
   technicals: TradeTechnicals,
 ): void {
   const db = openDatabase()
-  db.prepare(`
+  const tx = db.transaction(() => {
+    db.prepare(`
     INSERT INTO trade_technicals (
       trade_id,
       tf_1m_macd_line, tf_1m_signal_line, tf_1m_histogram, tf_1m_histogram_prior,
@@ -273,6 +274,24 @@ export function upsertTradeTechnicals(
     computed_at: technicals.computed_at,
     schema_version: technicals.schema_version,
   })
+
+    // Beat 2 — the Entry-vs-9EMA tile dual-write. This upsert is the ONE
+    // function every snapshot write passes through (launch sweep + chart-open
+    // lazy-guard, including the incomplete placeholder), so the legacy
+    // trades.entry_ema9_distance_pct column is healed here and nowhere else:
+    // the snapshot's union-seeded, entry-VWA 1m value when the snapshot is
+    // complete, NULL (→ pending em-dash) when it's a stub — a stub deliberately
+    // UN-writes any stale day-only value rather than leaving it looking
+    // authoritative. Runs inside the transaction so a kill can't strand a
+    // v-current row whose tile was never healed (the worklist would skip it
+    // forever). Renderer notification stays with the callers' existing
+    // bumpDataVersion — no bump here (no double-bump).
+    db.prepare('UPDATE trades SET entry_ema9_distance_pct = ? WHERE id = ?').run(
+      technicals.data_complete ? technicals.tf_1m.ema9_dist_pct : null,
+      tradeId,
+    )
+  })
+  tx()
 }
 
 /**

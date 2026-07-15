@@ -30,7 +30,6 @@ vi.mock('../repo', () => ({
   }),
   upsertIntradayRow: vi.fn(),
   getIntradayRow: () => null,
-  setTradeEma9Distance: vi.fn(),
   setTradeMaeMfe: vi.fn(),
 }))
 

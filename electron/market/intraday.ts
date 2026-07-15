@@ -1,6 +1,5 @@
 import { openDatabase } from '../db/database'
 import { getSettings } from '../settings/repo'
-import { ema } from '../lib/ema'
 import {
   fetchIntradayMinutes,
   MassiveError,
@@ -11,7 +10,6 @@ import type { MarketRefreshProgress } from '@shared/market-types'
 import {
   getIntradayRow,
   intradayPairsNeedingFetch,
-  setTradeEma9Distance,
   setTradeMaeMfe,
   upsertIntradayRow,
 } from './repo'
@@ -29,7 +27,6 @@ export interface IntradayRefreshResult {
   skipped: number
   apiKeyMissing: boolean
   errors: { symbol: string; date: string; message: string }[]
-  emaBackfilled: number
   maeMfeBackfilled: number
   durationMs: number
   cancelled: boolean
@@ -82,7 +79,6 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       skipped: 0,
       apiKeyMissing: true,
       errors: [],
-      emaBackfilled: 0,
       maeMfeBackfilled: 0,
       durationMs: Date.now() - startedAt,
       cancelled: false,
@@ -93,10 +89,11 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   const attempted = pairs.length
 
   if (attempted === 0) {
-    // Nothing new to fetch — but still backfill EMA9 distance + MAE/MFE for
-    // any trades missing them (in case bars are already cached from a
-    // previous run).
-    const backfilled = backfillAllEma9Distances()
+    // Nothing new to fetch — but still backfill MAE/MFE for any trades missing
+    // it (in case bars are already cached from a previous run). The old
+    // Entry-vs-9EMA sibling retired in Beat 2: the tile column is healed by the
+    // technicals sweep's dual-write now, and a bar-driven rewrite here would
+    // re-clobber those healed values whenever warmup happened to be absent.
     const maeMfeBackfilled = backfillAllMaeMfe()
     return {
       attempted: 0,
@@ -105,7 +102,6 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
       skipped: cooldownSkipped,
       apiKeyMissing: false,
       errors: [],
-      emaBackfilled: backfilled,
       maeMfeBackfilled,
       durationMs: Date.now() - startedAt,
       cancelled: false,
@@ -194,15 +190,14 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   await Promise.all(workers)
 
   const cancelled = cancelRequested
-  // Skip the post-loop backfills when cancelled so the run returns fast — the
-  // user explicitly asked for it to stop. Backfills are idempotent and will
+  // Skip the post-loop backfill when cancelled so the run returns fast — the
+  // user explicitly asked for it to stop. The backfill is idempotent and will
   // run on the next normal refresh.
-  const emaBackfilled = cancelled ? 0 : backfillAllEma9Distances()
   const maeMfeBackfilled = cancelled ? 0 : backfillAllMaeMfe()
 
   const durationMs = Date.now() - startedAt
   console.info(
-    `[FE intraday] refresh ${cancelled ? 'cancelled' : 'done'}: fetched=${fetched} failed=${failed} ema_backfilled=${emaBackfilled} mae_mfe_backfilled=${maeMfeBackfilled} in ${durationMs}ms`,
+    `[FE intraday] refresh ${cancelled ? 'cancelled' : 'done'}: fetched=${fetched} failed=${failed} mae_mfe_backfilled=${maeMfeBackfilled} in ${durationMs}ms`,
   )
 
   return {
@@ -212,80 +207,18 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
     skipped: cooldownSkipped,
     apiKeyMissing: false,
     errors,
-    emaBackfilled,
     maeMfeBackfilled,
     durationMs,
     cancelled,
   }
 }
 
-// Recompute EMA9 distance for every trade where bars are available. Cheap:
-// a few k trades × ~390 bars/day. Runs synchronously after a refresh.
-export function backfillAllEma9Distances(): number {
-  const db = openDatabase()
-  // Pull trades that need recomputing — anyone without a value OR all of them
-  // (we always overwrite since the formula is deterministic). We avoid
-  // redundant writes by checking equality below.
-  const trades = db
-    .prepare(`
-      SELECT id, symbol, date, side, avg_buy_price, avg_sell_price, open_time, entry_ema9_distance_pct
-      FROM trades
-    `)
-    .all() as {
-      id: number
-      symbol: string
-      date: string
-      side: 'long' | 'short'
-      avg_buy_price: number
-      avg_sell_price: number
-      open_time: string
-      entry_ema9_distance_pct: number | null
-    }[]
-
-  let written = 0
-  // Cache parsed bar arrays so we only deserialize each row once per refresh.
-  // Beat B: the cache carries the row's warmup series too — the SAME
-  // intraday_bars row the day bars come from (zero extra fetches).
-  const barsCache = new Map<string, { bars: IntradayBar[]; warmup: IntradayBar[] } | null>()
-
-  for (const t of trades) {
-    const key = `${t.symbol}|${t.date}`
-    let cached = barsCache.get(key)
-    if (cached === undefined) {
-      const row = getIntradayRow(t.symbol, t.date)
-      cached = row?.bars ? { bars: row.bars, warmup: row.warmup_bars ?? [] } : null
-      barsCache.set(key, cached)
-    }
-    // Uncached (no bars row) -> SKIP, never erase: this sweep is offline
-    // by design (no fetch), so bar absence says nothing about the trade —
-    // a stored value survives until bars exist to recompute it (beat B d3).
-    if (cached === null) continue
-    const pct = computeEma9Distance(t, cached.bars, cached.warmup)
-    // Only write when the value actually changes — keeps the WAL slim.
-    if (pct !== t.entry_ema9_distance_pct) {
-      setTradeEma9Distance(t.id, pct)
-      written++
-    }
-  }
-  return written
-}
-
-// v0.2.5 — launch sweep so recent trades' Entry-vs-9EMA populates WITHOUT a
-// manual Refresh intraday. Unlike runPendingMaeMfeBackfill there is NO migration
-// latch: backfillAllEma9Distances is keyless (computes from already-cached
-// intraday_bars; no network) and idempotent (writes only changed rows), so it is
-// safe to run unconditionally every launch. Self-contained try/catch mirrors the
-// MAE/MFE arm so a setImmediate throw never crashes startup.
-export function runLaunchEma9Backfill(): void {
-  try {
-    const written = backfillAllEma9Distances()
-    console.info(
-      `[FE intraday] launch EMA9 backfill done: ${written} trade(s) recomputed`,
-    )
-  } catch (e) {
-    console.error(`[FE intraday] launch EMA9 backfill failed: ${e}`)
-  }
-}
+// The bar-driven Entry-vs-9EMA rewrite (and its launch arm) retired in Beat 2.
+// The tile column is written in exactly one place now — the technicals
+// dual-write in electron/technicals/repo.ts — sourced from the snapshot's
+// union-seeded, entry-VWA value. The old rewrite SELECTed every trade and
+// overwrote on any difference, degrading to a day-only seed whenever warmup
+// was absent, which re-poisoned healed values on every boot/refresh.
 
 interface TradeForEma {
   side: 'long' | 'short'
@@ -456,48 +389,3 @@ export function runPendingMaeMfeBackfill(): void {
   }
 }
 
-export function computeEma9Distance(
-  trade: TradeForEma,
-  bars: IntradayBar[] | null,
-  warmupBars: IntradayBar[] | null = null,
-): number | null {
-  if (!bars || bars.length === 0) return null
-  // open_time is true UTC (Day 8.5 Commit B) — Date.parse reads the Z suffix
-  // as UTC, matching the UTC-epoch bar timestamps from Massive.
-  const entryMs = Date.parse(trade.open_time)
-  if (!Number.isFinite(entryMs)) return null
-
-  // Find the bar containing the entry (its start ≤ entry < start + 60s).
-  // Bars are sorted ascending by Massive. (The tile's existing entry-bar
-  // selection — last bar at-or-before the entry — is kept byte-identical;
-  // beat B unifies the SEED only.)
-  let cutoffIdx = -1
-  for (let i = 0; i < bars.length; i++) {
-    if (bars[i].t > entryMs) break
-    cutoffIdx = i
-  }
-  if (cutoffIdx < 0) return null // entry precedes every day bar
-
-  // EMA fix beat B — THE SEED UNIFICATION: the EMA is seeded over the
-  // WARMUP-UNION closes (prior-day series + day bars up to the entry bar)
-  // and read at the entry bar, adopting the snapshot's exonerated
-  // convention (computeTradeTechnicals.ts:155-185) exactly. The old
-  // day-only slice and its >=9-day-bar floor retire: an early-session
-  // entry now seeds from warmup (the 9/37 drift class, dead), and with
-  // no warmup the union degrades to day-only — the ema() helper's own
-  // 9-sample seed keeps the honest null. The two ema() helpers are
-  // algorithmically identical (SMA seed; core/charts/ema.ts:10-13), so
-  // the window is the whole unification.
-  const closes = [
-    ...(warmupBars ?? []).map((b) => b.c),
-    ...bars.slice(0, cutoffIdx + 1).map((b) => b.c),
-  ]
-  const series = ema(closes, 9)
-  const last = series[series.length - 1]
-  if (last == null || last <= 0) return null
-
-  const entry = entryPriceOf(trade)
-  if (!Number.isFinite(entry) || entry <= 0) return null
-
-  return ((entry - last) / last) * 100
-}

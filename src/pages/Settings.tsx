@@ -710,10 +710,6 @@ export default function Settings() {
                   <span className="font-mono text-text">{intradayResult.skipped}</span>{' '}
                   <span className="text-muted">skipped · </span>
                   <span className="font-mono text-gold">
-                    {intradayResult.emaBackfilled}
-                  </span>{' '}
-                  <span className="text-muted">EMA9 updated · </span>
-                  <span className="font-mono text-gold">
                     {intradayResult.maeMfeBackfilled}
                   </span>{' '}
                   <span className="text-muted">MAE/MFE updated · </span>

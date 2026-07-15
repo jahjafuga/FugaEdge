@@ -20,7 +20,7 @@ import { registerJournalIpc } from '../journal/ipc'
 import { registerSettingsIpc } from '../settings/ipc'
 import { registerDataHealthIpc } from '../data-health/ipc'
 import { registerMarketIpc } from '../market/ipc'
-import { runPendingMaeMfeBackfill, runLaunchEma9Backfill } from '../market/intraday'
+import { runPendingMaeMfeBackfill } from '../market/intraday'
 import { runPendingDailyChangeBackfill } from '../market/daily-change-backfill'
 import { runPendingRvolBackfill } from '../market/rvol-backfill'
 import { runTradeTechnicalsBackfill } from '../technicals/backfill'
@@ -248,7 +248,8 @@ app.whenReady().then(() => {
   // v0.2.4 §K — at the same ready-to-show beat, run the launch backfill chain.
   // ORDER IS LOAD-BEARING: runWarmupBackfill populates intraday_bars.warmup_bars,
   // and runTradeTechnicalsBackfill then CONSUMES that warmup to flip stub trades
-  // from data_complete=0 to 1. Running them in parallel (or technicals first)
+  // from data_complete=0 to 1. (Since Beat 2 the technicals sweep also dual-writes
+  // the Entry-vs-9EMA tile column from each snapshot it persists.) Running them in parallel (or technicals first)
   // would let the technicals sweep recompute rows whose warmup hasn't landed yet
   // and re-write placeholders — so first launch would never self-heal. A single
   // awaited async block is the only honest sequencing; separate setImmediates
@@ -265,10 +266,8 @@ app.whenReady().then(() => {
   // recompute, unrelated to the warmup→technicals→xp chain.)
   win.once('ready-to-show', () => {
     setImmediate(runPendingMaeMfeBackfill)
-    // v0.2.5 — EMA9 distance launch sweep (keyless, idempotent): populates
-    // Entry-vs-9EMA for trades whose bars are already cached but were never
-    // recomputed (e.g. chart-opened since the last refresh). No network.
-    setImmediate(runLaunchEma9Backfill)
+    // (The old EMA9-distance launch sweep retired in Beat 2 — the technicals
+    // backfill below heals the tile column via its dual-write instead.)
     // v0.2.5 Trader DNA — fire-once daily % change backfill (schema-31 arm).
     // Gentle/background/cancelable network sweep; no-op when the flag is unset.
     setImmediate(runPendingDailyChangeBackfill)

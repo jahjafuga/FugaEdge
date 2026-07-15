@@ -9,9 +9,10 @@
 // nearest) into one testable unit. Conventions are mirrored deliberately:
 //   - fill→bar snapping mirrors nearest() in ChartTab.tsx (same tie-break:
 //     on an exact tie the LATER bar wins).
-//   - ema9DistancePct mirrors computeEntryEma9Pct (ChartTab.tsx) and its
-//     server twin computeEma9Distance (electron/market/intraday.ts): latest
+//   - ema9DistancePct mirrors computeEntryEma9Pct (ChartTab.tsx): latest
 //     indicator point with time <= the fill epoch, then percentage distance.
+//     (Its old server twin in electron/market/intraday.ts retired in Beat 2 —
+//     the per-trade tile column is written by the technicals dual-write now.)
 //   - share-weighted averages mirror the avg() helper in ChartTab's price-line
 //     effect: Σ(price·qty) / Σqty over the side's fills.
 

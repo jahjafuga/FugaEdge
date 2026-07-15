@@ -32,7 +32,6 @@ export interface IntradayRefreshResult {
   skipped: number
   apiKeyMissing: boolean
   errors: { symbol: string; date: string; message: string }[]
-  emaBackfilled: number
   maeMfeBackfilled: number
   durationMs: number
   /** True when the user clicked Cancel; the run still resolved cleanly (no

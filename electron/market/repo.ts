@@ -484,11 +484,6 @@ export function reclearStrandedWarmupMarkers(): { symbol: string; date: string }
   return locked.map((r) => ({ symbol: r.symbol, date: r.date }))
 }
 
-export function setTradeEma9Distance(tradeId: number, pct: number | null): void {
-  const db = openDatabase()
-  db.prepare('UPDATE trades SET entry_ema9_distance_pct = ? WHERE id = ?').run(pct, tradeId)
-}
-
 export function setTradeMaeMfe(
   tradeId: number,
   mae: number | null,
