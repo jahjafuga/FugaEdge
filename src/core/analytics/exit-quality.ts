@@ -55,15 +55,19 @@ export function computeExitDeltas(trades: ExitDeltaInput[]): ExitDelta[] {
     const delta = bestNet - t.net_pnl
     if (delta <= 0) continue // best exit was the only one, or no better than actual
 
-    // The gap as a 0..1 fraction of the best exit price — the % form of `delta`.
-    // Math.abs is deliberate: best_exit_price is the FAVORABLE extreme (max for a
-    // long, MIN for a short), so (best − avg) is positive for longs but negative
-    // for shorts. `delta` above is already sign-normalized to ≥ 0; mirroring it
-    // with Math.abs keeps the $ and % columns consistent and the % positive for
-    // both sides (Dave's literal (best − avg)/best would go negative on shorts).
-    // best_exit_price is structurally > 0 when delta > 0; if it were 0 the
-    // fraction is non-finite and the formatter renders "—" — never a fake 0.
-    const pctLeftOnTable = Math.abs(bestExitPrice - actualAvgExit) / bestExitPrice
+    // LEFT % — the fraction of the ACHIEVABLE money left on the table:
+    // delta / bestNet, dollar space (djsevans87 beta ticket, 2026-07-15). The
+    // old |best − avg| / best_exit_price was a PRICE gap that read as
+    // "%-of-money" beside the dollar LEFT ON TABLE column; the price gap
+    // remains derivable from the AVG EXIT / BEST EXIT columns two cells over.
+    // Both operands are net with the SAME total_fees, so the fraction carries
+    // no fee asymmetry, and both are ≥/> 0 under the guard, so no Math.abs is
+    // needed for shorts. The guard is EXPLICIT logic, not the formatter: a
+    // loser whose best exit still loses passes the delta > 0 filter with
+    // bestNet < 0, and delta / bestNet would then be a FINITE wrong-signed
+    // number the "—" formatter cannot catch (it only catches null/non-finite).
+    // bestNet <= 0 → null → percent() renders the em-dash.
+    const pctLeftOnTable = bestNet > 0 ? delta / bestNet : null
 
     out.push({
       trade_id: t.id,

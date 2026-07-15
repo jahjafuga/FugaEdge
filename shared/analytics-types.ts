@@ -62,10 +62,12 @@ export interface ExitDelta {
   actual_net_pnl: number
   best_exit_net_pnl: number       // hypothetical: all exits at best_exit_price (fees unchanged)
   delta: number                   // best_exit_net_pnl - actual_net_pnl (>= 0)
-  // |best_exit_price - actual_avg_exit| / best_exit_price — the gap as a 0..1
-  // fraction of best exit (the % form of delta). Math.abs keeps it >= 0 for
-  // shorts too (best = min cover < avg), mirroring the sign-normalized delta.
-  pct_left_on_table: number
+  // delta / best_exit_net_pnl — the fraction of the ACHIEVABLE money left on
+  // the table (0..1+; >1 means you left more than the best-exit profit, e.g. a
+  // red trade whose best exit was green). NULL when best_exit_net_pnl <= 0 (a
+  // loser whose best exit still loses passes the delta filter; a finite
+  // negative fraction would render confidently) — the formatter shows "—".
+  pct_left_on_table: number | null
 }
 
 export interface MomentumBucket {

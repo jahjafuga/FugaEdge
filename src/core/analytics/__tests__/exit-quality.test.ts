@@ -87,11 +87,11 @@ describe('computeExitDeltas', () => {
     expect(result[0].actual_net_pnl).toBeCloseTo(60, 5)
     expect(result[0].best_exit_net_pnl).toBeCloseTo(80, 5)
     expect(result[0].delta).toBeCloseTo(20, 5)
-    // % left = |best − avg| / best = |10.8 − 10.6| / 10.8 ≈ 0.0185, a 0..1
-    // fraction (NOT pre-multiplied by 100).
-    expect(result[0].pct_left_on_table).toBeCloseTo(0.2 / 10.8, 5)
-    expect(result[0].pct_left_on_table).toBeGreaterThan(0)
-    expect(result[0].pct_left_on_table).toBeLessThanOrEqual(1)
+    // % left = delta / bestNet = 20 / 80 = 0.25 — the fraction of the
+    // ACHIEVABLE money left (a 0..1+ fraction, NOT pre-multiplied by 100).
+    expect(result[0].pct_left_on_table).toBeCloseTo(20 / 80, 5)
+    expect(result[0].pct_left_on_table!).toBeGreaterThan(0)
+    expect(result[0].pct_left_on_table!).toBeLessThanOrEqual(1)
   })
 
   it('uses the lowest cover price as best exit for a scaled-out short', () => {
@@ -114,11 +114,11 @@ describe('computeExitDeltas', () => {
     expect(result[0].actual_avg_exit).toBeCloseTo(9.4, 5)
     expect(result[0].best_exit_net_pnl).toBeCloseTo(80, 5)
     expect(result[0].delta).toBeCloseTo(20, 5)
-    // % left is POSITIVE for a short even though best (9.2) < avg (9.4): Math.abs
-    // mirrors the sign-normalized delta. |9.2 − 9.4| / 9.2 ≈ 0.0217. Dave's
-    // literal (best − avg)/best would be −0.0217 — this assertion pins the fix.
-    expect(result[0].pct_left_on_table).toBeCloseTo(0.2 / 9.2, 5)
-    expect(result[0].pct_left_on_table).toBeGreaterThan(0)
+    // % left is POSITIVE for a short with no sign gymnastics: delta / bestNet
+    // = 20 / 80 = 0.25, both dollar quantities > 0 by filter + guard (the old
+    // price-gap needed Math.abs because best cover < avg cover on shorts).
+    expect(result[0].pct_left_on_table).toBeCloseTo(20 / 80, 5)
+    expect(result[0].pct_left_on_table!).toBeGreaterThan(0)
   })
 
   it('subtracts fees from the hypothetical best-exit net', () => {
