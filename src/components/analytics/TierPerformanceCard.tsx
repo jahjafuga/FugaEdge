@@ -4,7 +4,7 @@ import Card from '@/components/ui/Card'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
 import AccordionPanel from '@/components/analytics/tabs/technicals/AccordionPanel'
-import { useBucketBand } from '@/components/analytics/tabs/technicals/useBucketBand'
+import { useMultiBucketBand } from '@/components/analytics/tabs/technicals/useMultiBucketBand'
 import { money, percent, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import {
   aggregateTierPerformance,
@@ -32,10 +32,16 @@ const TIER_COL_COUNT = 7
 export default function TierPerformanceCard({ trades }: TierPerformanceCardProps) {
   const rows = useMemo(() => aggregateTierPerformance(trades), [trades])
 
-  // Single-open accordion (parent-owned), shared with the Technicals bands:
-  // opening one tier closes any other, and the closing panel's content stays
-  // mounted through the collapse animation.
-  const { isBucketOpen, isBucketDisplayed, onToggle } = useBucketBand<PlaybookTier>()
+  // MULTI-open accordion (parent-owned). Tiers exist to be COMPARED — djsevans87 could not see
+  // A+ and B at once, because single-open collapsed the first the moment he opened the second.
+  // Any number of tiers stay open now, and each closing panel keeps its content mounted through
+  // its OWN collapse (the per-key lag; see useMultiBucketBand).
+  //
+  // This deliberately does NOT use useBucketBand, and the v0.2.4 rule it enforces — "only one
+  // expansion open per section at a time" — is untouched: the five Technicals sections still use
+  // it, and each holds its own instance. AccordionPanel never enforced exclusivity; it takes a
+  // plain `open` boolean per panel. So this is a local change, not a shared-behaviour change.
+  const { isBucketOpen, isBucketDisplayed, onToggle } = useMultiBucketBand<PlaybookTier>()
 
   // Idea 3 — the gradeless No-Setup row, computed SEPARATELY from the tier
   // aggregation (whose null-tier skip would otherwise leak untagged trades).
