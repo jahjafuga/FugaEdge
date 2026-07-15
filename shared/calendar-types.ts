@@ -65,6 +65,11 @@ export interface WeeklySummary {
   // Streak going into the next week — counts consecutive winning/losing days
   // walking back from the last traded day on or before week_end.
   streak: { kind: 'win' | 'loss' | 'none'; days: number }
+  /** Most-tagged trade mistake across the week's trades (junction-fed:
+   *  trade_mistake → mistake_def), or null when the week has none. Reinstated
+   *  (djsevans87 #7) after the 2f51c52 display sweep; ties break count desc →
+   *  vocabulary sort_position → name, deterministically. */
+  top_mistake: { name: string; count: number } | null
   notes: string
 }
 

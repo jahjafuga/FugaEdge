@@ -3,6 +3,7 @@ import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
 import type { AccountScope } from '@shared/accounts-types'
 import { scopeFilter } from '../accounts/scope'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { topMistake, type MistakeTagRow } from '@/core/calendar/topMistake'
 
 function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n)
@@ -96,6 +97,7 @@ function computeOne(
   journals: JournalForWeek[],
   notes: string,
   dailyPnl: Map<string, number>,
+  mistakeTags: (MistakeTagRow & { date: string })[],
 ): WeeklySummary {
   const weekEnd = addDaysStr(weekStart, 6)
   const inMonth = (() => {
@@ -161,6 +163,12 @@ function computeOne(
 
   const streak = computeStreak(weekEnd, dailyPnl)
 
+  // Top trade mistake across the week — junction-fed rows folded by the pure
+  // deterministic topMistake (reinstated after the 2f51c52 display sweep).
+  const top_mistake = topMistake(
+    mistakeTags.filter((r) => r.date >= weekStart && r.date <= weekEnd),
+  )
+
   return {
     week_start: weekStart,
     week_end: weekEnd,
@@ -182,6 +190,7 @@ function computeOne(
     days_journaled: daysJournaled,
     emotion_avg: emotionAvg,
     streak,
+    top_mistake,
     notes,
   }
 }
@@ -243,8 +252,23 @@ export function getWeeklySummaries(
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)
 
+  // Per-trade mistake tags for the visible range, one row per (trade, tag),
+  // straight off the authoritative junction (the orphaned legacy JSON column
+  // stays dead — a structural test bans its name from this module). Same
+  // scope + live-trade filter as the trades pull above; computeOne folds each
+  // week's slice through the pure topMistake.
+  const mistakeTags = db
+    .prepare(`
+      SELECT t.date AS date, md.name AS name, md.sort_position AS sort_position
+      FROM trade_mistake jm
+      JOIN mistake_def md ON md.id = jm.mistake_def_id
+      JOIN trades t ON t.id = jm.trade_id
+      WHERE t.date >= ? AND t.date <= ? AND t.deleted_at IS NULL AND ${sf.clause}
+    `)
+    .all(rangeStart, rangeEnd, ...sf.params) as (MistakeTagRow & { date: string })[]
+
   return weekStarts.map((ws) =>
-    computeOne(ws, monthPrefix, trades, journals, notesMap.get(ws) ?? '', dailyPnl),
+    computeOne(ws, monthPrefix, trades, journals, notesMap.get(ws) ?? '', dailyPnl, mistakeTags),
   )
 }
 

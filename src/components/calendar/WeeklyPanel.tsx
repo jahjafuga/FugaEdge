@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { Pencil, X as XIcon } from 'lucide-react'
 import type { WeeklySummary } from '@shared/calendar-types'
 import { int, money, percent, signed } from '@/lib/format'
 
@@ -120,6 +120,15 @@ export default function WeeklyPanel({ summary, onClick }: WeeklyPanelProps) {
           <span className="inline-flex items-center gap-1 text-gold/70">
             <Pencil size={9} strokeWidth={2} />
             {int(summary.days_journaled)}/{int(summary.days_traded)} journaled
+          </span>
+        )}
+        {summary.top_mistake && (
+          <span
+            className="inline-flex items-center gap-1 truncate text-loss/80"
+            title={`Top mistake: ${summary.top_mistake.name} (${summary.top_mistake.count}×)`}
+          >
+            <XIcon size={9} strokeWidth={2.5} />
+            <span className="truncate">{summary.top_mistake.name}</span>
           </span>
         )}
         <span className="text-fg-tertiary/80">{money(summary.total_fees)} fees</span>

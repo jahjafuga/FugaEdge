@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   BookOpen,
   BarChart3,
   ListChecks,
@@ -16,6 +17,7 @@ import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import WeekOverviewTab from './WeekOverviewTab'
 import WeekPerformanceTab from './WeekPerformanceTab'
 import WeekTradesTab from './WeekTradesTab'
+import WeekMistakesTab from './WeekMistakesTab'
 import WeekPatternsTab from './WeekPatternsTab'
 
 interface WeekReviewModalProps {
@@ -24,13 +26,17 @@ interface WeekReviewModalProps {
   onClose: () => void
 }
 
-type TabKey = 'overview' | 'performance' | 'trades' | 'patterns' | 'notes'
+type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'patterns' | 'notes'
 
-// The v0.2.2 five, plus Patterns (Phase 5 — weekly topic memory).
+// The v0.2.2 five, plus Patterns (Phase 5 — weekly topic memory) and the
+// reinstated Mistakes rollup (djsevans87 #7) BESIDE it, in its pre-2f51c52
+// slot: mistakes are trade-scoped tags, Patterns is journal-language topics —
+// different datasets, both stay.
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
+  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
   { key: 'patterns', label: 'Patterns', Icon: Repeat, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
 ]
@@ -124,6 +130,9 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
           selectedTradeId={stack.selectedTradeId}
           onSelectTrade={stack.selectTrade}
         />
+      )}
+      {detail && !loading && tab === 'mistakes' && (
+        <WeekMistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
       )}
       {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} />}
       {detail && !loading && tab === 'notes' && (

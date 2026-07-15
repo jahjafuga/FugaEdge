@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  AlertTriangle,
   BookOpen,
   BarChart3,
   ListChecks,
@@ -16,6 +17,7 @@ import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
+import MistakesTab from './MistakesTab'
 import RuleBreaksEditor from '@/components/calendar/RuleBreaksEditor'
 
 interface DayDetailModalProps {
@@ -23,12 +25,18 @@ interface DayDetailModalProps {
   onClose: () => void
 }
 
-type TabKey = 'overview' | 'performance' | 'trades' | 'ruleBreaks' | 'notes'
+type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'ruleBreaks' | 'notes'
 
+// Mistakes reinstated (djsevans87 #7) as its own read-only tab BESIDE Rule
+// Breaks — trade-scoped tags and day-scoped rule breaks are different grains,
+// so both show. Placed adjacent (not last, its pre-2f51c52 slot) so the two
+// "what went wrong" views sit together, mirroring the week modal's mid-list
+// Mistakes placement.
 const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'overview', label: 'Overview', Icon: BookOpen, available: true },
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
+  { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
   { key: 'ruleBreaks', label: 'Rule Breaks', Icon: ShieldAlert, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
 ]
@@ -129,6 +137,9 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           selectedTradeId={stack.selectedTradeId}
           onSelectTrade={stack.selectTrade}
         />
+      )}
+      {detail && !loading && tab === 'mistakes' && (
+        <MistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
       )}
       {detail && !loading && tab === 'ruleBreaks' && (
         <div className="space-y-3">
