@@ -41,6 +41,13 @@ export interface TradeListRow {
   note: TradeNote | null
   entry_timeframe: EntryTimeframe | null
   entry_ema9_distance_pct: number | null
+  /** Entry distance from the 9EMA over 1-minute bars, from the union-seeded
+   *  trade_technicals snapshot (tf_1m.ema9_dist_pct) — the value the chart and the
+   *  Technicals tab already show. Threaded here (Beat 1) so the trade-detail tile
+   *  reads it synchronously instead of the stale denormalized entry_ema9_distance_pct
+   *  column. Optional: only the trades read path (listTrades/getTrade) populates it;
+   *  null when the trade has no complete technicals row yet (→ tile shows pending). */
+  tf_1m_ema9_dist_pct?: number | null
   /** Max adverse / favorable excursion in $/share between entry and exit,
    *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
    *  intraday bars cover the trade's window. */

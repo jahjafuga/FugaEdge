@@ -602,9 +602,7 @@ function OverviewTab({
                 />
               </DnaTile>
 
-              <DnaTile icon={LineChart} label="Entry vs 9EMA">
-                <Ema9Readout pct={t.entry_ema9_distance_pct} />
-              </DnaTile>
+              <Ema9DnaTile trade={t} />
             </div>
           </Card>
         </div>
@@ -912,7 +910,7 @@ function CatalystField({
   )
 }
 
-function Ema9Readout({ pct }: { pct: number | null }) {
+export function Ema9Readout({ pct }: { pct: number | null }) {
   if (pct == null) {
     return (
       <span
@@ -938,6 +936,22 @@ function Ema9Readout({ pct }: { pct: number | null }) {
         </span>
       )}
     </span>
+  )
+}
+
+/**
+ * The "Entry vs 9EMA" DnaTile — Beat 1. Reads the union-seeded 1-minute snapshot
+ * (trade.tf_1m_ema9_dist_pct, threaded onto the row by the trade_technicals JOIN in
+ * listTrades/getTrade), NOT the stale denormalized trades.entry_ema9_distance_pct
+ * column. `?? null` folds an absent snapshot (old-shaped row) into the same pending
+ * em-dash Ema9Readout shows for an incomplete one. Extracted so the retargeted read
+ * is a testable unit; the rendered DOM matches the former inline tile exactly.
+ */
+export function Ema9DnaTile({ trade }: { trade: TradeListRow }) {
+  return (
+    <DnaTile icon={LineChart} label="Entry vs 9EMA">
+      <Ema9Readout pct={trade.tf_1m_ema9_dist_pct ?? null} />
+    </DnaTile>
   )
 }
 
