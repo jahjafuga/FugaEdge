@@ -10,8 +10,10 @@ interface HeaderStripCardsProps {
 // viewports; wraps to 2×2 below `xl` (1280px), honoring spec §B's "<1280px wraps
 // to 2×2" (previously `lg` / 1024px). The MACD / 9EMA / discipline cards share the
 // §C:103 "trades with data" denominator; the VWAP card uses its own non-null-VWAP
-// coverage count (stats.vwapDenominator) — vwap_dist_pct is null for pre-session
-// entries — so its footnote honestly reads "of N trades with VWAP data".
+// coverage count (stats.vwapDenominator) — which tracks the shared denominator
+// since the v0.2.5 anchor unification gave premarket entries real VWAP values
+// (the only null left is the degenerate zero-VWAP guard) — so its footnote
+// honestly reads "of N trades with VWAP data".
 export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
   const cards = [
     { label: 'MACD positive at entry', stat: stats.macdPositive, coverage: stats.denominator, coverageLabel: 'trades with data' },

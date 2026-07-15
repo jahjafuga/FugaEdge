@@ -53,8 +53,9 @@ export const VWAP_BUCKETS: readonly VwapBucketMeta[] = [
  * input row exactly once (parallel to MacdBucketStats):
  * - excluded: failed the data gate (technicals === null || !data_complete).
  * - unclassified: data-complete but the toggled-timeframe vwap_dist_pct is null.
- *   Rare — VWAP is available from the first session bar (unlike MACD's first-bar
- *   macd_rising) — but kept for parity / defensiveness.
+ *   Rare — since the v0.2.5 anchor unification VWAP exists from the day's first
+ *   bar (premarket included), so only the degenerate zero-VWAP guard lands
+ *   here — but kept for parity / defensiveness.
  * - denominator: classifiable trades. Invariant: denominator === Σ buckets[k].n.
  */
 export interface VwapBucketStats {

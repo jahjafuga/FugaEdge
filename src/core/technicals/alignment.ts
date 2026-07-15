@@ -8,13 +8,17 @@
 // Pure (ARCHITECTURE #1) — no electron / fs / DB / React. Reused by both the
 // analytics layer and the XP layer.
 //
-// THE PRE-MARKET AMENDMENT (2026-06): session VWAP is anchored at the 09:30 ET
-// regular-session open (see vwap.ts) and does not exist before it. So for an
-// entry placed PRE-MARKET (before 09:30 ET), "above VWAP" is not a discipline
-// signal — it is undefined — and the predicate drops it, judging alignment on
-// MACD-positive AND above-the-9EMA only. A regular-hours entry keeps the full
-// triple. (A pre-market momentum entry above the 9EMA with positive MACD is
-// disciplined; the absent session VWAP is N/A, not a failure.)
+// THE PRE-MARKET AMENDMENT (2026-06): originally, session VWAP was anchored at
+// the 09:30 ET regular-session open and did not exist before it, so for a
+// PRE-MARKET entry "above VWAP" was undefined and the predicate drops it,
+// judging alignment on MACD-positive AND above-the-9EMA only. A regular-hours
+// entry keeps the full triple.
+//
+// NOTE (v0.2.5 VWAP anchor unification): vwap.ts now anchors at the day's FIRST
+// bar (premarket included), so premarket entries DO carry a VWAP value. This
+// predicate's premarket carve-out is DELIBERATELY unchanged — whether premarket
+// alignment should now include the VWAP condition is a founder decision parked
+// with the ChartTab/core vwap unification, not silently flipped here.
 
 import { utcToEasternParts } from '@/lib/format'
 

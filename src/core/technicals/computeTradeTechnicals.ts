@@ -203,9 +203,11 @@ function computeSnapshot(
   const ema9_value = ema9Series[unionIdx] ?? null
   const ema20_value = ema20Series[unionIdx] ?? null
 
-  // VWAP over the active day only — anchored at 09:30 ET
-  // inside vwap.ts. Output is index-aligned with
-  // activeBars, so activeIdx maps directly.
+  // VWAP over the active day only — anchored at the FIRST
+  // BAR of the day (premarket included) inside vwap.ts,
+  // matching the chart's own overlay. Output is
+  // index-aligned with activeBars, so activeIdx maps
+  // directly.
   const vwapSeries = vwap(activeBars)
   const vwap_value = vwapSeries[activeIdx]?.value ?? null
 

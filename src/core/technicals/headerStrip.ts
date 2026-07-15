@@ -37,22 +37,26 @@ export interface CardStats {
  * `excluded` for the §C:103 chip and contribute to no percent or subset stat.
  *
  * `vwapDenominator` = the subset of those data-complete trades whose toggled-
- * timeframe vwap_dist_pct is non-null. It is the percentage denominator for the
- * VWAP card ONLY: vwap_dist_pct is legitimately null on a data_complete row (a
- * pre-session entry has no regular-session VWAP yet), so counting those nulls in
- * the VWAP card's denominator would drag the "above VWAP" % down. Mirrors
+ * timeframe vwap_dist_pct is non-null. Since the v0.2.5 anchor unification
+ * (VWAP anchors at the day's first bar, premarket included — reversing the
+ * v0.2.4 §A9 session gate), premarket entries carry real VWAP values, so this
+ * denominator converges on `denominator`; the only remaining null is the
+ * degenerate zero-VWAP guard. The honest-count machinery stays — mirrors
  * vwapBuckets.ts, which peels null-VWAP trades into its own coverage tier.
  *
  * - macdPositive: toggled-timeframe macd_positive === true        (÷ denominator)
  * - aboveVwap: toggled-timeframe vwap_dist_pct > 0                (÷ vwapDenominator)
  * - aboveEma9: toggled-timeframe ema9_dist_pct > 0                (÷ denominator)
  * - fullAlignment: the shared isFullyAligned predicate (§A9; pre-market entries
- *   drop the N/A session-VWAP condition — judged on MACD + 9EMA only) (÷ denominator)
+ *   are still judged on MACD + 9EMA only — the carve-out predates the VWAP
+ *   anchor unification and whether it should now include VWAP is parked, not
+ *   silently changed here) (÷ denominator)
  */
 export interface HeaderStripStats {
   denominator: number
   /** VWAP-card percentage denominator: data-complete trades with a non-null
-   *  vwap_dist_pct (pre-session entries carry a null RTH VWAP). See doc above. */
+   *  vwap_dist_pct. Post anchor-unification this tracks `denominator` (the
+   *  only null left is the degenerate zero-VWAP guard). See doc above. */
   vwapDenominator: number
   excluded: number
   macdPositive: CardStats
@@ -95,9 +99,10 @@ export function computeHeaderStrip(
     const aboveVwap = snap.vwap_dist_pct !== null && snap.vwap_dist_pct > 0
     const aboveEma9 = snap.ema9_dist_pct !== null && snap.ema9_dist_pct > 0
 
-    // vwap_dist_pct is legitimately null on a data_complete row when the entry
-    // was pre-session (no regular-session VWAP yet). Those must NOT pad the VWAP
-    // card's denominator — count only non-null VWAP here, mirroring vwapBuckets.ts.
+    // vwap_dist_pct is null on a data_complete row only in the degenerate
+    // zero-VWAP case now (the 09:30 session gate that nulled premarket entries
+    // retired with the anchor unification). Count only non-null VWAP here,
+    // mirroring vwapBuckets.ts.
     if (snap.vwap_dist_pct !== null) vwapDenominator += 1
 
     // Breakeven ($0 net) is a loss per §A7, so a winner is strictly > 0.

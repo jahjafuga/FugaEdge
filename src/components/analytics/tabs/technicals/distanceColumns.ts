@@ -25,9 +25,10 @@ export const macdLineColumn: DistanceColumn = {
   format: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(3)}`,
 }
 
-// VWAP distance (§A4) — the signed % distance from session VWAP, the Section 3
-// column. Same `!` safety as macdLineColumn (rowsForVwapBucket only yields rows
-// with non-null vwap_dist_pct). signedPct renders the +X.X% form (F2.1's
+// VWAP distance (§A4) — the signed % distance from day VWAP (anchored at the
+// day's first bar since the v0.2.5 anchor unification), the Section 3 column.
+// Same `!` safety as macdLineColumn (rowsForVwapBucket only yields rows with
+// non-null vwap_dist_pct). signedPct renders the +X.X% form (F2.1's
 // indicator-distance helper); the column sorts on the signed value.
 export const vwapDistanceColumn: DistanceColumn = {
   label: 'VWAP dist',
