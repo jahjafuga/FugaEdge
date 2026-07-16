@@ -23,6 +23,13 @@ import { buildTradeMarkers } from '@/core/charts/buildTradeMarkers'
 import { computeZoomLogicalRange, computeZoomWindow } from '@/core/charts/computeZoomWindow'
 import { computeFramedBand, type PriceRange } from '@/core/charts/computePriceRange'
 import type { MacdResult, HistogramMomentum } from '@/core/charts/macd'
+import {
+  lastHistogramMomentum,
+  macdLegendDisplay,
+  macdLegendLabel,
+  macdLegendTop,
+  showMacdLegend,
+} from './macdLegend'
 import { aggregate } from '@/core/charts/aggregate'
 import { computeMacdWithWarmup } from '@/core/charts/macdWithWarmup'
 import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
@@ -768,6 +775,29 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
   // NOT a dependency of any chart effect — a hover re-renders only ChartOverlay,
   // never the chart.
   const [hovered, setHovered] = useState<HoveredBar | null>(null)
+  // Pane-anchored MACD legend (Dave #13): pane 1's top edge inside our
+  // relative wrapper = pane 0's measured height + separator/pad
+  // (macdLegendTop). Re-measured from every trigger that can move the
+  // boundary: the MACD effect (pane create/teardown), the fullscreen/height
+  // layout effect, and each crosshair event behind a changed-guard — which is
+  // what catches a user's pane-separator drag (separators are draggable by
+  // library default, no pane-resize event exists, and a drag ends with the
+  // pointer on the chart, so the next movement re-measures). The width-only
+  // ResizeObserver is deliberately NOT a trigger: a width change cannot move
+  // a horizontal pane boundary, and height changes only flow through the
+  // layout effect (its own documented invariant). NO library DOM is read,
+  // observed, or portaled into — the measurement is the public
+  // panes()[0].getHeight() number.
+  const [macdPaneTop, setMacdPaneTop] = useState<number | null>(null)
+  const measureMacdPaneTop = useCallback(() => {
+    const r = refs.current
+    if (!r || !r.macd || r.api.panes().length < 2) {
+      setMacdPaneTop(null)
+      return
+    }
+    const top = macdLegendTop(r.api.panes()[0].getHeight())
+    setMacdPaneTop((prev) => (prev === top ? prev : top))
+  }, [])
 
   // Fill markers + share-weighted avg entry/exit, from the pure, unit-tested
   // module (src/core/charts/buildTradeMarkers). Computed once and consumed by
@@ -1160,6 +1190,8 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           r.api.removeSeries(r.macd.zero)
           r.macd = null
           if (r.api.panes().length > 1) r.api.removePane(1)
+          // Dave #13 — the pane is gone; the legend anchor nulls with it.
+          measureMacdPaneTop()
         }
         return
       }
@@ -1239,9 +1271,14 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
             { time: macdLineData[macdLineData.length - 1].time, value: 0 },
           ])
         }
+
+        // Dave #13 — anchor the pane legend once the (possibly just-created)
+        // pane has taken its layout: one RAF so the stretch-factor split has
+        // been applied before pane 0's height is read.
+        requestAnimationFrame(measureMacdPaneTop)
       }
     })()
-  }, [macd, bars, chartReady])
+  }, [macd, bars, chartReady, measureMacdPaneTop])
 
   // Fill ladder — feed the canvas primitive the fills + the day's bars + the avg
   // entry/exit prices. The primitive runs the de-collision brain in its own draw()
@@ -1484,7 +1521,10 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const savedRange = ts.getVisibleLogicalRange()
     r.api.applyOptions(w > 0 ? { width: w, height: chartHeight } : { height: chartHeight })
     if (savedRange) ts.setVisibleLogicalRange(savedRange)
-  }, [chartHeight, chartReady])
+    // Dave #13 — a total-height change moves the 3:1 pane boundary; re-anchor
+    // the MACD legend after the library has laid the panes out.
+    requestAnimationFrame(measureMacdPaneTop)
+  }, [chartHeight, chartReady, measureMacdPaneTop])
 
   // Crosshair-following legend — subscribe ONCE when the chart is ready (mirrors
   // the other chartReady-gated effects). On a hover the handler reads the bar
@@ -1500,6 +1540,12 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     const onCrosshairMove = (param: import('lightweight-charts').MouseEventParams) => {
       const rr = refs.current
       if (!rr) return
+
+      // Dave #13 — keep the MACD legend's pane anchor honest under separator
+      // drags: a cheap public-API number read, and the setter no-ops when the
+      // measured top is unchanged (the common case), so the hover stream does
+      // not re-render anything extra.
+      if (rr.macd) measureMacdPaneTop()
 
       // Fill-ladder hover gate (high-fill trades): tell the primitive which bar is
       // under the crosshair so it reveals THAT bar's pills. Gate by bar-CHANGE — a
@@ -1529,12 +1575,22 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       }
       // Indicator value at the hovered bar — GUARD the series ref (a toggled-off
       // indicator has a null ref; never .get() on it) and narrow the line datum
-      // (`value` is on LineData, not the candle's BarData).
-      const valueAt = (s: import('lightweight-charts').ISeriesApi<'Line'> | null): number | null => {
+      // (`value` is on LineData, not the candle's BarData). The MACD trio rides
+      // the same map (Dave #13): param.seriesData spans panes, so pane 1's
+      // series resolve at the same crosshair time with the identical pattern.
+      const valueAt = (
+        s:
+          | import('lightweight-charts').ISeriesApi<'Line'>
+          | import('lightweight-charts').ISeriesApi<'Histogram'>
+          | null,
+      ): number | null => {
         if (!s) return null
         const d = param.seriesData.get(s)
         return d && 'value' in d ? d.value : null
       }
+      // The hovered histogram datum carries its own per-bar momentum color —
+      // the legend shows the value in that color, TradingView-style.
+      const histDatum = rr.macd ? param.seriesData.get(rr.macd.histogram) : undefined
       setHovered({
         open: cd.open,
         high: cd.high,
@@ -1543,6 +1599,13 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
         ema9: valueAt(rr.ema9),
         ema20: valueAt(rr.ema20),
         vwap: valueAt(rr.vwap),
+        macdLine: valueAt(rr.macd?.line ?? null),
+        macdSignal: valueAt(rr.macd?.signal ?? null),
+        macdHist: valueAt(rr.macd?.histogram ?? null),
+        macdHistColor:
+          histDatum && 'color' in histDatum && typeof histDatum.color === 'string'
+            ? histDatum.color
+            : null,
       })
     }
     r.api.subscribeCrosshairMove(onCrosshairMove)
@@ -1552,7 +1615,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       refs.current?.fillLadder.setHoveredBar(null)
       lastFillBarRef.current = null
     }
-  }, [chartReady])
+  }, [chartReady, measureMacdPaneTop])
 
   if (libError) {
     return (
@@ -1583,6 +1646,21 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
           paint), pointer-events-none so pan/zoom passes through. Inside this
           relative wrapper, so it shows in fullscreen too. */}
       <ChartOverlay stats={stats} tfLabel={tfLabel} hovered={hovered} ema9={ema9} ema20={ema20} vwap={vwap} />
+      {/* Pane-anchored MACD readout (Dave #13) — the same overlay-tree
+          discipline as ChartOverlay (a DOM sibling, pointer-events-none — NOT
+          a canvas primitive, per the standing GPU-stall constraint), anchored
+          at pane 1's top-left via the measured pane-0 height. Lives and dies
+          with the pane: EMPTY_MACD (toggle-off / 10S-Daily / warmup-empty)
+          renders nothing, and the anchor nulls on teardown. */}
+      {showMacdLegend(macd) && macdPaneTop != null && (
+        <MacdLegendRow
+          macd={macd}
+          tfLabel={tfLabel}
+          top={macdPaneTop}
+          hovered={hovered}
+          palette={palette}
+        />
+      )}
     </div>
   )
 }
@@ -1850,6 +1928,14 @@ interface HoveredBar {
   ema9: number | null
   ema20: number | null
   vwap: number | null
+  // Dave #13 — the MACD pane legend's hovered readings. Null when the pane is
+  // off (r.macd null) or the value doesn't exist at that bar (warmup edge) —
+  // rendered as an em-dash, never 0.00.
+  macdLine: number | null
+  macdSignal: number | null
+  macdHist: number | null
+  /** The hovered histogram datum's own per-bar momentum color (series-set). */
+  macdHistColor: string | null
 }
 
 // The TradingView-style floating chart legend (replaces the old ContextBar row).
@@ -1928,6 +2014,70 @@ function ChartLegendRow({ color, label, value }: { color: string; label: string;
       <span className="text-fg-tertiary">{label}</span>
       <span className="tnum text-fg-secondary">{value == null ? '—' : price(value)}</span>
     </div>
+  )
+}
+
+// The pane-1 MACD readout (Dave #13) — ONE compact TradingView-style line at
+// the sub-pane's top-left: `MACD 12 26 9 (1m)` + the line / signal / histogram
+// values inline, each in its series color (the histogram in the hovered
+// datum's own per-bar momentum color, else the latest point's momentum via
+// histColor). Values follow the crosshair (HoveredBar's macd fields) and fall
+// back to the latest computed points off the chart (macdLegendDisplay); a
+// reachable-but-null value renders an em-dash, never 0.00. Formatted with the
+// house price() rule (Math.abs-gated 4dp/2dp) — NOTE: the pane's own price
+// AXIS shows the library-default 2dp, so legend and axis can differ on
+// sub-|1| values by design; the legend follows the price-legend convention
+// (format.ts:30-47), as the recon flagged. Shares ChartLegendRow's classes
+// (font-mono text-xs pointer-events-none overlay text) but stays one row —
+// three stacked rows would eat the 25% pane.
+function MacdLegendRow({
+  macd,
+  tfLabel,
+  top,
+  hovered,
+  palette,
+}: {
+  macd: MacdResult
+  tfLabel: string
+  top: number
+  hovered: HoveredBar | null
+  palette: ChartPalette
+}) {
+  const display = macdLegendDisplay(
+    hovered
+      ? { line: hovered.macdLine, signal: hovered.macdSignal, histogram: hovered.macdHist }
+      : null,
+    macd,
+  )
+  const fallbackMomentum = lastHistogramMomentum(macd)
+  const histCssColor = hovered
+    ? hovered.macdHistColor
+    : fallbackMomentum !== null
+      ? histColor(palette.macdHist, fallbackMomentum)
+      : null
+  return (
+    <div
+      className="pointer-events-none absolute left-2 z-10 select-none font-mono text-xs leading-tight"
+      style={{ top }}
+    >
+      <div className="flex flex-wrap items-baseline gap-x-2.5">
+        <span className="text-fg-tertiary">{macdLegendLabel(tfLabel)}</span>
+        <MacdLegendValue color={COLOR_MACD_LINE} value={display.line} />
+        <MacdLegendValue color={COLOR_MACD_SIGNAL} value={display.signal} />
+        <MacdLegendValue color={histCssColor} value={display.histogram} />
+      </div>
+    </div>
+  )
+}
+
+function MacdLegendValue({ color, value }: { color: string | null; value: number | null }) {
+  // A null value is an em-dash in the muted legend tone; a real value takes
+  // its series/momentum color inline (the TradingView convention).
+  if (value == null) return <span className="tnum text-fg-tertiary">—</span>
+  return (
+    <span className="tnum" style={color ? { color } : undefined}>
+      {price(value)}
+    </span>
   )
 }
 
