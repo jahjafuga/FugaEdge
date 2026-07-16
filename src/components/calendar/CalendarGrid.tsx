@@ -1,9 +1,11 @@
 import { CalendarOff, Pencil } from 'lucide-react'
 import type { CalendarDay, WeeklySummary } from '@shared/calendar-types'
+import { SENTIMENT_LABELS } from '@shared/session-types'
 import { int, money, percent, signed } from '@/lib/format'
 import { colorForTag } from '@/lib/tagColor'
 import { marketHolidayName } from '@/core/market/holidays'
 import { SENTIMENT_ICONS } from '@/components/sentiment/SentimentIconPicker'
+import Tooltip from '@/components/ui/Tooltip'
 import closedSign from '@/assets/closed-sign.svg'
 import WeeklyPanel from './WeeklyPanel'
 
@@ -138,6 +140,11 @@ export default function CalendarGrid({
                     onSelectDate(c.date === selectedDate ? null : c.date)
                   }}
                   onCycleSentiment={onCycleSentiment}
+                  // Dave #18 — the grid card is overflow-hidden (:101), so the
+                  // rubric tooltip is steered by grid position: last row opens
+                  // upward, edge columns anchor inward. Static, per-cell.
+                  sentimentTooltipSide={idx === rows.length - 1 ? 'top' : 'bottom'}
+                  sentimentTooltipAlign={i >= 5 ? 'end' : i <= 1 ? 'start' : 'center'}
                 />
               ))}
             </div>
@@ -160,6 +167,8 @@ function DayCell({
   isSelected,
   onClick,
   onCycleSentiment,
+  sentimentTooltipSide,
+  sentimentTooltipAlign,
 }: {
   cell: Cell
   stats: CalendarDay | undefined
@@ -167,6 +176,8 @@ function DayCell({
   isSelected: boolean
   onClick: () => void
   onCycleSentiment: (date: string, currentSentiment: number | null) => void
+  sentimentTooltipSide: 'top' | 'bottom'
+  sentimentTooltipAlign: 'start' | 'center' | 'end'
 }) {
   const has = !!stats && stats.trade_count > 0
   const tags = stats?.day_tags ?? []
@@ -283,6 +294,8 @@ function DayCell({
           {cell.inMonth && (
             <SentimentBadge
               value={sentiment}
+              tooltipSide={sentimentTooltipSide}
+              tooltipAlign={sentimentTooltipAlign}
               onCycle={(e) => {
                 // Contain the click so it doesn't bubble up to the cell's
                 // outer button (which selects the day or opens no-trade
@@ -378,40 +391,70 @@ function DayCell({
 function SentimentBadge({
   value,
   onCycle,
+  tooltipSide,
+  tooltipAlign,
 }: {
   value: number | null
   onCycle: (e: React.MouseEvent) => void
+  tooltipSide: 'top' | 'bottom'
+  tooltipAlign: 'start' | 'center' | 'end'
 }) {
-  const title = value
+  const action = value
     ? `Sentiment ${value}/5 — click to cycle`
     : 'Click to set market sentiment (1–5)'
   return (
-    <span
-      role="button"
-      tabIndex={-1}
-      onClick={onCycle}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.stopPropagation()
-          e.preventDefault()
-          onCycle(e as unknown as React.MouseEvent)
-        }
-      }}
-      title={title}
-      aria-label={title}
-      className="inline-flex h-[18px] w-[18px] cursor-pointer items-center justify-center transition-opacity duration-150 hover:opacity-80"
+    // Dave #18 — the bare native title becomes the house Tooltip: the honest
+    // action line + the five-row rubric rendered FROM SENTIMENT_LABELS (the
+    // canon — never duplicated strings), ladder order matching the pickers.
+    <Tooltip
+      side={tooltipSide}
+      align={tooltipAlign}
+      content={
+        // min-w keeps each rubric row on a single line (the tooltip surface
+        // otherwise shrink-wraps and wraps '0 stocks >50%' over three lines).
+        <span className="flex min-w-[200px] flex-col gap-1.5">
+          <span className="font-medium">{action}</span>
+          <span className="flex flex-col gap-0.5">
+            {([1, 2, 3, 4, 5] as const).map((n) => (
+              <span key={n} className="flex items-baseline justify-between gap-3">
+                <span className="font-mono tnum whitespace-nowrap">{n}/5</span>
+                <span className="whitespace-nowrap text-right">{SENTIMENT_LABELS[n]}</span>
+              </span>
+            ))}
+          </span>
+        </span>
+      }
     >
-      {value ? (
-        <img
-          src={SENTIMENT_ICONS[value as 1 | 2 | 3 | 4 | 5]}
-          alt=""
-          aria-hidden="true"
-          className="h-[18px] w-[18px]"
-        />
-      ) : (
-        <span className="font-mono text-[11px] font-semibold leading-none text-fg-muted">–</span>
-      )}
-    </span>
+      <span
+        role="button"
+        tabIndex={-1}
+        onClick={onCycle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.stopPropagation()
+            e.preventDefault()
+            onCycle(e as unknown as React.MouseEvent)
+          }
+        }}
+        // Empty title on purpose: it suppresses the DayCell button's own
+        // gross/fees/net native title from doubling over the Tooltip while
+        // showing no native tooltip itself.
+        title=""
+        aria-label={action}
+        className="inline-flex h-[18px] w-[18px] cursor-pointer items-center justify-center transition-opacity duration-150 hover:opacity-80"
+      >
+        {value ? (
+          <img
+            src={SENTIMENT_ICONS[value as 1 | 2 | 3 | 4 | 5]}
+            alt=""
+            aria-hidden="true"
+            className="h-[18px] w-[18px]"
+          />
+        ) : (
+          <span className="font-mono text-[11px] font-semibold leading-none text-fg-muted">–</span>
+        )}
+      </span>
+    </Tooltip>
   )
 }
 
