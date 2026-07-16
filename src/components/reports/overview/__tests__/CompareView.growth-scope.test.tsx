@@ -135,7 +135,6 @@ function renderCompare(probeId?: string) {
         rangeA={{ from: '2026-06-08', to: '2026-06-14' }}
         rangeB={{ from: '2026-06-01', to: '2026-06-07' }}
         onRangeChange={vi.fn()}
-        accountSize={9800}
       />
     </AccountScopeProvider>,
   )

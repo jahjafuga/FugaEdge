@@ -121,19 +121,10 @@ describe('Settings NumberField — the "050" append bug (Max daily loss alert)',
     expect(savedArg().max_daily_loss).toBe(0) // empty still MEANS 0
   })
 
-  it('the SECOND NumberField (Account size) is fixed by the same component', async () => {
-    m.settingsGet.mockResolvedValue(makeSettingsPayload({ account_size: 0 }))
-    render(<Settings />)
-
-    const acct = (await screen.findByLabelText('Account size')) as HTMLInputElement
-    expect(acct.value).toBe('')
-
-    fireEvent.change(acct, { target: { value: '5' } })
-    fireEvent.change(acct, { target: { value: '50' } })
-    expect(acct.value).toBe('50')
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Save settings' }))
-    await waitFor(() => expect(m.settingsSave).toHaveBeenCalledTimes(1))
-    expect(savedArg().account_size).toBe(50)
-  })
+  // The former third case drove the Account size NumberField as proof the fix
+  // generalizes to a second savebar field. That field RETIRED from Settings
+  // (Dave #11 — onboarding is its only writer now), and max_daily_loss is the
+  // savebar's lone NumberField; the generalization stays pinned by
+  // numberDraft.sections.test.tsx (DailyTargetSection + PillarNumber wire the
+  // same hook).
 })

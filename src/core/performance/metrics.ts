@@ -431,16 +431,3 @@ export function sortDates(dates: string[]): string[] {
   )
 }
 
-// Net P&L as a ratio of the STATIC configured account size (Phase 3, djsevans87).
-// Returns netPnL / accountSize (a ratio; ×100 at display via the 'pct' kind), or
-// null when either input is null or accountSize <= 0. account_size is never null
-// from the settings repo (it defaults to 25000), so callers MUST pass null when
-// the row was never stored (stored_keys check) — otherwise this would fabricate a
-// "% of account size" against the default. Pure: no DB/electron.
-export function netPnlPctOfAccount(
-  netPnL: number | null,
-  accountSize: number | null,
-): number | null {
-  if (netPnL == null || accountSize == null || accountSize <= 0) return null
-  return netPnL / accountSize
-}

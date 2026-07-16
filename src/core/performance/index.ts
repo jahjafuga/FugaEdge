@@ -64,7 +64,6 @@ export {
   computeDailyVolume,
   computeDailyWinRate,
   computePeriodMetrics,
-  netPnlPctOfAccount,
   sortDates,
   tradesInRange,
   tradingDaysInPeriod,

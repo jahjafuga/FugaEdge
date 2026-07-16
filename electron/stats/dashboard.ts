@@ -327,15 +327,17 @@ function readDisciplineStreak(
 }
 
 function readSettings(db: ReturnType<typeof openDatabase>): DashboardSettings {
+  // account_size dropped from the payload (Dave #11): no dashboard renderer
+  // ever consumed it — the loss banner reads max_daily_loss, the goal band
+  // reads daily_profit_target, and equity displays come from the cash ledger.
   const rows = db
-    .prepare('SELECT key, value FROM settings WHERE key IN (?, ?, ?)')
-    .all('max_daily_loss', 'account_size', 'daily_profit_target') as { key: string; value: string }[]
+    .prepare('SELECT key, value FROM settings WHERE key IN (?, ?)')
+    .all('max_daily_loss', 'daily_profit_target') as { key: string; value: string }[]
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
   return {
     max_daily_loss: Number.parseFloat(map.max_daily_loss ?? '500') || 0,
     daily_profit_target: Number.parseFloat(map.daily_profit_target ?? '0') || 0,
-    account_size: Number.parseFloat(map.account_size ?? '25000') || 0,
   }
 }
 

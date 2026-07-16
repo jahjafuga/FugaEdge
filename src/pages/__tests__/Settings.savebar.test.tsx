@@ -62,22 +62,24 @@ vi.mock('@/lib/ipc', () => ({
 
 const m = vi.mocked(ipc)
 
-// The 6 keys handleSave is allowed to persist (Settings.tsx handleSave). The
-// legacy Day-note-tags vocabulary editor (day_tag_list) was removed in Option A,
-// so handleSave no longer sends that key.
-const SIX_KEYS = [
+// The 5 keys handleSave is allowed to persist (Settings.tsx handleSave). The
+// legacy Day-note-tags vocabulary editor (day_tag_list) was removed in Option A;
+// account_size RETIRED from Settings (Dave #11) — onboarding is its only writer
+// now, so handleSave no longer sends that key either.
+const FIVE_KEYS = [
   'max_daily_loss',
-  'account_size',
   'journal_rules',
   'daily_rule_break_list',
   'polygon_api_key',
   'fmp_api_key',
 ].sort()
 // Keys handleSave must NEVER touch (the :123-128 exclusions + the self-contained
-// sections). day_tag_list joins this list post-Option-A: its editor is gone, so a
-// resurrected key here would be a regression.
+// sections). day_tag_list joins this list post-Option-A; account_size joins it
+// post-Dave-#11: its Settings field is gone, so a resurrected key here would be
+// a regression.
 const EXCLUDED = [
   'day_tag_list',
+  'account_size',
   'daily_profit_target',
   'dna_price_min',
   'dna_require_catalyst',
@@ -105,8 +107,8 @@ beforeEach(() => {
   m.dailyChangeOnBackfillProgress.mockReturnValue(() => {})
 })
 
-describe('Settings savebar — 6-key contract (RED-lock #1)', () => {
-  it('persists EXACTLY the 6 page-managed keys, and none of the excluded ones', async () => {
+describe('Settings savebar — 5-key contract (RED-lock #1)', () => {
+  it('persists EXACTLY the 5 page-managed keys, and none of the excluded ones', async () => {
     // max_daily_loss = 777 is a unique display value across all number fields.
     m.settingsGet.mockResolvedValue(makeSettingsPayload({ max_daily_loss: 777 }))
     m.settingsSave.mockResolvedValue(makeSettingsPayload({ max_daily_loss: 800 }))
@@ -120,7 +122,7 @@ describe('Settings savebar — 6-key contract (RED-lock #1)', () => {
     await waitFor(() => expect(m.settingsSave).toHaveBeenCalledTimes(1))
     const arg = m.settingsSave.mock.calls[0][0] as Record<string, unknown>
 
-    expect(Object.keys(arg).sort()).toEqual(SIX_KEYS)
+    expect(Object.keys(arg).sort()).toEqual(FIVE_KEYS)
     for (const k of EXCLUDED) expect(arg).not.toHaveProperty(k)
     expect(arg.max_daily_loss).toBe(800)
   })

@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { computeFullStats } from '@/core/performance/fullStats'
-import { netPnlPctOfAccount } from '@/core/performance/metrics'
 
-// Phase 3 (djsevans87) — the final two Compare metrics:
-//   1. Avg Position Size ($) = mean over ALL trades of position_shares × entry_price
-//      (position_shares = max legs; entry = entryPriceOf, the Phase-1/2 basis).
-//      entry <= 0 / zero-position -> EXCLUDED (never $0). Pure trade data.
-//   2. Net P&L (% of account size) = netPnL / account_size (a RATIO; ×100 at
-//      display). account_size is the STATIC configured setting; when it's
-//      null/unconfigured (or <= 0) the metric is null -> em-dash, NEVER computed
-//      against the 25000 default (no-fabrication law).
+// Phase 3 (djsevans87) — Avg Position Size ($) = mean over ALL trades of
+// position_shares × entry_price (position_shares = max legs; entry =
+// entryPriceOf, the Phase-1/2 basis). entry <= 0 / zero-position -> EXCLUDED
+// (never $0). Pure trade data.
+//
+// The phase's second metric (Net P&L as % of the static account size) retired
+// with its orphaned helper in Dave #11 — the Compare growth row divides by
+// contributed capital from the cash ledger instead (CompareView beat 4 build B).
 
 type Trade = Parameters<typeof computeFullStats>[0][number]
 
@@ -115,22 +114,5 @@ describe('computeFullStats — Avg Share Size (share count, djsevans87)', () => 
     expect(computeFullStats([mk({ shares_bought: 300, shares_sold: 300 })]).avg_share_size)
       .toBeCloseTo(300, 6)
     expect(computeFullStats([]).avg_share_size).toBeNull()
-  })
-})
-
-describe('netPnlPctOfAccount — Net P&L as a ratio of static account size (Phase 3)', () => {
-  it('real account size -> netPnL / account_size (ratio; ×100 at display)', () => {
-    expect(netPnlPctOfAccount(500, 25000)).toBeCloseTo(0.02, 10) // +2%
-    expect(netPnlPctOfAccount(-1000, 25000)).toBeCloseTo(-0.04, 10) // -4%
-    expect(netPnlPctOfAccount(0, 25000)).toBe(0)
-  })
-
-  it('account_size null (UNCONFIGURED) -> null (em-dash, NOT against any default)', () => {
-    expect(netPnlPctOfAccount(500, null)).toBeNull()
-  })
-
-  it('account_size 0 or negative -> null (divide-by-zero guard)', () => {
-    expect(netPnlPctOfAccount(500, 0)).toBeNull()
-    expect(netPnlPctOfAccount(500, -100)).toBeNull()
   })
 })

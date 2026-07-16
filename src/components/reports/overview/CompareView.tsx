@@ -70,11 +70,6 @@ interface CompareViewProps {
   rangeA: DateRange
   rangeB: DateRange
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
-  /** RETIRED DENOMINATOR (beat 4 build B): the growth row now divides by
-   *  CONTRIBUTED CAPITAL from the cash ledger, not the app-wide account
-   *  size. The prop stays in the interface so AnalyticsCompareTab needs no
-   *  change this build; removable together with the tab's plumbing later. */
-  accountSize?: number | null
 }
 
 const PRESETS: PeriodPreset[] = [
@@ -123,7 +118,6 @@ export default function CompareView({
   rangeA,
   rangeB,
   onRangeChange,
-  // accountSize deliberately not destructured — see the interface note.
 }: CompareViewProps) {
   const comparison = useMemo<ComparisonResult>(
     () => computePeriodComparison(trades, rangeA, rangeB),

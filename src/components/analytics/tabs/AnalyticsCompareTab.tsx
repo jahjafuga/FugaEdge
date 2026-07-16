@@ -54,28 +54,6 @@ export default function AnalyticsCompareTab({
     }
   }, [])
 
-  // Phase 3 (djsevans87) — account size for the "Net P&L (% of account size)" row.
-  // values.account_size is ALWAYS defaulted (25000), so the honest "configured?"
-  // signal is stored_keys.includes('account_size'); null when never set -> the row
-  // renders em-dash (never computed against the default). null until settings load.
-  const [accountSize, setAccountSize] = useState<number | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    ipc
-      .settingsGet()
-      .then((p) => {
-        if (!cancelled) {
-          setAccountSize(p.stored_keys.includes('account_size') ? p.values.account_size : null)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setAccountSize(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
   return (
     <div className="space-y-6">
       <SectionHeader
@@ -87,7 +65,6 @@ export default function AnalyticsCompareTab({
         sentimentByDate={sentimentByDate}
         rangeA={rangeA}
         rangeB={rangeB}
-        accountSize={accountSize}
         onRangeChange={(which, range) => {
           if (which === 'A') setRangeA(range)
           else setRangeB(range)

@@ -49,7 +49,6 @@ function arraysEqual(a: string[], b: string[]): boolean {
 
 function isDirty(saved: SettingsValues, current: SettingsValues): boolean {
   if (saved.max_daily_loss !== current.max_daily_loss) return true
-  if (saved.account_size !== current.account_size) return true
   if (saved.polygon_api_key !== current.polygon_api_key) return true
   if (saved.fmp_api_key !== current.fmp_api_key) return true
   if (!rulesEqual(saved.journal_rules, current.journal_rules)) return true
@@ -182,7 +181,6 @@ export default function Settings() {
       // show_macd_pane (ChartTab toggle).
       const updated = await ipc.settingsSave({
         max_daily_loss: editor.max_daily_loss,
-        account_size: editor.account_size,
         journal_rules: editor.journal_rules,
         daily_rule_break_list: editor.daily_rule_break_list,
         polygon_api_key: editor.polygon_api_key,
@@ -370,7 +368,17 @@ export default function Settings() {
 
         {/* ── Trading ─────────────────────────────────────────────── */}
         <CategoryPane active={activeCategory === 'trading'}>
-        <Card title="Risk management" subtitle="Drives the dashboard's max-loss banner and sizing references.">
+        {/* Dave #11 — the "Risk & reward" group: the max-loss line and the
+            profit target side by side. The target keeps its own-writer card
+            (DailyTargetSection is self-contained + relocatable by design);
+            the move is positional only. The Account size field RETIRED from
+            Settings — no stat computes against it (Compare growth % uses the
+            Balances ledger), so onboarding is its only writer and the
+            stored_keys first-launch gate keeps working unchanged. */}
+        <Card
+          title="Risk & reward"
+          subtitle="Max daily loss drives the dashboard's loss banner; the daily profit target below drives the dashboard goal and the gave-back analytics."
+        >
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <NumberField
               label="Max daily loss alert"
@@ -383,19 +391,9 @@ export default function Settings() {
                 )
               }
             />
-            <NumberField
-              label="Account size"
-              suffix={money(editor.account_size).replace('$', '$ ')}
-              hint="Used as the reference equity for percentage-based stats."
-              value={editor.account_size}
-              onChange={(v) =>
-                setEditor((prev) =>
-                  prev ? { ...prev, account_size: v } : prev,
-                )
-              }
-            />
           </div>
         </Card>
+        <DailyTargetSection />
         {/* Multi-account Beat 3 — the trading-account registry. Mutates via
             its own accounts IPC (the vocabulary-editor precedent), NOT the
             settings save-bar. */}
@@ -403,7 +401,6 @@ export default function Settings() {
         {/* Stage 3 beat 2 — the per-account cash ledger, a sibling of the
             registry. Same own-channels pattern; local refetch reactivity. */}
         <BalancesCard />
-        <DailyTargetSection />
         <DnaSettingsSection />
         </CategoryPane>
 

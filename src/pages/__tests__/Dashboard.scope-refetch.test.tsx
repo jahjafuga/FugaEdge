@@ -65,7 +65,7 @@ function dashData(): DashboardData {
       trades: [],
     },
     month: { year: 2026, month: 6, days: [] },
-    settings: { max_daily_loss: 20, daily_profit_target: 0, account_size: 1000 },
+    settings: { max_daily_loss: 20, daily_profit_target: 0 },
     discipline_streak: 0,
     empty: true,
   }

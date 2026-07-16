@@ -95,7 +95,6 @@ export interface MonthCalendar {
 export interface DashboardSettings {
   max_daily_loss: number
   daily_profit_target: number
-  account_size: number
 }
 
 export interface DashboardData {
