@@ -9,7 +9,9 @@
 import Database from 'better-sqlite3'
 import { SCHEMA_SQL } from '../schema'
 import { migrateHistorySeeds } from '../migrate-history-seeds'
+import { migrateRuleBreaksTaxonomy } from '../migrate-rule-breaks-taxonomy'
 import { saveSettingsOn } from '../../settings/save'
+import { readRuleBreakNamesForDate } from '../../ruleBreaks/repo'
 import { EPOCH_EFFECTIVE_FROM } from '@/core/analytics/giveback'
 
 let failures = 0
@@ -206,6 +208,142 @@ line('[C] the write hook — append ONLY on actual value change')
   // C9 — invalid input neither upserts nor appends (the existing guard).
   saveSettingsOn(db, { daily_profit_target: -5 }, '2026-07-18T15:00:00.000Z')
   check('[C9] invalid (negative) input appends nothing', rows(db, 'profit_target_history').length === 3)
+  db.close()
+}
+
+// ═══ (Dave #12) THE SORT-POSITION SYNC ════════════════════════════════════
+// save.ts's daily_rule_break_list branch also rewrites rule_break_def
+// .sort_position to the list's order (case-fold matched; unmatched defs —
+// tagged-then-removed labels — follow after in preserved relative order), in
+// the SAME transaction as the settings write. Without it a Settings reorder
+// widens the pre-existing list-vs-def drift into a same-modal inconsistency:
+// options chips in the new order, the day's selected names (which read
+// ORDER BY sort_position) in the old.
+line()
+line('[D] daily_rule_break_list save syncs rule_break_def.sort_position')
+
+const defRows = (db: Conn) =>
+  db
+    .prepare('SELECT name, sort_position FROM rule_break_def ORDER BY sort_position, id')
+    .all() as { name: string; sort_position: number }[]
+
+function ruleBreakDb(labels: string[]): Conn {
+  const db = freshDb()
+  setSetting(db, 'daily_rule_break_list', JSON.stringify(labels))
+  migrateRuleBreaksTaxonomy(db) // seeds rule_break_def in list order
+  return db
+}
+
+{
+  // D1 — reorder: sort_position follows the saved list's index order.
+  const db = ruleBreakDb(['Alpha', 'Bravo', 'Charlie'])
+  saveSettingsOn(db, { daily_rule_break_list: ['Charlie', 'Alpha', 'Bravo'] }, '2026-07-16T10:00:00.000Z')
+  check(
+    '[D1] matched defs take sort_position = list index',
+    JSON.stringify(defRows(db)) ===
+      JSON.stringify([
+        { name: 'Charlie', sort_position: 0 },
+        { name: 'Alpha', sort_position: 1 },
+        { name: 'Bravo', sort_position: 2 },
+      ]),
+    JSON.stringify(defRows(db)),
+  )
+  check(
+    '[D1] the settings row carries the same order (one save, both stores)',
+    (db.prepare(`SELECT value FROM settings WHERE key = 'daily_rule_break_list'`).get() as { value: string })
+      .value === JSON.stringify(['Charlie', 'Alpha', 'Bravo']),
+  )
+  db.close()
+}
+{
+  // D2 — the match is case-fold, the repo's own convention (the unique index
+  // is on lower(name), so a case-insensitive match is the only one possible).
+  const db = ruleBreakDb(['Overtrading', 'Chased entry'])
+  saveSettingsOn(db, { daily_rule_break_list: ['CHASED ENTRY', 'overtrading'] }, '2026-07-16T10:00:00.000Z')
+  check(
+    '[D2] case-fold matching syncs despite casing drift',
+    JSON.stringify(defRows(db)) ===
+      JSON.stringify([
+        { name: 'Chased entry', sort_position: 0 },
+        { name: 'Overtrading', sort_position: 1 },
+      ]),
+    JSON.stringify(defRows(db)),
+  )
+  db.close()
+}
+{
+  // D3 — unmatched defs (tagged-then-removed labels) follow AFTER the listed
+  // ones, relative order preserved.
+  const db = ruleBreakDb(['Alpha', 'Bravo', 'Charlie', 'Xray', 'Yankee'])
+  saveSettingsOn(db, { daily_rule_break_list: ['Bravo', 'Alpha'] }, '2026-07-16T10:00:00.000Z')
+  check(
+    '[D3] unmatched defs follow the listed ones, relative order preserved',
+    JSON.stringify(defRows(db)) ===
+      JSON.stringify([
+        { name: 'Bravo', sort_position: 0 },
+        { name: 'Alpha', sort_position: 1 },
+        { name: 'Charlie', sort_position: 2 },
+        { name: 'Xray', sort_position: 3 },
+        { name: 'Yankee', sort_position: 4 },
+      ]),
+    JSON.stringify(defRows(db)),
+  )
+  db.close()
+}
+{
+  // D4 — SAME TRANSACTION: a failing def update rolls the settings write back
+  // too (the migration-chain trigger trick: a real SQLite failure mid-tx).
+  const db = ruleBreakDb(['Alpha', 'Bravo'])
+  db.exec(`CREATE TRIGGER boom BEFORE UPDATE ON rule_break_def
+           BEGIN SELECT RAISE(ABORT, 'disk full'); END`)
+  let threw = false
+  try {
+    saveSettingsOn(db, { daily_rule_break_list: ['Bravo', 'Alpha'] }, '2026-07-16T10:00:00.000Z')
+  } catch {
+    threw = true
+  }
+  check('[D4] the aborted sync throws out of the save', threw)
+  check(
+    '[D4] ...and the settings write ROLLED BACK with it (one transaction)',
+    (db.prepare(`SELECT value FROM settings WHERE key = 'daily_rule_break_list'`).get() as { value: string })
+      .value === JSON.stringify(['Alpha', 'Bravo']),
+  )
+  check(
+    '[D4] def order untouched by the aborted save',
+    JSON.stringify(defRows(db)) ===
+      JSON.stringify([
+        { name: 'Alpha', sort_position: 0 },
+        { name: 'Bravo', sort_position: 1 },
+      ]),
+  )
+  db.close()
+}
+{
+  // D5 — THE SEAM NARROWS: the day's selected names (ORDER BY sort_position)
+  // follow a Settings reorder instead of drifting from the options order.
+  const db = ruleBreakDb(['Alpha', 'Bravo', 'Charlie'])
+  db.prepare(`INSERT INTO journal (date, rule_breaks) VALUES ('2026-03-02', '["Alpha","Charlie"]')`).run()
+  const idOf = (name: string) =>
+    (db.prepare('SELECT id FROM rule_break_def WHERE name = ?').get(name) as { id: number }).id
+  const link = db.prepare('INSERT INTO journal_rule_break (date, rule_break_def_id) VALUES (?, ?)')
+  link.run('2026-03-02', idOf('Alpha'))
+  link.run('2026-03-02', idOf('Charlie'))
+
+  check(
+    '[D5-pre] the day reads [Alpha, Charlie] under the seeded order',
+    JSON.stringify(readRuleBreakNamesForDate(db, '2026-03-02')) === JSON.stringify(['Alpha', 'Charlie']),
+  )
+  const linksBefore = (db.prepare('SELECT COUNT(*) n FROM journal_rule_break').get() as { n: number }).n
+  saveSettingsOn(db, { daily_rule_break_list: ['Charlie', 'Bravo', 'Alpha'] }, '2026-07-16T10:00:00.000Z')
+  check(
+    '[D5] after the reorder save, the day reads [Charlie, Alpha] — the NEW vocabulary order',
+    JSON.stringify(readRuleBreakNamesForDate(db, '2026-03-02')) === JSON.stringify(['Charlie', 'Alpha']),
+    JSON.stringify(readRuleBreakNamesForDate(db, '2026-03-02')),
+  )
+  check(
+    '[D5] (7) usage links untouched by the reorder',
+    (db.prepare('SELECT COUNT(*) n FROM journal_rule_break').get() as { n: number }).n === linksBefore,
+  )
   db.close()
 }
 

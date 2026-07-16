@@ -14,6 +14,13 @@ vi.mock('../../db/database', () => ({
   getDbPath: () => '/fake/db/path',
   openDatabase: () => ({
     prepare: (sql: string) => {
+      // Dave #12 — the rule-break sort_position sync reads/updates its own
+      // table; the shim models an empty vocabulary (the REAL sync behavior is
+      // proven by the history-seed harness's [D] fixtures, not here). Checked
+      // BEFORE the generic SELECT lane, which would otherwise serve KV rows.
+      if (/rule_break_def/i.test(sql)) {
+        return { all: () => [], run: () => {} }
+      }
       if (/^\s*SELECT/i.test(sql)) {
         return {
           all: () =>

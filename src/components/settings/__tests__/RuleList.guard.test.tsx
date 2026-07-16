@@ -19,8 +19,13 @@ const RULES = ['Overtrading', 'Revenge trade']
 const USAGE = { Overtrading: 12 }
 
 const inputFor = (label: string) => screen.getByDisplayValue(label) as HTMLInputElement
+// The delete is selected by its aria-label, not row position — the row grew
+// reorder chevrons ahead of it (Dave #12), so "first button in the <li>" now
+// means "Move X up". Frozen rows re-label the delete ("Cannot remove …").
 const removeBtnFor = (label: string) =>
-  inputFor(label).closest('li')!.querySelector('button') as HTMLButtonElement
+  Array.from(inputFor(label).closest('li')!.querySelectorAll('button')).find((b) =>
+    /^(Remove rule|Cannot remove)/.test(b.getAttribute('aria-label') ?? ''),
+  ) as HTMLButtonElement
 
 describe('RuleList — a USED rule-break is frozen', () => {
   it('the name input is READ-ONLY (the rename vector is closed at the source)', () => {

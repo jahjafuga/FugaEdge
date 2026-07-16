@@ -20,6 +20,7 @@ import AboutSection from '@/components/settings/AboutSection'
 import SettingsLayout from '@/components/settings/SettingsLayout'
 import { SETTINGS_CATEGORIES } from '@/components/settings/settingsCategories'
 import { ipc } from '@/lib/ipc'
+import { invalidateRuleBreakOptionsCache } from '@/components/calendar/RuleBreaksEditor'
 import { rulesEqual } from '@/core/journal/rules'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
@@ -190,6 +191,12 @@ export default function Settings() {
       setEditor(updated.values)
       setSnapshot(updated.values)
       setSavedAt(Date.now())
+
+      // Dave #12 — this patch always carries daily_rule_break_list (the
+      // five-key contract above), so every savebar save refreshes the day
+      // modal's 60s options cache; no other save path touches the list, so
+      // the invalidation lives ONLY here.
+      invalidateRuleBreakOptionsCache()
 
       // Save-then-verify: the key is already persisted by this point, so
       // every keyStatus outcome below describes a key that IS saved. Ping

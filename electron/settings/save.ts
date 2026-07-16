@@ -48,6 +48,49 @@ export const KEYS = {
   accountScope: 'account_scope',
 } as const
 
+/** Dave #12 — sync rule_break_def.sort_position to the saved list's order.
+ *  The vocabulary's order lives in TWO stores until 3b-2: the settings list
+ *  drives the Settings editor + the day modal's OPTIONS chips, while
+ *  rule_break_def.sort_position drives the day's SELECTED names
+ *  (readRuleBreakNamesForDate: ORDER BY sort_position). Without this sync a
+ *  Settings reorder widens that seam into a same-modal inconsistency. Match is
+ *  case-fold (the unique index is on lower(name), so a case-insensitive match
+ *  is the only lookup it permits — ruleBreaks/repo.ts's own convention);
+ *  duplicates take their first-seen index (the taxonomy seed's rule);
+ *  unmatched defs (tagged-then-removed labels) follow after the listed ones in
+ *  preserved relative order. Runs inside saveSettingsOn's transaction, so the
+ *  list write and the def order commit or roll back together.
+ *
+ *  EXPLICITLY DISPOSABLE: this dual-write dies in 3b-2 with its sibling
+ *  (journal.rule_breaks), when the def table becomes the single authority and
+ *  the VocabularyEditor takes over this vocabulary. */
+function syncRuleBreakSortPositions(db: Database.Database, orderedLabels: string[]): void {
+  const defs = db
+    .prepare('SELECT id, name FROM rule_break_def ORDER BY sort_position, id')
+    .all() as { id: number; name: string }[]
+  if (defs.length === 0) return
+
+  const listIndex = new Map<string, number>()
+  orderedLabels.forEach((label, i) => {
+    const key = label.toLowerCase()
+    if (!listIndex.has(key)) listIndex.set(key, i)
+  })
+
+  const matched = defs
+    .filter((d) => listIndex.has(d.name.toLowerCase()))
+    .sort(
+      (a, b) => listIndex.get(a.name.toLowerCase())! - listIndex.get(b.name.toLowerCase())!,
+    )
+  const unmatched = defs.filter((d) => !listIndex.has(d.name.toLowerCase()))
+
+  const update = db.prepare(
+    `UPDATE rule_break_def SET sort_position = ?, updated_at = datetime('now') WHERE id = ?`,
+  )
+  let pos = 0
+  for (const d of matched) update.run(pos++, d.id)
+  for (const d of unmatched) update.run(pos++, d.id)
+}
+
 /** Append a history row iff the new value actually differs from the stored
  *  baseline. `absentBaseline` is what a MISSING settings row means for the key:
  *  0 for the profit target (no goal — mirrors the epoch seed), null for max
@@ -120,6 +163,9 @@ export function saveSettingsOn(
         .map((t) => String(t).trim())
         .filter(Boolean)
       upsert.run(KEYS.dailyRuleBreakList, JSON.stringify(clean))
+      // Dave #12 — keep rule_break_def.sort_position in the list's order
+      // (same transaction; see syncRuleBreakSortPositions).
+      syncRuleBreakSortPositions(db, clean)
     }
     if (input.polygon_api_key != null) {
       upsert.run(KEYS.polygonApiKey, String(input.polygon_api_key).trim())
