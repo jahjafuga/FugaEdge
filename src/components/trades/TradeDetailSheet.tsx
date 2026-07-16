@@ -186,7 +186,10 @@ function SheetHeader({
               )}
             </div>
             <div className="mt-1 text-xs text-fg-tertiary tnum">
-              {longDate(trade.date)}
+              {/* Dave #16 — Modal==Sheet convergence: the same date · entry
+                  time pair as the modal header, same source as the Round
+                  Trips OPEN column. */}
+              {longDate(trade.date)} · {formatEastern(trade.open_time)}
             </div>
           </>
         ) : (

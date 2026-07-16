@@ -59,11 +59,14 @@ describe('TradeDetailSheet — read-only Technicals drill-through', () => {
   })
 
   // b
-  it('shows trade identity (symbol + long date) once loaded', async () => {
+  it('shows trade identity (symbol + date · entry time) once loaded', async () => {
     getTradeSpy.mockResolvedValue(makeTrade())
     renderSheet()
     expect(await screen.findByText('AAPL')).toBeTruthy()
-    expect(screen.getByText('May 20 2026')).toBeTruthy()
+    // Dave #16 — the subtitle gained the entry time after the date (same
+    // source as the Round Trips OPEN column): 13:30Z on the fixture -> 09:30:00
+    // Eastern.
+    expect(screen.getByText('May 20 2026 · 09:30:00')).toBeTruthy()
   })
 
   // c

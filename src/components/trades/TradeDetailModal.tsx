@@ -339,7 +339,11 @@ function ModalHeader({ trade, onClose, navPosition, onNavigate }: { trade: Trade
             )}
           </div>
           <div className="mt-1 text-xs text-fg-tertiary tnum">
-            {longDate(trade.date)} · {trade.executions.length} fill
+            {/* Dave #16 — entry time right after the date, SAME SOURCE as the
+                Round Trips OPEN column (open_time through formatEastern; an
+                unparseable stamp self-honests to the em-dash there and here). */}
+            {longDate(trade.date)} · {formatEastern(trade.open_time)} ·{' '}
+            {trade.executions.length} fill
             {trade.executions.length === 1 ? '' : 's'} ·{' '}
             {int(trade.shares_bought)} sh bought · {int(trade.shares_sold)} sh sold
           </div>
