@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import {
   classifyVwapBucket,
   computeVwapBuckets,
@@ -10,9 +12,12 @@ import type { VwapBucketStats } from '../vwapBuckets'
 import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import { makeCompleteSnapshot, makeRow } from '@/test/fixtures/technicals'
 
-// RED-first tests for the VWAP distance 7-bucket aggregation (spec §A4),
-// paralleling macdBuckets.test.ts. A classifiable row is placed by its 1m
-// vwap_dist_pct; tf_5m stays at DEFAULT (irrelevant to the 1m tests).
+// VWAP distance 7-bucket aggregation — re-pinned to the CANONICAL signed scheme
+// (Dave #10: the band adopts the edges his EMA proposal already ships, cc3932a).
+// Same machinery as before (tiers, partition invariant, BucketStats math); the
+// edges, labels, barValues, and extent are the canonical band's. A classifiable
+// row is placed by its 1m vwap_dist_pct; tf_5m stays at DEFAULT unless a test
+// sets it.
 function vwapRow(
   id: number,
   net_pnl: number,
@@ -44,42 +49,74 @@ function expectDenominatorInvariant(r: VwapBucketStats): void {
 }
 
 // ── VWAP_BUCKETS metadata ────────────────────────────────────────────────────
-describe('VWAP_BUCKETS metadata', () => {
-  it('(M1) is the 7-bucket §A4 single source of truth (keys, edges, barValues)', () => {
+describe('VWAP_BUCKETS metadata (canonical scheme)', () => {
+  it('(M1) is the canonical 7-bucket single source of truth (keys, edges, barValues)', () => {
     expect(VWAP_BUCKETS).toHaveLength(7)
     expect(VWAP_KEYS).toEqual(['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7'])
-    expect(VWAP_BUCKETS.map((b) => b.barValue)).toEqual([-2, -1, 0, 1, 2, 3, 4])
-    expect(VWAP_BUCKET_EXTENT).toBe(4)
+    // v2-centered, right-weighted axis — the EMA e-scheme mirrored.
+    expect(VWAP_BUCKETS.map((b) => b.barValue)).toEqual([-1, 0, 1, 2, 3, 4, 5])
+    expect(VWAP_BUCKET_EXTENT).toBe(5)
     expect(VWAP_BUCKETS[0].lo).toBe(-Infinity)
     expect(VWAP_BUCKETS[6].hi).toBe(Infinity)
-    const atVwap = VWAP_BUCKETS[2]
-    expect(atVwap.key).toBe('v3')
-    expect(atVwap.lo).toBe(-0.25)
-    expect(atVwap.hi).toBe(0.25)
+    // At-VWAP is the SECOND bucket now (one below bucket, per the canon).
+    const atVwap = VWAP_BUCKETS[1]
+    expect(atVwap.key).toBe('v2')
+    expect(atVwap.lo).toBe(-0.5)
+    expect(atVwap.hi).toBe(0.5)
     expect(atVwap.barValue).toBe(0)
     expect(atVwap.label).toContain('At VWAP')
+  })
+
+  it('(M2) the new descriptors, verbatim', () => {
+    expect(VWAP_BUCKETS.map((b) => b.label)).toEqual([
+      'Below VWAP / broken trend < -0.5%',
+      'At VWAP (equilibrium) -0.5% to +0.5%',
+      'Near VWAP (pullback zone) +0.5% to +2.0%',
+      'Above VWAP (trending) +2.0% to +5.0%',
+      'Extended +5.0% to +10.0%',
+      'Very extended +10.0% to +20.0%',
+      'Blow-off / parabolic > +20.0%',
+    ])
+  })
+
+  it("(M3) the editorializing died with the ticket: 'danger' and 'chasing' are banned from the module", () => {
+    // The ticket's core complaint: the old "Parabolic / danger" label
+    // editorialized against momentum strategy while his own data showed that
+    // zone winning. Ban the words from the WHOLE module source (labels,
+    // comments, everything) so they cannot creep back in prose either.
+    const src = readFileSync(
+      fileURLToPath(new URL('../vwapBuckets.ts', import.meta.url)),
+      'utf8',
+    )
+    expect(src).not.toMatch(/danger/i)
+    expect(src).not.toMatch(/chasing/i)
   })
 })
 
 // ── classifyVwapBucket ───────────────────────────────────────────────────────
-describe('classifyVwapBucket', () => {
+describe('classifyVwapBucket (canonical edges)', () => {
   it('(C1) places interior values into v1..v7', () => {
     expect(classifyVwapBucket(vwapRow(1, 0, -2.0), '1m')).toBe('v1')
-    expect(classifyVwapBucket(vwapRow(2, 0, -0.5), '1m')).toBe('v2')
-    expect(classifyVwapBucket(vwapRow(3, 0, 0), '1m')).toBe('v3')
-    expect(classifyVwapBucket(vwapRow(4, 0, 0.5), '1m')).toBe('v4')
-    expect(classifyVwapBucket(vwapRow(5, 0, 2.0), '1m')).toBe('v5')
-    expect(classifyVwapBucket(vwapRow(6, 0, 4.0), '1m')).toBe('v6')
-    expect(classifyVwapBucket(vwapRow(7, 0, 10.0), '1m')).toBe('v7')
+    expect(classifyVwapBucket(vwapRow(2, 0, 0), '1m')).toBe('v2')
+    expect(classifyVwapBucket(vwapRow(3, 0, 1.0), '1m')).toBe('v3')
+    expect(classifyVwapBucket(vwapRow(4, 0, 3.0), '1m')).toBe('v4')
+    expect(classifyVwapBucket(vwapRow(5, 0, 7.0), '1m')).toBe('v5')
+    expect(classifyVwapBucket(vwapRow(6, 0, 15.0), '1m')).toBe('v6')
+    expect(classifyVwapBucket(vwapRow(7, 0, 25.0), '1m')).toBe('v7')
   })
 
-  it('(C2) edges are left-inclusive, right-exclusive (§A4)', () => {
-    expect(classifyVwapBucket(vwapRow(1, 0, -1.0), '1m')).toBe('v2') // -1.0 = v2 lower edge
-    expect(classifyVwapBucket(vwapRow(2, 0, -0.25), '1m')).toBe('v3') // spec example
-    expect(classifyVwapBucket(vwapRow(3, 0, 0.25), '1m')).toBe('v4') // +0.25 → v4, NOT v3
-    expect(classifyVwapBucket(vwapRow(4, 0, 1.0), '1m')).toBe('v5')
-    expect(classifyVwapBucket(vwapRow(5, 0, 3.0), '1m')).toBe('v6')
-    expect(classifyVwapBucket(vwapRow(6, 0, 6.0), '1m')).toBe('v7')
+  it('(C2) every edge is left-inclusive, right-exclusive', () => {
+    expect(classifyVwapBucket(vwapRow(1, 0, -0.5), '1m')).toBe('v2') // -0.5 = At's lower edge
+    expect(classifyVwapBucket(vwapRow(2, 0, 0.5), '1m')).toBe('v3') // +0.5 → Near, NOT At
+    expect(classifyVwapBucket(vwapRow(3, 0, 2.0), '1m')).toBe('v4') // +2.0 → Above
+    expect(classifyVwapBucket(vwapRow(4, 0, 5.0), '1m')).toBe('v5') // +5.0 → Extended
+    expect(classifyVwapBucket(vwapRow(5, 0, 10.0), '1m')).toBe('v6') // +10.0 → Very extended
+    expect(classifyVwapBucket(vwapRow(6, 0, 20.0), '1m')).toBe('v7') // +20.0 → Blow-off
+  })
+
+  it("(C2b) the old scheme's 10.0 → v7 fixture now lands v6; +25 → v7", () => {
+    expect(classifyVwapBucket(vwapRow(1, 0, 10.0), '1m')).toBe('v6')
+    expect(classifyVwapBucket(vwapRow(2, 0, 25.0), '1m')).toBe('v7')
   })
 
   it('(C3) technicals null → null (data gate)', () => {
@@ -98,17 +135,17 @@ describe('classifyVwapBucket', () => {
 
   it('(C6) classification follows the toggled timeframe', () => {
     const tech = makeCompleteSnapshot(
-      { vwap_dist_pct: 0 }, // 1m → v3 (At VWAP)
-      { vwap_dist_pct: 10.0 }, // 5m → v7 (Parabolic)
+      { vwap_dist_pct: 0 }, // 1m → v2 (At VWAP)
+      { vwap_dist_pct: 25.0 }, // 5m → v7 (Blow-off)
     )
     const row = makeRow({ technicals: tech })
-    expect(classifyVwapBucket(row, '1m')).toBe('v3')
+    expect(classifyVwapBucket(row, '1m')).toBe('v2')
     expect(classifyVwapBucket(row, '5m')).toBe('v7')
   })
 })
 
 // ── computeVwapBuckets — exclusion tiers ─────────────────────────────────────
-describe('computeVwapBuckets — exclusion tiers', () => {
+describe('computeVwapBuckets — exclusion tiers (unchanged machinery)', () => {
   it('(T1) empty input → all tiers zero, all buckets empty', () => {
     const r = computeVwapBuckets([], '1m')
     expect(r.excluded).toBe(0)
@@ -147,15 +184,15 @@ describe('computeVwapBuckets — exclusion tiers', () => {
       makeRow({ id: 1, technicals: null }), // gate fail (null)
       makeRow({ id: 2, technicals: incomplete }), // gate fail (incomplete)
       vwapRow(3, 0, null), // unclassified (vwap null)
-      vwapRow(4, 100, 0), // v3
-      vwapRow(5, 100, 0), // v3
-      vwapRow(6, 100, 0), // v3
+      vwapRow(4, 100, 0), // v2 (At)
+      vwapRow(5, 100, 0), // v2
+      vwapRow(6, 100, 0), // v2
     ]
     const r = computeVwapBuckets(rows, '1m')
     expect(r.excluded).toBe(2)
     expect(r.unclassified).toBe(1)
     expect(r.denominator).toBe(3)
-    expect(r.buckets.v3.n).toBe(3)
+    expect(r.buckets.v2.n).toBe(3)
     expectDenominatorInvariant(r)
   })
 })
@@ -165,12 +202,12 @@ describe('computeVwapBuckets — partition + math', () => {
   it('(T5) one trade per bucket → denominator 7, each n=1, distinct netPnl', () => {
     const rows = [
       vwapRow(1, 10, -2.0), // v1
-      vwapRow(2, 20, -0.5), // v2
-      vwapRow(3, 30, 0), // v3
-      vwapRow(4, 40, 0.5), // v4
-      vwapRow(5, 50, 2.0), // v5
-      vwapRow(6, 60, 4.0), // v6
-      vwapRow(7, 70, 10.0), // v7
+      vwapRow(2, 20, 0), // v2
+      vwapRow(3, 30, 1.0), // v3
+      vwapRow(4, 40, 3.0), // v4
+      vwapRow(5, 50, 7.0), // v5
+      vwapRow(6, 60, 15.0), // v6
+      vwapRow(7, 70, 25.0), // v7
     ]
     const r = computeVwapBuckets(rows, '1m')
     expect(r.denominator).toBe(7)
@@ -188,7 +225,7 @@ describe('computeVwapBuckets — partition + math', () => {
   })
 
   it('(T6) winners + losers (n=5) → winRate, avgs, expectancy = netPnl/n', () => {
-    // 3 winners (100,200,300) + 2 losers (-50,-150) in v3.
+    // 3 winners (100,200,300) + 2 losers (-50,-150) in v2 (At VWAP).
     const rows = [
       vwapRow(1, 100, 0),
       vwapRow(2, 200, 0),
@@ -196,7 +233,7 @@ describe('computeVwapBuckets — partition + math', () => {
       vwapRow(4, -50, 0),
       vwapRow(5, -150, 0),
     ]
-    const b = computeVwapBuckets(rows, '1m').buckets.v3
+    const b = computeVwapBuckets(rows, '1m').buckets.v2
     expect(b.n).toBe(5)
     expect(b.winRate).toBe(0.6)
     expect(b.netPnl).toBe(400)
@@ -207,7 +244,7 @@ describe('computeVwapBuckets — partition + math', () => {
 
   it('(T7) n=4 → expectancy suppressed to null, winRate still shown (§C:104)', () => {
     const rows = Array.from({ length: 4 }, (_, i) => vwapRow(i + 1, 100, 0))
-    const b = computeVwapBuckets(rows, '1m').buckets.v3
+    const b = computeVwapBuckets(rows, '1m').buckets.v2
     expect(b.n).toBe(4)
     expect(b.winRate).toBe(1)
     expect(b.expectancy).toBeNull()
@@ -220,10 +257,10 @@ describe('rowsForVwapBucket', () => {
     for (const k of VWAP_KEYS) expect(rowsForVwapBucket([], '1m', k)).toEqual([])
   })
 
-  it('(R2) single v3 row → returned for v3, [] for v4', () => {
+  it('(R2) single At-VWAP row → returned for v2, [] for v3', () => {
     const row = vwapRow(1, 100, 0)
-    expect(rowsForVwapBucket([row], '1m', 'v3')).toEqual([row])
-    expect(rowsForVwapBucket([row], '1m', 'v4')).toEqual([])
+    expect(rowsForVwapBucket([row], '1m', 'v2')).toEqual([row])
+    expect(rowsForVwapBucket([row], '1m', 'v3')).toEqual([])
   })
 
   it('(R3) gate-fail + unclassified rows never appear in any bucket', () => {
@@ -232,10 +269,10 @@ describe('rowsForVwapBucket', () => {
     const gateFailNull = makeRow({ id: 1, technicals: null })
     const gateFailIncomplete = makeRow({ id: 2, technicals: incomplete })
     const unclassified = vwapRow(3, 0, null)
-    const v3 = vwapRow(4, 100, 0)
-    const rows = [gateFailNull, gateFailIncomplete, unclassified, v3]
+    const atVwap = vwapRow(4, 100, 0)
+    const rows = [gateFailNull, gateFailIncomplete, unclassified, atVwap]
     const allBucketed = VWAP_KEYS.flatMap((k) => rowsForVwapBucket(rows, '1m', k))
-    expect(allBucketed).toEqual([v3])
+    expect(allBucketed).toEqual([atVwap])
     expect(allBucketed).not.toContain(gateFailNull)
     expect(allBucketed).not.toContain(gateFailIncomplete)
     expect(allBucketed).not.toContain(unclassified)
@@ -243,11 +280,11 @@ describe('rowsForVwapBucket', () => {
 
   it('(R4) timeframe-dependent: same row resolves to different buckets per timeframe', () => {
     const tech = makeCompleteSnapshot(
-      { vwap_dist_pct: 0 }, // 1m → v3
-      { vwap_dist_pct: 10.0 }, // 5m → v7
+      { vwap_dist_pct: 0 }, // 1m → v2
+      { vwap_dist_pct: 25.0 }, // 5m → v7
     )
     const row = makeRow({ technicals: tech })
-    expect(rowsForVwapBucket([row], '1m', 'v3')).toEqual([row])
+    expect(rowsForVwapBucket([row], '1m', 'v2')).toEqual([row])
     expect(rowsForVwapBucket([row], '5m', 'v7')).toEqual([row])
     expect(rowsForVwapBucket([row], '1m', 'v7')).toEqual([])
   })

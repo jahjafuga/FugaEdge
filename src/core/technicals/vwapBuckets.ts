@@ -1,6 +1,7 @@
-// Pure VWAP distance 7-bucket aggregation (spec §A4) — the first non-MACD
-// consumer of the bucket-stats shape. Partitions data-complete, classifiable
-// trades into the 7 signed-distance buckets (Below → Parabolic) for the toggled
+// Pure VWAP distance 7-bucket aggregation (spec §A4, edges since re-canonized
+// by Dave #10) — the first non-MACD consumer of the bucket-stats shape.
+// Partitions data-complete, classifiable trades into the 7 canonical
+// signed-distance buckets (Below → Blow-off) for the toggled
 // timeframe, tracks the excluded + unclassified tiers separately, and computes
 // the per-bucket BucketStats. Direct parallel of macdBuckets.ts; the only
 // structural difference is single-value range classification on vwap_dist_pct
@@ -13,39 +14,48 @@ import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
 import type { Timeframe } from './headerStrip'
 import type { BucketStats } from './types'
 
-/** The seven VWAP-distance buckets, ordered most-below → most-above (§A4),
+/** The seven VWAP-distance buckets, ordered most-below → most-above,
  *  aligned with the bg-vwap-N palette slugs (v1 → vwap-1, … v7 → vwap-7). */
 export type VwapBucketKey = 'v1' | 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7'
 
 export interface VwapBucketMeta {
   key: VwapBucketKey
-  /** §A4 label + range — the BucketRow title. */
+  /** Canonical label + range — the BucketRow title. */
   label: string
   /** Inclusive lower edge (-Infinity = open below). */
   lo: number
   /** Exclusive upper edge (+Infinity = open above). */
   hi: number
-  /** DivergingBar position: index − 3, centred on At-VWAP (v3 = 0). */
+  /** DivergingBar position: linear index − 2 (1-based), centred on At-VWAP
+   *  (v2 = 0). One below bucket, so the axis is right-weighted — the EMA
+   *  band's e-scheme, mirrored. */
   barValue: number
 }
 
-// DivergingBar symmetric extent — v7 (barValue +4) fills the right track; the
-// below side (v1 = −2) reaches half, mirroring §A4's asymmetric boundaries.
-export const VWAP_BUCKET_EXTENT = 4
+// DivergingBar symmetric extent — v7 (barValue +5) fills the right track; the
+// lone below bucket (v1 = −1) reaches a fifth, mirroring the canonical
+// one-below / six-at-or-above asymmetry the EMA band uses.
+export const VWAP_BUCKET_EXTENT = 5
 
 /**
  * Single source of truth for the VWAP band: keys, labels, the numeric edges the
- * classifier partitions on (left-inclusive lo, right-exclusive hi per §A4), and
- * each bucket's DivergingBar barValue. The section component maps over this.
+ * classifier partitions on (left-inclusive lo, right-exclusive hi), and each
+ * bucket's DivergingBar barValue. The section component maps over this.
+ *
+ * Canonical signed 7-band scheme (Dave #10) — the SAME edges the EMA band
+ * adopted in cc3932a (his proposal there, extended here so the two bands read
+ * as siblings; bucketSchemeParity.test.ts locks them together). The old
+ * +6%-and-up top bucket editorialized against momentum entries his own data
+ * showed winning; the canon is descriptive, and "extended" starts at +5%.
  */
 export const VWAP_BUCKETS: readonly VwapBucketMeta[] = [
-  { key: 'v1', label: 'Below / broken < -1.0%', lo: -Infinity, hi: -1.0, barValue: -2 },
-  { key: 'v2', label: 'Just below VWAP -1.0% to -0.25%', lo: -1.0, hi: -0.25, barValue: -1 },
-  { key: 'v3', label: 'At VWAP (equilibrium) -0.25% to +0.25%', lo: -0.25, hi: 0.25, barValue: 0 },
-  { key: 'v4', label: 'Slightly extended +0.25% to +1.0%', lo: 0.25, hi: 1.0, barValue: 1 },
-  { key: 'v5', label: 'Extended +1.0% to +3.0%', lo: 1.0, hi: 3.0, barValue: 2 },
-  { key: 'v6', label: 'Stretched / chasing +3.0% to +6.0%', lo: 3.0, hi: 6.0, barValue: 3 },
-  { key: 'v7', label: 'Parabolic / danger > +6.0%', lo: 6.0, hi: Infinity, barValue: 4 },
+  { key: 'v1', label: 'Below VWAP / broken trend < -0.5%', lo: -Infinity, hi: -0.5, barValue: -1 },
+  { key: 'v2', label: 'At VWAP (equilibrium) -0.5% to +0.5%', lo: -0.5, hi: 0.5, barValue: 0 },
+  { key: 'v3', label: 'Near VWAP (pullback zone) +0.5% to +2.0%', lo: 0.5, hi: 2.0, barValue: 1 },
+  { key: 'v4', label: 'Above VWAP (trending) +2.0% to +5.0%', lo: 2.0, hi: 5.0, barValue: 2 },
+  { key: 'v5', label: 'Extended +5.0% to +10.0%', lo: 5.0, hi: 10.0, barValue: 3 },
+  { key: 'v6', label: 'Very extended +10.0% to +20.0%', lo: 10.0, hi: 20.0, barValue: 4 },
+  { key: 'v7', label: 'Blow-off / parabolic > +20.0%', lo: 20.0, hi: Infinity, barValue: 5 },
 ]
 
 /**
@@ -70,7 +80,7 @@ export interface VwapBucketStats {
  * be placed (gate fail, or vwap_dist_pct null). Single source of truth for
  * classification: computeVwapBuckets accumulates through it and rowsForVwapBucket
  * resolves accordion rows through it, so the two never drift. The range partition
- * reads VWAP_BUCKETS' lo/hi edges (left-inclusive, right-exclusive per §A4).
+ * reads VWAP_BUCKETS' lo/hi edges (left-inclusive, right-exclusive).
  */
 export function classifyVwapBucket(
   row: TradeWithTechnicalsRow,

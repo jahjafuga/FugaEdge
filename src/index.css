@@ -100,20 +100,23 @@
     --macd-neg-rising:  170 183 184;  /* #aab7b8  Negative + Rising */
     --macd-neg-falling: 239 83 80;    /* #ef5350  Negative + Falling */
 
-    /* VWAP bucket palette (spec §A4 / §G) — used by the v0.2.4 VWAP Distance
-       band. :root only (no :root.light override), mirroring --macd: a shared
-       accent identical across themes. Diverging-with-asymmetric-tails per the
-       Ross Cameron framing (§I): cool red on broken-below, MACD teal at the
-       equilibrium sweet spot, then green → amber → hot red as price extends
-       above (parabolic = above but dangerous). The band tints cells at 0.12
-       (rest) / 0.18 (active) via bg-vwap-N/[0.NN]. */
-    --vwap-1: 217 106 100;  /* #d96a64  Below / broken — cool red, trend died */
-    --vwap-2: 192 133 114;  /* #c08572  Just below VWAP — dusky transitional, reclaim staging */
-    --vwap-3: 38 166 154;   /* #26a69a  At VWAP (equilibrium) — MACD teal sweet spot */
-    --vwap-4: 70 176 122;   /* #46b07a  Slightly extended — medium green, healthy entry */
-    --vwap-5: 163 193 78;   /* #a3c14e  Extended — yellow-green, leaving healthy */
-    --vwap-6: 245 176 65;   /* #f5b041  Stretched / chasing — MACD amber, chase zone */
-    --vwap-7: 239 83 80;    /* #ef5350  Parabolic / danger — MACD red, hot alarming */
+    /* VWAP bucket palette (§G) — used by the VWAP Distance band. :root only
+       (no :root.light override), mirroring --macd: a shared accent identical
+       across themes. Canonical 7-band scheme (Dave #10): the values mirror the
+       EMA band's assignment bucket-for-bucket so the two bands read as
+       siblings — cool red on broken-below, MACD teal at the equilibrium sweet
+       spot, then green → yellow-green → amber as price extends, MACD red on
+       the top two (Very extended / Blow-off; the EMA band's e7 shares e6's
+       red pending its own token, so v7 carries the same value). Descriptive,
+       not editorial — the palette grades distance, the stats judge it. The
+       band tints cells at 0.12 (rest) / 0.18 (active) via bg-vwap-N/[0.NN]. */
+    --vwap-1: 217 106 100;  /* #d96a64  Below VWAP / broken trend — cool red, trend died */
+    --vwap-2: 38 166 154;   /* #26a69a  At VWAP (equilibrium) — MACD teal sweet spot */
+    --vwap-3: 70 176 122;   /* #46b07a  Near VWAP (pullback zone) — medium green */
+    --vwap-4: 163 193 78;   /* #a3c14e  Above VWAP (trending) — yellow-green */
+    --vwap-5: 245 176 65;   /* #f5b041  Extended — MACD amber */
+    --vwap-6: 239 83 80;    /* #ef5350  Very extended — MACD red (mirrors --ema-6) */
+    --vwap-7: 239 83 80;    /* #ef5350  Blow-off / parabolic — same value as v6, mirroring the EMA band's e7→ema-6 reuse (distinct top color deferred to the design pass) */
     /* EMA bucket palette (spec §A5 / §G) — the same diverging shape as --vwap,
        applied to the 9 EMA distance band. Six buckets, not seven (no "just
        below" zone — §A5 jumps from broken straight to the pullback band).

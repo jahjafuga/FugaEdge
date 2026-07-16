@@ -7,8 +7,9 @@
 // unclassified chip are composed by TechnicalsTab.
 //
 // The DivergingBar shows each bucket's position on the equilibrium axis (barValue
-// from VWAP_BUCKETS, index − 3 centred on At-VWAP); below = chartColors.loss
-// (bearish, per Ross Cameron's "below VWAP" framing), above = chartColors.win.
+// from VWAP_BUCKETS, linear index − 2 centred on At-VWAP, v2 = 0 — the canonical
+// one-below scheme, mirroring the EMA band); below = chartColors.loss (bearish,
+// per Ross Cameron's "below VWAP" framing), above = chartColors.win.
 // The bg-vwap-N palette tint carries the ordinal weight separately.
 //
 // Layout: each row + its accordion in an item div with mt between items and NO
@@ -41,7 +42,7 @@ import { useBucketBand } from './useBucketBand'
 // active 0.18, keyed by VwapBucketKey → the bg-vwap-N palette tokens.
 //
 // Spec §J invariant 6 (visual at-vs-extended distinction) — DEFERRED: §G wants the
-// bucket's color/opacity to make "near the level" (v3) vs "extended" readable at a
+// bucket's color/opacity to make "near the level" (v2) vs "extended" readable at a
 // glance. The position-weight half is realized via the DivergingBar barValue
 // (tested in BucketRow.test.tsx); the color/opacity half waits because these
 // bg-vwap-N tokens are F8's gray placeholders, so the distinction isn't realized

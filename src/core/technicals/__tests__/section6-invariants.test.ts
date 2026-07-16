@@ -38,8 +38,9 @@ import type { TradeWithTechnicalsRow } from '@shared/technicals-types'
  */
 
 // Invariant #4: "Bucket membership != the above_* binary." The at-the-level
-// buckets straddle zero (VWAP bucket 3 = [-0.25, +0.25); 9-EMA bucket 2 =
-// [-0.5, +0.5)), so two trades in the SAME bucket can carry DIFFERENT strict
+// buckets straddle zero (both bands share the canonical [-0.5, +0.5) At bucket
+// since Dave #10 — VWAP bucket v2, 9-EMA bucket e2), so two trades in the SAME
+// bucket can carry DIFFERENT strict
 // above_* values. computeHeaderStrip derives above_vwap / above_9ema as a strict
 // `dist > 0` straight off the snapshot — never from a bucket index — which is
 // exactly why the two CAN disagree. Asserting that disagreement within one bucket
@@ -54,10 +55,10 @@ function emaRow(dist: number): TradeWithTechnicalsRow {
 }
 
 describe('Spec §J invariant 4 — bucket membership vs strict above_* binary', () => {
-  it('VWAP bucket 3 (At VWAP) straddles zero: same bucket, different above_vwap', () => {
-    // All three land in bucket v3 — membership is range-based, zero-inclusive.
+  it('VWAP bucket v2 (At VWAP) straddles zero: same bucket, different above_vwap', () => {
+    // All three land in bucket v2 — membership is range-based, zero-inclusive.
     for (const dist of [-0.1, 0, 0.1]) {
-      expect(classifyVwapBucket(vwapRow(dist), '1m')).toBe('v3')
+      expect(classifyVwapBucket(vwapRow(dist), '1m')).toBe('v2')
     }
     // ...yet above_vwap is the strict (> 0) binary off the snapshot, so it splits
     // the same bucket by sign — and exactly 0 is NOT above.
