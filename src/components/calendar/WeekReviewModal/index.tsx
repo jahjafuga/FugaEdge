@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   BookOpen,
@@ -14,6 +14,7 @@ import { longDate, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
 import DetailNotesTab from '@/components/calendar/DetailNotesTab'
+import { type NavPosition } from '@/core/trades/tradeNavigation'
 import WeekOverviewTab from './WeekOverviewTab'
 import WeekPerformanceTab from './WeekPerformanceTab'
 import WeekTradesTab from './WeekTradesTab'
@@ -24,6 +25,12 @@ interface WeekReviewModalProps {
   /** Sunday week_start (from the calendar grid row), or null when closed. */
   weekStart: string | null
   onClose: () => void
+  /** Week cycling (v0.2.6) — OPTIONAL, mirroring DayDetailModal. The Calendar
+   *  host walks ALL SIX grid week_starts of the loaded month (the WeeklyPanel
+   *  open contract — zero-trade weeks included); without the props the modal
+   *  renders no nav UI and ignores arrow keys. */
+  navPosition?: NavPosition<string>
+  onNavigate?: (weekStart: string) => void
 }
 
 type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'patterns' | 'notes'
@@ -45,7 +52,7 @@ const TABS: readonly DetailModalTab<TabKey>[] = [
 // DetailModalShell + useTradeStack (extracted in 4.5a). Mirrors DayDetailModal:
 // owns the week's data + which tab content to render; the chrome and
 // trade-stacking discipline are shared.
-export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalProps) {
+export default function WeekReviewModal({ weekStart, onClose, navPosition, onNavigate }: WeekReviewModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [detail, setDetail] = useState<WeekDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -66,26 +73,37 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
 
   const stack = useTradeStack({ trades: detail?.trades, reload })
 
-  useEffect(() => {
-    if (weekStart) {
-      setTab('overview')
-      stack.reset()
-    }
-  }, [weekStart, stack.reset])
+  // Fresh open vs arrow cycle — DayDetailModal's discriminator, mirrored.
+  // null→weekStart is a FRESH OPEN (reset tab + stacked trade, show the
+  // loader); weekStart→weekStart is a CYCLE (keep the active tab, keep the
+  // last detail mounted until the fresh one lands — reload()'s no-flash
+  // shape; the cancelled flag stays the latest-wins guard).
+  const prevWeekRef = useRef<string | null>(null)
 
   useEffect(() => {
+    const freshOpen = weekStart !== null && prevWeekRef.current === null
+    prevWeekRef.current = weekStart
     if (!weekStart) return
+    if (freshOpen) {
+      setTab('overview')
+      stack.reset()
+      setLoading(true)
+      setError(null)
+      setDetail(null)
+    }
     let cancelled = false
-    setLoading(true)
-    setError(null)
-    setDetail(null)
     weekRepo
       .getWeekDetail(weekStart, { accountScope: scope })
       .then((d) => {
-        if (!cancelled) setDetail(d)
+        if (!cancelled) {
+          setDetail(d)
+          setError(null)
+        }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        // Cycle/scope-refetch failures keep the last-good detail (reload()'s
+        // contract); the fresh open still owns hard-error surfacing.
+        if (!cancelled && freshOpen) setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -93,14 +111,19 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
     return () => {
       cancelled = true
     }
-  }, [weekStart, scope])
+  }, [weekStart, scope, stack.reset])
 
   if (!weekStart) return null
 
   const m = detail?.metrics
-  const title = detail
-    ? `${longDate(detail.weekStart)} → ${longDate(detail.weekEnd)}`
-    : longDate(weekStart)
+  // Title identity follows the PROP (like the day modal's longDate(date)):
+  // while a cycle's fetch is in flight `detail` is the previous week's
+  // (keep-last), so the full start→end range renders only once the loaded
+  // detail matches the open week.
+  const title =
+    detail && detail.weekStart === weekStart
+      ? `${longDate(detail.weekStart)} → ${longDate(detail.weekEnd)}`
+      : longDate(weekStart)
   const subtitle = m
     ? `${m.tradingDays} trading day${m.tradingDays === 1 ? '' : 's'} · ${m.tradeCount} trade${m.tradeCount === 1 ? '' : 's'}`
     : ' '
@@ -117,6 +140,9 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
       onClose={onClose}
       escapeBlocked={stack.escapeBlocked}
       stackedModal={stack.stackedModal}
+      navPosition={navPosition}
+      onNavigate={onNavigate}
+      navUnit="week"
     >
       {loading && <div className="p-6 text-sm text-fg-tertiary">Loading…</div>}
       {error && !loading && (
@@ -135,7 +161,12 @@ export default function WeekReviewModal({ weekStart, onClose }: WeekReviewModalP
         <WeekMistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
       )}
       {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} />}
-      {detail && !loading && tab === 'notes' && (
+      {/* Notes is a WRITE surface — gate on detail freshness so a mid-cycle
+          keep-last detail can't leave the editor (and its debounced save,
+          which reads the LATEST onSave closure) targeting the wrong week.
+          Unmounting flushes any pending edit to the OLD week via its
+          last-committed closure. Mirrors DayDetailModal. */}
+      {detail && !loading && detail.weekStart === weekStart && tab === 'notes' && (
         <DetailNotesTab
           resetKey={detail.weekStart}
           initialValue={detail.notes ?? ''}

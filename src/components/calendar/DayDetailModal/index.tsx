@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   BookOpen,
@@ -14,6 +14,7 @@ import { longDate, money, signed, pnlClass } from '@/lib/format'
 import DetailModalShell, { type DetailModalTab } from '@/components/calendar/DetailModalShell'
 import { useTradeStack } from '@/components/calendar/useTradeStack'
 import DetailNotesTab from '@/components/calendar/DetailNotesTab'
+import { type NavPosition } from '@/core/trades/tradeNavigation'
 import OverviewTab from './OverviewTab'
 import PerformanceTab from './PerformanceTab'
 import TradesTab from './TradesTab'
@@ -23,6 +24,12 @@ import RuleBreaksEditor from '@/components/calendar/RuleBreaksEditor'
 interface DayDetailModalProps {
   date: string | null
   onClose: () => void
+  /** Day cycling (v0.2.6) — OPTIONAL, mirroring TradeDetailModal's nav props.
+   *  The Calendar host computes the walk from the loaded month's
+   *  days-with-trades and passes both; without them the modal renders no nav
+   *  UI and ignores arrow keys. */
+  navPosition?: NavPosition<string>
+  onNavigate?: (date: string) => void
 }
 
 type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'ruleBreaks' | 'notes'
@@ -46,7 +53,7 @@ const TABS: readonly DetailModalTab<TabKey>[] = [
 // stacking lives in useTradeStack. This file owns the day's data and which tab
 // content to render. Refactored in Day 4.5a (behavior-preserving) so the
 // Weekly Review modal can reuse the same shell + stacking.
-export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
+export default function DayDetailModal({ date, onClose, navPosition, onNavigate }: DayDetailModalProps) {
   const [tab, setTab] = useState<TabKey>('overview')
   const [detail, setDetail] = useState<DayDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -74,28 +81,39 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
 
   const stack = useTradeStack({ trades: detail?.trades, reload })
 
-  useEffect(() => {
-    if (date) {
-      setTab('overview')
-      stack.reset()
-    }
-  }, [date, stack.reset])
+  // Fresh open vs arrow cycle (v0.2.6 cycling): every close path nulls `date`,
+  // so null→date is a FRESH OPEN — reset the tab + stacked trade and show the
+  // loader — while date→date is a CYCLE — keep the active tab AND keep the
+  // last detail mounted until the fresh one lands (reload()'s no-flash shape;
+  // the cancelled flag stays the latest-wins guard, so a stale response can
+  // never overwrite a newer day). A scope flip re-fetches on the cycle shape
+  // too — no null-flash. The ref advances only here, once per transition.
+  const prevDateRef = useRef<string | null>(null)
 
   useEffect(() => {
+    const freshOpen = date !== null && prevDateRef.current === null
+    prevDateRef.current = date
     if (!date) return
+    if (freshOpen) {
+      setTab('overview')
+      stack.reset()
+      setLoading(true)
+      setError(null)
+      setDetail(null)
+    }
     let cancelled = false
-    setLoading(true)
-    setError(null)
-    setDetail(null)
     dayRepo
       .getDayDetail(date, { accountScope: scope })
       .then((d) => {
         if (!cancelled) {
           setDetail(d)
+          setError(null)
         }
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e))
+        // A cycle/scope-refetch failure keeps the last-good detail (reload()'s
+        // contract); the fresh open still owns hard-error surfacing.
+        if (!cancelled && freshOpen) setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -103,7 +121,7 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
     return () => {
       cancelled = true
     }
-  }, [date, scope])
+  }, [date, scope, stack.reset])
 
   if (!date) return null
 
@@ -124,6 +142,9 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
       onClose={onClose}
       escapeBlocked={stack.escapeBlocked}
       stackedModal={stack.stackedModal}
+      navPosition={navPosition}
+      onNavigate={onNavigate}
+      navUnit="day"
     >
       {loading && <div className="p-6 text-sm text-fg-tertiary">Loading…</div>}
       {error && !loading && (
@@ -156,7 +177,13 @@ export default function DayDetailModal({ date, onClose }: DayDetailModalProps) {
           />
         </div>
       )}
-      {detail && !loading && tab === 'notes' && (
+      {/* Notes is a WRITE surface — unlike the read-only tabs it must never
+          sit under another day's identity while a cycle's fetch is in flight
+          (the 500ms debounced save reads the LATEST onSave closure and would
+          re-target). Gate on detail freshness: mid-cycle the editor unmounts,
+          flushing any pending edit to the OLD day via its last-committed
+          closure; the read-only tabs keep the no-flash keep-last. */}
+      {detail && !loading && detail.date === date && tab === 'notes' && (
         <DetailNotesTab
           resetKey={date}
           initialValue={detail.note ?? ''}

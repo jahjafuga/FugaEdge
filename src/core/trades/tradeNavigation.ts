@@ -1,36 +1,52 @@
-// Pure trade-navigation logic for the Trade Detail Modal's prev/next + position.
-// Dependency-free: NO electron / fs / node / react / lightweight-charts imports
-// (mirrors src/core/trades/executionStats.ts's discipline). It operates on the
-// DISPLAYED ordered ids + the open trade's id, so it ports to the Next.js target
-// unchanged. No wrap-around: prev/next are null at the ends.
+// Pure nav-position logic for prev/next + position over a DISPLAYED ordered
+// key list. Dependency-free: NO electron / fs / node / react / lightweight-charts
+// imports (mirrors src/core/trades/executionStats.ts's discipline). Generic over
+// the key type since the v0.2.6 day/week-modal cycling: number trade ids (the
+// Trade Detail Modal precedent) and string date keys (the calendar Day/Week
+// walks) share one contract — operate on the DISPLAYED ordered keys + the open
+// key, no wrap-around: prev/next are null at the ends. Ports to the Next.js
+// target unchanged.
 
-export interface TradeNavPosition {
-  /** Id of the previous trade in displayed order; null at the first item (no wrap). */
-  prevId: number | null
-  /** Id of the next trade in displayed order; null at the last item (no wrap). */
-  nextId: number | null
-  /** 0-based index of currentId in the list; -1 if absent (or current is null). */
+export interface NavPosition<K extends string | number> {
+  /** Key of the previous item in displayed order; null at the first item (no wrap). */
+  prevId: K | null
+  /** Key of the next item in displayed order; null at the last item (no wrap). */
+  nextId: K | null
+  /** 0-based index of currentKey in the list; -1 if absent (or current is null). */
   index: number
   /** List length. */
   total: number
 }
 
+/** The Trade Detail Modal's original number-keyed shape — now an alias. */
+export type TradeNavPosition = NavPosition<number>
+
 /**
- * Given the DISPLAYED ordered trade ids and the open trade's id, return the
- * prev/next neighbor ids and the position. No wrap: prevId is null at the first
- * item, nextId is null at the last. When currentId is null or not in the list,
- * index is -1 and both neighbors are null (total still reflects the list length).
+ * Given the DISPLAYED ordered keys and the open item's key, return the
+ * prev/next neighbor keys and the position. No wrap: prevId is null at the
+ * first item, nextId is null at the last. When currentKey is null or not in
+ * the list, index is -1 and both neighbors are null (total still reflects the
+ * list length).
  */
+export function getNavPosition<K extends string | number>(
+  orderedKeys: readonly K[],
+  currentKey: K | null,
+): NavPosition<K> {
+  const total = orderedKeys.length
+  const index = currentKey == null ? -1 : orderedKeys.indexOf(currentKey)
+  return {
+    prevId: index > 0 ? orderedKeys[index - 1] : null,
+    nextId: index >= 0 && index < total - 1 ? orderedKeys[index + 1] : null,
+    index,
+    total,
+  }
+}
+
+/** Number-keyed wrapper — the Trade Detail Modal's original surface, kept so
+ *  TradesTable and its unit suite stand unchanged. */
 export function getTradeNavPosition(
   orderedIds: number[],
   currentId: number | null,
 ): TradeNavPosition {
-  const total = orderedIds.length
-  const index = currentId == null ? -1 : orderedIds.indexOf(currentId)
-  return {
-    prevId: index > 0 ? orderedIds[index - 1] : null,
-    nextId: index >= 0 && index < total - 1 ? orderedIds[index + 1] : null,
-    index,
-    total,
-  }
+  return getNavPosition(orderedIds, currentId)
 }

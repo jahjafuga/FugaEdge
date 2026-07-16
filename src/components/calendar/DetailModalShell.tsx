@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, type LucideIcon } from 'lucide-react'
+import { type NavPosition } from '@/core/trades/tradeNavigation'
 
 export interface DetailModalTab<K extends string> {
   key: K
@@ -28,6 +29,16 @@ interface DetailModalShellProps<K extends string> {
   /** Rendered as a sibling inside the portal — a stacked modal that
    *  self-portals to document.body (z-210). */
   stackedModal?: ReactNode
+  /** Day/week cycling (v0.2.6). When BOTH nav props are present the header
+   *  grows the TradeDetailModal-precedent chevrons + "N of M" counter, and
+   *  ←/→ navigate the host's population. Buttons AND keys are gated on
+   *  escapeBlocked — the same stacked-trade source the Esc guard above uses —
+   *  and keys never fire while focus is in an input/textarea/select/
+   *  contenteditable (Esc stays ungated). Absent → byte-identical shell. */
+  navPosition?: NavPosition<string>
+  onNavigate?: (key: string) => void
+  /** Unit for the nav a11y labels: "Previous ${navUnit}" / "Next ${navUnit}". */
+  navUnit?: string
 }
 
 // v0.2.2 Day 4.5a — shared tabbed-detail-modal chrome, extracted from
@@ -50,6 +61,9 @@ export default function DetailModalShell<K extends string>({
   maxWidthClass = 'max-w-[min(1400px,calc(100vw-3rem))]',
   children,
   stackedModal,
+  navPosition,
+  onNavigate,
+  navUnit = 'item',
 }: DetailModalShellProps<K>) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -61,11 +75,31 @@ export default function DetailModalShell<K extends string>({
         if (escapeBlocked) return
         e.stopPropagation()
         onClose()
+        return
+      }
+      // Arrow keys = prev/next day/week — ONLY when the host wired nav, and
+      // NEVER while a trade is stacked (the same escapeBlocked source the Esc
+      // guard above reads). Extends the existing keydown effect rather than
+      // adding a second listener — the TradeDetailModal precedent's shape.
+      if (!navPosition || !onNavigate) return
+      if (escapeBlocked) return
+      // Never hijack arrows while the user is typing/selecting in a field —
+      // let them move the text cursor (Notes <textarea>, any input/select/
+      // contenteditable). Escape above is intentionally NOT gated this way.
+      const el = document.activeElement as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      if (e.key === 'ArrowLeft' && navPosition.prevId != null) {
+        e.preventDefault()
+        onNavigate(navPosition.prevId)
+      } else if (e.key === 'ArrowRight' && navPosition.nextId != null) {
+        e.preventDefault()
+        onNavigate(navPosition.nextId)
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [onClose, escapeBlocked])
+  }, [onClose, escapeBlocked, navPosition, onNavigate])
 
   return createPortal(
     <div
@@ -82,11 +116,50 @@ export default function DetailModalShell<K extends string>({
         className={`card-premium card-accent relative flex max-h-[92vh] w-full ${maxWidthClass} flex-col overflow-hidden rounded-lg animate-modal-in`}
       >
         <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4">
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-xl font-semibold tracking-tight text-fg-primary">
-              {title}
-            </h2>
-            <div className="mt-1 text-xs text-fg-tertiary tnum">{subtitle}</div>
+          {/* Left zone: prev/next nav (cycling hosts only) + the title block,
+              wrapped together so the nav sits beside the title on the left
+              while headerRight keeps hugging the right — the
+              TradeDetailModal:273 ModalHeader affordance, ported. */}
+          <div className="flex min-w-0 items-start gap-3">
+            {navPosition && onNavigate && (
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    !escapeBlocked && navPosition.prevId != null && onNavigate(navPosition.prevId)
+                  }
+                  disabled={escapeBlocked || navPosition.prevId == null}
+                  aria-label={`Previous ${navUnit}`}
+                  title={`Previous ${navUnit}`}
+                  className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={16} strokeWidth={2} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    !escapeBlocked && navPosition.nextId != null && onNavigate(navPosition.nextId)
+                  }
+                  disabled={escapeBlocked || navPosition.nextId == null}
+                  aria-label={`Next ${navUnit}`}
+                  title={`Next ${navUnit}`}
+                  className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-subtle bg-bg-2 text-fg-tertiary transition-colors duration-150 hover:border-border hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight size={16} strokeWidth={2} />
+                </button>
+                {navPosition.index >= 0 && navPosition.total > 0 && (
+                  <span className="ml-1 text-xs text-fg-tertiary tnum">
+                    {navPosition.index + 1} of {navPosition.total}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-xl font-semibold tracking-tight text-fg-primary">
+                {title}
+              </h2>
+              <div className="mt-1 text-xs text-fg-tertiary tnum">{subtitle}</div>
+            </div>
           </div>
           <div className="flex shrink-0 items-baseline gap-4">
             {headerRight}

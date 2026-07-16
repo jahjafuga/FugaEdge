@@ -12,6 +12,7 @@ import WeekReviewModal from '@/components/calendar/WeekReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
 import { useAccountScope } from '@/lib/accountScope'
+import { getNavPosition } from '@/core/trades/tradeNavigation'
 import type { CalendarMonth, CalendarYear } from '@shared/calendar-types'
 
 function todayISO(): string {
@@ -185,6 +186,27 @@ export default function Calendar() {
     [],
   )
 
+  // Day/week modal cycling (v0.2.6) — each walk mirrors its modal's own
+  // opening contract, clamped to the loaded month (ends disable; no
+  // month-hop):
+  //   days  = in-month days WITH trades, date order (zero-trade cells open
+  //           NoTradeDayModal instead — see onSelectDate below);
+  //   weeks = ALL SIX grid rows in row order (WeeklyPanel opens the review
+  //           even on a zero-trade week).
+  // getNavPosition is the getTradeNavPosition precedent generalized to string
+  // date keys; onNavigate is the setter, so the neighbor key becomes the open
+  // modal and the detail swaps in place.
+  const tradedDays = useMemo(
+    () =>
+      (data?.days ?? [])
+        .filter((d) => d.trade_count > 0)
+        .map((d) => d.date)
+        .sort(),
+    [data],
+  )
+  const dayNav = useMemo(() => getNavPosition(tradedDays, selectedDate), [tradedDays, selectedDate])
+  const weekStarts = useMemo(() => (data?.weeks ?? []).map((w) => w.week_start), [data])
+  const weekNav = useMemo(() => getNavPosition(weekStarts, selectedWeek), [weekStarts, selectedWeek])
 
   if (err) {
     return (
@@ -352,11 +374,15 @@ export default function Calendar() {
         <WeekReviewModal
           weekStart={selectedWeek}
           onClose={() => setSelectedWeek(null)}
+          navPosition={weekNav}
+          onNavigate={setSelectedWeek}
         />
 
         <DayDetailModal
           date={selectedDate}
           onClose={() => setSelectedDate(null)}
+          navPosition={dayNav}
+          onNavigate={setSelectedDate}
         />
       </div>
     </PageShell>
