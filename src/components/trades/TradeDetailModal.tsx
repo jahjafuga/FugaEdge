@@ -108,9 +108,22 @@ export default function TradeDetailModal({
   const [tab, setTab] = useState<TabKey>('overview')
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // Dave #17 — STICKY TAB via the #8 fresh-open/cycle discriminator (the
+  // day/week modals' prevRef pattern, landed in the modal itself so BOTH
+  // contexts get it: the Trades window and the stacked day/week opens).
+  // null->id is a FRESH OPEN (reset to Overview); id->id is a CYCLE (keep
+  // the active tab); every close path nulls the ref (table setSelectedId
+  // (null), stack selectTrade(null)/reset, Esc, backdrop) because `trade`
+  // goes null and the effect re-runs.
+  const prevIdRef = useRef<number | null>(null)
   useEffect(() => {
-    if (!trade) return
-    setTab('overview')
+    if (!trade) {
+      prevIdRef.current = null
+      return
+    }
+    const freshOpen = prevIdRef.current === null
+    prevIdRef.current = trade.id
+    if (freshOpen) setTab('overview')
   }, [trade?.id])
 
   // Fullscreen is a per-open view mode — reset it whenever the modal has no

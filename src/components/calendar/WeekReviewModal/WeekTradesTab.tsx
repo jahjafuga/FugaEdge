@@ -9,7 +9,9 @@ interface WeekTradesTabProps {
   trades: TradeListRow[]
   /** Trade whose stacked detail is open — highlights the row. */
   selectedTradeId: number | null
-  onSelectTrade: (id: number) => void
+  /** Dave #17 — the click also hands up the view's canonical DISPLAYED order
+   *  so the stack can snapshot it for prev/next cycling. */
+  onSelectTrade: (id: number, orderedIds: number[]) => void
 }
 
 interface SymbolGroup {
@@ -37,6 +39,23 @@ export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }
     () => [...trades].sort((a, b) => a.open_time.localeCompare(b.open_time)),
     [trades],
   )
+
+  // Dave #17 — the canonical click-time order for the CURRENT view. Grouped:
+  // groups in displayed order, chronological within each — so cycling crosses
+  // group boundaries in reading order, collapsed groups included. Chrono: the
+  // flat list as displayed.
+  const canonicalIds = useMemo(
+    () =>
+      view === 'chrono'
+        ? chrono.map((t) => t.id)
+        : groups.flatMap((g) =>
+            [...g.trades]
+              .sort((a, b) => a.open_time.localeCompare(b.open_time))
+              .map((t) => t.id),
+          ),
+    [view, chrono, groups],
+  )
+  const select = (id: number) => onSelectTrade(id, canonicalIds)
 
   if (trades.length === 0) {
     return (
@@ -84,7 +103,7 @@ export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }
               key={g.symbol}
               group={g}
               selectedTradeId={selectedTradeId}
-              onSelectTrade={onSelectTrade}
+              onSelectTrade={select}
             />
           ))}
         </div>
@@ -112,7 +131,7 @@ export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }
                   trade={t}
                   showSymbol
                   selected={t.id === selectedTradeId}
-                  onSelect={onSelectTrade}
+                  onSelect={select}
                 />
               ))}
             </tbody>

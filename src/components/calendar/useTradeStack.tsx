@@ -1,6 +1,7 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { TradeListRow } from '@shared/trades-types'
 import { ipc } from '@/lib/ipc'
+import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
 import TradeDetailModal from '@/components/trades/TradeDetailModal'
 
 interface UseTradeStackOptions {
@@ -13,8 +14,12 @@ interface UseTradeStackOptions {
 
 interface UseTradeStackResult {
   selectedTradeId: number | null
-  /** Pass to a trades table's onSelectTrade. */
-  selectTrade: (id: number | null) => void
+  /** Pass to a trades table's onSelectTrade. Dave #17 — the second argument
+   *  SNAPSHOTS the tab's displayed order at click time; the stacked modal's
+   *  prev/next walk follows that snapshot (a mid-cycle reload never reorders
+   *  the walk under the user — the TradesTable "displayed sorted list"
+   *  semantics, frozen at the click). Omitted -> nav stays inert. */
+  selectTrade: (id: number | null, orderedIds?: number[]) => void
   /** Clear the selection (call on date/week change). */
   reset: () => void
   /** True while a trade is stacked — feed to DetailModalShell.escapeBlocked. */
@@ -31,6 +36,25 @@ interface UseTradeStackResult {
 // place — never re-debugged per modal.
 export function useTradeStack({ trades, reload }: UseTradeStackOptions): UseTradeStackResult {
   const [selectedTradeId, setSelectedTradeId] = useState<number | null>(null)
+  // Dave #17 — the click-time order snapshot behind the stacked modal's nav.
+  const [orderedIds, setOrderedIds] = useState<number[] | null>(null)
+
+  const selectTrade = useCallback((id: number | null, ids?: number[]) => {
+    setSelectedTradeId(id)
+    if (id === null) setOrderedIds(null)
+    else if (ids) setOrderedIds(ids)
+  }, [])
+
+  // No snapshot -> undefined -> the modal's nav stays inert (its own gate).
+  // getTradeNavPosition's no-wrap nulls flow into the modal's disabled
+  // chevrons / no-op arrow keys at the ends.
+  const navPosition = useMemo(
+    () =>
+      orderedIds && selectedTradeId !== null
+        ? getTradeNavPosition(orderedIds, selectedTradeId)
+        : undefined,
+    [orderedIds, selectedTradeId],
+  )
 
   // Persist a trade edit, then reload the parent detail if it actually changed
   // something. T is inferred per call from the specific save fn + input.
@@ -51,7 +75,11 @@ export function useTradeStack({ trades, reload }: UseTradeStackOptions): UseTrad
     <TradeDetailModal
       trade={selectedTrade}
       stacked
-      onClose={() => setSelectedTradeId(null)}
+      onClose={() => selectTrade(null)}
+      // Dave #17 — cycling within the snapshot: navigate keeps the snapshot
+      // (only the id moves), so the walk order is stable for the whole stack.
+      navPosition={navPosition}
+      onNavigate={setSelectedTradeId}
       onSaveNote={(i) => persist(ipc.tradeNoteSave, i)}
       onSaveTimeframe={(i) => persist(ipc.tradeTimeframeSave, i)}
       onSavePlaybook={(i) => persist(ipc.tradePlaybookSave, i)}
@@ -70,8 +98,11 @@ export function useTradeStack({ trades, reload }: UseTradeStackOptions): UseTrad
 
   return {
     selectedTradeId,
-    selectTrade: setSelectedTradeId,
-    reset: useCallback(() => setSelectedTradeId(null), []),
+    selectTrade,
+    reset: useCallback(() => {
+      setSelectedTradeId(null)
+      setOrderedIds(null)
+    }, []),
     escapeBlocked: selectedTradeId !== null,
     stackedModal,
   }

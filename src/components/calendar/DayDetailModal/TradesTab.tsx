@@ -9,7 +9,9 @@ interface TradesTabProps {
   trades: TradeListRow[]
   /** Trade whose detail is open (Day 3.2 stacking) — highlights the row. */
   selectedTradeId: number | null
-  onSelectTrade: (id: number) => void
+  /** Dave #17 — the click also hands up the DISPLAYED order (the current
+   *  sort's ids) so the stack can snapshot it for prev/next cycling. */
+  onSelectTrade: (id: number, orderedIds: number[]) => void
 }
 
 // v0.2.2 Day 3.1 — day-scoped trade list. Lean by design (not the virtualized
@@ -68,7 +70,7 @@ export default function TradesTab({ trades, selectedTradeId, onSelectTrade }: Tr
               return (
                 <tr
                   key={t.id}
-                  onClick={() => onSelectTrade(t.id)}
+                  onClick={() => onSelectTrade(t.id, sorted.map((s) => s.id))}
                   className={`cursor-pointer border-b border-border-subtle/40 transition-colors ${
                     selected ? 'bg-gold/[0.08]' : 'hover:bg-bg-4/50'
                   }`}
