@@ -1,39 +1,11 @@
 import { getDbPath, openDatabase } from '../db/database'
-import { parseJournalRules, cleanJournalRules } from '@/core/journal/rules'
+import { parseJournalRules } from '@/core/journal/rules'
+import { KEYS, saveSettingsOn } from './save'
 import type {
   SettingsPayload,
   SettingsUpdate,
   SettingsValues,
 } from '@shared/settings-types'
-
-const KEYS = {
-  maxDailyLoss: 'max_daily_loss',
-  dailyProfitTarget: 'daily_profit_target',
-  accountSize: 'account_size',
-  journalRules: 'journal_rules',
-  dayTagList: 'day_tag_list',
-  dailyRuleBreakList: 'daily_rule_break_list',
-  polygonApiKey: 'polygon_api_key',
-  fmpApiKey: 'fmp_api_key',
-  lastCountryBackfill: 'last_country_backfill',
-  showMacdPane: 'show_macd_pane',
-  showEma9: 'show_ema9',
-  showEma20: 'show_ema20',
-  showVwap: 'show_vwap',
-  activationKey: 'activation_key',
-  activationPayload: 'activation_payload',
-  activationGraceStartedAt: 'activation_grace_started_at',
-  // v0.2.5 Trader DNA — stock-selection pillars (liftable block).
-  dnaPriceMin: 'dna_price_min',
-  dnaPriceMax: 'dna_price_max',
-  dnaChangeMin: 'dna_change_min',
-  dnaRvolMin: 'dna_rvol_min',
-  dnaFloatMin: 'dna_float_min',
-  dnaFloatMax: 'dna_float_max',
-  dnaRequireCatalyst: 'dna_require_catalyst',
-  // Multi-account Beat 4 — the switcher's persisted scope ('all' | ULID).
-  accountScope: 'account_scope',
-} as const
 
 const DEFAULTS: SettingsValues = {
   max_daily_loss: 500,
@@ -159,111 +131,10 @@ export function getSettings(): SettingsPayload {
 }
 
 export function saveSettings(input: SettingsUpdate): SettingsPayload {
-  const db = openDatabase()
-  const upsert = db.prepare(`
-    INSERT INTO settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `)
-
-  const tx = db.transaction(() => {
-    if (input.max_daily_loss != null) {
-      const v = Number(input.max_daily_loss)
-      if (Number.isFinite(v) && v >= 0) {
-        upsert.run(KEYS.maxDailyLoss, String(v))
-      }
-    }
-    if (input.daily_profit_target != null) {
-      const v = Number(input.daily_profit_target)
-      if (Number.isFinite(v) && v >= 0) {
-        upsert.run(KEYS.dailyProfitTarget, String(v))
-      }
-    }
-    if (input.account_size != null) {
-      const v = Number(input.account_size)
-      if (Number.isFinite(v) && v >= 0) {
-        upsert.run(KEYS.accountSize, String(v))
-      }
-    }
-    if (input.journal_rules != null) {
-      // Validate (trim names, drop malformed) but KEEP archived rules — dropping
-      // an archived rule would re-orphan its history (the original bug).
-      upsert.run(
-        KEYS.journalRules,
-        JSON.stringify(cleanJournalRules(input.journal_rules)),
-      )
-    }
-    if (input.day_tag_list != null) {
-      const clean = input.day_tag_list
-        .map((t) => String(t).trim())
-        .filter(Boolean)
-      upsert.run(KEYS.dayTagList, JSON.stringify(clean))
-    }
-    if (input.daily_rule_break_list != null) {
-      const clean = input.daily_rule_break_list
-        .map((t) => String(t).trim())
-        .filter(Boolean)
-      upsert.run(KEYS.dailyRuleBreakList, JSON.stringify(clean))
-    }
-    if (input.polygon_api_key != null) {
-      upsert.run(KEYS.polygonApiKey, String(input.polygon_api_key).trim())
-    }
-    if (input.fmp_api_key != null) {
-      upsert.run(KEYS.fmpApiKey, String(input.fmp_api_key).trim())
-    }
-    if (input.last_country_backfill !== undefined) {
-      upsert.run(KEYS.lastCountryBackfill, input.last_country_backfill ?? '')
-    }
-    if (input.show_macd_pane != null) {
-      upsert.run(KEYS.showMacdPane, input.show_macd_pane ? '1' : '0')
-    }
-    if (input.show_ema9 != null) {
-      upsert.run(KEYS.showEma9, input.show_ema9 ? '1' : '0')
-    }
-    if (input.show_ema20 != null) {
-      upsert.run(KEYS.showEma20, input.show_ema20 ? '1' : '0')
-    }
-    if (input.show_vwap != null) {
-      upsert.run(KEYS.showVwap, input.show_vwap ? '1' : '0')
-    }
-    if (input.activation_key != null) {
-      upsert.run(KEYS.activationKey, String(input.activation_key).trim())
-    }
-    if (input.activation_payload != null) {
-      upsert.run(KEYS.activationPayload, String(input.activation_payload).trim())
-    }
-    if (input.activation_grace_started_at !== undefined) {
-      upsert.run(
-        KEYS.activationGraceStartedAt,
-        input.activation_grace_started_at ?? '',
-      )
-    }
-    // Trader DNA pillars — the 6 numbers reuse the max_daily_loss guard
-    // (finite & ≥ 0), the catalyst toggle the show_macd_pane '1'/'0' encoding.
-    const dnaNums: [number | undefined, string][] = [
-      [input.dna_price_min, KEYS.dnaPriceMin],
-      [input.dna_price_max, KEYS.dnaPriceMax],
-      [input.dna_change_min, KEYS.dnaChangeMin],
-      [input.dna_rvol_min, KEYS.dnaRvolMin],
-      [input.dna_float_min, KEYS.dnaFloatMin],
-      [input.dna_float_max, KEYS.dnaFloatMax],
-    ]
-    for (const [raw, key] of dnaNums) {
-      if (raw != null) {
-        const v = Number(raw)
-        if (Number.isFinite(v) && v >= 0) upsert.run(key, String(v))
-      }
-    }
-    if (input.dna_require_catalyst != null) {
-      upsert.run(KEYS.dnaRequireCatalyst, input.dna_require_catalyst ? '1' : '0')
-    }
-    if (input.account_scope != null) {
-      // 'all' or an account ULID — trimmed non-empty guard (the api-key
-      // string style); blank writes are dropped rather than stored.
-      const v = String(input.account_scope).trim()
-      if (v) upsert.run(KEYS.accountScope, v)
-    }
-  })
-  tx()
-
+  // The per-key transaction body lives in ./save (saveSettingsOn) so the
+  // in-memory harness can drive the real branches — including the Dave #9
+  // append-on-change goal-history hook — without this module's openDatabase
+  // import chain. Behavior-preserving extraction; the surface here is unchanged.
+  saveSettingsOn(openDatabase(), input)
   return getSettings()
 }

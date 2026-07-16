@@ -160,7 +160,16 @@
 // which links each day into the journal_rule_break junction and NEVER touches the column — it
 // stays the permanent fallback. Its pre-migration backup is taken up in openDatabase, BEFORE
 // this constant is stamped, which is what makes the .bak restorable.
-export const SCHEMA_VERSION = '47'
+//
+// Bumped to 48 for Dave #9 — point-in-time goal history. Two append-only tables
+// (profit_target_history + max_loss_history) land via CREATE TABLE IF NOT EXISTS below (the
+// cash_events v39 precedent: fresh installs and upgrades alike, NO per-version migration
+// module, NO backup latch — additive, no data transform). The seed-if-empty step
+// (migrate-history-seeds.ts, registered UNCONDITIONALLY in migrateAfterSchema) writes each
+// table's epoch row from the CURRENT settings value — profit target always (absent = 0, no
+// goal); max loss ONLY when the settings row genuinely exists, never the 500 read-default.
+// The bump is release-tracking only.
+export const SCHEMA_VERSION = '48'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -727,6 +736,34 @@ INSERT OR IGNORE INTO settings (key, value) VALUES (
 -- Latch — set to 'true' once the first-run seed runs (or once the migration
 -- detects an existing populated playbook table). Never re-seeds afterwards.
 INSERT OR IGNORE INTO settings (key, value) VALUES ('defaults_seeded', 'false');
+
+-- Dave #9 (schema 48) — point-in-time goal history, append-only. saveSettings
+-- appends a row ONLY when daily_profit_target / max_daily_loss actually changes
+-- (electron/settings/save.ts); the gave-back rollup resolves each day against
+-- the target in force THAT day instead of retroactively applying the current
+-- one. effective_from is ISO-8601 UTC with Z ('1970-01-01T00:00:00.000Z' = the
+-- epoch seed row, written by migrate-history-seeds.ts — NOT here, because the
+-- seed must read the live settings rows). Rows are never updated or deleted.
+CREATE TABLE IF NOT EXISTS profit_target_history (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  effective_from TEXT NOT NULL,
+  value          REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_profit_target_history_from
+  ON profit_target_history(effective_from);
+-- Twin table for max_daily_loss — created NOW so both goals share the one
+-- schema event; its analytics consumer (exceeded_daily_max_loss) is v0.2.7.
+-- Unlike the profit target it has NO unconditional epoch seed: the seed keys
+-- off settings-ROW existence, never the 500 READ-default. (In practice the
+-- row always exists — the INSERT OR IGNORE above seeds '500' on every DB —
+-- so the epoch row carries the stored value; the absent branch is defensive.)
+CREATE TABLE IF NOT EXISTS max_loss_history (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  effective_from TEXT NOT NULL,
+  value          REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_max_loss_history_from
+  ON max_loss_history(effective_from);
 
 CREATE TABLE IF NOT EXISTS _meta (
   key   TEXT PRIMARY KEY,

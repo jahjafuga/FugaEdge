@@ -982,13 +982,19 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
   // the ruleBreaks / discipline blocks); the pure computeGiveback does the high-
   // water-mark walk. Open trades (close_time null) are excluded — the walk is over
   // realized P&L only. close_time is ISO-8601 UTC, so a lexicographic sort is
-  // chronological. daily_profit_target is the KV setting (absent / non-finite /
-  // <= 0 ⇒ no goal), read the same way getSettings parses it.
-  const targetRow = db
-    .prepare(`SELECT value FROM settings WHERE key = 'daily_profit_target'`)
-    .get() as { value: string } | undefined
-  const parsedTarget = targetRow ? Number.parseFloat(targetRow.value) : 0
-  const dailyProfitTarget = Number.isFinite(parsedTarget) ? parsedTarget : 0
+  // chronological.
+  //
+  // Dave #9 (schema 48) — POINT-IN-TIME target. This used to read the CURRENT
+  // daily_profit_target setting, so raising the goal retroactively rewrote the
+  // whole gave-back history. It now pre-fetches the append-only
+  // profit_target_history (tiny — one epoch seed + one row per actual change;
+  // saveSettings appends on change, and its SETTINGS_SAVE bump invalidates this
+  // memoized pass) and computeGiveback resolves each day against the target in
+  // force THAT day. ORDER BY effective_from, id: same-stamp ties resolve to the
+  // later append, and the pure walk trusts the sort.
+  const targetHistory = db
+    .prepare(`SELECT effective_from, value FROM profit_target_history ORDER BY effective_from, id`)
+    .all() as { effective_from: string; value: number }[]
   const closedByCloseTime = rows
     .filter((r) => r.close_time != null)
     .sort((a, b) => (a.close_time! < b.close_time! ? -1 : a.close_time! > b.close_time! ? 1 : 0))
@@ -998,7 +1004,7 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
     if (arr) arr.push({ net_pnl: r.net_pnl })
     else tradesByDate.set(r.date, [{ net_pnl: r.net_pnl }])
   }
-  const giveback = computeGiveback(tradesByDate, dailyProfitTarget)
+  const giveback = computeGiveback(tradesByDate, targetHistory)
 
   return {
     trade_count: rows.length,

@@ -33,6 +33,7 @@ import { migrateDailySummaryAccount } from './migrate-daily-summary-account'
 import { migrateMistakesBackfill } from './migrate-mistakes-backfill'
 import { migrateCatalystBackfill } from './migrate-catalyst-backfill'
 import { migrateRuleBreaksTaxonomy } from './migrate-rule-breaks-taxonomy'
+import { migrateHistorySeeds } from './migrate-history-seeds'
 // The latch key and target version are IMPORTED, not re-declared: this backup writes the
 // same key migrateRuleBreaksBackfill reads to decide whether it is safe to run. Two local
 // consts could drift; one exported const cannot.
@@ -1503,6 +1504,16 @@ function migrateAfterSchema(
   // def table (the key's full retirement is its own beat). Nothing reads the junction yet.
   // See migrate-rule-breaks-taxonomy.ts.
   migrateRuleBreaksTaxonomy(conn)
+
+  // Dave #9 (schema 48) — seed the point-in-time goal-history tables (created
+  // by SCHEMA_SQL's CREATE TABLE IF NOT EXISTS, the cash_events precedent).
+  // Additive + idempotent; runs every launch (NOT version-gated) so fresh
+  // installs get their epoch rows too. Seed-if-empty: profit target always
+  // (absent = 0, no goal); max loss ONLY when the settings row genuinely
+  // exists — never the 500 read-default. The gave-back analytics resolves
+  // per-day targets from these rows; the save hook (settings/save.ts) appends
+  // on actual value change. See migrate-history-seeds.ts.
+  migrateHistorySeeds(conn)
 
   // Journal-rules data-model migration (schema 37). Registered +
   // version-bumped, but converts NO DATA this beat: it detects whether

@@ -13,7 +13,10 @@ import {
   migrateRuleBreaksBackfill,
   RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY,
   RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY,
+  RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION,
 } from '../migrate-rule-breaks-backfill'
+import { migrateHistorySeeds } from '../migrate-history-seeds'
+import { EPOCH_EFFECTIVE_FROM } from '@/core/analytics/giveback'
 import {
   migrateSentimentPolarity,
   SENTIMENT_POLARITY_MIGRATION_LATCH_KEY,
@@ -312,6 +315,73 @@ hr()
   const effective = resolveEffectivePriorVersion(marker, 0)
   check('[H3] effective = 0 -> the caller must NOT write a marker (the guard is load-bearing)',
     effective === 0, `got ${effective}`)
+  db.close()
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// [I] SCHEMA 48 (Dave #9) — the two real upgrade routes. Every rule-breaks
+// gate reads its own FROZEN constant, so the global bump to 48 must disturb
+// nothing; the history seed is unconditional and fires on both routes.
+// ═══════════════════════════════════════════════════════════════════════════
+line()
+line('[I] SCHEMA-48 PATHS — <=46 -> 48 in one launch, and 47 -> 48')
+hr()
+{
+  // Route 1: a shipped-cohort DB at 46 boots the 48 build. SCHEMA_SQL creates
+  // the history tables (IF NOT EXISTS) and stamps 48; the rule-breaks lane
+  // STILL fires (46 < its frozen 47 target); the seed writes the epoch rows.
+  const db = freshDb46()
+  setSetting(db, 'daily_profit_target', '200')
+  migrateRuleBreaksTaxonomy(db)
+  writeMigrationMarker(db, 46)
+  stampVersion(db, '48') // what the CURRENT SCHEMA_SQL durably stamps
+  setSetting(db, RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY, 'true')
+
+  check('[I1] the 46 DB still qualifies for the rule-breaks backup (46 < frozen target 47)',
+    46 < RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION)
+  const bf = migrateRuleBreaksBackfill(db, 46)
+  check('[I2] the rule-breaks lane FIRES on 46 -> 48 (gates read the frozen 47, not the global)',
+    bf.ran === true && countLinks(db) === 3, `ran=${bf.ran} links=${countLinks(db)}`)
+
+  migrateHistorySeeds(db)
+  const pt = db.prepare('SELECT effective_from, value FROM profit_target_history ORDER BY id').all() as { effective_from: string; value: number }[]
+  const ml = db.prepare('SELECT effective_from, value FROM max_loss_history ORDER BY id').all() as { effective_from: string; value: number }[]
+  check('[I3] the history seed fires on the same launch: profit target epoch row carries the stored 200',
+    pt.length === 1 && pt[0].effective_from === EPOCH_EFFECTIVE_FROM && pt[0].value === 200, JSON.stringify(pt))
+  check('[I4] max loss epoch row carries the SCHEMA_SQL-stored 500',
+    ml.length === 1 && ml[0].value === 500, JSON.stringify(ml))
+  check('[I5] _meta reads 48 after the one-launch upgrade', readVersion(db) === '48')
+  clearMigrationMarker(db)
+  db.close()
+}
+{
+  // Route 2: a dev DB already at 47 boots the 48 build. The rule-breaks lanes
+  // gate themselves out (47 >= frozen 47); ONLY the new tables + seed land.
+  const db = freshDb46()
+  migrateRuleBreaksTaxonomy(db)
+  setSetting(db, RULE_BREAKS_BACKFILL_BACKUP_LATCH_KEY, 'true')
+  const first = migrateRuleBreaksBackfill(db, 46)
+  check('[I6] fixture: the 46 -> 47 lane completed (links 3, latch set)',
+    first.ran === true && countLinks(db) === 3 && getSetting(db, RULE_BREAKS_BACKFILL_MIGRATION_LATCH_KEY) === 'true')
+  stampVersion(db, '47') // the DB the 47 build left behind
+  const defsBefore = countDefs(db)
+
+  // The 48 boot: the backup gate's own expression (database.ts:370) refuses at 47.
+  check('[I7] the pre-migration backup gates OUT at 47 (47 >= frozen target 47)',
+    47 >= RULE_BREAKS_BACKFILL_TARGET_SCHEMA_VERSION)
+  stampVersion(db, '48') // SCHEMA_SQL stamps the new global
+  migrateRuleBreaksTaxonomy(db) // unconditional, must no-op on a seeded table
+  const rerun = migrateRuleBreaksBackfill(db, 47)
+  check("[I8] the rule-breaks backfill no-ops: 'already-migrated' at priorVersion 47",
+    rerun.reason === 'already-migrated', `got '${rerun.reason}'`)
+  check('[I9] taxonomy idempotent across the bump (defs unchanged, links unchanged)',
+    countDefs(db) === defsBefore && countLinks(db) === 3, `defs=${countDefs(db)} links=${countLinks(db)}`)
+
+  migrateHistorySeeds(db)
+  migrateHistorySeeds(db) // the next 48 boot — must not double-seed
+  const pt = db.prepare('SELECT COUNT(*) n FROM profit_target_history').get() as { n: number }
+  check('[I10] the seed runs (and only once) on the 47 -> 48 route', pt.n === 1, `rows=${pt.n}`)
+  check('[I11] _meta reads 48', readVersion(db) === '48')
   db.close()
 }
 

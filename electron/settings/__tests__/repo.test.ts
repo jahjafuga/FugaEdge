@@ -18,7 +18,16 @@ vi.mock('../../db/database', () => ({
         return {
           all: () =>
             Object.entries(store.current).map(([key, value]) => ({ key, value })),
+          // Dave #9 — the save hook's old-value read (SELECT ... WHERE key = ?).
+          get: (key: string) =>
+            key in store.current ? { key, value: store.current[key] } : undefined,
         }
+      }
+      // Dave #9 — the goal-history appends target their own tables, not the KV
+      // store; the shim swallows them (the REAL append behavior is proven by
+      // the history-seed in-memory harness, not here).
+      if (/INSERT INTO (profit_target_history|max_loss_history)/i.test(sql)) {
+        return { run: () => {} }
       }
       // INSERT ... ON CONFLICT(key) DO UPDATE — the upsert.
       return {

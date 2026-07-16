@@ -143,8 +143,10 @@ export interface RuleBreaksAnalytics {
 /** "Gave back profits" (djsevans87) — goal-TRIGGERED giveback rollup. Over days
  *  where the day's ordered cumulative net P&L crossed the configured daily goal
  *  AND then gave some back (peak-after-cross > final). Computed from CLOSED trades
- *  in close_time order — NOT intraday ticks. Based on the user's CURRENT daily
- *  goal applied across the whole range (the goal has no history). */
+ *  in close_time order — NOT intraday ticks. POINT-IN-TIME since schema 48
+ *  (Dave #9): each day evaluates against the goal in force THAT day, resolved
+ *  from the append-only profit_target_history (epoch seed = the value at
+ *  upgrade time; changes are recorded from then on). */
 export interface GivebackStats {
   /** Count of days that crossed the goal then gave some back (giveback > 0). */
   days: number
@@ -152,8 +154,9 @@ export interface GivebackStats {
   total_giveback: number
   /** Mean (giveback / peak) over those days; null when days === 0. */
   avg_pct_off_top: number | null
-  /** False when the daily goal is unset (target <= 0) — drives the card's
-   *  "set a goal" empty state. */
+  /** False only when NO goal was ever set (no history value > 0) — drives the
+   *  card's "set a goal" empty state. A goal set in the past and later zeroed
+   *  keeps its counted days (never a retroactive erasure). */
   goal_set: boolean
 }
 

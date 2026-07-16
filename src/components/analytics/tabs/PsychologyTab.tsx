@@ -150,24 +150,29 @@ function DisciplineRow({
 
 // "Gave back profits" (djsevans87) — the goal-triggered giveback rollup, sibling
 // of RuleBreaksCard. Three stats; an em-dash (never a fabricated zero) when there
-// are no giveback days, and a "set a goal" empty state when the daily goal is
-// unset. The honest tooltip carries the current-goal-retroactive caveat.
+// are no giveback days, and a "set a goal" empty state when no daily goal was
+// ever set. Point-in-time since schema 48 (Dave #9): the old "uses your CURRENT
+// goal / past days aren't historically exact" caveat is RETIRED — it became
+// false. The subtitle names this card computed-from-trades so it can't be read
+// as the MANUAL "Gave back" rule-break tag in the card above (separate surface;
+// nothing here writes the journal_rule_break junction).
 function GivebackCard({ data }: { data: GivebackStats }) {
   return (
     <Card
       title="Gave back profits"
-      subtitle="Days you crossed your daily goal, then surrendered some before the close."
+      subtitle="Days you crossed your daily goal, then surrendered some before the close. Computed from your trades — separate from the manual rule-break tags above."
       hover
       right={
         <Tooltip
           content={
             <>
               Goal-triggered: a day counts only when your cumulative P&L crossed
-              your configured daily goal and then gave some back. "Off the top" is
-              the giveback as a share of that day's peak, computed from the day's
-              closed trades in order. Uses your CURRENT daily goal applied across
-              the whole range — the goal isn't stored per day, so past days aren't
-              historically exact.
+              the daily goal in force that day and then gave some back. "Off the
+              top" is the giveback as a share of that day's peak, computed from
+              the day's closed trades in order. Point-in-time: each day evaluates
+              against the goal you had set on that day — goal changes are
+              recorded from this version forward, and days before your first
+              recorded change use the goal you had when you upgraded.
             </>
           }
         >
