@@ -70,6 +70,11 @@ interface CompareViewProps {
   rangeA: DateRange
   rangeB: DateRange
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
+  /** Dave #14 (A) — true when the caller narrowed `trades` with a filter.
+   *  Gates the growth % row: its ledger denominator (contributed capital)
+   *  is whole-account, so a filtered numerator over it must never render.
+   *  Optional/absent -> false, so existing callers are byte-identical. */
+  filtersActive?: boolean
 }
 
 const PRESETS: PeriodPreset[] = [
@@ -118,6 +123,7 @@ export default function CompareView({
   rangeA,
   rangeB,
   onRangeChange,
+  filtersActive = false,
 }: CompareViewProps) {
   const comparison = useMemo<ComparisonResult>(
     () => computePeriodComparison(trades, rangeA, rangeB),
@@ -162,7 +168,11 @@ export default function CompareView({
               verdict headline + 70%/2:1 reference gauges, then edge core,
               consistency, execution quality, behaviour, and activity. Pure
               presentation over comparison.periodA/periodB. */}
-          <VerdictBlock a={comparison.periodA} b={comparison.periodB} />
+          <VerdictBlock
+            a={comparison.periodA}
+            b={comparison.periodB}
+            filtersActive={filtersActive}
+          />
 
           {eitherEmpty && (
             <div className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary">
@@ -647,10 +657,18 @@ function buildSections(a: PeriodMetrics, b: PeriodMetrics): StatSection[] {
   ]
 }
 
-function VerdictBlock({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
+function VerdictBlock({
+  a,
+  b,
+  filtersActive,
+}: {
+  a: PeriodMetrics
+  b: PeriodMetrics
+  filtersActive: boolean
+}) {
   return (
     <div className="space-y-4">
-      <VerdictCard a={a} b={b} />
+      <VerdictCard a={a} b={b} filtersActive={filtersActive} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {buildSections(a, b).map((s) => (
           <StatSectionCard key={s.title} section={s} />
@@ -734,7 +752,15 @@ function growthSubLabel(cc: ContributedCapital | null, scopedSingle: boolean): s
 // The headline card — the trader's verdict at a glance: the four numbers Ross
 // reviews first, then the two reference gauges (accuracy vs the 70% target,
 // P/L ratio vs the 2:1 target).
-function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
+function VerdictCard({
+  a,
+  b,
+  filtersActive,
+}: {
+  a: PeriodMetrics
+  b: PeriodMetrics
+  filtersActive: boolean
+}) {
   const { scope } = useAccountScope()
   const scopedSingle = scope !== 'all'
   const cc = useContributedCapital(scope)
@@ -754,16 +780,23 @@ function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
     // row, no new computation). Identical to "Net P&L" above by definition;
     // Phase 2 adds Account growth % to pair with it.
     { label: 'Account growth $', a: a.netPnL, b: b.netPnL, format: 'money', higherIsBetter: true },
-    // Beat 4 build B — the % over CONTRIBUTED CAPITAL (the un-park). The
-    // numerator is the row's existing period Net P&L; masked under streamer
-    // (a visible P&L beside a visible % reconstructs the masked balance
-    // with one division).
-    { label: 'Net P&L (% of contributed)',
+  ]
+  // Beat 4 build B — the % over CONTRIBUTED CAPITAL (the un-park). The
+  // numerator is the row's existing period Net P&L; masked under streamer
+  // (a visible P&L beside a visible % reconstructs the masked balance
+  // with one division).
+  // Dave #14 (A) — THE GATE: under an active caller-side filter the period
+  // net P&L is a narrowed subset while contributed capital stays whole-
+  // account; that mixed ratio must NEVER render. The row hides behind the
+  // honest sub-line below and returns unchanged when the filter clears —
+  // the ledger math never sees the filter.
+  if (!filtersActive) {
+    headline.push({ label: 'Net P&L (% of contributed)',
       a: cc?.contributed ? a.netPnL / cc.contributed : null,
       b: cc?.contributed ? b.netPnL / cc.contributed : null,
       format: 'pct', higherIsBetter: true, masked: true,
-      subLabel: growthSubLabel(cc, scopedSingle) },
-  ]
+      subLabel: growthSubLabel(cc, scopedSingle) })
+  }
   return (
     <div className="rounded-lg border border-gold/30 bg-bg-2 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 pb-2">
@@ -776,6 +809,11 @@ function VerdictCard({ a, b }: { a: PeriodMetrics; b: PeriodMetrics }) {
         {headline.map((r) => (
           <StatRow key={r.label} spec={r} last />
         ))}
+        {filtersActive && (
+          <div className="flex min-h-8 items-center py-1">
+            <span className="text-[10px] text-fg-tertiary">{CS.growthFilteredHidden}</span>
+          </div>
+        )}
       </div>
       <div className="mt-3 grid grid-cols-1 gap-5 border-t border-border-subtle/40 pt-3 sm:grid-cols-2">
         <GaugeRow

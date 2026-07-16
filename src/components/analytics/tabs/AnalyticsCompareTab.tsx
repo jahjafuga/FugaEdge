@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import SectionHeader from '@/components/ui/SectionHeader'
+import MultiSelectMenu from '@/components/ui/MultiSelectMenu'
 import CompareView from '@/components/reports/overview/CompareView'
 import { ipc } from '@/lib/ipc'
-import { rangeForPreset, type DateRange } from '@/core/performance'
+import {
+  applyFilters,
+  distinctMistakes,
+  emptyFilters,
+  rangeForPreset,
+  type DateRange,
+} from '@/core/performance'
 import type { TradeListRow } from '@shared/trades-types'
 
 interface AnalyticsCompareTabProps {
@@ -21,9 +28,12 @@ interface AnalyticsCompareTabProps {
 // and the per-day sentiment map. This caller is what makes CompareView a shared
 // keeper before Beat B retires the Reports page.
 //
-// Minimal promote: passes ALL trades (the FilterBar symbol/playbook/side cross-
-// filter is dropped here — reconsidered in the flagship redesign arc). The
-// surface is intentionally as-is; the visual redesign is the next arc.
+// Minimal promote, partially reconsidered: the MISTAKE half of the dropped
+// FilterBar cross-filter landed (Dave #14 A) as a Compare-local multi-select —
+// the recovered filter-then-compare wiring narrows the rows CompareView feeds
+// into computePeriodComparison. Full FilterBar parity (symbol/side/playbook/…)
+// stays earmarked for the flagship redesign arc; the surface is otherwise
+// as-is until that arc.
 export default function AnalyticsCompareTab({
   trades,
   initialRangeA,
@@ -31,6 +41,19 @@ export default function AnalyticsCompareTab({
 }: AnalyticsCompareTabProps) {
   const [rangeA, setRangeA] = useState<DateRange>(() => initialRangeA ?? rangeForPreset('thisMonth'))
   const [rangeB, setRangeB] = useState<DateRange>(() => initialRangeB ?? rangeForPreset('lastMonth'))
+
+  // Mistake-only cross-filter (Dave #14 A). The wiring is the recovered
+  // b88d290^ Reports pattern — `applyFilters(trades, { ...filters, range:
+  // null })` — narrowed to the one recovered dimension (emptyFilters()
+  // already carries range: null, so the period pickers keep owning dates).
+  // Both periods narrow through the same rows; multi-select is a union
+  // (a trade with EITHER mistake passes, applyFilters' predicate).
+  const [mistakes, setMistakes] = useState<string[]>([])
+  const mistakeOptions = useMemo(() => distinctMistakes(trades), [trades])
+  const filteredTrades = useMemo(
+    () => applyFilters(trades, { ...emptyFilters(), mistakes }),
+    [trades, mistakes],
+  )
 
   // Sentiment map keyed by date — needed for the "By Market Sentiment" compare
   // breakdown card. Fetched once; optional (empty map on failure so the card
@@ -60,8 +83,21 @@ export default function AnalyticsCompareTab({
         title="Compare"
         description="Two periods, side by side — days, weeks, months, or custom ranges."
       />
+      <div className="flex flex-wrap items-center gap-2">
+        <MultiSelectMenu
+          label="Mistake"
+          options={mistakeOptions}
+          selected={mistakes}
+          onChange={setMistakes}
+        />
+        {mistakes.length > 0 && (
+          <span className="text-[10px] text-fg-tertiary">
+            both periods narrowed to trades carrying a picked mistake
+          </span>
+        )}
+      </div>
       <CompareView
-        trades={trades}
+        trades={filteredTrades}
         sentimentByDate={sentimentByDate}
         rangeA={rangeA}
         rangeB={rangeB}
@@ -69,6 +105,7 @@ export default function AnalyticsCompareTab({
           if (which === 'A') setRangeA(range)
           else setRangeB(range)
         }}
+        filtersActive={mistakes.length > 0}
       />
     </div>
   )

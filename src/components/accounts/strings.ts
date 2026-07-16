@@ -48,6 +48,10 @@ export const accountStrings = {
     growthNonPositive: 'needs positive contributed capital',
     growthAcrossAll: (n: number) => `across ${n} account${n === 1 ? '' : 's'}`,
     growthAcrossPartial: (n: number, m: number) => `across ${n} of ${m} accounts`,
+    /** Dave #14 (A) — replaces the growth % row while a caller-side filter
+     *  narrows the compared trades: a filtered numerator over the whole-
+     *  account contributed denominator must never render. */
+    growthFilteredHidden: 'growth % is whole-account — hidden while filters are active',
   },
   card: {
     heading: 'Trading accounts',
