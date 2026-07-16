@@ -133,7 +133,12 @@ export default function PlaybookPicker({ value, valueLabel, tier, onChange }: Pl
         </button>
       )}
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 max-h-[280px] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
+        // Dave #19 — the cap is viewport-relative, not a fixed 280px (~8 rows):
+        // 65vh fits a ~15-item list unscrolled on any viewport >= ~716px tall
+        // (15 rows + the pinned "No playbook" + divider ~= 465px); short screens
+        // clamp and overflow-auto scrolls; 620px ceils tall monitors. Always
+        // drop-down — flip logic stays parked, on record.
+        <div className="absolute left-0 top-full z-30 mt-1 max-h-[min(65vh,620px)] w-[240px] overflow-auto rounded-md border border-white/[0.08] bg-bg/95 p-1 shadow-lg backdrop-blur">
           <button
             type="button"
             onClick={() => {
