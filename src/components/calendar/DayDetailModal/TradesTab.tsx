@@ -86,7 +86,17 @@ export default function TradesTab({ trades, selectedTradeId, onSelectTrade }: Tr
                   </Td>
                   <Td className="text-fg-secondary">{t.playbook_name ?? '—'}</Td>
                   <Td className="text-fg-secondary">{t.entry_timeframe ?? '—'}</Td>
-                  <Td align="right" className="font-mono tnum text-fg-secondary">{int(t.shares_bought + t.shares_sold)}</Td>
+                  {/* Dave #15 — position size (max of legs, the metrics-layer
+                      convention), NOT bought+sold: that sum double-counted
+                      every closed trip (100 shares rendered 200). Legs stay
+                      one hover away. */}
+                  <Td
+                    align="right"
+                    className="font-mono tnum text-fg-secondary"
+                    title={`Bought ${int(t.shares_bought)} · Sold ${int(t.shares_sold)}`}
+                  >
+                    {int(Math.max(t.shares_bought, t.shares_sold))}
+                  </Td>
                   <Td align="right" className="font-mono tnum text-fg-secondary">{price(entry)}</Td>
                   <Td align="right" className="font-mono tnum text-fg-secondary">{price(exit)}</Td>
                   <Td align="right" className={`font-mono tnum font-medium ${pnlClass(t.net_pnl)}`}>{signed(t.net_pnl)}</Td>
@@ -140,10 +150,19 @@ function Td({
   children,
   align = 'left',
   className = '',
+  title,
 }: {
   children: ReactNode
   align?: 'left' | 'right'
   className?: string
+  title?: string
 }) {
-  return <td className={`px-3 py-2 ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}>{children}</td>
+  return (
+    <td
+      className={`px-3 py-2 ${align === 'right' ? 'text-right' : 'text-left'} ${className}`}
+      title={title}
+    >
+      {children}
+    </td>
+  )
 }

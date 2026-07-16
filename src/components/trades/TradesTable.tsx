@@ -118,9 +118,8 @@ const COLUMN_WIDTHS = {
   symbol: 80,
   playbook: 130,
   side: 60,
-  shares_bought: 80,
+  shares: 80,
   avg_buy: 90,
-  shares_sold: 80,
   avg_sell: 90,
   fees: 80,
   net_pnl: 110,
@@ -481,15 +480,28 @@ export default function TradesTable({
           )
         },
       }),
-      col.accessor('shares_bought', {
-        id: 'shares_bought',
-        header: () => <span className="block text-right">Bought</span>,
-        size: COLUMN_WIDTHS.shares_bought,
-        cell: (info) => (
-          <div className="text-right font-mono text-fg-primary tnum">
-            {int(info.getValue())}
-          </div>
-        ),
+      // Dave #15 — ONE SHARES SEMANTIC: the BOUGHT/SOLD quantity pair
+      // collapses to position size = Math.max(shares_bought, shares_sold),
+      // the metrics layer's pinned convention (metrics.ts positionShares,
+      // avgShareSize's "established convention"). Replaces the day-tab's
+      // bought+sold rendering — the double-count bug this beat fixes. The
+      // removed pair stays one hover away via the cell title; on an
+      // unbalanced (partial/open) trip the max IS the position.
+      col.accessor((r) => Math.max(r.shares_bought, r.shares_sold), {
+        id: 'shares',
+        header: () => <span className="block text-right">Shares</span>,
+        size: COLUMN_WIDTHS.shares,
+        cell: (info) => {
+          const t = info.row.original
+          return (
+            <div
+              className="text-right font-mono text-fg-primary tnum"
+              title={`Bought ${int(t.shares_bought)} · Sold ${int(t.shares_sold)}`}
+            >
+              {int(info.getValue() as number)}
+            </div>
+          )
+        },
       }),
       col.accessor('avg_buy_price', {
         id: 'avg_buy',
@@ -498,16 +510,6 @@ export default function TradesTable({
         cell: (info) => (
           <div className="text-right font-mono text-fg-secondary tnum">
             {price(info.getValue())}
-          </div>
-        ),
-      }),
-      col.accessor('shares_sold', {
-        id: 'shares_sold',
-        header: () => <span className="block text-right">Sold</span>,
-        size: COLUMN_WIDTHS.shares_sold,
-        cell: (info) => (
-          <div className="text-right font-mono text-fg-primary tnum">
-            {int(info.getValue())}
           </div>
         ),
       }),

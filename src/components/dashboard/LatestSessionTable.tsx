@@ -81,9 +81,8 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
               <Th align="left">Side</Th>
               <Th align="left">Playbook</Th>
               <Th align="center">Conf</Th>
-              <Th align="right">Bought</Th>
+              <Th align="right">Shares</Th>
               <Th align="right">Buy avg</Th>
-              <Th align="right">Sold</Th>
               <Th align="right">Sell avg</Th>
               <Th align="right">Fees</Th>
               <Th align="right">Net P&amp;L</Th>
@@ -121,14 +120,19 @@ export default function LatestSessionTable({ session, today }: LatestSessionTabl
                 <Td align="center">
                   <ConfidenceDots value={t.confidence} />
                 </Td>
-                <Td align="right">
-                  <span className="font-mono text-fg-primary tnum">{int(t.shares_bought)}</span>
+                {/* Dave #15 — the same BOUGHT/SOLD pair as All Round Trips,
+                    collapsed the same way: position = max of legs, both legs
+                    in the hover title. */}
+                <Td
+                  align="right"
+                  title={`Bought ${int(t.shares_bought)} · Sold ${int(t.shares_sold)}`}
+                >
+                  <span className="font-mono text-fg-primary tnum">
+                    {int(Math.max(t.shares_bought, t.shares_sold))}
+                  </span>
                 </Td>
                 <Td align="right">
                   <span className="font-mono text-fg-secondary tnum">{price(t.avg_buy_price)}</span>
-                </Td>
-                <Td align="right">
-                  <span className="font-mono text-fg-primary tnum">{int(t.shares_sold)}</span>
                 </Td>
                 <Td align="right">
                   <span className="font-mono text-fg-secondary tnum">{price(t.avg_sell_price)}</span>
@@ -164,12 +168,16 @@ function Th({ children, align = 'left' }: { children: React.ReactNode; align?: A
 function Td({
   children,
   align = 'left',
+  title,
 }: {
   children: React.ReactNode
   align?: Align
+  title?: string
 }) {
   return (
-    <td className={`px-3 py-2 ${alignClass(align)}`}>{children}</td>
+    <td className={`px-3 py-2 ${alignClass(align)}`} title={title}>
+      {children}
+    </td>
   )
 }
 
