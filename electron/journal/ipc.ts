@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { SaveJournalInput } from '@shared/journal-types'
 import type { AccountScope } from '@shared/accounts-types'
-import { getJournalDay } from './get'
+import { getJournalDay, getJournalRuleUsage } from './get'
 import { saveJournalDay } from './save'
 import { bumpDataVersion } from '../lib/cache'
 
@@ -27,4 +27,8 @@ export function registerJournalIpc(): void {
     bumpDataVersion()
     return out
   })
+  // THE FINAL TWO (build A) — READ-ONLY usage read for the Settings Remove
+  // guard. A pure read: deliberately NO bumpDataVersion (the
+  // DAY_RULE_BREAK_USAGE_GET precedent, day/ipc.ts).
+  ipcMain.handle(IPC.JOURNAL_RULE_USAGE_GET, () => getJournalRuleUsage())
 }

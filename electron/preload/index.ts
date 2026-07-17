@@ -268,6 +268,10 @@ const api = {
     ipcRenderer.invoke(IPC.JOURNAL_GET, { date, scope }),
   journalSave: (input: SaveJournalInput): Promise<JournalDay> =>
     ipcRenderer.invoke(IPC.JOURNAL_SAVE, input),
+  // THE FINAL TWO (build A) — READ-ONLY: rule id -> distinct marked days, for
+  // the Settings Remove guard.
+  journalRuleUsageGet: (): Promise<Record<string, number>> =>
+    ipcRenderer.invoke(IPC.JOURNAL_RULE_USAGE_GET),
   settingsGet: (): Promise<SettingsPayload> => ipcRenderer.invoke(IPC.SETTINGS_GET),
   settingsSave: (input: SettingsUpdate): Promise<SettingsPayload> =>
     ipcRenderer.invoke(IPC.SETTINGS_SAVE, input),

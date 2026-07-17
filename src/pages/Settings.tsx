@@ -119,6 +119,25 @@ export default function Settings() {
     }
   }, [])
 
+  // THE FINAL TWO (build A) — the journal-rule Remove guard's usage read
+  // (rule id -> distinct marked days). Same idiom as ruleBreakUsage above:
+  // fetched once, fail-OPEN on error so a read hiccup never bricks the editor.
+  const [journalRuleUsage, setJournalRuleUsage] = useState<Record<string, number> | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ipc
+      .journalRuleUsage()
+      .then((u) => {
+        if (!cancelled) setJournalRuleUsage(u)
+      })
+      .catch(() => {
+        /* non-fatal — guard stays off, editor keeps working */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Active settings category (left rail). Persisted renderer-side; default first.
   const [activeCategory, setActiveCategory] = useState<string>(readActiveCategory)
 
@@ -438,6 +457,7 @@ export default function Settings() {
               onChange={(next) =>
                 setEditor((prev) => (prev ? { ...prev, journal_rules: next } : prev))
               }
+              usageById={journalRuleUsage ?? undefined}
             />
           </Card>
         </div>

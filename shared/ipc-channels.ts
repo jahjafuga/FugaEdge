@@ -30,6 +30,11 @@ export const IPC = {
   ANALYTICS_GET: 'analytics:get',
   JOURNAL_GET: 'journal:get',
   JOURNAL_SAVE: 'journal:save',
+  // THE FINAL TWO (build A) — READ-ONLY usage read (rule id -> distinct marked
+  // days) behind the Settings Remove guard: a journal rule marked on >= 1 day
+  // cannot be hard-deleted (archive is the exit). A pure read, so its handler
+  // must NOT bumpDataVersion (the DAY_RULE_BREAK_USAGE_GET precedent).
+  JOURNAL_RULE_USAGE_GET: 'journal:ruleUsageGet',
   SETTINGS_GET: 'settings:get',
   SETTINGS_SAVE: 'settings:save',
   SETTINGS_TEST_MASSIVE_KEY: 'settings:testMassiveKey',

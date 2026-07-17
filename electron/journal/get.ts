@@ -3,7 +3,11 @@ import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
-import { parseJournalRules } from '@/core/journal/rules'
+import {
+  parseJournalRules,
+  tallyJournalRuleUsage,
+  type JournalRuleUsage,
+} from '@/core/journal/rules'
 import type {
   JournalDay,
   JournalDaySummary,
@@ -55,6 +59,22 @@ function readRules(db: ReturnType<typeof openDatabase>): JournalRule[] {
     .prepare("SELECT value FROM settings WHERE key = 'journal_rules'")
     .get() as { value: string } | undefined
   return parseJournalRules(row?.value)
+}
+
+// THE FINAL TWO (build A) — READ-ONLY: rule id -> distinct marked days, for the
+// Settings Remove guard (mirrors electron/day/ruleBreaks.ts:getRuleBreakUsage).
+// The tally itself is pure core (tallyJournalRuleUsage); this is just the row
+// feed. No write, therefore NO bumpDataVersion.
+export function getJournalRuleUsage(): JournalRuleUsage {
+  const db = openDatabase()
+  const rows = db
+    .prepare(`
+      SELECT date, rules_followed, rule_violations FROM journal
+      WHERE (rules_followed IS NOT NULL AND rules_followed != '' AND rules_followed != '[]')
+         OR (rule_violations IS NOT NULL AND rule_violations != '' AND rule_violations != '[]')
+    `)
+    .all() as { date: string; rules_followed: string; rule_violations: string }[]
+  return tallyJournalRuleUsage(rows)
 }
 
 function readEntry(

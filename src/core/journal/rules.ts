@@ -138,6 +138,58 @@ function parseNames(v: string | null | undefined): string[] {
   return t.split(',').map((s) => s.trim()).filter(Boolean)
 }
 
+// ── THE FINAL TWO (build A) — the Remove guard's usage tally ────────────────
+
+/** One journal row in the shape getJournalRuleUsage reads it (both mark
+ *  columns are ID string[] JSON post-Beat-2). */
+export interface JournalRuleMarkRow {
+  date: string
+  rules_followed: string
+  rule_violations: string
+}
+
+/** rule id -> number of DISTINCT journal days it is marked on. */
+export type JournalRuleUsage = Record<string, number>
+
+// Strict JSON-or-[] cell parser for the tally — deliberately NOT parseNames:
+// its CSV fallback belongs to the LEGACY name migration, and the ruleBreaks
+// usage precedent (core/ruleBreaks/usage.ts:34-36) rejects comma fallbacks for
+// DAY cells so a malformed cell can never split into phantom ids.
+function parseIdArray(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const a = JSON.parse(raw)
+    return Array.isArray(a) ? a.map((x) => String(x)).filter(Boolean) : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * PURE usage tally behind the Settings Remove guard (mirrors
+ * core/ruleBreaks/usage.ts tallyRuleBreakUsage). followed and violated both
+ * count; an id marked twice on one day (or in both arrays) is still ONE day;
+ * duplicate date rows collapse through the per-id day Set.
+ */
+export function tallyJournalRuleUsage(rows: JournalRuleMarkRow[]): JournalRuleUsage {
+  const daysById = new Map<string, Set<string>>()
+  for (const row of rows) {
+    const ids = new Set([...parseIdArray(row.rules_followed), ...parseIdArray(row.rule_violations)])
+    for (const id of ids) {
+      if (!id) continue
+      let days = daysById.get(id)
+      if (!days) {
+        days = new Set<string>()
+        daysById.set(id, days)
+      }
+      days.add(row.date)
+    }
+  }
+  const out: JournalRuleUsage = {}
+  for (const [id, days] of daysById) out[id] = days.size
+  return out
+}
+
 /**
  * Pure conversion for the Beat-2 migration. Turns the legacy `journal_rules`
  * string[] + every journal row's NAME refs into the id-stable model:

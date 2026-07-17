@@ -36,6 +36,7 @@ vi.mock('@/lib/ipc', () => ({
     // labels that are used on journal days. Default: nothing used, so every row stays as it
     // was and these characterization tests are unaffected.
     ruleBreakUsage: vi.fn(async () => ({})),
+    journalRuleUsage: vi.fn(async () => ({})),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     tradesRestoreBulk: vi.fn(),

@@ -22,6 +22,7 @@ vi.mock('@/lib/ipc', () => ({
     cashBalanceGet: vi.fn(async () => null),
     // Beat 2 — the Rule Breaks editor reads rule-break usage on mount (READ-ONLY).
     ruleBreakUsage: vi.fn(async () => ({})),
+    journalRuleUsage: vi.fn(async () => ({})),
     countryOnBackfillProgress: vi.fn(() => () => {}),
     floatOnBackfillProgress: vi.fn(() => () => {}),
     profileOnBackfillProgress: vi.fn(() => () => {}),

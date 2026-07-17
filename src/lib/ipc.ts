@@ -125,6 +125,7 @@ export const ipc = {
   analyticsGet: (scope?: AccountScope) => window.api.analyticsGet(scope),
   journalGet: (date: string, scope?: AccountScope) => window.api.journalGet(date, scope),
   journalSave: (input: SaveJournalInput) => window.api.journalSave(input),
+  journalRuleUsage: () => window.api.journalRuleUsageGet(),
   settingsGet: () => window.api.settingsGet(),
   settingsSave: (input: SettingsUpdate) => window.api.settingsSave(input),
   testMassiveKey: (apiKey: string) => window.api.testMassiveKey(apiKey),

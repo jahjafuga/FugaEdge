@@ -43,6 +43,7 @@ vi.mock('@/lib/ipc', () => ({
     cashEventsList: vi.fn(async () => []),
     cashBalanceGet: vi.fn(async () => null),
     ruleBreakUsage: vi.fn(async () => ({})),
+    journalRuleUsage: vi.fn(async () => ({})),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     tradesRestoreBulk: vi.fn(),
