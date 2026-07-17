@@ -128,4 +128,28 @@ describe('CalendarGrid SentimentBadge — the rubric on hover (Dave #18)', () =>
       expect(text).toContain(SENTIMENT_LABELS[n])
     }
   })
+
+  // ── HOTFIX pins (the 69ade1c trigger regression) ─────────────────────────
+
+  it('(H1) the badge tooltip is HOVER-ONLY with the open delay — no focus-within, delay present', () => {
+    renderGrid()
+    const tip = tooltipOf(screen.getByLabelText(SET_LABEL))
+    expect(tip.className).not.toContain('focus-within')
+    expect(tip.className).toContain('group-hover/tt:delay-[400ms]')
+  })
+
+  it('(H2) right-mousedown on the badge is prevented — it can never grab focus and stick', () => {
+    renderGrid()
+    const badge = screen.getByLabelText(SET_LABEL)
+    // fireEvent returns false when preventDefault was called.
+    expect(fireEvent.mouseDown(badge, { button: 2 })).toBe(false)
+    // Left mousedown stays untouched (the cycle click path).
+    expect(fireEvent.mouseDown(badge, { button: 0 })).toBe(true)
+  })
+
+  it('(H3) click still cycles after the guard (the write path re-pinned)', () => {
+    renderGrid()
+    fireEvent.click(screen.getByLabelText(SET_LABEL))
+    expect(cycleSpy).toHaveBeenCalledWith('2026-05-06', 3)
+  })
 })

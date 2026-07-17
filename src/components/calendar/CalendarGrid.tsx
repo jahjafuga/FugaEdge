@@ -409,6 +409,11 @@ function SentimentBadge({
     <Tooltip
       side={tooltipSide}
       align={tooltipAlign}
+      // HOTFIX — hover-only (the span is tabIndex=-1, not keyboard-reachable,
+      // so focus-within was pure downside: any mousedown pinned the popover)
+      // and a ~400ms open delay so cell traversal never flashes the rubric.
+      focusable={false}
+      openDelay
       content={
         // min-w keeps each rubric row on a single line (the tooltip surface
         // otherwise shrink-wraps and wraps '0 stocks >50%' over three lines).
@@ -429,6 +434,12 @@ function SentimentBadge({
         role="button"
         tabIndex={-1}
         onClick={onCycle}
+        // HOTFIX — a right-mousedown would focus the tabIndex=-1 span (click-
+        // focusable) with no visible effect; preventDefault blocks the focus
+        // grab at the source. Left mousedown untouched (the cycle path).
+        onMouseDown={(e) => {
+          if (e.button === 2) e.preventDefault()
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.stopPropagation()
