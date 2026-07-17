@@ -41,3 +41,9 @@ test-fixtures/
 # utility children on Windows GUI builds; they fall back to
 # writing PID-named debug logs to the parent process's cwd.
 /[0-9]*
+
+# Demo-book database (regenerable by construction: one schema-create dev
+# launch + scripts/demo-seed.mjs). The seeder commits; the DB never does.
+demo/*.db
+demo/*.db-wal
+demo/*.db-shm
