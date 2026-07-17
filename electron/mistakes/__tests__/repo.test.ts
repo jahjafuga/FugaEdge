@@ -171,15 +171,19 @@ const ranSql = (re: RegExp) => runs.find((r) => re.test(r.sql))
 
 describe('createMistakeDef', () => {
   it('rejects a case-insensitive active duplicate in the same axis; no INSERT', () => {
+    // Build B widened the dup check (no is_archived exclusion) — the active
+    // branch keeps this exact behavior.
     respond = (q) =>
-      /AND lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q) ? { id: 9 } : undefined
+      /SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\)$/i.test(q)
+        ? { id: 9, is_archived: 0 }
+        : undefined
     expect(() => createMistakeDef({ axis: 'technical', name: 'macd negative at entry' })).toThrow(/already exists/i)
     expect(runs.some((r) => /INSERT INTO mistake_def/i.test(r.sql))).toBe(false)
   })
 
   it('INSERTs is_custom=1, is_archived=0, sort_position = MAX(sort_position)+1 for the axis', () => {
     respond = (q) => {
-      if (/AND lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q)) return undefined
+      if (/SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\)$/i.test(q)) return undefined
       if (/SELECT MAX\(sort_position\) AS m FROM mistake_def WHERE axis = \?/i.test(q)) return { m: 9 }
       if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)) return DEF_ROW
       return undefined
@@ -202,7 +206,8 @@ describe('renameMistakeDef', () => {
   it('rejects a case-insensitive duplicate in the same axis (excluding self); no UPDATE', () => {
     respond = (q) => {
       if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
-      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return { id: 9 }
+      if (/SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 0 }
       return undefined
     }
     expect(() => renameMistakeDef({ id: 7, name: 'entered below vwap' })).toThrow(/already exists/i)
@@ -212,7 +217,7 @@ describe('renameMistakeDef', () => {
   it('UPDATEs the trimmed name + updated_at where id', () => {
     respond = (q) => {
       if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
-      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return undefined
+      if (/SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\) AND id != \?/i.test(q)) return undefined
       if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q)) return { ...DEF_ROW, name: 'Renamed' }
       return undefined
     }
@@ -315,5 +320,59 @@ describe('deleteMistakeDef — THE GUARD', () => {
     expect(deletedRow()).toBe(false)
     expect(archivedRow()).toBe(true)
     expect(r).toEqual({ deleted: false, archivedInstead: true })
+  })
+})
+
+// THE FINAL TWO (build B) — the archived-name collision wall, mistakes twin.
+// Same widened dup checks as the catalyst repo (rename AND create); the
+// mistakes messages carry the axis, and the archived branch adds the
+// unarchive guidance. Blocked paths run NOTHING.
+describe('the archived-name collision wall (rename + create)', () => {
+  it('(2) rename onto an ARCHIVED name in the axis throws the archived message; no UPDATE', () => {
+    respond = (q) => {
+      if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
+      if (/SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 1 }
+      return undefined
+    }
+    expect(() => renameMistakeDef({ id: 7, name: 'chased the move' })).toThrow(
+      /"chased the move" already exists in technical — archived; unarchive it instead/,
+    )
+    expect(runs.length).toBe(0)
+  })
+
+  it('(3) rename onto an ACTIVE name still blocked with the existing message', () => {
+    respond = (q) => {
+      if (/SELECT axis FROM mistake_def WHERE id = \?/i.test(q)) return { axis: 'technical' }
+      if (/SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 0 }
+      return undefined
+    }
+    expect(() => renameMistakeDef({ id: 7, name: 'entered below vwap' })).toThrow(
+      /"entered below vwap" already exists in technical$/,
+    )
+    expect(runs.length).toBe(0)
+  })
+
+  it('(4) create onto an ARCHIVED name in the axis blocked; no INSERT', () => {
+    respond = (q) =>
+      /SELECT id, is_archived FROM mistake_def WHERE axis = \? AND lower\(name\) = lower\(\?\)$/i.test(q)
+        ? { id: 9, is_archived: 1 }
+        : undefined
+    expect(() => createMistakeDef({ axis: 'technical', name: 'chased the move' })).toThrow(
+      /archived; unarchive it instead/,
+    )
+    expect(runs.some((r) => /INSERT INTO mistake_def/i.test(r.sql))).toBe(false)
+  })
+
+  it('(5) a legitimate create still succeeds through the widened check', () => {
+    respond = (q) => {
+      if (/SELECT MAX\(sort_position\) AS m FROM mistake_def WHERE axis = \?/i.test(q)) return { m: 4 }
+      if (/SELECT id, axis, name, sort_position, is_custom, is_archived FROM mistake_def WHERE id = \?/i.test(q))
+        return { id: 7, axis: 'technical', name: 'Fresh', sort_position: 5, is_custom: 1, is_archived: 0 }
+      return undefined
+    }
+    createMistakeDef({ axis: 'technical', name: 'Fresh' })
+    expect(runs.some((r) => /INSERT INTO mistake_def/i.test(r.sql))).toBe(true)
   })
 })

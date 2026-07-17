@@ -94,15 +94,19 @@ describe('listCatalystDefs', () => {
 
 describe('createCatalystDef', () => {
   it('rejects a case-insensitive active duplicate; no INSERT (no axis in the dup-check)', () => {
+    // Build B widened the dup check (no is_archived exclusion) — the active
+    // branch keeps this exact behavior.
     respond = (q) =>
-      /lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q) ? { id: 9 } : undefined
+      /SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)
+        ? { id: 9, is_archived: 0 }
+        : undefined
     expect(() => createCatalystDef({ name: 'earnings' })).toThrow(/already exists/i)
     expect(runs.some((r) => /INSERT INTO catalyst_def/i.test(r.sql))).toBe(false)
   })
 
   it('INSERTs is_custom=1, is_archived=0, sort_position = MAX+1 (no axis)', () => {
     respond = (q) => {
-      if (/lower\(name\) = lower\(\?\) AND is_archived = 0/i.test(q)) return undefined
+      if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)) return undefined
       if (/MAX\(sort_position\)/i.test(q)) return { next: 10 }
       if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)) return DEF_ROW
       return undefined
@@ -126,7 +130,8 @@ describe('renameCatalystDef — DELTA 1: atomic propagation to trades', () => {
   it('rejects a case-insensitive duplicate (excluding self); no UPDATE', () => {
     respond = (q) => {
       if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
-      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return { id: 9 }
+      if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 0 }
       return undefined
     }
     expect(() => renameCatalystDef({ id: 7, name: 'earnings' })).toThrow(/already exists/i)
@@ -142,7 +147,7 @@ describe('renameCatalystDef — DELTA 1: atomic propagation to trades', () => {
   it('renames the def AND propagates the new name to every trade carrying the old name, both in one transaction', () => {
     respond = (q) => {
       if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
-      if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return undefined
+      if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\) AND id != \?/i.test(q)) return undefined
       if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)) return { ...DEF_ROW, name: 'Renamed' }
       return undefined
     }
@@ -267,5 +272,60 @@ describe('deleteCatalystDef — DELTA 2: the guard counts trades BY NAME (no jun
     expect(deletedRow()).toBe(false)
     expect(archivedRow()).toBe(true)
     expect(r).toEqual({ deleted: false, archivedInstead: true })
+  })
+})
+
+// THE FINAL TWO (build B) — the archived-name collision wall. The dup checks
+// lose their is_archived = 0 exclusion (rename AND create): an archived
+// collision throws "— archived; unarchive it instead" BEFORE the transaction,
+// an active collision keeps the existing message. For catalysts the blocked
+// path matters most: the rename transaction rewrites trades by name, so the
+// no-runs assertions ARE the "trade history byte-unchanged" pin.
+describe('the archived-name collision wall (rename + create)', () => {
+  it('(1) rename onto an ARCHIVED name throws the archived message; NOTHING runs — trades byte-unchanged', () => {
+    respond = (q) => {
+      if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
+      if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 1 }
+      return undefined
+    }
+    expect(() => renameCatalystDef({ id: 7, name: 'fda approval' })).toThrow(
+      /"fda approval" already exists — archived; unarchive it instead/,
+    )
+    expect(runs.length).toBe(0)
+  })
+
+  it('(3) rename onto an ACTIVE name still blocked with the existing message', () => {
+    respond = (q) => {
+      if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
+      if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\) AND id != \?/i.test(q))
+        return { id: 9, is_archived: 0 }
+      return undefined
+    }
+    expect(() => renameCatalystDef({ id: 7, name: 'earnings' })).toThrow(/"earnings" already exists$/)
+    expect(runs.length).toBe(0)
+  })
+
+  it('(4) create onto an ARCHIVED name blocked; no INSERT', () => {
+    respond = (q) =>
+      /SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)
+        ? { id: 9, is_archived: 1 }
+        : undefined
+    expect(() => createCatalystDef({ name: 'fda approval' })).toThrow(
+      /archived; unarchive it instead/,
+    )
+    expect(runs.some((r) => /INSERT INTO catalyst_def/i.test(r.sql))).toBe(false)
+  })
+
+  it('(5) a legitimate rename still succeeds through the widened check', () => {
+    respond = (q) => {
+      if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
+      if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q))
+        return { id: 7, name: 'Fresh Name', sort_position: 0, is_custom: 1, is_archived: 0 }
+      return undefined
+    }
+    renameCatalystDef({ id: 7, name: 'Fresh Name' })
+    expect(runs.some((r) => /UPDATE catalyst_def SET name/i.test(r.sql))).toBe(true)
+    expect(runs.some((r) => /UPDATE trades SET catalyst_type/i.test(r.sql))).toBe(true)
   })
 })

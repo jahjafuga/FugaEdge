@@ -181,10 +181,19 @@ export function createMistakeDef(input: CreateMistakeDefInput): MistakeDef {
   const db = openDatabase()
   const name = input.name.trim()
   if (!name) throw new Error('Mistake name cannot be empty')
+  // THE FINAL TWO (build B) — the dup check covers ARCHIVED rows too: creating
+  // onto an archived name would strand two same-name defs the moment it is
+  // unarchived, and conflate their histories on every name-keyed surface.
   const dup = db
-    .prepare('SELECT id FROM mistake_def WHERE axis = ? AND lower(name) = lower(?) AND is_archived = 0')
-    .get(input.axis, name) as { id: number } | undefined
-  if (dup) throw new Error(`"${name}" already exists in ${input.axis}`)
+    .prepare('SELECT id, is_archived FROM mistake_def WHERE axis = ? AND lower(name) = lower(?)')
+    .get(input.axis, name) as { id: number; is_archived: number } | undefined
+  if (dup) {
+    throw new Error(
+      dup.is_archived === 1
+        ? `"${name}" already exists in ${input.axis} — archived; unarchive it instead`
+        : `"${name}" already exists in ${input.axis}`,
+    )
+  }
   const max = db
     .prepare('SELECT MAX(sort_position) AS m FROM mistake_def WHERE axis = ?')
     .get(input.axis) as { m: number | null }
@@ -206,10 +215,18 @@ export function renameMistakeDef(input: RenameMistakeDefInput): MistakeDef {
     .prepare('SELECT axis FROM mistake_def WHERE id = ?')
     .get(input.id) as { axis: string } | undefined
   if (!current) throw new Error(`Mistake ${input.id} not found`)
+  // THE FINAL TWO (build B) — archived rows now collide too (the silent
+  // history-merge hole): the guard throws BEFORE any write.
   const dup = db
-    .prepare('SELECT id FROM mistake_def WHERE axis = ? AND lower(name) = lower(?) AND is_archived = 0 AND id != ?')
-    .get(current.axis, name, input.id) as { id: number } | undefined
-  if (dup) throw new Error(`"${name}" already exists in ${current.axis}`)
+    .prepare('SELECT id, is_archived FROM mistake_def WHERE axis = ? AND lower(name) = lower(?) AND id != ?')
+    .get(current.axis, name, input.id) as { id: number; is_archived: number } | undefined
+  if (dup) {
+    throw new Error(
+      dup.is_archived === 1
+        ? `"${name}" already exists in ${current.axis} — archived; unarchive it instead`
+        : `"${name}" already exists in ${current.axis}`,
+    )
+  }
   db.prepare("UPDATE mistake_def SET name = ?, updated_at = datetime('now') WHERE id = ?").run(name, input.id)
   return getMistakeDefById(input.id)
 }

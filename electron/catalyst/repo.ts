@@ -70,10 +70,18 @@ export function createCatalystDef(input: CreateCatalystDefInput): CatalystDef {
   const db = openDatabase()
   const name = input.name.trim()
   if (!name) throw new Error('Catalyst name cannot be empty')
+  // THE FINAL TWO (build B) — the dup check covers ARCHIVED rows too (the
+  // silent history-merge hole; see renameCatalystDef).
   const dup = db
-    .prepare('SELECT id FROM catalyst_def WHERE lower(name) = lower(?) AND is_archived = 0')
-    .get(name) as { id: number } | undefined
-  if (dup) throw new Error(`"${name}" already exists`)
+    .prepare('SELECT id, is_archived FROM catalyst_def WHERE lower(name) = lower(?)')
+    .get(name) as { id: number; is_archived: number } | undefined
+  if (dup) {
+    throw new Error(
+      dup.is_archived === 1
+        ? `"${name}" already exists — archived; unarchive it instead`
+        : `"${name}" already exists`,
+    )
+  }
   const { next } = db
     .prepare('SELECT COALESCE(MAX(sort_position), -1) + 1 AS next FROM catalyst_def')
     .get() as { next: number }
@@ -98,10 +106,21 @@ export function renameCatalystDef(input: RenameCatalystDefInput): CatalystDef {
     .prepare('SELECT name FROM catalyst_def WHERE id = ?')
     .get(input.id) as { name: string } | undefined
   if (!old) throw new Error(`Catalyst ${input.id} not found`)
+  // THE FINAL TWO (build B) — archived rows now collide too. This guard is the
+  // one that matters most: the transaction below rewrites trades BY NAME, so a
+  // rename onto an archived def's name would fuse two trade histories
+  // irreversibly. The throw lands BEFORE the transaction — nothing is touched
+  // on the blocked path.
   const dup = db
-    .prepare('SELECT id FROM catalyst_def WHERE lower(name) = lower(?) AND is_archived = 0 AND id != ?')
-    .get(name, input.id) as { id: number } | undefined
-  if (dup) throw new Error(`"${name}" already exists`)
+    .prepare('SELECT id, is_archived FROM catalyst_def WHERE lower(name) = lower(?) AND id != ?')
+    .get(name, input.id) as { id: number; is_archived: number } | undefined
+  if (dup) {
+    throw new Error(
+      dup.is_archived === 1
+        ? `"${name}" already exists — archived; unarchive it instead`
+        : `"${name}" already exists`,
+    )
+  }
   const tx = db.transaction(() => {
     db.prepare("UPDATE catalyst_def SET name = ?, updated_at = datetime('now') WHERE id = ?").run(name, input.id)
     db.prepare('UPDATE trades SET catalyst_type = ? WHERE catalyst_type = ?').run(name, old.name)
