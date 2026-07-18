@@ -136,10 +136,278 @@ if (!schemaRow) {
   console.error("REFUSED: no _meta.schema_version - not an app-created DB.");
   process.exit(1);
 }
+const REBUILD_BARS = process.argv[3] === "--rebuild-bars";
 const existingTrades = db.prepare("SELECT COUNT(*) n FROM trades").get().n;
-if (existingTrades > 0) {
+if (!REBUILD_BARS && existingTrades > 0) {
   console.error("REFUSED: trades already exist (" + existingTrades + "). The demo DB is disposable: wipe demo db and relaunch to reseed.");
   process.exit(1);
+}
+if (REBUILD_BARS && existingTrades === 0) {
+  console.error("REFUSED: --rebuild-bars needs an already-seeded book (no trades found).");
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// MODE: --rebuild-bars (Track A bars fix). The founder's trader eye caught
+// fills printed above the day high and staircase candles: bar-gen and
+// trade-gen were independent (the seed path even derives entries FROM bars,
+// demo-seed.mjs trade builder), so bars could never be regenerated without
+// moving trades. This mode inverts the flow: TRADES ARE FROZEN, bars derive
+// through the fills. Invariance gate: every non-bar table is value-identical
+// before/after, proven by ordered-dump SHA256, excluding ONLY intraday_bars,
+// trade_technicals, trades.entry_ema9_distance_pct and the country columns.
+// trade_technicals is WIPED and entry_ema9_distance_pct NULLed so the app's
+// own boot backfill (electron/main/index.ts:248-294) recomputes both from the
+// new bars - the dual-write in electron/technicals/repo.ts:281-289 ("healed
+// here and nowhere else") is the exact core semantics, run by the app itself;
+// existing complete rows would block it (repo.ts:319-322), hence the wipe.
+// ---------------------------------------------------------------------------
+if (REBUILD_BARS) {
+  // Local: the top-level rnd2 below sits in TDZ at this point in the module.
+  const rnd2 = (x) => Math.round(x * 100) / 100;
+  const TRADE_COLS_FROZEN = db
+    .prepare("PRAGMA table_info(trades)")
+    .all()
+    .map((c) => c.name)
+    .filter((n) => !["entry_ema9_distance_pct", "country", "country_name", "region", "country_source"].includes(n));
+
+  function invarianceHash() {
+    const dump = {
+      trades: db.prepare("SELECT " + TRADE_COLS_FROZEN.join(",") + " FROM trades ORDER BY id").all(),
+      executions: db.prepare("SELECT * FROM executions ORDER BY id").all(),
+      daily_summary: db.prepare("SELECT * FROM daily_summary ORDER BY date").all(),
+      trade_mistake: db.prepare("SELECT * FROM trade_mistake ORDER BY trade_id, mistake_def_id").all(),
+      journal: db.prepare("SELECT * FROM journal ORDER BY date").all(),
+      trade_playbooks: db.prepare("SELECT * FROM trade_playbooks ORDER BY trade_id, playbook_id").all(),
+    };
+    return createHash("sha256").update(JSON.stringify(dump)).digest("hex");
+  }
+
+  const beforeHash = invarianceHash();
+  console.log("invariance_before=" + beforeHash);
+
+  // Anchor groups: per (symbol, date) the frozen fills + story facts.
+  const groups = db
+    .prepare(`
+      SELECT t.symbol, t.date,
+             SUM(t.net_pnl) AS day_pnl,
+             MAX(t.daily_change_pct) AS chg
+      FROM trades t GROUP BY t.symbol, t.date ORDER BY t.date, t.symbol
+    `)
+    .all();
+  const fillsStmt = db.prepare(`
+    SELECT e.price, e.timestamp_utc FROM executions e
+    JOIN trades t ON t.id = e.round_trip_id
+    WHERE t.symbol = ? AND t.date = ? ORDER BY e.timestamp_utc
+  `);
+
+  const DAY_MIN = 720; // 08:00Z .. 19:59Z inclusive, 1-minute bars
+  const seedOf = (s) => [...s].reduce((a, c) => a + c.charCodeAt(0) * 31, 0);
+
+  function rebuildGroup(g) {
+    const r = mulberry32(SEED + 7000 + seedOf(g.symbol + "|" + g.date));
+    const fills = fillsStmt.all(g.symbol, g.date).map((f) => ({
+      price: f.price,
+      min: Math.floor((Date.parse(f.timestamp_utc) - utcMs(g.date, 8, 0)) / 60000),
+    }));
+    const pMin = Math.min(...fills.map((f) => f.price));
+    const pMax = Math.max(...fills.map((f) => f.price));
+    const chg = g.chg ?? 40;
+    const hold = g.day_pnl >= 0;
+
+    const high = pMax * (1 + 0.04 + r() * 0.07);
+    const close = hold
+      ? Math.min(high * 0.995, pMax * (0.94 + r() * 0.05))
+      : Math.max(pMin * (0.96 + r() * 0.06), pMin * 0.9);
+    const priorClose = close / (1 + chg / 100);
+    const rthOpen = pMin * (0.96 + r() * 0.05);
+    const pmStartPrice = priorClose * (1 + 0.01 + r() * 0.05);
+
+    // Ideal path over 720 minutes: premarket build -> opening drive -> pullback
+    // cycles + tightening consolidation -> fade (red) or hold (green) into close.
+    const RTH0 = 330;
+    const driveEnd = RTH0 + 15 + Math.floor(r() * 30);
+    const path = new Array(DAY_MIN);
+    for (let i = 0; i < RTH0; i++) {
+      const f = i / RTH0;
+      const curve = Math.pow(f, 1.6);
+      path[i] = pmStartPrice + (rthOpen - pmStartPrice) * curve;
+    }
+    for (let i = RTH0; i <= driveEnd; i++) {
+      const f = (i - RTH0) / (driveEnd - RTH0);
+      path[i] = rthOpen + (high - rthOpen) * Math.pow(f, 0.85);
+    }
+    let cursor = driveEnd + 1;
+    let level = high;
+    const midFloor = rthOpen + (high - rthOpen) * 0.45;
+    let cycle = 0;
+    while (cursor < 620) {
+      cycle += 1;
+      const legDown = 2 + Math.floor(r() * 4); // 2-5 red candles
+      const depth = (high - midFloor) * (0.18 + r() * 0.22) / Math.sqrt(cycle);
+      for (let k = 0; k < legDown && cursor < 620; k++, cursor++) {
+        level = Math.max(midFloor, level - depth / legDown);
+        path[cursor] = level;
+      }
+      const legUp = 3 + Math.floor(r() * 5);
+      const climb = depth * (0.6 + r() * 0.5);
+      for (let k = 0; k < legUp && cursor < 620; k++, cursor++) {
+        level = Math.min(high * 0.995, level + climb / legUp);
+        path[cursor] = level;
+      }
+      const flat = 4 + Math.floor(r() * 8); // tightening consolidation
+      for (let k = 0; k < flat && cursor < 620; k++, cursor++) {
+        level = level + (r() - 0.5) * depth * 0.12;
+        path[cursor] = level;
+      }
+    }
+    for (let i = cursor; i < DAY_MIN; i++) {
+      const f = (i - cursor) / Math.max(1, DAY_MIN - 1 - cursor);
+      path[i] = level + (close - level) * f;
+    }
+    path[DAY_MIN - 1] = close;
+
+    // Anchor the path through every fill (+/-3 minute ease) - the law.
+    for (const f of fills) {
+      const m = Math.min(DAY_MIN - 1, Math.max(0, f.min));
+      for (let d = -3; d <= 3; d++) {
+        const i = m + d;
+        if (i < 0 || i >= DAY_MIN) continue;
+        const w = 1 - Math.abs(d) / 4;
+        path[i] = path[i] + (f.price - path[i]) * w;
+      }
+      path[m] = f.price;
+    }
+
+    // Bars from the path: varied bodies/wicks, spike candle, phase volumes.
+    const spikeMin = RTH0 + 3 + Math.floor(r() * Math.max(4, driveEnd - RTH0 - 3));
+    const bars = [];
+    const fillsByMin = new Map();
+    for (const f of fills) {
+      const m = Math.min(DAY_MIN - 1, Math.max(0, f.min));
+      if (!fillsByMin.has(m)) fillsByMin.set(m, []);
+      fillsByMin.get(m).push(f.price);
+    }
+    let prev = pmStartPrice;
+    for (let i = 0; i < DAY_MIN; i++) {
+      const t = utcMs(g.date, 8, 0) + i * 60000;
+      const o = prev;
+      const drift = path[i] - o;
+      const noiseScale = i < RTH0 ? 0.004 : i <= driveEnd ? 0.012 : i < 620 ? 0.008 : 0.005;
+      const c = Math.max(0.2, path[i] + (r() - 0.5) * path[i] * noiseScale * (0.4 + r()));
+      let body = Math.abs(c - o);
+      let h = Math.max(o, c) + body * (0.15 + r() * 1.1) + path[i] * noiseScale * r() * 0.6;
+      let l = Math.min(o, c) - body * (0.15 + r() * 1.2) - path[i] * noiseScale * r() * 0.6;
+      if (i === spikeMin) {
+        h = Math.max(h, Math.min(high, Math.max(o, c) * (1 + 0.02 + r() * 0.03)));
+      }
+      if (i === driveEnd) h = Math.max(h, high);
+      if (i === 0) l = Math.min(l, pmStartPrice * (1 - 0.004 - r() * 0.004));
+      const anchored = fillsByMin.get(i);
+      if (anchored) {
+        h = Math.max(h, Math.max(...anchored) * 1.0015);
+        l = Math.min(l, Math.min(...anchored) * 0.9985);
+      }
+      l = Math.max(0.2, l);
+      const pmV = 250 + r() * 3800;
+      const driveV = 22000 + r() * 65000;
+      const midV = 2500 + r() * 13000;
+      const lateV = 1500 + r() * 7000;
+      const phaseV = i < RTH0 ? pmV * (i > RTH0 - 40 ? 3 : 1) : i <= driveEnd ? driveV : i < 620 ? midV : lateV;
+      const v = Math.round(phaseV * (0.6 + 2.6 * (body / Math.max(0.01, path[i] * 0.006))) * (i === spikeMin ? 3 : 1));
+      bars.push({ t, o: rnd2(o), h: rnd2(h), l: rnd2(l), c: rnd2(c), v: Math.max(50, v) });
+      prev = c;
+    }
+
+    // Warmup: quiet prior session ending exactly at priorClose.
+    const prior = new Date(g.date + "T12:00:00Z");
+    prior.setUTCDate(prior.getUTCDate() - 1);
+    const priorDate = prior.toISOString().slice(0, 10);
+    const warm = [];
+    let wp = priorClose * (0.965 + r() * 0.03);
+    for (let i = 0; i < 390; i++) {
+      const t = utcMs(priorDate, 13, 30) + i * 60000;
+      const o = wp;
+      wp = i === 389 ? priorClose : Math.max(0.2, wp + (r() - 0.5) * wp * 0.006 + (priorClose - wp) * 0.01);
+      warm.push({ t, o: rnd2(o), h: rnd2(Math.max(o, wp) * (1 + r() * 0.003)), l: rnd2(Math.min(o, wp) * (1 - r() * 0.003)), c: rnd2(wp), v: Math.round(400 + r() * 5200) });
+    }
+    return { bars, warm };
+  }
+
+  const nowIso2 = "2026-06-30T21:30:00.000Z";
+  const rebuilt = groups.map((g) => ({ g, out: rebuildGroup(g) }));
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM intraday_bars").run();
+    const ins = db.prepare(
+      "INSERT INTO intraday_bars (symbol, date, bars, warmup_bars, warmup_attempted_at, warmup_error, fetched_at, error) VALUES (?, ?, ?, ?, ?, NULL, ?, NULL)",
+    );
+    for (const { g, out } of rebuilt) {
+      ins.run(g.symbol, g.date, JSON.stringify(out.bars), JSON.stringify(out.warm), nowIso2, nowIso2);
+    }
+    db.prepare("DELETE FROM trade_technicals").run();
+    db.prepare(
+      "UPDATE trades SET entry_ema9_distance_pct = NULL, country = 'US', country_name = 'United States', region = 'USA', country_source = 'manual'",
+    ).run();
+  });
+  tx();
+  db.pragma("wal_checkpoint(TRUNCATE)");
+
+  const afterHash = invarianceHash();
+  console.log("invariance_after=" + afterHash);
+  console.log("invariance_match=" + (beforeHash === afterHash));
+
+  // Battery.
+  const allBars = new Map();
+  for (const row of db.prepare("SELECT symbol, date, bars FROM intraday_bars").all()) {
+    allBars.set(row.symbol + "|" + row.date, JSON.parse(row.bars));
+  }
+  let contained = 0;
+  let total = 0;
+  const allFills = db.prepare(`
+    SELECT t.symbol, t.date, e.price, e.timestamp_utc
+    FROM executions e JOIN trades t ON t.id = e.round_trip_id
+  `).all();
+  for (const f of allFills) {
+    total += 1;
+    const bars = allBars.get(f.symbol + "|" + f.date) ?? [];
+    const ts = Date.parse(f.timestamp_utc);
+    const bar = bars.find((b) => b.t <= ts && ts < b.t + 60000);
+    if (bar && bar.l <= f.price && f.price <= bar.h) contained += 1;
+  }
+  console.log("fill_containment=" + contained + "/" + total);
+  let envOk = 0;
+  let cvOk = 0;
+  for (const { g } of rebuilt) {
+    const bars = allBars.get(g.symbol + "|" + g.date);
+    const fp = allFills.filter((f) => f.symbol === g.symbol && f.date === g.date).map((f) => f.price);
+    const hi = Math.max(...bars.map((b) => b.h));
+    const lo = Math.min(...bars.map((b) => b.l));
+    if (hi >= Math.max(...fp) && lo <= Math.min(...fp)) envOk += 1;
+    const bodies = bars.slice(330).map((b) => Math.abs(b.c - b.o)).filter((x) => x > 0);
+    const mean = bodies.reduce((a, x) => a + x, 0) / bodies.length;
+    const sd = Math.sqrt(bodies.reduce((a, x) => a + (x - mean) * (x - mean), 0) / bodies.length);
+    const med = bodies.slice().sort((a, b) => a - b)[Math.floor(bodies.length / 2)];
+    if (sd / mean >= 0.45 && Math.max(...bodies) >= 4 * med) cvOk += 1;
+  }
+  console.log("envelope_high_low=" + envOk + "/" + rebuilt.length);
+  console.log("body_variance_floor=" + cvOk + "/" + rebuilt.length);
+  const spans = [...allBars.values()].every((b) => {
+    const first = new Date(b[0].t).toISOString().slice(11, 16);
+    const last = new Date(b[b.length - 1].t).toISOString().slice(11, 16);
+    return first === "08:00" && last === "19:59";
+  });
+  console.log("bars_cover_premarket_and_rth=" + spans);
+  const cells = db.prepare(`
+    SELECT COUNT(*) AS n FROM (
+      SELECT t.date, ROUND(SUM(t.net_pnl_precise), 2) AS cell, ds.total_pnl AS s
+      FROM trades t JOIN daily_summary ds ON ds.date = t.date
+      GROUP BY t.date HAVING cell != 0 AND ABS(cell - s) <= 0.005
+    )
+  `).get().n;
+  console.log("day_cell_check=" + cells + "/21");
+  db.close();
+  console.log(beforeHash === afterHash && contained === total && envOk === rebuilt.length ? "REBUILD OK" : "REBUILD FAILED");
+  process.exit(beforeHash === afterHash && contained === total && envOk === rebuilt.length ? 0 : 1);
 }
 
 // ---------------------------------------------------------------------------
