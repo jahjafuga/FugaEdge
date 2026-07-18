@@ -366,7 +366,8 @@ const insertAll = db.transaction(() => {
       net_pnl, executions_json, exec_hash, entry_timeframe, entry_ema9_distance_pct,
       account_id, playbook_id, confidence, planned_risk, float_shares,
       daily_change_pct, rvol, catalyst_type, mae, mfe,
-      source_broker, source_format, source_file, account_name
+      source_broker, source_format, source_file, account_name,
+      gross_pnl_precise, total_fees_precise, net_pnl_precise
     ) VALUES (
       @date, @symbol, @side, @open_time, @close_time, 0,
       @shares, @avg_buy, @shares, @avg_sell,
@@ -374,7 +375,8 @@ const insertAll = db.transaction(() => {
       @net_pnl, @executions_json, @exec_hash, @entry_timeframe, @ema9,
       @account_id, @playbook_id, @confidence, @planned_risk, @float_shares,
       @daily_change_pct, @rvol, @catalyst_type, @mae, @mfe,
-      'DAS', 'execution', 'demo-seed', @account_name
+      'DAS', 'execution', 'demo-seed', @account_name,
+      @gross_pnl_precise, @total_fees_precise, @net_pnl_precise
     )
   `);
   const insExec = db.prepare(`
@@ -454,6 +456,15 @@ const insertAll = db.transaction(() => {
       mfe: rnd2(Math.abs(perShare) * between(rTrade, 1.0, 2.6)),
       account_name: ACCOUNT_NAME,
       executions_json: "[]",
+      // Precise trio - mirrors the app's own import writer (electron/import/
+      // repo.ts:461-469, Beat F3): precise falls back to the 2dp value, and
+      // net_pnl_precise = gross_precise - fees_precise. The calendar day-cell
+      // CTE (electron/calendar/get.ts:92-94), the balance strip
+      // (electron/cash/balance.ts:63,162) and the journal day rollup all sum
+      // these columns; the column default 0 is what rendered day cells $0.00.
+      gross_pnl_precise: gross,
+      total_fees_precise: fees,
+      net_pnl_precise: rnd2(gross - fees),
     };
 
     // Fills: 1-2 entries, 1-3 exits (momentum partials).
@@ -593,6 +604,23 @@ console.log("settings_target=" + q("SELECT value v FROM settings WHERE key='dail
 console.log("playbook_distribution=" + JSON.stringify(Object.fromEntries(all("SELECT playbook_id, COUNT(*) n FROM trades GROUP BY playbook_id ORDER BY playbook_id").map((r) => [r.playbook_id, r.n]))));
 console.log("mistake_junction_rows=" + q("SELECT COUNT(*) n FROM trade_mistake").n + " across_days=" + txOut.tagDays);
 console.log("null_pnl_closed=" + q("SELECT COUNT(*) n FROM trades WHERE is_open = 0 AND net_pnl IS NULL").n);
+// Day-cell read-path check (the fix's own battery): the calendar month CTE
+// sums net_pnl_precise (electron/calendar/get.ts:92) - for EVERY traded date
+// that expression must be non-zero and equal daily_summary.total_pnl to the
+// cent. The original battery verified trade sums, not the surface's read.
+const dayCells = all(`
+  SELECT t.date,
+         ROUND(SUM(t.net_pnl_precise), 2) AS cell,
+         ROUND(SUM(t.net_pnl), 2)         AS flat,
+         ds.total_pnl                     AS summary
+  FROM trades t JOIN daily_summary ds ON ds.date = t.date
+  GROUP BY t.date ORDER BY t.date
+`);
+const cellBad = dayCells.filter((d) => d.cell === 0 || d.cell === null || Math.abs(d.cell - d.summary) > 0.005);
+console.log("day_cell_expr_dates=" + dayCells.length + " nonzero_and_matching=" + (dayCells.length - cellBad.length) + " bad=" + cellBad.length);
+if (cellBad.length > 0) {
+  for (const d of cellBad.slice(0, 5)) console.log("  BAD " + d.date + " cell=" + d.cell + " summary=" + d.summary);
+}
 console.log("journal_rows=" + q("SELECT COUNT(*) n FROM journal").n + " noted_days=" + q("SELECT COUNT(*) n FROM journal WHERE premarket_notes != ''").n);
 console.log("executions_rows=" + q("SELECT COUNT(*) n FROM executions").n);
 console.log("daily_summary_rows=" + q("SELECT COUNT(*) n FROM daily_summary").n);
