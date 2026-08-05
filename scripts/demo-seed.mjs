@@ -959,6 +959,147 @@ const insertAll = db.transaction(() => {
     dayAgg.set(tp.date, agg);
   }
 
+  // -------------------------------------------------------------------------
+  // THE FEATURED TRADE - the marketing chapter's hero, AUTHORED not generated.
+  //
+  // The chapter needs one trade that reads as a textbook momentum setup, and
+  // the generated book does not contain one. A survey of all 26 ticker-days
+  // found seven with a >= 2x extension; QMTX 2026-06-12 was the only day whose
+  // pullback also held its shape - 7.96 at the open, 20.44 by 14:00 (x2.57 in
+  // half an hour on the session's heaviest volume), then a nine-minute flush
+  // to 16.41 that pierces the 9EMA once and immediately reclaims it. This
+  // trade is the entry into that reclaim.
+  //
+  // WHY 14:10 AT 16.80: at that minute the rising 9EMA (16.75) has just passed
+  // back UNDER price, with the 20EMA (16.05) and VWAP (12.65) stacked well
+  // below - the picture the chapter claims. 16.80 sits inside the 14:10 bar
+  // (16.65-16.91) and above the 9EMA, so the stored Entry-vs-9EMA figure reads
+  // a clear positive (~+0.3%) rather than landing on zero.
+  //
+  // WHY THE EXITS ARE CAPPED AT 17.01: --rebuild-bars re-derives the whole
+  // price path from the fill set, and the session high is pMax * ~1.07. This
+  // day's pMax is 17.01, set by the 17:40 entry of another trade. An exit
+  // above it inflates the day - measured: exits at 18.05 lift the high to
+  // 21.77 and push the 9EMA back ABOVE price through the entire entry window,
+  // destroying the setup. Capping at 17.01 keeps rthOpen 7.96 and high 20.44
+  // byte-identical. The recovery runs to 18.20 on the tape; this trade
+  // deliberately does not reach for it.
+  //
+  // It is appended AFTER the 140 generated trades, so it consumes none of the
+  // RNG the rest of the book depends on, and it leaves the day's existing four
+  // trades untouched.
+  // -------------------------------------------------------------------------
+  const FEATURED = {
+    date: "2026-06-12",
+    symbol: "QMTX",
+    playbook: "Micro Pullback",
+    feesC: 900, // 1500 shares at 0.6c/share - inside the book's own fee scale
+    fills: [
+      { side: "B", qty: 1500, priceC: 1680, h: 14, m: 10 },
+      { side: "S", qty: 750, priceC: 1695, h: 14, m: 13 },
+      { side: "S", qty: 750, priceC: 1700, h: 14, m: 15 },
+    ],
+  };
+  {
+    const f = FEATURED;
+    const td = tickerDays.get(f.symbol + "|" + f.date);
+    if (!td) throw new Error("demo-seed: featured trade has no ticker-day: " + f.symbol + "|" + f.date);
+    const pbRow = pbRows.find((p) => p.name === f.playbook);
+    if (!pbRow) throw new Error("demo-seed: featured playbook missing: " + f.playbook);
+    // Same exact-cent law as the generated trades: gross from the executions,
+    // fees authored, net = gross - fees.
+    const buysC = f.fills.filter((x) => x.side === "B").reduce((s, x) => s + x.qty * x.priceC, 0);
+    const sellsC = f.fills.filter((x) => x.side === "S").reduce((s, x) => s + x.qty * x.priceC, 0);
+    const shares = f.fills.filter((x) => x.side === "B").reduce((s, x) => s + x.qty, 0);
+    const grossC = sellsC - buysC;
+    const feesC = f.feesC;
+    const netC = grossC - feesC;
+    if (netC <= 0) throw new Error("demo-seed: featured trade must be a winner");
+    if (Math.max(...f.fills.map((x) => x.priceC)) > 1701) {
+      throw new Error("demo-seed: featured exit above pMax 17.01 - would inflate the day");
+    }
+    const ecnC = Math.floor(feesC * 0.55);
+    const secC = Math.floor(feesC * 0.2);
+    const finraC = Math.floor(feesC * 0.15);
+    const catC = feesC - ecnC - secC - finraC;
+    const nF = f.fills.length;
+    const splitF = (totalC) => {
+      const base = Math.floor(totalC / nF);
+      const a = new Array(nF).fill(base);
+      a[nF - 1] = totalC - base * (nF - 1);
+      return a;
+    };
+    const ecnS = splitF(ecnC), secS = splitF(secC), finS = splitF(finraC), catS = splitF(catC);
+    const tms = f.fills.map((x) => utcMs(f.date, x.h, x.m));
+    const stamp = (ms) => new Date(ms).toISOString().replace(".000Z", "Z");
+    const wire = f.fills.map((x, i) => ({
+      trade_id: "DTF",
+      order_id: "DOF-" + (i + 1),
+      symbol: f.symbol,
+      side: x.side,
+      is_short: false,
+      qty: x.qty,
+      price: x.priceC / 100,
+      time: stamp(tms[i]),
+      date: f.date,
+      source_broker: "DAS",
+      source_format: "execution",
+      account_name: ACCOUNT_NAME,
+    }));
+    const featRow = {
+      date: f.date,
+      symbol: f.symbol,
+      side: "long",
+      open_time: stamp(tms[0]),
+      close_time: stamp(tms[tms.length - 1]),
+      shares,
+      avg_buy: buysC / 100 / shares,
+      avg_sell: sellsC / 100 / shares,
+      net_pnl: netC / 100,
+      gross_pnl: grossC / 100,
+      fee_ecn: ecnC / 100,
+      fee_sec: secC / 100,
+      fee_finra: finraC / 100,
+      fee_cat: catC / 100,
+      total_fees: feesC / 100,
+      exec_hash: sha1("demo-featured-" + f.symbol + "-" + f.date),
+      entry_timeframe: "1m",
+      ema9: null, // the app's boot backfill computes it from the rebuilt bars
+      account_id: accountId,
+      playbook_id: pbRow.id,
+      confidence: 5,
+      planned_risk: 90,
+      float_shares: TICKERS[f.symbol].float,
+      daily_change_pct: td.changePct,
+      rvol: td.rvol,
+      catalyst_type: td.catalyst,
+      mae: -0.15,
+      mfe: 0.27,
+      account_name: ACCOUNT_NAME,
+      executions_json: JSON.stringify(wire),
+      gross_pnl_precise: grossC / 100,
+      total_fees_precise: feesC / 100,
+      net_pnl_precise: (grossC - feesC) / 100,
+    };
+    const featInfo = insTrade.run(featRow);
+    const featId = Number(featInfo.lastInsertRowid);
+    f.fills.forEach((x, i) => {
+      insExec.run(
+        featId, "DTF", "DOF-" + (i + 1), f.symbol, x.side, x.qty, x.priceC / 100,
+        stamp(tms[i]), x.side === "B" ? "REMOVED" : "ADDED", ACCOUNT_NAME,
+        ecnS[i] / 100, secS[i] / 100, finS[i] / 100, catS[i] / 100,
+      );
+    });
+    const fAgg = dayAgg.get(f.date) ?? { pnl: 0, fees: 0, n: 0, w: 0, l: 0, gross: 0, maxW: 0, maxL: 0 };
+    fAgg.pnl += netC / 100;
+    fAgg.fees += feesC / 100;
+    fAgg.n += 1;
+    fAgg.gross += grossC / 100;
+    fAgg.w += 1;
+    fAgg.maxW = Math.max(fAgg.maxW, netC / 100);
+    dayAgg.set(f.date, fAgg);
+  }
+
   // daily_summary (the Dashboard reader)
   const insSummary = db.prepare(
     "INSERT INTO daily_summary (date, total_pnl, total_fees, trade_count, winners, losers, gross_pnl, largest_win, largest_loss, account_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
