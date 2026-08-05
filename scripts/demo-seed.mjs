@@ -657,7 +657,53 @@ const insertAll = db.transaction(() => {
   `);
   const insJunction = db.prepare("INSERT INTO trade_mistake (trade_id, mistake_def_id) VALUES (?, ?)");
 
-  const playbookWeighted = [1, 1, 4, 4, 3, 5, 2, 6, 7, 3, 1, 4, 8, 9];
+  // Playbook pools, gated on side. The seeder REFERENCES playbooks, it never
+  // authors them, so the side of each row is DERIVED from the row itself: a row
+  // is short-side when its name/description names the short side and long-side
+  // when it names the long side (long / bull); anything else is genuinely
+  // side-neutral and stays eligible for both. is_system rows are excluded
+  // outright - "No Setup" is the app's protected fallback for an UNCLASSIFIED
+  // trade, not a setup a trader picks, and a curated demo should never show it.
+  // Weights are keyed by name so they survive any renumbering; the short-side
+  // setup is weighted up inside its own pool because it is the only one there
+  // and would otherwise land on ~2 of the 17 shorts.
+  const PB_WEIGHT = {
+    "1-min Pullback": 3,
+    "5-min Pullback": 1,
+    "Bull Flag": 2,
+    "Micro Pullback": 3,
+    "First Pullback to VWAP": 1,
+    "ABCD": 1,
+    "Halt Resume Long": 1,
+    "Parabolic Short": 6,
+  };
+  const pbRows = db
+    .prepare("SELECT id, name, description, is_system FROM playbooks ORDER BY id")
+    .all();
+  const pbSideOf = (p) => {
+    const t = (p.name + " " + (p.description || "")).toLowerCase();
+    const isShort = /\bshort\b|\bshorting\b/.test(t);
+    const isLong = /\blong\b|\bbull\b|\bbullish\b/.test(t);
+    if (isShort && !isLong) return "short";
+    if (isLong && !isShort) return "long";
+    return "neutral";
+  };
+  const pbPool = (want) => {
+    const out = [];
+    for (const p of pbRows) {
+      if (p.is_system === 1) continue;
+      const s = pbSideOf(p);
+      if (s !== "neutral" && s !== want) continue;
+      const w = PB_WEIGHT[p.name] ?? 1;
+      for (let i = 0; i < w; i++) out.push(p.id);
+    }
+    return out;
+  };
+  const playbookLong = pbPool("long");
+  const playbookShort = pbPool("short");
+  if (!playbookLong.length || !playbookShort.length) {
+    throw new Error("demo-seed: empty playbook pool - the app's defaults are missing");
+  }
   let seq = 0;
   const dayAgg = new Map();
   const tagDays = new Set();
@@ -677,21 +723,148 @@ const insertAll = db.transaction(() => {
     let shares = Math.max(100, Math.round(Math.abs(tp.pnl) / perShare / 50) * 50);
     if (shares > 3000) shares = 3000;
     perShare = Math.abs(tp.pnl) / shares;
-    const dir = tp.pnl >= 0 ? 1 : -1;
-    const sgn = side === "long" ? 1 : -1;
-    const avgBuy = rnd2(entry);
-    const avgSell = rnd2(entry + sgn * dir * perShare);
-    const gross = rnd2(tp.pnl >= 0 ? Math.abs(tp.pnl) + between(rTrade, 1, 6) : tp.pnl + between(rTrade, 0.5, 3));
-    const fees = rnd2(Math.abs(gross - tp.pnl));
-    const feeEcn = rnd2(fees * 0.55);
-    const feeSec = rnd2(fees * 0.2);
-    const feeFinra = rnd2(fees * 0.15);
-    const feeCat = rnd2(Math.max(0, fees - feeEcn - feeSec - feeFinra));
+    // Fee TARGET. Same draw, same position in the rTrade stream as the gross
+    // this replaces, so every side, share count and entry time downstream is
+    // byte-identical to the pre-fix book. It is now a target the exact solve
+    // aims at, never the source of a back-derived fee.
+    // [was: gross INVENTED here as net + rand(1..6) and fees BACK-DERIVED as
+    // |gross - net|, so neither figure had any relationship to the fills -
+    // 0 of 140 trades reconciled against their own executions.]
+    const feeTargetC = Math.round(
+      (tp.pnl >= 0 ? between(rTrade, 1, 6) : between(rTrade, 0.5, 3)) * 100,
+    );
 
     // DNA pillars: ~88% fully tagged; the rest lose 1-2 pillars honestly.
     const tagged = rTag() < DNA_TAGGED_SHARE;
     const chased = rTag() < (tp.red ? 0.3 : 0.12);
     const ema9 = chased ? rnd2(between(rTag, 5.2, 17.5)) : rnd2(between(rTag, -1.8, 4.7));
+
+    // The remaining rTrade draws, hoisted out of the row literal but kept in
+    // their original relative order, so the stream stays byte-identical while
+    // the row itself can be built AFTER the fills are solved.
+    const entryTimeframe = rTrade() < 0.8 ? "1m" : "5m";
+    // Playbook choice GATES ON SIDE (see the pools above).
+    // [was: pick(playbookWeighted, rTrade) off a hard-coded id list that never
+    // looked at side - 13 of the 14 "Parabolic Short" trades were LONG, and 9
+    // trades sat on the protected is_system "No Setup" row.]
+    const playbookId = pick(side === "long" ? playbookLong : playbookShort, rTrade);
+    const confidence = 1 + Math.floor(rTrade() * 5);
+    const plannedRisk = Math.round(between(rTrade, 30, 120));
+    const maeFactor = between(rTrade, 0.3, 1.4);
+    const mfeFactor = between(rTrade, 1.0, 2.6);
+
+    // Fills: 1-2 entries, 1-3 exits (momentum partials).
+    const nIn = rTrade() < 0.35 ? 2 : 1;
+    const nOut = 1 + Math.floor(rTrade() * 3);
+
+    // -----------------------------------------------------------------------
+    // EXACT SOLVE - integer cents throughout, so every product is exact.
+    // The dependency now runs FORWARD from the executions, matching the app's
+    // own law (src/core/import/build-round-trips.ts:223-243):
+    //     gross = SUM(sells) - SUM(buys)   fees = SUM(per-fill fees)
+    //     net   = gross - fees
+    // The authored net is the fixed point: the closing level is solved so that
+    // gross - net lands on a plausible fee, which makes net come out at the
+    // authored tp.pnl EXACTLY. Nothing downstream is compensated.
+    // [was: 2dp averages back-solved from net, then fills decorated off those
+    // averages with x1.004 / x0.997 jitter - the fills and the headline figure
+    // told different stories on all 140 trades.]
+    // -----------------------------------------------------------------------
+    const netC = Math.round(tp.pnl * 100);
+    const openC = Math.round(entry * 100);
+    // Adjacent price levels, ~0.2% of price and never under a cent.
+    const stepC = Math.max(1, Math.round(openC * 0.002));
+    // Leg quantities stay multiples of 50 (the last leg takes the remainder),
+    // so the multiset never degenerates into odd-lot crumbs.
+    const legQty = (n) => {
+      const out = [];
+      let rem = shares;
+      for (let i = 0; i < n; i++) {
+        const q = i === n - 1 ? rem : Math.round(shares / n / 50) * 50 || 100;
+        out.push(q);
+        rem -= q;
+      }
+      return out;
+    };
+    const qIn = legQty(nIn);
+    const qOut = legQty(nOut);
+    // Opening legs sit at openC, openC+step, ... (paying up on an add for a
+    // long; scaling into strength for a short). Closing legs step the same way
+    // down from the solved closing level.
+    const openValC = qIn.reduce((s, q, i) => s + q * (openC + i * stepC), 0);
+    const closeOffC = qOut.reduce((s, q, j) => s + q * (j * stepC), 0);
+    // gross = sells - buys for BOTH sides. For a long the closing legs are the
+    // sells; for a short the OPENING legs are. Solve the closing level to the
+    // drawn fee target, then walk it until the fee clears the floor.
+    const FEE_FLOOR_C = 20;
+    let closeC;
+    if (side === "long") {
+      closeC = Math.round((netC + feeTargetC + closeOffC + openValC) / shares);
+      while (closeC * shares - closeOffC - openValC - netC < FEE_FLOOR_C) closeC += 1;
+    } else {
+      closeC = Math.round((openValC + closeOffC - netC - feeTargetC) / shares);
+      while (openValC - (closeC * shares - closeOffC) - netC < FEE_FLOOR_C) closeC -= 1;
+    }
+    const closeValC = closeC * shares - closeOffC;
+    if (closeC - (nOut - 1) * stepC <= 0) {
+      throw new Error("demo-seed: non-positive closing level on trade " + seq);
+    }
+    const sellsC = side === "long" ? closeValC : openValC;
+    const buysC = side === "long" ? openValC : closeValC;
+    const grossC = sellsC - buysC;
+    const feesC = grossC - netC; // exact by construction, >= FEE_FLOOR_C
+    // Fee components in integer cents; CAT absorbs the remainder so the four
+    // sum to feesC exactly.
+    const ecnC = Math.floor(feesC * 0.55);
+    const secC = Math.floor(feesC * 0.2);
+    const finraC = Math.floor(feesC * 0.15);
+    const catC = feesC - ecnC - secC - finraC;
+    // Per-fill split: integer cents, last fill absorbs the remainder, so the
+    // executions re-sum to the trade total EXACTLY.
+    // [was: rnd2(feeEcn / fills.length) at the insert - a re-round that could
+    // not re-sum; 122 of 140 trades disagreed with their own fills on fees.]
+    const nFills = nIn + nOut;
+    const splitC = (totalC) => {
+      const base = Math.floor(totalC / nFills);
+      const a = new Array(nFills).fill(base);
+      a[nFills - 1] = totalC - base * (nFills - 1);
+      return a;
+    };
+    const ecnSplit = splitC(ecnC);
+    const secSplit = splitC(secC);
+    const finraSplit = splitC(finraC);
+    const catSplit = splitC(catC);
+
+    // Each leg is priced off ITS OWN level and tagged with its own side.
+    // [was: the stored columns and the side tags were both swapped for shorts
+    // at the row literal and here, but the PRICE BASES were not - the open-sell
+    // fill was priced off the cover average and the cover-buy off the open
+    // average. 17 of 17 shorts carried fill-inverted executions, 68.3% of all
+    // reconciliation error.]
+    const fills = [];
+    for (let i = 0; i < nIn; i++) {
+      const priceC = openC + i * stepC;
+      fills.push({
+        side: side === "long" ? "B" : "S",
+        qty: qIn[i],
+        price: priceC / 100,
+        t: openMs + i * 45000,
+      });
+    }
+    for (let j = 0; j < nOut; j++) {
+      const priceC = closeC - j * stepC;
+      fills.push({
+        side: side === "long" ? "S" : "B",
+        qty: qOut[j],
+        price: priceC / 100,
+        t: closeMs - (nOut - 1 - j) * 60000,
+      });
+    }
+
+    // Stored averages are the true quantity-weighted means of those fills, so
+    // shares x average reproduces the executions to the cent.
+    const avgOpen = openValC / 100 / shares;
+    const avgClose = closeValC / 100 / shares;
 
     const row = {
       date: tp.date,
@@ -700,28 +873,28 @@ const insertAll = db.transaction(() => {
       open_time: new Date(openMs).toISOString().replace(".000Z", "Z"),
       close_time: new Date(closeMs).toISOString().replace(".000Z", "Z"),
       shares,
-      avg_buy: side === "long" ? avgBuy : avgSell,
-      avg_sell: side === "long" ? avgSell : avgBuy,
+      avg_buy: side === "long" ? avgOpen : avgClose,
+      avg_sell: side === "long" ? avgClose : avgOpen,
       net_pnl: tp.pnl,
-      gross_pnl: gross,
-      fee_ecn: feeEcn,
-      fee_sec: feeSec,
-      fee_finra: feeFinra,
-      fee_cat: feeCat,
-      total_fees: fees,
+      gross_pnl: grossC / 100,
+      fee_ecn: ecnC / 100,
+      fee_sec: secC / 100,
+      fee_finra: finraC / 100,
+      fee_cat: catC / 100,
+      total_fees: feesC / 100,
       exec_hash: sha1("demo-" + seq),
-      entry_timeframe: rTrade() < 0.8 ? "1m" : "5m",
+      entry_timeframe: entryTimeframe,
       ema9,
       account_id: accountId,
-      playbook_id: pick(playbookWeighted, rTrade),
-      confidence: 1 + Math.floor(rTrade() * 5),
-      planned_risk: Math.round(between(rTrade, 30, 120)),
+      playbook_id: playbookId,
+      confidence,
+      planned_risk: plannedRisk,
       float_shares: tagged ? TICKERS[tp.sym].float : null,
       daily_change_pct: tagged ? td.changePct : (rTag() < 0.5 ? td.changePct : null),
       rvol: tagged ? td.rvol : null,
       catalyst_type: tagged || rTag() < 0.5 ? td.catalyst : null,
-      mae: rnd2(-Math.abs(perShare) * between(rTrade, 0.3, 1.4)),
-      mfe: rnd2(Math.abs(perShare) * between(rTrade, 1.0, 2.6)),
+      mae: rnd2(-Math.abs(perShare) * maeFactor),
+      mfe: rnd2(Math.abs(perShare) * mfeFactor),
       account_name: ACCOUNT_NAME,
       executions_json: "[]",
       // Precise trio - mirrors the app's own import writer (electron/import/
@@ -730,27 +903,10 @@ const insertAll = db.transaction(() => {
       // CTE (electron/calendar/get.ts:92-94), the balance strip
       // (electron/cash/balance.ts:63,162) and the journal day rollup all sum
       // these columns; the column default 0 is what rendered day cells $0.00.
-      gross_pnl_precise: gross,
-      total_fees_precise: fees,
-      net_pnl_precise: rnd2(gross - fees),
+      gross_pnl_precise: grossC / 100,
+      total_fees_precise: feesC / 100,
+      net_pnl_precise: (grossC - feesC) / 100,
     };
-
-    // Fills: 1-2 entries, 1-3 exits (momentum partials).
-    const nIn = rTrade() < 0.35 ? 2 : 1;
-    const nOut = 1 + Math.floor(rTrade() * 3);
-    const fills = [];
-    let remainingIn = shares;
-    for (let i = 0; i < nIn; i++) {
-      const q = i === nIn - 1 ? remainingIn : Math.round(shares / nIn / 50) * 50 || 100;
-      remainingIn -= q;
-      fills.push({ side: side === "long" ? "B" : "S", qty: q, price: rnd2(row.avg_buy * (1 + (i ? 0.004 : 0))), t: openMs + i * 45000 });
-    }
-    let remainingOut = shares;
-    for (let i = 0; i < nOut; i++) {
-      const q = i === nOut - 1 ? remainingOut : Math.round(shares / nOut / 50) * 50 || 100;
-      remainingOut -= q;
-      fills.push({ side: side === "long" ? "S" : "B", qty: q, price: rnd2(row.avg_sell * (1 - (i ? 0.003 : 0))), t: closeMs - (nOut - 1 - i) * 60000 });
-    }
     row.executions_json = JSON.stringify(
       fills.map((f, i) => ({
         trade_id: "DT" + seq,
@@ -775,7 +931,7 @@ const insertAll = db.transaction(() => {
         tradeId, "DT" + seq, "DO" + seq + "-" + (i + 1), tp.sym, f.side, f.qty, f.price,
         new Date(f.t).toISOString().replace(".000Z", "Z"),
         f.side === "B" ? "REMOVED" : "ADDED", ACCOUNT_NAME,
-        rnd2(feeEcn / fills.length), rnd2(feeSec / fills.length), rnd2(feeFinra / fills.length), rnd2(feeCat / fills.length),
+        ecnSplit[i] / 100, secSplit[i] / 100, finraSplit[i] / 100, catSplit[i] / 100,
       );
     });
 
@@ -798,7 +954,7 @@ const insertAll = db.transaction(() => {
     }
 
     const agg = dayAgg.get(tp.date) ?? { pnl: 0, fees: 0, n: 0, w: 0, l: 0, gross: 0, maxW: 0, maxL: 0 };
-    agg.pnl += tp.pnl; agg.fees += fees; agg.n += 1; agg.gross += gross;
+    agg.pnl += tp.pnl; agg.fees += feesC / 100; agg.n += 1; agg.gross += grossC / 100;
     if (tp.pnl > 0) { agg.w += 1; agg.maxW = Math.max(agg.maxW, tp.pnl); } else { agg.l += 1; agg.maxL = Math.min(agg.maxL, tp.pnl); }
     dayAgg.set(tp.date, agg);
   }
