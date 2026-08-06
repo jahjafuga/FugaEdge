@@ -32,7 +32,11 @@ import {
 } from './macdLegend'
 import { aggregate } from '@/core/charts/aggregate'
 import { computeMacdWithWarmup } from '@/core/charts/macdWithWarmup'
-import { composeBrandedScreenshot, type BrandedScreenshotData } from '@/lib/chartScreenshot'
+import {
+  composeBrandedScreenshot,
+  type BrandedScreenshotData,
+  type BrandedScreenshotLegendRow,
+} from '@/lib/chartScreenshot'
 import { FillLadderPrimitive, type FillLabelMode } from './fillLadderPrimitive'
 import { fillLabelsHoverGated } from '@/lib/fillLadderLayout'
 import { useThemeMode } from '@/lib/theme'
@@ -1470,6 +1474,18 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
     }
     const chartCanvas = await captureChart()
 
+    // The composited legend reads the SAME values the on-screen ChartOverlay
+    // reads at rest: whole-day OHLC from `stats`, and each GATED series' last
+    // value via the same lastValue helper. Formatting goes through the same
+    // price() — no second path that could drift from the panel. At-rest is the
+    // right state to print: takeScreenshot(true, false) drops the crosshair, so
+    // a captured card never has a hovered bar.
+    const legendText = (v: number | null): string => (v == null ? '—' : price(v))
+    const legendRows: BrandedScreenshotLegendRow[] = []
+    if (ema9) legendRows.push({ color: COLOR_EMA9, label: `EMA 9 (${tfLabel})`, value: legendText(lastValue(ema9)) })
+    if (ema20) legendRows.push({ color: COLOR_EMA20, label: `EMA 20 (${tfLabel})`, value: legendText(lastValue(ema20)) })
+    if (vwap) legendRows.push({ color: COLOR_VWAP, label: 'VWAP', value: legendText(lastValue(vwap)) })
+
     const data: BrandedScreenshotData = {
       symbol: trade.symbol,
       side: trade.side,
@@ -1481,6 +1497,15 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       avgExitText: tradeMarkers.avgExit != null ? `$${price(tradeMarkers.avgExit)}` : '—',
       sharesText: int(Math.max(trade.shares_bought, trade.shares_sold)),
       holdText: formatHoldTime(trade.open_time, trade.close_time),
+      legend: {
+        ohlc: {
+          o: legendText(stats.open),
+          h: legendText(stats.high),
+          l: legendText(stats.low),
+          c: legendText(stats.close),
+        },
+        rows: legendRows,
+      },
     }
     const out = await composeBrandedScreenshot(chartCanvas, data, resolved)
     const blob = await new Promise<Blob | null>((resolve) =>
@@ -1492,7 +1517,7 @@ function LightweightChartHost({ trade, bars, barIntervalMs, fitRef, screenshotRe
       bytes,
       suggestedName: `fugaedge-${trade.symbol}-${trade.date}.png`,
     })
-  }, [trade, tradeMarkers, chartHeight, resolved])
+  }, [trade, tradeMarkers, chartHeight, resolved, stats, tfLabel, ema9, ema20, vwap])
   useEffect(() => {
     screenshotRef.current = captureAndSave
     return () => {

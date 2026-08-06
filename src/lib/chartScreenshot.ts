@@ -7,6 +7,25 @@ import iconUrl from '@/assets/fugaedge-icon-light.png'
 import { chartColors } from '@/lib/chartColors'
 import type { ResolvedTheme } from '@/lib/theme'
 
+/** One indicator line of the composited legend. */
+export interface BrandedScreenshotLegendRow {
+  /** The chart line's OWN colour — the same const the series option uses, so the
+   *  swatch can never drift from the line it labels. */
+  color: string
+  label: string
+  /** Pre-formatted by the caller with the same helper the on-screen legend uses. */
+  value: string
+}
+
+/** The floating chart legend, composited because the canvas screenshot cannot
+ *  see it: the live legend is React DOM (ChartTab's ChartOverlay), so
+ *  lightweight-charts' takeScreenshot never captures it. Every string arrives
+ *  ready-formatted from the panel — there is no second formatting path here. */
+export interface BrandedScreenshotLegend {
+  ohlc: { o: string; h: string; l: string; c: string }
+  rows: BrandedScreenshotLegendRow[]
+}
+
 export interface BrandedScreenshotData {
   symbol: string
   side: 'long' | 'short'
@@ -21,6 +40,8 @@ export interface BrandedScreenshotData {
   avgExitText: string
   sharesText: string
   holdText: string
+  /** null when the panel had no legend to show. */
+  legend: BrandedScreenshotLegend | null
 }
 
 // Strip colors are THEME-AWARE — derived per call from chartColors(theme) inside
@@ -166,6 +187,58 @@ export async function composeBrandedScreenshot(
 
   // ── Chart ─────────────────────────────────────────────────────────────────
   ctx.drawImage(chartCanvas, 0, headerH)
+
+  // ── Legend ────────────────────────────────────────────────────────────────
+  // Composited, not captured: the on-screen legend is React DOM sitting over
+  // the canvas, so takeScreenshot cannot see it and the exported card used to
+  // ship three unlabelled overlay lines. Drawn at the chart pane's top-left,
+  // where the live legend sits (ChartTab's ChartOverlay is `absolute left-2
+  // top-2`); that corner of this chart is empty sky. Sizes go through px() like
+  // the rest of the composite, so it scales with the card instead of becoming a
+  // hairline at 3716px. Label/value tones come from the same theme palette the
+  // footer strip uses; only the three indicator swatches carry their own line
+  // colours, which is the point of a legend.
+  if (data.legend) {
+    const lx = pad
+    let ly = headerH + px(22)
+    const gap = px(12)
+    ctx.textAlign = 'left'
+
+    let ox = lx
+    const ohlc: [string, string, string][] = [
+      ['O', data.legend.ohlc.o, WHITE],
+      ['H', data.legend.ohlc.h, WIN],
+      ['L', data.legend.ohlc.l, LOSS],
+      ['C', data.legend.ohlc.c, WHITE],
+    ]
+    for (const [key, value, tone] of ohlc) {
+      ctx.font = `500 ${px(12)}px ${FONT}`
+      ctx.fillStyle = MUTED
+      ctx.fillText(key, ox, ly)
+      ox += ctx.measureText(key).width + px(5)
+      ctx.font = `600 ${px(12)}px ${FONT}`
+      ctx.fillStyle = tone
+      ctx.fillText(value, ox, ly)
+      ox += ctx.measureText(value).width + gap
+    }
+
+    const swW = px(13)
+    const swH = Math.max(2, px(3))
+    for (const row of data.legend.rows) {
+      ly += px(18)
+      ctx.fillStyle = row.color
+      roundRect(ctx, lx, ly - Math.round(swH / 2), swW, swH, Math.round(swH / 2))
+      ctx.fill()
+      let rx = lx + swW + px(6)
+      ctx.font = `500 ${px(12)}px ${FONT}`
+      ctx.fillStyle = MUTED
+      ctx.fillText(row.label, rx, ly)
+      rx += ctx.measureText(row.label).width + px(6)
+      ctx.font = `600 ${px(12)}px ${FONT}`
+      ctx.fillStyle = WHITE
+      ctx.fillText(row.value, rx, ly)
+    }
+  }
 
   // ── Footer — 5 cells with thin dividers + a top border ──────────────────────
   const footerY = headerH + chartCanvas.height
