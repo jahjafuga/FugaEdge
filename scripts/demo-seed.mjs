@@ -87,6 +87,279 @@ const DAY_NOTES = [
 ];
 
 // ---------------------------------------------------------------------------
+// THE SHAPED GENERATOR - the marketing chapter's setup, drawn phase by phase.
+//
+// rebuildGroup (the default, below) draws ONE arc: a premarket ramp, an opening
+// drive, then decaying pullback cycles. It cannot express a momentum setup, and
+// the scoping beat measured exactly why:
+//   - the drive starts AT the opening bar, so no base can exist;
+//   - its exponent is f^0.85, which DECELERATES - the run is over in two bars
+//     (measured: 74.85% of a day's volume inside the first 36 RTH bars);
+//   - candle bodies fall out of path-slope plus SYMMETRIC jitter, so no bar can
+//     be asked to close near its high;
+//   - volume is bucketed by TIME REGION, not by phase (measured: a 53x collapse
+//     from the opening bars to the entry);
+//   - pullback depth is a random fraction that knows nothing of the 9EMA.
+//
+// So this generator emits o/h/l/c/v DIRECTLY per phase. It is dispatched per
+// (symbol, date); every other ticker-day still goes through rebuildGroup and
+// comes out byte-identical.
+//
+// THE ANATOMY, from the founder's own marked chart:
+//   1 BASE       10-15 bars, choppy, small mixed candles, low flat volume, the
+//                9EMA / 20EMA / VWAP threading through them.
+//   2 LEGS       THREE OR FOUR. Each leg = a PUSH of 2-4 bars making a new high
+//                with growing bodies and rising volume, then a PULLBACK of 2-4
+//                small mostly-red bars on VISIBLY LOWER volume, retracing toward
+//                the rising 9EMA without losing it. Leg tops step up. This
+//                stair-step is what makes the chart read as a chart: the entry
+//                pullback must be the FOURTH one the viewer has seen.
+//   3 SETUP      the last pullback before the entry - same shape as its
+//     PULLBACK   siblings, but the LOWEST volume of any of them.
+//   4 ENTRY BAR  the first candle to make a new high over the prior candle. It
+//                opens at the pullback low AND IT IS THE START OF THE PARABOLIC.
+//                The entry price is that open.
+//   5 PARABOLIC  the entry bar plus 1-2 more: outsized range, the session's
+//                heaviest volume by a wide margin, closing off the high under a
+//                long upper wick.
+//   6 EXITS      scale out INTO the extension, both above entry, both inside
+//                the parabolic run.
+//   7 FADE       price comes off the top and the candles STAY FULL-BODIED -
+//                real range, real volume, to the end of the visible window.
+//
+// THE INVERSION THAT MATTERS: the entry is BEFORE the biggest move, not after
+// it. An earlier build specced a post-top "reclaim" entry, which is why the
+// marker landed on a dead flat line both times. The trader buys a quiet
+// low-volume pullback and the parabolic runs with him already in it.
+//
+// The 9EMA is carried CAUSALLY through the emit loop (it depends only on closes
+// already printed), so each pullback steers against the live value instead of
+// hoping - and the featured trade's fills are DERIVED from the shape rather than
+// stamped onto it by the anchor law.
+//
+// Pullback walks are LINEAR across their bars (i/n). A fixed per-bar approach
+// fraction is an exponential decay - the same front-loading defect as the
+// default generator's f^0.85, which an earlier build reproduced by accident.
+// ---------------------------------------------------------------------------
+const SHAPED_DAYS = new Set(["VYRN|2026-06-18"]);
+const SHAPE = {
+  basePrice: 3.6,
+  // The base must READ as candles at card scale. Judged by pixels, not percent:
+  // the day's axis reaches ~11.50, so ~0.01 of price is one pixel - a base bar
+  // needs a range near 0.13 to be a candle rather than a rule. Still quiet: no
+  // trend, mixed colours, lowest volume on the chart.
+  base: { bars: 12, rangePct: 0.03, bodyPct: 0.018, volume: [9000, 16000] },
+  // Leg tops step up; the last leg's pullback is the SETUP pullback and carries
+  // the lowest volume of any pullback on the day.
+  legs: [
+    { top: 4.5, pushBars: 3, pullBars: 3, retrace: 0.4, pushVol: [38000, 52000], pullVol: [19000, 26000] },
+    { top: 5.5, pushBars: 3, pullBars: 3, retrace: 0.38, pushVol: [62000, 84000], pullVol: [26000, 35000] },
+    { top: 6.6, pushBars: 4, pullBars: 3, retrace: 0.36, pushVol: [98000, 130000], pullVol: [33000, 45000] },
+    { top: 7.72, pushBars: 3, pullBars: 3, retrace: 0.13, pushVol: [138000, 176000], pullVol: [11000, 17000] },
+  ],
+  pushExponent: 1.45, // convex - the push accelerates into its high
+  pushClosePos: [0.78, 0.94], // closes near the high
+  pushRangePct: 0.03,
+  pullClosePos: [0.16, 0.38], // closes low in the range
+  pullRangePct: 0.014,
+  pullbackHold: 0.004, // a pullback never closes below the live 9EMA
+  // Blow-off shape: exponent < 1 front-loads the run, so the LAST bar advances
+  // least and its range (and therefore its upper wick) stays proportionate.
+  // With closePos 0.42 the emitter must widen the range to (c-o)/0.42, so a
+  // steep final bar would throw the high far past the intended top.
+  parabolic: { bars: 3, top: 9.95, exponent: 0.8, closePos: 0.42, rangePct: 0.075, volume: [880000, 1220000] },
+  fade: { bars: 24, to: 8.5, rangePct: 0.034, closePos: [0.25, 0.7], volume: [120000, 270000] },
+  tail: { rangePct: 0.012, volume: [26000, 90000] },
+  // Asserted laws (thrown, not hoped): the fade must keep real bodies, and the
+  // volume story must match the price story.
+  minFadeAmplitudeShare: 0.4,
+  minBaseAmplitudeShare: 0.35, // the base must be candles, not a hairline
+};
+
+// Emits all 720 bars (08:00Z..19:59Z) for one shaped ticker-day plus its warmup
+// session, and returns the causal EMA series and phase boundaries the fill
+// derivation needs. PURE in (symbol, date): the seed pass and --rebuild-bars
+// both call it and get the SAME bars, which is why the anchor law has nothing
+// left to correct on this day.
+function shapedBars(symbol, date) {
+  const seedOfKey = (s) => [...s].reduce((a, ch) => a + ch.charCodeAt(0) * 31, 0);
+  const r = mulberry32(SEED + 91000 + seedOfKey(symbol + "|" + date));
+  const R2 = (x) => Math.round(x * 100) / 100;
+  const DAYN = 720;
+  const t0 = utcMs(date, 8, 0);
+  const S = SHAPE;
+
+  const bars = [];
+  const closes = [];
+  let e9 = null;
+  const K9 = 2 / 10;
+  const feedEma = (c) => {
+    closes.push(c);
+    if (closes.length === 9) e9 = closes.slice(0, 9).reduce((a, b) => a + b, 0) / 9;
+    else if (closes.length > 9) e9 = c * K9 + e9 * (1 - K9);
+  };
+  let prev = 0;
+  // The close sits at `closePos` of the bar's range; the range widens only as
+  // far as the open demands. Bodies, wicks and close placement are the phase's
+  // choice, not a by-product of path slope.
+  const emit = (close, closePos, minRange, volume) => {
+    const c = R2(Math.max(0.2, close));
+    const open = prev;
+    const need = c >= open
+      ? (c - open) / Math.max(0.08, closePos)
+      : (open - c) / Math.max(0.08, 1 - closePos);
+    const range = Math.max(minRange, need * 1.06, 0.01);
+    const hi = R2(Math.max(c + (1 - closePos) * range, open, c));
+    const lo = R2(Math.min(c - closePos * range, open, c));
+    bars.push({ t: t0 + bars.length * 60000, o: R2(open), h: hi, l: Math.max(0.2, lo), c, v: Math.max(50, Math.round(volume)) });
+    prev = c;
+    feedEma(c);
+  };
+
+  const pmStart = S.basePrice * (0.93 + r() * 0.03);
+
+  // Warmup: a quiet prior session arriving at the premarket start.
+  const prior = new Date(date + "T12:00:00Z");
+  prior.setUTCDate(prior.getUTCDate() - 1);
+  const priorDate = prior.toISOString().slice(0, 10);
+  const warm = [];
+  let wp = pmStart * (0.95 + r() * 0.04);
+  const wStart = utcMs(priorDate, 13, 30);
+  for (let i = 0; i < 390; i++) {
+    const o = wp;
+    wp = i === 389 ? pmStart : Math.max(0.2, wp + (r() - 0.5) * wp * 0.005 + (pmStart - wp) * 0.01);
+    warm.push({ t: wStart + i * 60000, o: R2(o), h: R2(Math.max(o, wp) * (1 + r() * 0.003)), l: R2(Math.min(o, wp) * (1 - r() * 0.003)), c: R2(wp), v: Math.round(400 + r() * 5200) });
+  }
+
+  // --- premarket: quiet, plausible, arriving at the base ---
+  prev = R2(pmStart);
+  for (let i = 0; i < 330; i++) {
+    const f = i / 330;
+    const target = pmStart + (S.basePrice - pmStart) * f;
+    emit(target * (1 + (r() - 0.5) * 0.004), 0.3 + r() * 0.4, target * 0.0022, 180 + r() * 900);
+  }
+  const idx = { base: bars.length };
+
+  // --- 1 BASE: choppy, small, mixed colours, flat low volume ---
+  for (let i = 0; i < S.base.bars; i++) {
+    emit(S.basePrice * (1 + (r() - 0.5) * S.base.rangePct), 0.25 + r() * 0.5,
+      S.basePrice * S.base.bodyPct * (1.2 + r()),
+      S.base.volume[0] + r() * (S.base.volume[1] - S.base.volume[0]));
+  }
+  idx.legs = bars.length;
+
+  // --- 2 LEGS: push then pullback, three or four times, tops stepping up ---
+  const pushLeg = (top, nBars, volRange) => {
+    const from = prev;
+    let vSum = 0;
+    for (let i = 1; i <= nBars; i++) {
+      const f = i / nBars;
+      const c = from + (top - from) * Math.pow(f, S.pushExponent); // convex
+      const v = (volRange[0] + (volRange[1] - volRange[0]) * f) * (0.9 + r() * 0.2);
+      vSum += v;
+      emit(c, S.pushClosePos[0] + r() * (S.pushClosePos[1] - S.pushClosePos[0]),
+        c * S.pushRangePct * (0.7 + f * 0.7), v); // bodies grow into the high
+    }
+    return vSum / nBars;
+  };
+  const pullLeg = (nBars, volRange, legStart, retrace) => {
+    const from = prev;
+    // Retrace a fraction of the leg, but NEVER close below the live 9EMA.
+    const byRetrace = from - (from - legStart) * retrace;
+    const target = Math.max(e9 * (1 + S.pullbackHold), byRetrace);
+    let vSum = 0;
+    for (let i = 1; i <= nBars; i++) {
+      const c = from + (target - from) * (i / nBars); // LINEAR walk, never a fixed fraction
+      const v = volRange[0] + r() * (volRange[1] - volRange[0]);
+      vSum += v;
+      emit(c, S.pullClosePos[0] + r() * (S.pullClosePos[1] - S.pullClosePos[0]), c * S.pullRangePct, v);
+    }
+    return vSum / nBars;
+  };
+  const legStats = [];
+  for (const leg of S.legs) {
+    const legStart = prev;
+    const pushV = pushLeg(leg.top, leg.pushBars, leg.pushVol);
+    const pullV = pullLeg(leg.pullBars, leg.pullVol, legStart, leg.retrace);
+    legStats.push({ pushV, pullV });
+  }
+  idx.legsEnd = bars.length;
+
+  // --- 4 ENTRY BAR + 5 PARABOLIC: the entry bar OPENS at the setup pullback's
+  //     low and IS the first bar of the run - the trade is already on ---
+  idx.entry = bars.length;
+  const paraFrom = prev;
+  for (let i = 1; i <= S.parabolic.bars; i++) {
+    const f = i / S.parabolic.bars;
+    const c = paraFrom + (S.parabolic.top - paraFrom) * Math.pow(f, S.parabolic.exponent);
+    emit(c, S.parabolic.closePos, c * S.parabolic.rangePct,
+      S.parabolic.volume[0] + r() * (S.parabolic.volume[1] - S.parabolic.volume[0]));
+  }
+  idx.fade = bars.length;
+
+  // --- 7 FADE: off the top, but the candles STAY FULL-BODIED ---
+  const fadeFrom = prev;
+  for (let i = 1; i <= S.fade.bars; i++) {
+    const f = i / S.fade.bars;
+    const c = fadeFrom + (S.fade.to - fadeFrom) * f + (r() - 0.5) * fadeFrom * 0.012;
+    emit(c, S.fade.closePos[0] + r() * (S.fade.closePos[1] - S.fade.closePos[0]),
+      c * S.fade.rangePct, S.fade.volume[0] + r() * (S.fade.volume[1] - S.fade.volume[0]));
+  }
+  idx.visibleEnd = bars.length;
+
+  // --- the rest of the session, outside the shot's window ---
+  const tailFrom = prev;
+  const nLeft = DAYN - bars.length;
+  for (let i = 1; i <= nLeft; i++) {
+    const c = tailFrom * (1 + (r() - 0.5) * 0.02) - tailFrom * 0.06 * (i / nLeft);
+    emit(c, 0.3 + r() * 0.4, c * S.tail.rangePct,
+      S.tail.volume[0] + r() * (S.tail.volume[1] - S.tail.volume[0]));
+  }
+
+  // ---- ASSERTED LAWS: the day must pass its own checks or it does not ship ---
+  const rangeOf = (b) => b.h - b.l;
+  const med = (a) => a.slice().sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  const legRanges = bars.slice(idx.legs, idx.legsEnd).map(rangeOf);
+  const lastRanges = bars.slice(idx.visibleEnd - 20, idx.visibleEnd).map(rangeOf);
+  const baseRanges = bars.slice(idx.base, idx.legs).map(rangeOf);
+  const fadeShare = med(lastRanges) / med(legRanges);
+  const baseShare = med(baseRanges) / med(legRanges);
+  if (fadeShare < S.minFadeAmplitudeShare) {
+    throw new Error("demo-seed: shaped fade amplitude " + fadeShare.toFixed(2) + " < " +
+      S.minFadeAmplitudeShare + " - the fade is dying, not shipping it");
+  }
+  if (baseShare < S.minBaseAmplitudeShare) {
+    throw new Error("demo-seed: shaped base amplitude " + baseShare.toFixed(2) + " < " +
+      S.minBaseAmplitudeShare + " - the base renders as a rule, not candles");
+  }
+  legStats.forEach((s, i) => {
+    if (s.pullV >= s.pushV) throw new Error("demo-seed: leg " + (i + 1) + " pullback volume is not below its push");
+  });
+  const setupPullV = legStats[legStats.length - 1].pullV;
+  legStats.slice(0, -1).forEach((s, i) => {
+    if (setupPullV >= s.pullV) throw new Error("demo-seed: the setup pullback is not the lowest-volume pullback (leg " + (i + 1) + ")");
+  });
+  const paraMax = Math.max(...bars.slice(idx.entry, idx.fade).map((b) => b.v));
+  const restMax = Math.max(...bars.filter((_, i) => i < idx.entry || i >= idx.fade).map((b) => b.v));
+  if (paraMax <= restMax) throw new Error("demo-seed: the parabolic is not the session volume max");
+  const shapeStats = { fadeShare, baseShare, paraMax, restMax, legStats,
+    baseMedRange: med(baseRanges), legMedRange: med(legRanges), fadeMedRange: med(lastRanges) };
+
+  // The chart's own EMA (ChartTab.tsx:2164 - SMA-seeded over bar closes).
+  const emaOf = (p) => {
+    const out = new Array(bars.length).fill(null);
+    const k = 2 / (p + 1);
+    let s = 0;
+    for (let i = 0; i < p; i++) s += bars[i].c;
+    let pr = s / p;
+    out[p - 1] = pr;
+    for (let i = p; i < bars.length; i++) { pr = bars[i].c * k + pr * (1 - k); out[i] = pr; }
+    return out;
+  };
+  return { bars, warm, idx, shapeStats, ema9: emaOf(9), ema20: emaOf(20) };
+}
+
+// ---------------------------------------------------------------------------
 // Deterministic PRNG
 // ---------------------------------------------------------------------------
 function mulberry32(a) {
@@ -335,7 +608,13 @@ if (REBUILD_BARS) {
   }
 
   const nowIso2 = "2026-06-30T21:30:00.000Z";
-  const rebuilt = groups.map((g) => ({ g, out: rebuildGroup(g) }));
+  // One-line dispatch: a shaped ticker-day is drawn phase by phase, every other
+  // day still goes through rebuildGroup untouched. shapedBars is pure in
+  // (symbol, date), so it reproduces exactly what the seed pass drew.
+  const rebuilt = groups.map((g) => ({
+    g,
+    out: SHAPED_DAYS.has(g.symbol + "|" + g.date) ? shapedBars(g.symbol, g.date) : rebuildGroup(g),
+  }));
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM intraday_bars").run();
     const ins = db.prepare(
@@ -1098,6 +1377,125 @@ const insertAll = db.transaction(() => {
     fAgg.w += 1;
     fAgg.maxW = Math.max(fAgg.maxW, netC / 100);
     dayAgg.set(f.date, fAgg);
+  }
+
+  // -------------------------------------------------------------------------
+  // THE SHAPED DAY - drawn by shapedBars() instead of the default arc, and
+  // carrying a featured trade whose fills are DERIVED FROM THE SHAPE.
+  //
+  // THE INVERSION. Everywhere else the fills come first and the anchor law
+  // (rebuildGroup, "the law") bends the path through them. That ordering can
+  // never satisfy "enter on the reclaim, just above the rising 9EMA" - the
+  // 9EMA is a property of the path, so the path has to exist first. Here the
+  // shape is drawn, its causal 9EMA computed, the reclaim bar located, and only
+  // THEN are the fills read off it. The anchor law consequently has nothing to
+  // correct: the fills already sit inside their own bars, which the battery's
+  // fill_containment check proves independently.
+  //
+  // The bars are written here as well, so the seeded book and a later
+  // --rebuild-bars agree by construction (shapedBars is pure in symbol+date).
+  // -------------------------------------------------------------------------
+  for (const shapedKey of SHAPED_DAYS) {
+    const [sSym, sDate] = shapedKey.split("|");
+    const shaped = shapedBars(sSym, sDate);
+    insBars.run(sSym, sDate, JSON.stringify(shaped.bars), JSON.stringify(shaped.warm), nowIso, nowIso);
+
+    const clampToBar = (bar, p) => Math.min(bar.h, Math.max(bar.l, Math.round(p * 100) / 100));
+    // ENTRY = the OPEN of the first bar to make a new high after the setup
+    // pullback - which is also the first bar of the parabolic. The trade is on
+    // BEFORE the move, not after it.
+    const ei = shaped.idx.entry;
+    const entryBar = shaped.bars[ei];
+    const entryC = Math.round(entryBar.o * 100);
+    // Scale out INTO the extension: both above entry, the second above the
+    // first. The parabolic is three bars by the anatomy (entry + 1-2 more), so
+    // an exit inside it caps the hold at 2 minutes. x2 sits two bars past the
+    // top - still high in the extension and still above x1's level - to bring
+    // the hold to 4 minutes without stretching the run to fit the clock.
+    const x1 = ei + 1;
+    const x2 = ei + 4;
+    const exit1C = Math.round(clampToBar(shaped.bars[x1], 9.6) * 100);
+    const exit2C = Math.round(clampToBar(shaped.bars[x2], 9.85) * 100);
+    if (exit2C <= exit1C) throw new Error("demo-seed: shaped exit 2 is not above exit 1");
+
+    const sShares = 500; // lots of 50 - sized so the net sits inside the book's range
+    const sFills = [
+      { side: "B", qty: sShares, priceC: entryC, t: entryBar.t },
+      { side: "S", qty: sShares / 2, priceC: exit1C, t: shaped.bars[x1].t },
+      { side: "S", qty: sShares / 2, priceC: exit2C, t: shaped.bars[x2].t },
+    ];
+    const sBuysC = sFills.filter((f) => f.side === "B").reduce((s, f) => s + f.qty * f.priceC, 0);
+    const sSellsC = sFills.filter((f) => f.side === "S").reduce((s, f) => s + f.qty * f.priceC, 0);
+    const sGrossC = sSellsC - sBuysC;
+    const sFeesC = Math.round(sShares * 0.6); // 0.6c/share - inside the book's fee scale
+    const sNetC = sGrossC - sFeesC;
+    if (sNetC <= 0) throw new Error("demo-seed: shaped featured trade must be a winner");
+    const sEcnC = Math.floor(sFeesC * 0.55);
+    const sSecC = Math.floor(sFeesC * 0.2);
+    const sFinC = Math.floor(sFeesC * 0.15);
+    const sCatC = sFeesC - sEcnC - sSecC - sFinC;
+    const nSF = sFills.length;
+    const sSplit = (totalC) => {
+      const base = Math.floor(totalC / nSF);
+      const a = new Array(nSF).fill(base);
+      a[nSF - 1] = totalC - base * (nSF - 1);
+      return a;
+    };
+    const sEcnS = sSplit(sEcnC), sSecS = sSplit(sSecC), sFinS = sSplit(sFinC), sCatS = sSplit(sCatC);
+    const sStamp = (ms) => new Date(ms).toISOString().replace(".000Z", "Z");
+    const sWire = sFills.map((f, i) => ({
+      trade_id: "DTS", order_id: "DOS-" + (i + 1), symbol: sSym, side: f.side, is_short: false,
+      qty: f.qty, price: f.priceC / 100, time: sStamp(f.t), date: sDate,
+      source_broker: "DAS", source_format: "execution", account_name: ACCOUNT_NAME,
+    }));
+    const sPb = pbRows.find((p) => p.name === "Micro Pullback");
+    if (!sPb) throw new Error("demo-seed: Micro Pullback playbook missing");
+    const sRow = {
+      date: sDate, symbol: sSym, side: "long",
+      open_time: sStamp(sFills[0].t), close_time: sStamp(sFills[nSF - 1].t),
+      shares: sShares,
+      avg_buy: sBuysC / 100 / sShares,
+      avg_sell: sSellsC / 100 / sShares,
+      net_pnl: sNetC / 100, gross_pnl: sGrossC / 100,
+      fee_ecn: sEcnC / 100, fee_sec: sSecC / 100, fee_finra: sFinC / 100, fee_cat: sCatC / 100,
+      total_fees: sFeesC / 100,
+      exec_hash: sha1("demo-shaped-" + sSym + "-" + sDate),
+      entry_timeframe: "1m", ema9: null, account_id: accountId, playbook_id: sPb.id,
+      confidence: 5, planned_risk: 120, float_shares: TICKERS[sSym].float,
+      daily_change_pct: Math.round((SHAPE.topPrice / SHAPE.basePrice - 1) * 100),
+      rvol: 31.4, catalyst_type: "Short squeeze continuation, day 2",
+      mae: -0.09, mfe: rnd2((shaped.bars[x2].h - entryC / 100) * 1.05),
+      account_name: ACCOUNT_NAME, executions_json: JSON.stringify(sWire),
+      gross_pnl_precise: sGrossC / 100, total_fees_precise: sFeesC / 100,
+      net_pnl_precise: (sGrossC - sFeesC) / 100,
+    };
+    const sInfo = insTrade.run(sRow);
+    const sTid = Number(sInfo.lastInsertRowid);
+    sFills.forEach((f, i) => {
+      insExec.run(sTid, "DTS", "DOS-" + (i + 1), sSym, f.side, f.qty, f.priceC / 100, sStamp(f.t),
+        f.side === "B" ? "REMOVED" : "ADDED", ACCOUNT_NAME,
+        sEcnS[i] / 100, sSecS[i] / 100, sFinS[i] / 100, sCatS[i] / 100);
+    });
+    const sAgg = dayAgg.get(sDate) ?? { pnl: 0, fees: 0, n: 0, w: 0, l: 0, gross: 0, maxW: 0, maxL: 0 };
+    sAgg.pnl += sNetC / 100;
+    sAgg.fees += sFeesC / 100;
+    sAgg.n += 1;
+    sAgg.gross += sGrossC / 100;
+    sAgg.w += 1;
+    sAgg.maxW = Math.max(sAgg.maxW, sNetC / 100);
+    dayAgg.set(sDate, sAgg);
+    const ss = shaped.shapeStats;
+    console.log("shaped_day=" + shapedKey + " entry=" + (entryC / 100).toFixed(2) +
+      " exits=" + (exit1C / 100).toFixed(2) + "/" + (exit2C / 100).toFixed(2) +
+      " net=" + (sNetC / 100).toFixed(2));
+    console.log("shaped_laws base_amplitude_share=" + ss.baseShare.toFixed(2) +
+      " (base_med=" + ss.baseMedRange.toFixed(3) + " leg_med=" + ss.legMedRange.toFixed(3) +
+      " fade_med=" + ss.fadeMedRange.toFixed(3) + ")");
+    console.log("shaped_laws fade_amplitude_share=" + ss.fadeShare.toFixed(2) +
+      " parabolic_vol=" + Math.round(ss.paraMax) + " next_highest=" + Math.round(ss.restMax) +
+      " leg_push/pull=" + ss.legStats.map((s) => Math.round(s.pushV) + "/" + Math.round(s.pullV)).join(" "));
+    console.log("shaped_window bars " + shaped.idx.base + ".." + shaped.idx.visibleEnd +
+      "  entry_bar=" + shaped.idx.entry + "  top=" + Math.max(...shaped.bars.slice(shaped.idx.entry, shaped.idx.fade).map((b) => b.h)).toFixed(2));
   }
 
   // daily_summary (the Dashboard reader)
