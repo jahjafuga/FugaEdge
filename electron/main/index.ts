@@ -271,8 +271,12 @@ app.whenReady().then(() => {
     // v0.2.5 Trader DNA — fire-once daily % change backfill (schema-31 arm).
     // Gentle/background/cancelable network sweep; no-op when the flag is unset.
     setImmediate(runPendingDailyChangeBackfill)
-    // v0.2.5 Trader DNA — fire-once RVOL cache re-derive (schema-32 arm). Fast,
-    // ZERO API; no-op when the flag is unset.
+    // v0.2.7 — RVOL repair. Was a fire-once ZERO-API cache re-derive gated on the
+    // schema-32 arm; that flag is never written to a database created fresh at
+    // schema >= 32, so it never ran on the books that needed it. Now gated on the
+    // DATA (any trade still missing rvol) and API-capable: it refetches only the
+    // symbols whose cached daily_volumes cannot answer. Fire-and-forget and
+    // internally caught, so this bare call site stays correct.
     setImmediate(runPendingRvolBackfill)
     setImmediate(async () => {
       try {

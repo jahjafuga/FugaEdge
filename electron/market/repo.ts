@@ -574,6 +574,28 @@ export function tradesNeedingRvolForSymbol(symbol: string): RvolTradeRow[] {
     .all(symbol) as RvolTradeRow[]
 }
 
+// v0.2.7 Bug 1 — whole-book cousin of tradesNeedingRvolForSymbol, for the
+// deferred repair. It carries `symbol` as well, because the repair decides
+// WHICH symbols to refetch by asking whether each trade's own date is present
+// in that symbol's cached daily_volumes map — a question the per-symbol
+// work-list can't pose without the caller already knowing the symbol.
+export interface RvolRepairTradeRow {
+  id: number
+  symbol: string
+  date: string
+}
+
+export function tradesNeedingRvol(): RvolRepairTradeRow[] {
+  const db = openDatabase()
+  return db
+    .prepare(
+      `SELECT id, symbol, date FROM trades
+       WHERE rvol IS NULL AND deleted_at IS NULL
+       ORDER BY date DESC, id ASC`,
+    )
+    .all() as RvolRepairTradeRow[]
+}
+
 export interface TradeDateRange {
   from: string  // YYYY-MM-DD
   to: string    // YYYY-MM-DD

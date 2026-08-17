@@ -4,8 +4,13 @@
 // no withRateLimitRetry, no spacing. A fast local pass (the backfillAllMaeMfe
 // profile, not daily-%'s network sweep). The per-value math is the tested pure
 // helper (rvolFor) — no re-implemented logic. NULL-only → idempotent.
+//
+// v0.2.7: that ZERO-API description still describes backfillAllRvol EXACTLY, and
+// its contract is unchanged. It no longer describes the whole file —
+// runPendingRvolBackfill below now delegates to the API-capable repair, because
+// cache-only re-derivation provably cannot heal a session that never landed in
+// the cache.
 
-import { openDatabase } from '../db/database'
 import {
   getMarketRow,
   setTradeRvol,
@@ -13,9 +18,7 @@ import {
   tradesNeedingRvolForSymbol,
 } from './repo'
 import { rvolFor } from '@/core/market/rvol'
-
-// Literal must match the migration's arm in electron/db/database.ts.
-const PENDING_KEY = 'rvol_backfill_pending'
+import { runRvolRepair } from './rvol-repair'
 
 export interface RvolBackfillResult {
   symbols: number
@@ -44,28 +47,33 @@ export function backfillAllRvol(): RvolBackfillResult {
   return { symbols: symbols.length, filled, uncomputable }
 }
 
-/** Fire-once consumer of the schema-32 arm flag (the runPendingMaeMfeBackfill
- *  precedent). A cache re-derive, so it runs inline (fast, no API) and clears the
- *  flag. No manual retry button: nothing 429-fails — symbols whose market_data
- *  arrives later are covered by the chain-after-refresh + the import-time fill. */
-export function runPendingRvolBackfill(): void {
-  const conn = openDatabase()
-  const pending = conn
-    .prepare('SELECT value FROM settings WHERE key = ?')
-    .get(PENDING_KEY) as { value: string } | undefined
-  if (pending?.value !== 'true') return
+/** Launch-time RVOL repair.
+ *
+ *  v0.2.7 — THE TRIGGER IS NOW DERIVED FROM DATA, NOT A FLAG. This used to gate
+ *  on the schema-32 arm `rvol_backfill_pending`, a key written ONLY by the
+ *  priorVersion < 32 upgrade path. A database created FRESH at schema >= 32
+ *  never receives it, so `pending?.value !== 'true'` returned immediately and
+ *  the launch repair was a permanent no-op on exactly the books that need it.
+ *  Measured on the live journal (2026-08-17): the key is absent from `settings`
+ *  entirely, and all 28 trades carry rvol NULL. Ask the data instead — "is any
+ *  trade still missing rvol?" — which is true on an unhealed book and false once
+ *  it is whole, needing no migration arm and no bookkeeping.
+ *
+ *  Unlike the old body this is API-CAPABLE: it delegates to runRvolRepair, which
+ *  refetches only the symbols whose cache cannot answer. backfillAllRvol above
+ *  keeps its cache-only contract untouched and its other two callers unchanged.
+ *
+ *  Never rejects — the whole body is wrapped, so the bare
+ *  `setImmediate(runPendingRvolBackfill)` call site stays safe. */
+export async function runPendingRvolBackfill(): Promise<void> {
   try {
-    const r = backfillAllRvol()
-    conn
-      .prepare(
-        `INSERT INTO settings (key, value) VALUES (?, 'false')
-         ON CONFLICT(key) DO UPDATE SET value = 'false'`,
-      )
-      .run(PENDING_KEY)
+    if (symbolsNeedingRvol().length === 0) return
+    const r = await runRvolRepair()
     console.info(
-      `[FE rvol] auto-backfill: symbols=${r.symbols} filled=${r.filled} uncomputable=${r.uncomputable}`,
+      `[FE rvol] launch repair: scanned=${r.scanned} refetched=${r.symbolsRefetched} ` +
+        `filled=${r.filled} stillNull=${r.stillNull}`,
     )
   } catch (e) {
-    console.error(`[FE rvol] auto-backfill threw, flag left set for retry: ${e}`)
+    console.error(`[FE rvol] launch repair threw (non-fatal, retries next launch): ${e}`)
   }
 }
