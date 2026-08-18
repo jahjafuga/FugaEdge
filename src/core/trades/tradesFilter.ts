@@ -9,6 +9,9 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
+import { applyRanges, type NumericRange } from '@/core/trades/numericRange'
+import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
+import { computeExecutionStats } from '@/core/trades/executionStats'
 
 export type SideFilter = 'all' | 'long' | 'short'
 export type DurationFilter = 'all' | 'under1m' | '1to5m' | '5to30m' | 'over30m'
@@ -39,6 +42,42 @@ export interface TradesFilterState {
    *  not id: catalyst is a free-form string column (trades.catalyst_type), no FK.
    *  Empty array = no catalyst filtering. */
   catalystTypes: (string | null)[]
+  /** v0.2.7 — min/max per NUMERIC column, keyed by the table's column id. Empty or
+   *  all-unset means no range filtering. The comparison itself lives in ONE place
+   *  (core/trades/numericRange.ts) so fifteen columns cannot drift into fifteen
+   *  slightly different notions of "between". */
+  ranges: Record<string, NumericRange>
+}
+
+/** Reads the value a range filters on, per column id. Centralised here so the
+ *  filter and the table agree on what a column MEANS without the component
+ *  re-deriving anything. */
+export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
+  switch (columnId) {
+    case 'net_pnl': return t.net_pnl
+    case 'gross_pnl': return t.gross_pnl
+    case 'fees': return t.total_fees
+    case 'shares': return Math.max(t.shares_bought, t.shares_sold)
+    case 'avg_buy': return t.avg_buy_price
+    case 'avg_sell': return t.avg_sell_price
+    case 'hold_time': return holdTimeSeconds(t)
+    case 'pnl_gain_pct': return pnlGainPct(t)
+    case 'price_move_pct': return computeExecutionStats(t).priceMovePct
+    case 'first_entry': return computeExecutionStats(t).firstEntry?.price ?? null
+    case 'exec_count': return t.executions.length
+    case 'stop_price': return t.planned_stop_loss_price
+    case 'r_multiple': return t.r_multiple
+    case 'risk_per_share': return t.risk_per_share
+    case 'total_risk': return t.total_risk
+    case 'rvol': return t.rvol
+    case 'daily_change_pct': return t.daily_change_pct
+    case 'confidence': return t.confidence
+    case 'days_since_catalyst': return t.days_since_catalyst
+    case 'mae': return t.mae
+    case 'mfe': return t.mfe
+    case 'float': return t.float_shares
+    default: return null
+  }
 }
 
 export function emptyFilters(): TradesFilterState {
@@ -54,6 +93,7 @@ export function emptyFilters(): TradesFilterState {
     playbookIds: [],
     mistakeKeys: [],
     catalystTypes: [],
+    ranges: {},
   }
 }
 
@@ -80,7 +120,10 @@ export function applyTradesFilters(
   f: TradesFilterState,
 ): TradeListRow[] {
   const symbolQuery = f.symbol.trim().toLowerCase()
-  return trades.filter((t) => {
+  // v0.2.7: ranges COMPOSE with everything below rather than replacing any of it —
+  // the existing predicate runs first, then the shared range helper narrows what
+  // survives. AND across both, matching how the other filters already combine.
+  const narrowed = trades.filter((t) => {
     if (symbolQuery && !t.symbol.toLowerCase().includes(symbolQuery)) return false
     if (f.side !== 'all' && t.side !== f.side) return false
     if (f.duration !== 'all') {
@@ -134,4 +177,5 @@ export function applyTradesFilters(
     }
     return true
   })
+  return applyRanges(narrowed, f.ranges ?? {}, rangeValueOf)
 }
