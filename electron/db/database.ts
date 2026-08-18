@@ -21,6 +21,7 @@ import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
 import { migrateCatalystKind } from './migrate-catalyst-kind'
+import { migrateDayFeesNscc } from './migrate-day-fees-nscc'
 import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
 import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
@@ -1501,6 +1502,14 @@ function migrateAfterSchema(
   // NOT a version gate) and fresh installs are covered too. The one-time no-catalyst
   // derive is BY SEEDED NAME, from the data — never by id. See migrate-catalyst-kind.ts.
   migrateCatalystKind(conn)
+
+  // Fee-truth Beat 1 (schema 49 -> 50) — day_fees.fee_nscc, split out of the pooled
+  // other-fees bucket so the import preview's Total can equal the sum of its visible
+  // columns. Additive + idempotent + self-guarding on column presence, registered
+  // unconditionally (the migrateCatalystKind precedent). Moves no data: an existing
+  // row's NSCC share is unrecoverable from the pooled sum, and re-importing the file
+  // repopulates both. See migrate-day-fees-nscc.ts.
+  migrateDayFeesNscc(conn)
 
   // Rule-breaks reshape Beat 3a (schema 47) — the id-stable rule-break taxonomy: the
   // rule_break_def vocabulary + the journal_rule_break day junction. Additive + idempotent;

@@ -76,7 +76,9 @@ describe('parseOceanOneXls — Beat 2 summary tag + day_fees ledger', () => {
     expect(aaa.fee_sec).toBeCloseTo(0.02, 2)
     expect(aaa.fee_finra).toBeCloseTo(0.04, 2) // TAF
     expect(aaa.fee_cat).toBeCloseTo(0.03, 2)
-    expect(aaa.fee_other).toBeCloseTo(0.05, 2) // NSCC
+    // Schema 50: NSCC has its OWN column now; the pool holds only what is left.
+    expect(aaa.fee_nscc).toBeCloseTo(0.05, 2)
+    expect(aaa.fee_other).toBe(0)
     expect(aaa.fee_htb).toBe(0)
     expect(aaa.total_fees).toBeCloseTo(0.45, 2) // 0.25 + 0.20
   })
@@ -92,7 +94,14 @@ describe('parseOceanOneXls — Beat 2 summary tag + day_fees ledger', () => {
     const r = parseOceanOneXls(syntheticBuffer())
     for (const d of r.dayFees) {
       const components =
-        d.fee_ecn + d.fee_sec + d.fee_finra + d.fee_htb + d.fee_cat + d.fee_commission + d.fee_other
+        d.fee_ecn +
+        d.fee_sec +
+        d.fee_finra +
+        d.fee_htb +
+        d.fee_cat +
+        d.fee_commission +
+        d.fee_nscc +
+        d.fee_other
       expect(components).toBeCloseTo(d.total_fees, 2)
       const tripSum = r.roundTrips
         .filter((t) => t.date === d.date && t.symbol === d.symbol)

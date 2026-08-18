@@ -32,11 +32,19 @@ import { localEasternToUtc } from '@/lib/format'
 // FEES — confirmed against the real fixture (residual Gross - Σfees - Net = 0):
 //   Comm → commission (kept DISTINCT, Dave's ask), Ecn Fee → ecn_fee,
 //   SEC → sec_fee, CAT → cat_fee, TAF → finra_fee (Trading Activity Fee),
-//   ORF/OCC/NSCC/Acc/Clr/Misc → other_fees. Only Comm/Ecn/SEC/CAT/TAF/NSCC are
+//   NSCC → nscc_fee (schema 50: split out so the preview's Total equals its
+//   visible columns), ORF/OCC/Acc/Clr/Misc → other_fees. Only Comm/Ecn/SEC/CAT/TAF/NSCC are
 //   ever non-zero in the fixture; the rest are always 0. total_fees sums all 11,
 //   so commission is preserved separately AND included in total_fees.
 
-type FeeField = 'commission' | 'ecn_fee' | 'sec_fee' | 'cat_fee' | 'finra_fee' | 'other_fees'
+type FeeField =
+  | 'commission'
+  | 'ecn_fee'
+  | 'sec_fee'
+  | 'cat_fee'
+  | 'finra_fee'
+  | 'nscc_fee'
+  | 'other_fees'
 
 const FEE_TO_FIELD: Record<string, FeeField> = {
   Comm: 'commission',
@@ -46,7 +54,7 @@ const FEE_TO_FIELD: Record<string, FeeField> = {
   TAF: 'finra_fee',
   ORF: 'other_fees',
   OCC: 'other_fees',
-  NSCC: 'other_fees',
+  NSCC: 'nscc_fee',
   Acc: 'other_fees',
   Clr: 'other_fees',
   Misc: 'other_fees',
@@ -298,6 +306,7 @@ export function parseOceanOneXls(
     let sec = 0
     let cat = 0
     let finra = 0
+    let nscc = 0
     let other = 0
     // Beat B2a: the raw fee sum, full precision (no per-cell 2dp rounding). The
     // 2dp components below still drive total_fees + the day_fees ledger.
@@ -321,11 +330,14 @@ export function parseOceanOneXls(
         case 'finra_fee':
           finra += v
           break
+        case 'nscc_fee':
+          nscc += v
+          break
         default:
           other += v
       }
     }
-    const totalFees = round2(commission + ecn + sec + cat + finra + other)
+    const totalFees = round2(commission + ecn + sec + cat + finra + nscc + other)
 
     // Beat B: trust the file's AUTHORITATIVE Gross column instead of recomputing
     // from the (rounded-average) Entry/Exit prices. The recompute dropped
@@ -390,6 +402,7 @@ export function parseOceanOneXls(
         fee_htb: 0,
         fee_cat: 0,
         fee_commission: 0,
+        fee_nscc: 0,
         fee_other: 0,
         total_fees: 0,
       }
@@ -400,6 +413,7 @@ export function parseOceanOneXls(
     df.fee_finra = round2(df.fee_finra + finra)
     df.fee_cat = round2(df.fee_cat + cat)
     df.fee_commission = round2(df.fee_commission + commission)
+    df.fee_nscc = round2(df.fee_nscc + nscc)
     df.fee_other = round2(df.fee_other + other)
     df.total_fees = round2(df.total_fees + totalFees)
 

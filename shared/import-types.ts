@@ -191,6 +191,9 @@ export interface DaySummaryFeeRow {
   // pooled other-fees bucket (ORF/OCC/NSCC/Acc/Clr/Misc). DAS/Webull daily-
   // summary rows carry 0 here — they have no separately-itemized commission.
   fee_commission: number
+  /** Schema 50: split OUT of fee_other. NSCC is routinely non-zero, so it earns a
+   *  named column; the rest of the pool stays in fee_other and renders as "Other". */
+  fee_nscc: number
   fee_other: number
   total_fees: number
   status: FeeStatus

@@ -177,7 +177,13 @@
 // migrate-catalyst-kind.ts adds the column (DEFAULT 'news', CHECK-pinned) and derives the
 // no-catalyst row BY ITS SEEDED NAME, from the data. Additive, idempotent, self-guarding on
 // column presence, registered unconditionally — the bump is release-tracking only.
-export const SCHEMA_VERSION = '49'
+//
+// Bumped to 50 for fee-truth Beat 1 -- day_fees.fee_nscc. The ledger pooled
+// ORF/OCC/NSCC/Acc/Clr/Misc into fee_other, and the import preview rendered neither
+// fee_other nor fee_commission while total_fees included both, so the table could not
+// be reconciled against a broker statement. migrate-day-fees-nscc.ts adds the column;
+// additive, idempotent, self-guarding, registered unconditionally. Release-tracking only.
+export const SCHEMA_VERSION = '50'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

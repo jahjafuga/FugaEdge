@@ -29,11 +29,14 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
               <Th align="left">Date</Th>
               <Th align="left">Symbol</Th>
               <Th align="right">Trips</Th>
+              <Th align="right">Comm</Th>
               <Th align="right">ECN</Th>
               <Th align="right">SEC</Th>
               <Th align="right">FINRA</Th>
               <Th align="right">HTB</Th>
               <Th align="right">CAT</Th>
+              <Th align="right">NSCC</Th>
+              <Th align="right">Other</Th>
               <Th align="right">Total</Th>
             </tr>
           </thead>
@@ -70,13 +73,21 @@ export default function FeesPreviewTable({ fees, dateOverride }: FeesPreviewTabl
                       {int(f.matchedTrips)}
                     </span>
                   </Td>
-                  <Td align="right"><Mono>{money(f.fee_ecn)}</Mono></Td>
-                  <Td align="right"><Mono>{money(f.fee_sec)}</Mono></Td>
-                  <Td align="right"><Mono>{money(f.fee_finra)}</Mono></Td>
-                  <Td align="right"><Mono>{money(f.fee_htb)}</Mono></Td>
-                  <Td align="right"><Mono>{money(f.fee_cat)}</Mono></Td>
+                  {/* EVERY component of total_fees is on screen. Commission and the
+                      pooled bucket used to be summed into the Total but never
+                      rendered, so the row could not be reconciled against a broker
+                      statement. "Other" carries whatever stays pooled
+                      (ORF/OCC/Acc/Clr/Misc) — without it the guarantee is a fiction. */}
+                  <Td align="right"><Mono testId="fee-comm">{money(f.fee_commission)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-ecn">{money(f.fee_ecn)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-sec">{money(f.fee_sec)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-finra">{money(f.fee_finra)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-htb">{money(f.fee_htb)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-cat">{money(f.fee_cat)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-nscc">{money(f.fee_nscc)}</Mono></Td>
+                  <Td align="right"><Mono testId="fee-other">{money(f.fee_other)}</Mono></Td>
                   <Td align="right">
-                    <span className="font-mono font-medium text-red">
+                    <span data-testid="fee-total" className="font-mono font-medium text-red">
                       {money(f.total_fees)}
                     </span>
                   </Td>
@@ -129,6 +140,14 @@ function Td({
   )
 }
 
-function Mono({ children }: { children: React.ReactNode }) {
-  return <span className="font-mono text-fg-tertiary">{children}</span>
+function Mono({ children, testId }: { children: React.ReactNode; testId?: string }) {
+  return (
+    <span
+      className="font-mono text-fg-tertiary"
+      data-testid={testId}
+      {...(testId ? { 'data-fee-cell': '' } : {})}
+    >
+      {children}
+    </span>
+  )
 }

@@ -59,6 +59,9 @@ export interface ParsedFeeRow {
   fee_sec: number
   fee_finra: number
   fee_htb: number
+  /** Schema 50. DAS daily-summary has no NSCC line, so this is always 0 here;
+   *  the column exists for Ocean One, whose file itemises it. */
+  fee_nscc: number
   fee_cat: number
   total_fees: number
 }
@@ -169,6 +172,8 @@ export function parseDailySummaryCsv(csvText: string): ParseDailySummaryResult {
       fee_sec: round2(fee_sec),
       fee_finra: round2(fee_finra),
       fee_htb: round2(fee_htb),
+      // DAS daily-summary has no NSCC line; the column exists for Ocean One.
+      fee_nscc: 0,
       fee_cat: round2(fee_cat),
       total_fees,
     })

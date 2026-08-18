@@ -601,6 +601,7 @@ export function registerImportIpc(): void {
               fee_sec: r.fee_sec,
               fee_finra: r.fee_finra,
               fee_htb: r.fee_htb,
+              fee_nscc: r.fee_nscc ?? 0,
               fee_cat: r.fee_cat,
               // DAS daily-summary has no separately-itemized commission/other.
               fee_commission: 0,
