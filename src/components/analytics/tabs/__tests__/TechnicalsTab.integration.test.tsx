@@ -52,7 +52,12 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
     await screen.findByText('VWAP distance')
 
     // Open the At-VWAP bucket → its accordion + the VWAP-dist table mount.
-    fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
+    // findByRole, NOT getByRole: the heading awaited above is the SECTION, which
+    // renders before the aggregation that produces the bucket rows. Under full-suite
+    // concurrency that gap widens and a synchronous query throws against a DOM
+    // holding only the filter bar. Awaiting the button itself removes the race
+    // rather than out-waiting it.
+    fireEvent.click(await screen.findByRole('button', { name: /At VWAP/ }))
     expect(screen.getByText('VWAP dist')).toBeTruthy() // the table's column header
 
     // Click the trade row → the read-only sheet opens for that trade.
@@ -80,12 +85,13 @@ describe('TechnicalsTab — Sections 2 + 3 integration', () => {
     fireEvent.change(ticker, { target: { value: 'TEST' } })
     expect(ticker.value).toBe('TEST')
 
-    // Expand a VWAP bucket → the filter must survive.
-    fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
+    // Expand a VWAP bucket → the filter must survive. Same race as above: await
+    // the bucket button rather than assuming the aggregation has landed.
+    fireEvent.click(await screen.findByRole('button', { name: /At VWAP/ }))
     expect(ticker.value).toBe('TEST')
 
     // Collapse it → still preserved.
-    fireEvent.click(screen.getByRole('button', { name: /At VWAP/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /At VWAP/ }))
     expect(ticker.value).toBe('TEST')
   })
 })
