@@ -49,12 +49,15 @@ function setup(trades: TradeListRow[] = TRADES) {
   // Only EXPANDABLE tier rows carry aria-expanded (TierPerformanceCard.tsx:142), so this is
   // exactly [A+, B] in PLAYBOOK_TIERS order.
   const rows = () => Array.from(container.querySelectorAll('tr[aria-expanded]'))
-  // The AccordionPanel inner div (AccordionPanel.tsx:22). Scoped by class, NOT by [aria-hidden]
-  // alone -- the chevron svg also carries aria-hidden (TierPerformanceCard.tsx:148).
-  const panels = () => Array.from(container.querySelectorAll('div.min-h-0.overflow-hidden'))
+  // v0.2.7: the playbook breakdown is now ROWS OF THE SAME TABLE, not a nested table
+  // inside an AccordionPanel div — so there is no wrapper element left to probe.
+  // Mounting is asserted directly against the child rows, which is what the panel
+  // used to contain. The multi-expand behaviour under test is unchanged.
+  const panels = () => Array.from(container.querySelectorAll('[data-row="playbook"]'))
 
   const isOpen = (i: number) => rows()[i]?.getAttribute('aria-expanded') === 'true'
-  const isMounted = (i: number, name: string) => !!panels()[i]?.textContent?.includes(name)
+  const isMounted = (_i: number, name: string) =>
+    panels().some((r) => r.textContent?.includes(name))
   const click = (i: number) => fireEvent.click(rows()[i])
 
   return { container, rows, panels, isOpen, isMounted, click }
@@ -116,7 +119,14 @@ describe('TierPerformanceCard — MULTI-EXPAND (djsevans87)', () => {
     expect(isOpen(APLUS)).toBe(false)
   })
 
-  it('*** 4. the 210ms close-lag is PER-KEY: closing A+ never unmounts B ***', async () => {
+  it('*** 4. collapsing A+ never unmounts B (the per-key guarantee) ***', async () => {
+    // v0.2.7: the 210ms close-lag is GONE, deliberately. It existed so a closing panel
+    // could animate out while still mounted -- but the playbook breakdown is now ROWS
+    // of the parent's table, and a run of <tr>s has no wrapper element to animate.
+    // Keeping the lag without the animation would leave rows on screen for a fifth of
+    // a second AFTER the user clicked collapse, which is worse than removing them at
+    // once. What the lag protected -- that closing one tier never disturbs another --
+    // is the real guarantee, and it is asserted directly here.
     const { isOpen, isMounted, click } = setup()
     click(APLUS)
     click(B)
@@ -124,21 +134,14 @@ describe('TierPerformanceCard — MULTI-EXPAND (djsevans87)', () => {
     expect(isMounted(APLUS, 'Bull Flag')).toBe(true)
     expect(isMounted(B, 'Micro Pullback')).toBe(true)
 
-    click(APLUS) // start A+'s collapse
+    click(APLUS) // collapse A+
 
-    // Immediately: A+ is visually closed but its content is STILL MOUNTED (it must animate out,
-    // not vanish). B is untouched on both counts.
     expect(isOpen(APLUS)).toBe(false)
-    expect(isMounted(APLUS, 'Bull Flag')).toBe(true)
+    expect(isMounted(APLUS, 'Bull Flag')).toBe(false) // gone at once, not after a lag
     expect(isOpen(B)).toBe(true)
-    expect(isMounted(B, 'Micro Pullback')).toBe(true)
+    expect(isMounted(B, 'Micro Pullback')).toBe(true) // B untouched -- the guarantee
 
-    await advance(209) // one tick before the lag expires
-    expect(isMounted(APLUS, 'Bull Flag')).toBe(true)
-    expect(isMounted(B, 'Micro Pullback')).toBe(true)
-
-    await advance(1) // 210 -> A+ unmounts. B MUST NOT.
-    expect(isMounted(APLUS, 'Bull Flag')).toBe(false)
+    await advance(500)
     expect(isOpen(B)).toBe(true)
     expect(isMounted(B, 'Micro Pullback')).toBe(true)
   })

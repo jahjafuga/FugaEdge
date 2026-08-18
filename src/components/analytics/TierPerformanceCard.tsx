@@ -3,7 +3,6 @@ import { ChevronRight } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
-import AccordionPanel from '@/components/analytics/tabs/technicals/AccordionPanel'
 import { useMultiBucketBand } from '@/components/analytics/tabs/technicals/useMultiBucketBand'
 import { money, percent, signed, pnlClass, formatPnlRatio } from '@/lib/format'
 import {
@@ -22,7 +21,6 @@ interface TierPerformanceCardProps {
 
 // The table is 7 columns wide (Tier · Setups · Trades · Win% · Net P&L ·
 // Expectancy · P/L ratio); the expansion row spans all of them.
-const TIER_COL_COUNT = 7
 
 // Tier Performance — the headline insight view for v0.1.5. Proves (or
 // disproves) whether A+ discipline actually pays. Pure render off the
@@ -124,6 +122,7 @@ function TierRow({
   return (
     <Fragment>
       <tr
+        data-row="tier"
         className={`border-b border-border-subtle/40 transition-colors ${
           expandable ? 'cursor-pointer' : ''
         } ${
@@ -199,83 +198,61 @@ function TierRow({
           )}
         </td>
       </tr>
-      {expandable && (
-        <tr>
-          <td colSpan={TIER_COL_COUNT} className="p-0">
-            <AccordionPanel open={isOpen}>
-              {isDisplayed && <PlaybookSubTable playbooks={r.playbooks} />}
-            </AccordionPanel>
-          </td>
-        </tr>
-      )}
+      {expandable && isDisplayed && isOpen &&
+        r.playbooks.map((p) => <PlaybookRow key={p.playbook_id} row={p} />)}
     </Fragment>
   )
 }
 
-// The nested per-playbook breakdown for one expanded tier. Same stat columns as
-// the parent (minus Setups — a playbook IS one setup), indented and sub-styled.
-// Uses the SAME formatters as the tier row, so the playbook rows reconcile with
-// the tier total above them by inspection.
-function PlaybookSubTable({ playbooks }: { playbooks: PlaybookPerfRow[] }) {
+// One playbook, rendered as a ROW OF THE PARENT'S TABLE rather than a table of its
+// own. The old nested <table> inside a colSpan cell had its own column algorithm, so
+// its Trades column agreed with the tier's only by coincidence of padding — the
+// alignment could not be relied on, only hoped for. As sibling rows the columns are
+// the same columns, and misalignment is structurally impossible.
+//
+// The SETUPS cell is present and EMPTY, never omitted: dropping it would shift every
+// column after it by one. A playbook IS one setup, so there is no number to show.
+function PlaybookRow({ row: p }: { row: PlaybookPerfRow }) {
   return (
-    <div className="bg-bg-1/40 px-3 pb-3">
-      <table className="w-full border-collapse text-xs">
-        <thead>
-          <tr className="text-[9px] uppercase tracking-wider text-fg-tertiary">
-            <th className="py-1.5 pl-7 pr-3 text-left font-semibold">Setup</th>
-            <th className="px-3 py-1.5 text-right font-semibold">Trades</th>
-            <th className="px-3 py-1.5 text-right font-semibold">Win %</th>
-            <th className="px-3 py-1.5 text-right font-semibold">Net P&amp;L</th>
-            <th className="px-3 py-1.5 text-right font-semibold">Expectancy</th>
-            <th className="px-3 py-1.5 text-right font-semibold">P/L ratio</th>
-          </tr>
-        </thead>
-        <tbody>
-          {playbooks.map((p) => (
-            <tr key={p.playbook_id} className="border-t border-border-subtle/30">
-              <td className="py-1.5 pl-7 pr-3 text-left">
-                <span className="text-fg-primary">{p.name}</span>
-                <span className="ml-2 text-[10px] text-fg-tertiary tnum">
-                  {p.winners}W / {p.losers}L
-                  {p.scratches > 0 ? ` / ${p.scratches}S` : ''}
-                </span>
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono text-fg-primary tnum">
-                {p.trades}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono tnum">
-                {p.win_rate == null ? (
-                  <span className="text-fg-tertiary">—</span>
-                ) : (
-                  <span className="text-gold">{percent(p.win_rate, 0)}</span>
-                )}
-              </td>
-              <td
-                className={`px-3 py-1.5 text-right font-mono font-medium tnum ${pnlClass(p.net_pnl)}`}
-              >
-                {signed(p.net_pnl)}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono tnum">
-                {p.expectancy == null ? (
-                  <span className="text-fg-tertiary">—</span>
-                ) : (
-                  <span className={pnlClass(p.expectancy)}>
-                    {money(p.expectancy)}/trade
-                  </span>
-                )}
-              </td>
-              <td className="px-3 py-1.5 text-right font-mono tnum">
-                {p.pnl_ratio == null ? (
-                  <span className="text-fg-tertiary">—</span>
-                ) : (
-                  <span className="text-fg-primary">{formatPnlRatio(p.pnl_ratio)}</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <tr data-row="playbook" className="border-b border-border-subtle/20 bg-bg-1/40">
+      <td data-indent="true" className="py-1.5 pl-9 pr-3 text-left text-xs">
+        <span className="text-fg-primary">{p.name}</span>
+        <span className="ml-2 text-[10px] text-fg-tertiary tnum">
+          {p.winners}W / {p.losers}L
+          {p.scratches > 0 ? ` / ${p.scratches}S` : ''}
+        </span>
+      </td>
+      <td className="px-3 py-1.5" />
+      <td className="px-3 py-1.5 text-right font-mono text-xs text-fg-primary tnum">
+        {p.trades}
+      </td>
+      <td className="px-3 py-1.5 text-right font-mono text-xs tnum">
+        {p.win_rate == null ? (
+          <span className="text-fg-tertiary">—</span>
+        ) : (
+          <span className="text-gold">{percent(p.win_rate, 0)}</span>
+        )}
+      </td>
+      <td
+        className={`px-3 py-1.5 text-right font-mono text-xs font-medium tnum ${pnlClass(p.net_pnl)}`}
+      >
+        {signed(p.net_pnl)}
+      </td>
+      <td className="px-3 py-1.5 text-right font-mono text-xs tnum">
+        {p.expectancy == null ? (
+          <span className="text-fg-tertiary">—</span>
+        ) : (
+          <span className={pnlClass(p.expectancy)}>{money(p.expectancy)}/trade</span>
+        )}
+      </td>
+      <td className="px-3 py-1.5 text-right font-mono text-xs tnum">
+        {p.pnl_ratio == null ? (
+          <span className="text-fg-tertiary">—</span>
+        ) : (
+          <span className="text-fg-primary">{formatPnlRatio(p.pnl_ratio)}</span>
+        )}
+      </td>
+    </tr>
   )
 }
 
@@ -289,7 +266,7 @@ function PlaybookSubTable({ playbooks }: { playbooks: PlaybookPerfRow[] }) {
 // Not expandable (no playbooks to break out).
 function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
   return (
-    <tr className="border-t-2 border-border-strong bg-fg-muted/[0.05]">
+    <tr data-row="nosetup" className="border-t-2 border-border-strong bg-fg-muted/[0.05]">
       <td className="px-3 py-2">
         <div className="flex items-center gap-2">
           <SystemTierChip />
