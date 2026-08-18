@@ -33,12 +33,15 @@ const NEW_COLS = [
   'daily_change_pct', 'confidence', 'entry_timeframe', 'days_since_catalyst',
   'mae', 'mfe',
 ]
+// Headers ARE the registry labels as of the labels commit — one source, so this map
+// tracks them rather than restating a second vocabulary.
 const HEADERS: Record<string, string> = {
-  hold_time: 'Hold', price_move_pct: 'Move %', pnl_gain_pct: 'Gain %',
-  exec_count: 'Fills', first_entry: '1st entry', stop_price: 'Stop',
-  r_multiple: 'R', risk_per_share: 'Risk/sh', total_risk: 'Risk $', rvol: 'RVOL',
-  daily_change_pct: 'Day %', confidence: 'Conf', entry_timeframe: 'TF',
-  days_since_catalyst: 'Days since', mae: 'MAE', mfe: 'MFE',
+  hold_time: 'Hold time', price_move_pct: 'Price move %', pnl_gain_pct: 'Gain %',
+  exec_count: 'Fills', first_entry: 'First entry', stop_price: 'Stop price',
+  r_multiple: 'R multiple', risk_per_share: 'Risk / share', total_risk: 'Total risk',
+  rvol: 'RVOL', daily_change_pct: 'Day change %', confidence: 'Confidence',
+  entry_timeframe: 'Timeframe', days_since_catalyst: 'Days since catalyst',
+  mae: 'MAE', mfe: 'MFE',
 }
 
 const noop = async () => {}
@@ -126,7 +129,7 @@ describe('the fifteen optional columns', () => {
   it('T10 nulls sort LAST ascending AND descending', () => {
     showAll()
     render(<TradesTable {...PROPS} trades={[EMPTY_ROW, FULL]} />)
-    const rHeader = screen.getAllByText('R')[0]
+    const rHeader = screen.getAllByText('R multiple')[0]
 
     rHeader.click()
     let symbols = [0, 1].map((i) => rowCells(i)[headers().indexOf('Symbol')])

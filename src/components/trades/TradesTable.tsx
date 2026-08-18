@@ -7,10 +7,21 @@ import {
   useReactTable,
   type ColumnDef,
   type Row,
+  type RowData,
   type SortingState,
   type VisibilityState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+
+// The human label for a column, declared BESIDE the column in the registry rather
+// than in the menu — so the toggle list, the header and any future surface all read
+// one string, and a new column cannot be added without one.
+declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    label?: string
+  }
+}
 import { computeExecutionStats } from '@/core/trades/executionStats'
 import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
 import {
@@ -271,6 +282,7 @@ export default function TradesTable({
   const columns = useMemo(() => {
     const countryColumn = col.accessor('country', {
       id: 'country',
+      meta: { label: 'Country' },
       header: 'Country',
       // v0.1.4 — ISO code text removed from the cell. Flag-only render
       // means the column can shrink ~30px; tooltip carries the country
@@ -305,6 +317,7 @@ export default function TradesTable({
     })
     const floatColumn = col.accessor('float_shares', {
       id: 'float',
+      meta: { label: 'Float' },
       // v0.2.2 Commit B — column accessor stays on `float_shares` (Commit B
       // now populates it with REAL FMP float, not shares-outstanding).
       // Lao decision: rename-only, no second Shares Out column. Shares Out
@@ -319,6 +332,7 @@ export default function TradesTable({
     })
     const catalystColumn = col.accessor('catalyst_type', {
       id: 'catalyst',
+      meta: { label: 'Catalyst' },
       header: 'Catalyst',
       size: COLUMN_WIDTHS.catalyst,
       // Alpha sort, nulls last — clones the Country column's null-aware comparator.
@@ -356,6 +370,7 @@ export default function TradesTable({
     // (Net P&L, Bought, …) — so the most-mistakes trades surface first.
     const mistakesColumn = col.accessor(mistakeCount, {
       id: 'mistakes',
+      meta: { label: 'Mistakes' },
       header: 'Mistakes',
       size: COLUMN_WIDTHS.mistakes,
       sortingFn: (a, b) => mistakeCount(a.original) - mistakeCount(b.original),
@@ -380,6 +395,7 @@ export default function TradesTable({
     })
     const sparkColumn = col.display({
       id: 'spark',
+      meta: { label: 'Chart' },
       header: '',
       size: COLUMN_WIDTHS.spark,
       cell: ({ row }) => (
@@ -392,6 +408,7 @@ export default function TradesTable({
     const base: ColumnDef<TradeListRow, any>[] = [
       col.accessor('open_time', {
         id: 'open_time',
+        meta: { label: 'Date' },
         header: 'Date',
         size: COLUMN_WIDTHS.date,
         cell: (info) => (
@@ -403,6 +420,7 @@ export default function TradesTable({
       }),
       col.accessor('open_time', {
         id: 'open',
+        meta: { label: 'Open' },
         header: 'Open',
         size: COLUMN_WIDTHS.open,
         cell: (info) => (
@@ -414,6 +432,7 @@ export default function TradesTable({
       }),
       col.accessor((r) => r.close_time ?? '', {
         id: 'close',
+        meta: { label: 'Close' },
         header: 'Close',
         size: COLUMN_WIDTHS.close,
         cell: (info) => {
@@ -435,6 +454,7 @@ export default function TradesTable({
       }),
       col.accessor('symbol', {
         id: 'symbol',
+        meta: { label: 'Symbol' },
         header: 'Symbol',
         // Unhideable: without it the rows cannot be told apart. Enforced here AND in
         // the prefs module, so neither a UI path nor a hand-edited store can lose it.
@@ -461,6 +481,7 @@ export default function TradesTable({
       }),
       col.accessor((r) => r.playbook_name ?? '', {
         id: 'playbook',
+        meta: { label: 'Playbook' },
         header: 'Playbook',
         size: COLUMN_WIDTHS.playbook,
         // Brendan's tier-rank sort (worst-to-best, untagged last) — replaces the
@@ -483,6 +504,7 @@ export default function TradesTable({
       }),
       col.accessor('side', {
         id: 'side',
+        meta: { label: 'Side' },
         header: 'Side',
         size: COLUMN_WIDTHS.side,
         cell: (info) => {
@@ -507,6 +529,7 @@ export default function TradesTable({
       // unbalanced (partial/open) trip the max IS the position.
       col.accessor((r) => Math.max(r.shares_bought, r.shares_sold), {
         id: 'shares',
+        meta: { label: 'Shares' },
         header: () => <span className="block text-right">Shares</span>,
         size: COLUMN_WIDTHS.shares,
         cell: (info) => {
@@ -523,6 +546,7 @@ export default function TradesTable({
       }),
       col.accessor('avg_buy_price', {
         id: 'avg_buy',
+        meta: { label: 'Buy avg' },
         header: () => <span className="block text-right">Buy avg</span>,
         size: COLUMN_WIDTHS.avg_buy,
         cell: (info) => (
@@ -533,6 +557,7 @@ export default function TradesTable({
       }),
       col.accessor('avg_sell_price', {
         id: 'avg_sell',
+        meta: { label: 'Sell avg' },
         header: () => <span className="block text-right">Sell avg</span>,
         size: COLUMN_WIDTHS.avg_sell,
         cell: (info) => (
@@ -543,6 +568,7 @@ export default function TradesTable({
       }),
       col.accessor('total_fees', {
         id: 'fees',
+        meta: { label: 'Fees' },
         header: () => <span className="block text-right">Fees</span>,
         size: COLUMN_WIDTHS.fees,
         cell: (info) => (
@@ -553,6 +579,7 @@ export default function TradesTable({
       }),
       col.accessor('net_pnl', {
         id: 'net_pnl',
+        meta: { label: 'Net P&L' },
         header: () => <span className="block text-right">Net P&L</span>,
         size: COLUMN_WIDTHS.net_pnl,
         cell: (info) => {
@@ -598,82 +625,98 @@ export default function TradesTable({
 
     const optional: ColumnDef<TradeListRow, any>[] = [
       col.accessor((r) => holdTimeSeconds(r), {
-        id: 'hold_time', header: 'Hold', size: COLUMN_WIDTHS.shares,
+        id: 'hold_time', header: 'Hold time', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Hold time' },
         cell: (i) => <Num>{num(i.getValue(), (n) => duration(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor((r) => execOf(r).priceMovePct, {
-        id: 'price_move_pct', header: 'Move %', size: COLUMN_WIDTHS.shares,
+        id: 'price_move_pct', header: 'Price move %', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Price move %' },
         cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor((r) => pnlGainPct(r), {
         id: 'pnl_gain_pct', header: 'Gain %', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Gain %' },
         cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor((r) => r.executions.length, {
         id: 'exec_count', header: 'Fills', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Fills' },
         cell: (i) => <Num>{int(i.getValue() as number)}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor((r) => execOf(r).firstEntry?.price ?? null, {
-        id: 'first_entry', header: '1st entry', size: COLUMN_WIDTHS.avg_buy,
+        id: 'first_entry', header: 'First entry', size: COLUMN_WIDTHS.avg_buy,
+        meta: { label: 'First entry' },
         cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('planned_stop_loss_price', {
-        id: 'stop_price', header: 'Stop', size: COLUMN_WIDTHS.avg_buy,
+        id: 'stop_price', header: 'Stop price', size: COLUMN_WIDTHS.avg_buy,
+        meta: { label: 'Stop price' },
         cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('r_multiple', {
-        id: 'r_multiple', header: 'R', size: COLUMN_WIDTHS.shares,
+        id: 'r_multiple', header: 'R multiple', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'R multiple' },
         cell: (i) => <Num>{num(i.getValue(), (n) => `${n.toFixed(2)}R`)}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('risk_per_share', {
-        id: 'risk_per_share', header: 'Risk/sh', size: COLUMN_WIDTHS.avg_buy,
+        id: 'risk_per_share', header: 'Risk / share', size: COLUMN_WIDTHS.avg_buy,
+        meta: { label: 'Risk / share' },
         cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('total_risk', {
-        id: 'total_risk', header: 'Risk $', size: COLUMN_WIDTHS.fees,
+        id: 'total_risk', header: 'Total risk', size: COLUMN_WIDTHS.fees,
+        meta: { label: 'Total risk' },
         cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('rvol', {
         id: 'rvol', header: 'RVOL', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'RVOL' },
         cell: (i) => <Num>{num(i.getValue(), (n) => `${n.toFixed(2)}x`)}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('daily_change_pct', {
-        id: 'daily_change_pct', header: 'Day %', size: COLUMN_WIDTHS.shares,
+        id: 'daily_change_pct', header: 'Day change %', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Day change %' },
         cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('confidence', {
-        id: 'confidence', header: 'Conf', size: COLUMN_WIDTHS.shares,
+        id: 'confidence', header: 'Confidence', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Confidence' },
         cell: (i) => <Num>{num(i.getValue(), (n) => String(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('entry_timeframe', {
-        id: 'entry_timeframe', header: 'TF', size: COLUMN_WIDTHS.shares,
+        id: 'entry_timeframe', header: 'Timeframe', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Timeframe' },
         cell: (i) => <Num>{(i.getValue() as string | null) ?? EMPTY}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('days_since_catalyst', {
-        id: 'days_since_catalyst', header: 'Days since', size: COLUMN_WIDTHS.shares,
+        id: 'days_since_catalyst', header: 'Days since catalyst', size: COLUMN_WIDTHS.shares,
+        meta: { label: 'Days since catalyst' },
         cell: (i) => <Num>{num(i.getValue(), (n) => int(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('mae', {
         id: 'mae', header: 'MAE', size: COLUMN_WIDTHS.fees,
+        meta: { label: 'MAE' },
         cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
         sortUndefined: 'last',
       }),
       col.accessor('mfe', {
         id: 'mfe', header: 'MFE', size: COLUMN_WIDTHS.fees,
+        meta: { label: 'MFE' },
         cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
         sortUndefined: 'last',
       }),
@@ -951,7 +994,7 @@ export default function TradesTable({
                       disabled={locked}
                       onChange={c.getToggleVisibilityHandler()}
                     />
-                    <span>{c.id}</span>
+                    <span>{c.columnDef.meta?.label ?? c.id}</span>
                   </label>
                 )
               })}
