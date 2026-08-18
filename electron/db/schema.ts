@@ -183,7 +183,7 @@
 // fee_other nor fee_commission while total_fees included both, so the table could not
 // be reconciled against a broker statement. migrate-day-fees-nscc.ts adds the column;
 // additive, idempotent, self-guarding, registered unconditionally. Release-tracking only.
-export const SCHEMA_VERSION = '50'
+export const SCHEMA_VERSION = '51'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

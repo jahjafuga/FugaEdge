@@ -94,6 +94,7 @@ function trade(id: number, symbol: string, date: string, over: Partial<TradeList
     country_name: 'Unknown',
     region: 'Unknown',
     country_source: 'unknown',
+    stop_source: null,
     attachment_count: 0,
     secondary_tag_count: 0,
     deleted_at: null,

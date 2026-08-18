@@ -135,6 +135,13 @@ export interface TradeListRow {
    *  'manual'   = user override; never overwritten by automatic backfill.
    *  'unknown'  = we tried and couldn't resolve. */
   country_source: 'fmp' | 'polygon' | 'inferred' | 'manual' | 'unknown'
+  /** WHO set planned_stop_loss_price. Mirrors country_source's contract, and
+   *  STOP_SOURCES in electron/db/migrate-stop-source.ts mirrors this set.
+   *  'manual' = the user typed it; NEVER overwritten or cleared by an automatic pass.
+   *  'auto'   = derived by the app from the first entry and the configured percentage;
+   *             safe to re-derive when that percentage changes, and safe to clear.
+   *  null     = no stop, so there is nothing to attribute. Absent is NOT 'auto'. */
+  stop_source: 'manual' | 'auto' | null
   /** Number of screenshot attachments — drives the badge on the expand-row
    *  Screenshots button so the user knows the trade has visuals without
    *  opening the modal. */

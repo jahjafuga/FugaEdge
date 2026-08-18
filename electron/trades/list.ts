@@ -52,6 +52,7 @@ interface TradeRowDb {
   country_name: string | null
   region: string | null
   country_source: string | null
+  stop_source: string | null
   note_text: string | null
   attachment_count: number
   secondary_tag_count: number
@@ -229,6 +230,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        t.stop_source,
         t.deleted_at, t.account_id,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
@@ -310,6 +312,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       country_name: r.country_name ?? 'Unknown',
       region: r.region ?? 'Unknown',
       country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
+      stop_source: (r.stop_source as 'manual' | 'auto' | null) ?? null,
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
       secondary_tag_count: r.secondary_tag_count ?? 0,
@@ -348,6 +351,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        t.stop_source,
         t.deleted_at, t.account_id,
         n.note_text,
         COALESCE(att.n, 0) AS attachment_count,
@@ -427,6 +431,7 @@ export function getTrade(id: number): TradeListRow | null {
     country_name: row.country_name ?? 'Unknown',
     region: row.region ?? 'Unknown',
     country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
+    stop_source: (row.stop_source as 'manual' | 'auto' | null) ?? null,
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,
     secondary_tag_count: row.secondary_tag_count ?? 0,

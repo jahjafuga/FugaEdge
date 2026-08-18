@@ -19,7 +19,7 @@ function mk(over: Partial<TradeListRow>): TradeListRow {
     planned_risk: null, planned_stop_loss_price: null,
     risk_per_share: null, total_risk: null, r_multiple: null,
     float_shares: null, shares_outstanding: null, catalyst_type: null, days_since_catalyst: null,
-    country: null, country_name: 'Unknown', region: 'Unknown', country_source: 'unknown',
+    country: null, country_name: 'Unknown', region: 'Unknown', country_source: 'unknown', stop_source: null,
     attachment_count: 0, secondary_tag_count: 0, deleted_at: null,
     ...over,
   }

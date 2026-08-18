@@ -22,6 +22,7 @@ import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
 import { migrateCatalystKind } from './migrate-catalyst-kind'
 import { migrateDayFeesNscc } from './migrate-day-fees-nscc'
+import { migrateStopSource } from './migrate-stop-source'
 import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
 import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
@@ -1870,6 +1871,18 @@ function migrateAfterSchema(
   // read the latch that copy set and refuse to run if it is missing.
   // See migrate-rule-breaks-backfill.ts.
   record('rule-breaks-backfill', migrateRuleBreaksBackfill(conn, priorVersion))
+
+  // Auto-fill-stop Beat 1 (schema 50 -> 51) — trades.stop_source ('manual' | 'auto' | NULL),
+  // the provenance R has been missing. Registered LAST, after the trades rebuild has
+  // stabilised the table: the rebuild copies a FIXED column list, so adding the column
+  // before it would drop it on the rebuild boot (the migrateAddDayFeesOoColumns lesson).
+  // Additive + idempotent + self-guarding on column presence, so it runs unconditionally
+  // (the migrateCatalystKind precedent) and fresh installs are covered too.
+  //
+  // Its one-time UPDATE stamps every EXISTING non-null stop 'manual'. Those were typed by
+  // a human — there was no other way to set one — and a later auto-clear must never reach
+  // them. See migrate-stop-source.ts.
+  migrateStopSource(conn)
 
   return { outcomes }
 }
