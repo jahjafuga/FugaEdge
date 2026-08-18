@@ -5,6 +5,7 @@ import type {
   CreateCatalystDefInput,
   RenameCatalystDefInput,
   ReorderCatalystDefsInput,
+  SetCatalystDefKindInput,
 } from '@shared/catalyst-types'
 import { bumpDataVersion } from '../lib/cache'
 import {
@@ -14,6 +15,7 @@ import {
   listCatalystDefs,
   renameCatalystDef,
   reorderCatalystDefs,
+  setCatalystDefKind,
   unarchiveCatalystDef,
 } from './repo'
 
@@ -56,5 +58,10 @@ export function registerCatalystIpc(): void {
     const result = deleteCatalystDef(input)
     bumpDataVersion()
     return result
+  })
+  ipcMain.handle(IPC.CATALYST_DEF_SET_KIND, (_e, input: SetCatalystDefKindInput) => {
+    const def = setCatalystDefKind(input)
+    bumpDataVersion()
+    return def
   })
 }

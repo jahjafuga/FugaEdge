@@ -20,6 +20,7 @@ import { migrateConfluenceJunction } from './migrate-confluence-junction'
 import { migrateMistakesTaxonomy } from './migrate-mistakes-taxonomy'
 import { migrateCatalystVocabulary } from './migrate-catalyst-vocabulary'
 import { migrateCatalystLegacyStrings } from './migrate-catalyst-legacy-strings'
+import { migrateCatalystKind } from './migrate-catalyst-kind'
 import { migrateJournalRulesToObjects } from './migrate-journal-rules-to-objects'
 import { migrateAccountBackfill } from './migrate-account-backfill'
 import { migrateTradesRebuildDedup } from './migrate-trades-rebuild-dedup'
@@ -1489,6 +1490,17 @@ function migrateAfterSchema(
   // after the vocabulary so trade strings line up with the seeded names. Idempotent
   // (a re-run matches zero rows) + deletion-blind. See migrate-catalyst-legacy-strings.ts.
   migrateCatalystLegacyStrings(conn)
+
+  // Catalyst-as-a-pillar Beat 1 (schema 48 -> 49) — add catalyst_def.kind
+  // ('news' | 'technical' | 'none'), the semantic the vocabulary never carried. The DNA
+  // pillar reads THIS, never the label, so a user who renames "Technical / No Catalyst"
+  // keeps its meaning. Registered LAST of the catalyst migrations: it needs
+  // migrateCatalystVocabulary to have created + seeded the table, and it must see the
+  // legacy-string normalisation already applied. Additive + idempotent + self-guarding on
+  // column presence, so it runs unconditionally (the migrateCatalystVocabulary precedent,
+  // NOT a version gate) and fresh installs are covered too. The one-time no-catalyst
+  // derive is BY SEEDED NAME, from the data — never by id. See migrate-catalyst-kind.ts.
+  migrateCatalystKind(conn)
 
   // Rule-breaks reshape Beat 3a (schema 47) — the id-stable rule-break taxonomy: the
   // rule_break_def vocabulary + the journal_rule_break day junction. Additive + idempotent;

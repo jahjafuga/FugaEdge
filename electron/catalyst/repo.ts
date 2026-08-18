@@ -1,6 +1,8 @@
 import { openDatabase } from '../db/database'
 import type {
   CatalystDef,
+  CatalystKind,
+  SetCatalystDefKindInput,
   CatalystDefIdInput,
   CreateCatalystDefInput,
   DeleteCatalystDefResult,
@@ -23,6 +25,15 @@ interface CatalystDefRowDb {
   sort_position: number
   is_custom: number
   is_archived: number
+  kind: string
+}
+
+// The schema-49 CHECK constraint is the real guard; this narrows the TEXT the driver
+// hands back. An unrecognised value would mean the column was written around the
+// constraint, so fail loudly rather than silently treating it as a news catalyst.
+function toKind(raw: string): CatalystKind {
+  if (raw === 'news' || raw === 'technical' || raw === 'none') return raw
+  throw new Error(`catalyst_def.kind holds an unknown value: ${JSON.stringify(raw)}`)
 }
 
 function rowToDef(r: CatalystDefRowDb): CatalystDef {
@@ -32,6 +43,7 @@ function rowToDef(r: CatalystDefRowDb): CatalystDef {
     sort_position: r.sort_position,
     is_custom: r.is_custom === 1,
     is_archived: r.is_archived === 1,
+    kind: toKind(r.kind),
   }
 }
 
@@ -40,7 +52,7 @@ function rowToDef(r: CatalystDefRowDb): CatalystDef {
 function getCatalystDefById(id: number): CatalystDef {
   const db = openDatabase()
   const r = db
-    .prepare('SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = ?')
+    .prepare('SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = ?')
     .get(id) as CatalystDefRowDb | undefined
   if (!r) throw new Error(`Catalyst ${id} not found`)
   return rowToDef(r)
@@ -53,7 +65,7 @@ export function listCatalystDefs(opts?: { includeArchived?: boolean }): Catalyst
   const where = opts?.includeArchived ? '' : 'WHERE is_archived = 0'
   const rows = db
     .prepare(`
-      SELECT id, name, sort_position, is_custom, is_archived
+      SELECT id, name, sort_position, is_custom, is_archived, kind
       FROM catalyst_def
       ${where}
       ORDER BY sort_position
@@ -86,8 +98,10 @@ export function createCatalystDef(input: CreateCatalystDefInput): CatalystDef {
     .prepare('SELECT COALESCE(MAX(sort_position), -1) + 1 AS next FROM catalyst_def')
     .get() as { next: number }
   const info = db
-    .prepare('INSERT INTO catalyst_def (name, sort_position, is_custom, is_archived) VALUES (?, ?, 1, 0)')
-    .run(name, next)
+    .prepare(
+      'INSERT INTO catalyst_def (name, sort_position, is_custom, is_archived, kind) VALUES (?, ?, 1, 0, ?)',
+    )
+    .run(name, next, input.kind)
   return getCatalystDefById(Number(info.lastInsertRowid))
 }
 
@@ -126,6 +140,21 @@ export function renameCatalystDef(input: RenameCatalystDefInput): CatalystDef {
     db.prepare('UPDATE trades SET catalyst_type = ? WHERE catalyst_type = ?').run(name, old.name)
   })
   tx()
+  return getCatalystDefById(input.id)
+}
+
+// Set an entry's KIND. Deliberately separate from renameCatalystDef: a rename is about
+// the user's wording and must never change meaning, so meaning gets its own operation.
+// Touches catalyst_def ONLY — trades are unaffected, because they reference the label and
+// the kind is resolved through it at read time.
+export function setCatalystDefKind(input: SetCatalystDefKindInput): CatalystDef {
+  const db = openDatabase()
+  const exists = db.prepare('SELECT id FROM catalyst_def WHERE id = ?').get(input.id)
+  if (!exists) throw new Error(`Catalyst ${input.id} not found`)
+  db.prepare("UPDATE catalyst_def SET kind = ?, updated_at = datetime('now') WHERE id = ?").run(
+    input.kind,
+    input.id,
+  )
   return getCatalystDefById(input.id)
 }
 

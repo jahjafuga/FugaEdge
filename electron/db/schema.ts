@@ -169,7 +169,15 @@
 // table's epoch row from the CURRENT settings value — profit target always (absent = 0, no
 // goal); max loss ONLY when the settings row genuinely exists, never the 500 read-default.
 // The bump is release-tracking only.
-export const SCHEMA_VERSION = '48'
+//
+// Bumped to 49 for catalyst-as-a-pillar Beat 1 — catalyst_def.kind. The vocabulary stored a
+// LABEL but no MEANING, so nothing downstream could separate "I checked and there was no
+// catalyst" from "this was a news catalyst" — even though seed row 13 has been
+// 'Technical / No Catalyst' since schema 35, and already counts as tagged for XP award D8.
+// migrate-catalyst-kind.ts adds the column (DEFAULT 'news', CHECK-pinned) and derives the
+// no-catalyst row BY ITS SEEDED NAME, from the data. Additive, idempotent, self-guarding on
+// column presence, registered unconditionally — the bump is release-tracking only.
+export const SCHEMA_VERSION = '49'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;

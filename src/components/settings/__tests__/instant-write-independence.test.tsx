@@ -19,6 +19,7 @@ vi.mock('@/lib/ipc', () => ({
     mistakeDefCreate: vi.fn(),
     catalystDefsGet: vi.fn(),
     catalystDefCreate: vi.fn(),
+    catalystDefSetKind: vi.fn(),
     tradesList: vi.fn(),
     tradeRestore: vi.fn(),
     countryBackfill: vi.fn(),
@@ -85,13 +86,24 @@ describe('Catalysts — instant write via catalystDefCreate, never settingsSave'
       name: 'Earnings',
       sort_position: 0,
       is_archived: false,
+      kind: 'news',
     } as never)
     render(<CatalystVocabularyEditor />)
     const input = await screen.findByPlaceholderText('Add a catalyst (press Enter)')
     fireEvent.change(input, { target: { value: 'Earnings' } })
+
+    // Schema-49: a catalyst must declare WHAT IT MEANS before it can exist, so the
+    // name alone is not a creatable entry. This click must do nothing.
+    fireEvent.click(screen.getByRole('button', { name: 'add' }))
+    expect(m.catalystDefCreate).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Kind for the new entry'), {
+      target: { value: 'news' },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'add' }))
 
     await waitFor(() => expect(m.catalystDefCreate).toHaveBeenCalled())
+    expect(m.catalystDefCreate).toHaveBeenCalledWith({ name: 'Earnings', kind: 'news' })
     expect(m.settingsSave).not.toHaveBeenCalled()
   })
 })

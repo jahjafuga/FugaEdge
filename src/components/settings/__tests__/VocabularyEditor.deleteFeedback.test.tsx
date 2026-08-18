@@ -56,6 +56,7 @@ const CATALYST: CatalystDef = {
   sort_position: 0,
   is_custom: true,
   is_archived: false,
+  kind: 'news',
 }
 
 // What the repo's guard returns when it really HARD-DELETED (custom + zero usages) ...

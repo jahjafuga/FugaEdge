@@ -77,6 +77,7 @@ import type {
   DeleteCatalystDefResult,
   RenameCatalystDefInput,
   ReorderCatalystDefsInput,
+  SetCatalystDefKindInput,
 } from '@shared/catalyst-types'
 import type {
   CalendarMonth,
@@ -370,6 +371,8 @@ const api = {
     ipcRenderer.invoke(IPC.CATALYST_DEF_UNARCHIVE, input),
   catalystDefDelete: (input: CatalystDefIdInput): Promise<DeleteCatalystDefResult> =>
     ipcRenderer.invoke(IPC.CATALYST_DEF_DELETE, input),
+  catalystDefSetKind: (input: SetCatalystDefKindInput): Promise<CatalystDef> =>
+    ipcRenderer.invoke(IPC.CATALYST_DEF_SET_KIND, input),
   sessionSentimentSave: (input: SaveSentimentInput): Promise<SessionMeta> =>
     ipcRenderer.invoke(IPC.SESSION_SENTIMENT_SAVE, input),
   sessionListAll: (): Promise<SessionMeta[]> =>

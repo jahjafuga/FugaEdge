@@ -18,6 +18,7 @@ vi.mock('@/lib/ipc', () => ({
     catalystDefsReorder: vi.fn(),
     catalystDefDelete: vi.fn(),
     catalystDefUnarchive: vi.fn(),
+    catalystDefSetKind: vi.fn(),
   },
 }))
 const m = vi.mocked(ipc)
@@ -28,6 +29,7 @@ const def = (over: Partial<CatalystDef>): CatalystDef => ({
   sort_position: 0,
   is_custom: true,
   is_archived: false,
+  kind: 'news',
   ...over,
 })
 

@@ -60,7 +60,7 @@ beforeEach(() => {
 
 // A full mapped row the getById re-SELECT returns (id, name, sort_position,
 // is_custom, is_archived — NO axis).
-const DEF_ROW = { id: 7, name: 'Custom one', sort_position: 10, is_custom: 1, is_archived: 0 }
+const DEF_ROW = { id: 7, name: 'Custom one', sort_position: 10, is_custom: 1, is_archived: 0, kind: 'news' }
 const ranSql = (re: RegExp) => runs.find((r) => re.test(r.sql))
 
 describe('listCatalystDefs', () => {
@@ -82,12 +82,12 @@ describe('listCatalystDefs', () => {
 
   it('maps rows to CatalystDef with is_custom / is_archived as booleans', () => {
     allRows = [
-      { id: 1, name: 'Earnings', sort_position: 0, is_custom: 0, is_archived: 0 },
-      { id: 9, name: 'My Catalyst', sort_position: 3, is_custom: 1, is_archived: 1 },
+      { id: 1, name: 'Earnings', sort_position: 0, is_custom: 0, is_archived: 0, kind: 'news' },
+      { id: 9, name: 'My Catalyst', sort_position: 3, is_custom: 1, is_archived: 1, kind: 'none' },
     ]
     expect(listCatalystDefs({ includeArchived: true })).toEqual([
-      { id: 1, name: 'Earnings', sort_position: 0, is_custom: false, is_archived: false },
-      { id: 9, name: 'My Catalyst', sort_position: 3, is_custom: true, is_archived: true },
+      { id: 1, name: 'Earnings', sort_position: 0, is_custom: false, is_archived: false, kind: 'news' },
+      { id: 9, name: 'My Catalyst', sort_position: 3, is_custom: true, is_archived: true, kind: 'none' },
     ])
   })
 })
@@ -100,7 +100,7 @@ describe('createCatalystDef', () => {
       /SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)
         ? { id: 9, is_archived: 0 }
         : undefined
-    expect(() => createCatalystDef({ name: 'earnings' })).toThrow(/already exists/i)
+    expect(() => createCatalystDef({ name: 'earnings', kind: 'news' })).toThrow(/already exists/i)
     expect(runs.some((r) => /INSERT INTO catalyst_def/i.test(r.sql))).toBe(false)
   })
 
@@ -108,20 +108,20 @@ describe('createCatalystDef', () => {
     respond = (q) => {
       if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)) return undefined
       if (/MAX\(sort_position\)/i.test(q)) return { next: 10 }
-      if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)) return DEF_ROW
+      if (/SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = \?/i.test(q)) return DEF_ROW
       return undefined
     }
-    const out = createCatalystDef({ name: '  New One  ' })
+    const out = createCatalystDef({ name: '  New One  ', kind: 'news' })
     const ins = ranSql(/INSERT INTO catalyst_def/i)
     expect(ins).toBeTruthy()
-    expect(ins!.sql).toMatch(/\(name, sort_position, is_custom, is_archived\) VALUES \(\?, \?, 1, 0\)/i)
+    expect(ins!.sql).toMatch(/\(name, sort_position, is_custom, is_archived, kind\) VALUES \(\?, \?, 1, 0, \?\)/i)
     expect(ins!.sql).not.toMatch(/axis/i)
-    expect(ins!.args).toEqual(['New One', 10]) // name trimmed, sort = MAX+1
-    expect(out).toEqual({ id: 7, name: 'Custom one', sort_position: 10, is_custom: true, is_archived: false })
+    expect(ins!.args).toEqual(['New One', 10, 'news']) // name trimmed, sort = MAX+1, explicit kind
+    expect(out).toEqual({ id: 7, name: 'Custom one', sort_position: 10, is_custom: true, is_archived: false, kind: 'news' })
   })
 
   it('rejects an empty / whitespace-only name; no INSERT', () => {
-    expect(() => createCatalystDef({ name: '   ' })).toThrow(/empty/i)
+    expect(() => createCatalystDef({ name: '   ', kind: 'news' })).toThrow(/empty/i)
     expect(runs.some((r) => /INSERT INTO catalyst_def/i.test(r.sql))).toBe(false)
   })
 })
@@ -148,7 +148,7 @@ describe('renameCatalystDef — DELTA 1: atomic propagation to trades', () => {
     respond = (q) => {
       if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
       if (/SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\) AND id != \?/i.test(q)) return undefined
-      if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)) return { ...DEF_ROW, name: 'Renamed' }
+      if (/SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = \?/i.test(q)) return { ...DEF_ROW, name: 'Renamed' }
       return undefined
     }
     renameCatalystDef({ id: 7, name: '  Renamed  ' })
@@ -173,7 +173,14 @@ describe('reorderCatalystDefs (no axis — one global list)', () => {
   })
 
   it('rewrites sort_position = array index for each id (no axis in the WHERE)', () => {
-    allRows = [{ id: 1 }, { id: 2 }, { id: 3 }]
+    // Rows need `kind` because reorder returns listCatalystDefs() and rowToDef now
+    // narrows the column — the id-only shape above suffices for the throwing case,
+    // which never reaches the mapping.
+    allRows = [
+      { id: 1, name: 'a', sort_position: 0, is_custom: 0, is_archived: 0, kind: 'news' },
+      { id: 2, name: 'b', sort_position: 1, is_custom: 0, is_archived: 0, kind: 'news' },
+      { id: 3, name: 'c', sort_position: 2, is_custom: 0, is_archived: 0, kind: 'news' },
+    ]
     reorderCatalystDefs({ ordered_ids: [3, 1, 2] })
     const upds = runs.filter((r) =>
       /UPDATE catalyst_def SET sort_position = \?, updated_at = datetime\('now'\) WHERE id = \?/i.test(r.sql),
@@ -190,7 +197,7 @@ describe('reorderCatalystDefs (no axis — one global list)', () => {
 describe('archiveCatalystDef', () => {
   it('UPDATEs is_archived = 1 where id', () => {
     respond = (q) =>
-      /SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)
+      /SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = \?/i.test(q)
         ? { ...DEF_ROW, is_archived: 1 }
         : undefined
     archiveCatalystDef({ id: 7 })
@@ -215,7 +222,7 @@ describe('unarchiveCatalystDef', () => {
     respond = (q) => {
       if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Freed Name' }
       if (/lower\(name\) = lower\(\?\) AND is_archived = 0 AND id != \?/i.test(q)) return undefined
-      if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q)) return DEF_ROW
+      if (/SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = \?/i.test(q)) return DEF_ROW
       return undefined
     }
     unarchiveCatalystDef({ id: 7 })
@@ -311,7 +318,7 @@ describe('the archived-name collision wall (rename + create)', () => {
       /SELECT id, is_archived FROM catalyst_def WHERE lower\(name\) = lower\(\?\)$/i.test(q)
         ? { id: 9, is_archived: 1 }
         : undefined
-    expect(() => createCatalystDef({ name: 'fda approval' })).toThrow(
+    expect(() => createCatalystDef({ name: 'fda approval', kind: 'news' })).toThrow(
       /archived; unarchive it instead/,
     )
     expect(runs.some((r) => /INSERT INTO catalyst_def/i.test(r.sql))).toBe(false)
@@ -320,8 +327,8 @@ describe('the archived-name collision wall (rename + create)', () => {
   it('(5) a legitimate rename still succeeds through the widened check', () => {
     respond = (q) => {
       if (/SELECT name FROM catalyst_def WHERE id = \?/i.test(q)) return { name: 'Old Name' }
-      if (/SELECT id, name, sort_position, is_custom, is_archived FROM catalyst_def WHERE id = \?/i.test(q))
-        return { id: 7, name: 'Fresh Name', sort_position: 0, is_custom: 1, is_archived: 0 }
+      if (/SELECT id, name, sort_position, is_custom, is_archived, kind FROM catalyst_def WHERE id = \?/i.test(q))
+        return { id: 7, name: 'Fresh Name', sort_position: 0, is_custom: 1, is_archived: 0, kind: 'news' }
       return undefined
     }
     renameCatalystDef({ id: 7, name: 'Fresh Name' })

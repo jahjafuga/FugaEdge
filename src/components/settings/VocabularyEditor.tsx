@@ -26,6 +26,9 @@ export interface VocabDef {
   sort_position: number
   is_archived: boolean
   group: string | null
+  /** Value of the OPTIONAL per-entry semantic field (see VocabAspect). Undefined
+   *  for editors that configure no aspect — Mistakes, today. */
+  aspect?: string
 }
 
 export interface VocabGroup {
@@ -35,9 +38,26 @@ export interface VocabGroup {
   label: string
 }
 
+/** An OPTIONAL per-entry enum field. Catalyst uses it to carry `kind`
+ *  (news / technical / none) — the meaning behind the label. Editors that pass no
+ *  aspect render and behave exactly as before, which is what keeps the Mistakes
+ *  editor byte-identical while Catalyst gains a second dimension. */
+export interface VocabAspect {
+  /** Short noun for the control, e.g. "Kind". Also the aria-label stem. */
+  label: string
+  options: { value: string; label: string }[]
+  /** Persist a change on an EXISTING row. Kept separate from rename: wording and
+   *  meaning are different edits, and a rename must never move meaning. */
+  set: (input: { id: number; value: string }) => Promise<VocabDef>
+  /** Placeholder for the add row. Creation requires an EXPLICIT pick — there is no
+   *  pre-selected default, because a silent default is exactly how a vocabulary
+   *  acquires meaning nobody chose. */
+  createPrompt: string
+}
+
 export interface VocabOperations {
   defsGet: (includeArchived: boolean) => Promise<VocabDef[]>
-  create: (input: { groupKey: string | null; name: string }) => Promise<VocabDef>
+  create: (input: { groupKey: string | null; name: string; aspect?: string }) => Promise<VocabDef>
   rename: (input: { id: number; name: string }) => Promise<VocabDef>
   reorder: (input: { groupKey: string | null; ordered_ids: number[] }) => Promise<VocabDef[]>
   delete: (input: { id: number }) => Promise<{ deleted: boolean; archivedInstead: boolean }>
@@ -62,6 +82,8 @@ interface VocabularyEditorProps {
   groups: VocabGroup[]
   operations: VocabOperations
   copy: VocabCopy
+  /** Omit for a name-only editor (the pre-existing behaviour). */
+  aspect?: VocabAspect
 }
 
 type Feedback = {
@@ -82,12 +104,15 @@ function errText(e: unknown): string {
 // Drafts are keyed per group; normalize a null key to a stable string.
 const draftKey = (k: string | null): string => k ?? '__default__'
 
-export default function VocabularyEditor({ groups, operations, copy }: VocabularyEditorProps) {
+export default function VocabularyEditor({ groups, operations, copy, aspect }: VocabularyEditorProps) {
   const [defs, setDefs] = useState<VocabDef[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editingValue, setEditingValue] = useState('')
+  // Per-group pending aspect choice for the add row. Deliberately starts EMPTY:
+  // no option is pre-selected, so the user must state the meaning of a new entry.
+  const [draftAspects, setDraftAspects] = useState<Record<string, string>>({})
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(groups.map((g) => [draftKey(g.key), ''])),
   )
@@ -189,13 +214,36 @@ export default function VocabularyEditor({ groups, operations, copy }: Vocabular
   const addDraft = async (groupKey: string | null) => {
     const name = (drafts[draftKey(groupKey)] ?? '').trim()
     if (!name) return
+    // When an aspect is configured its value is REQUIRED. Enter-to-add is blocked
+    // too, not just the button — otherwise the keyboard path would quietly create
+    // an entry with no stated meaning.
+    const aspectValue = draftAspects[draftKey(groupKey)] ?? ''
+    if (aspect && !aspectValue) return
     try {
-      const created = await operations.create({ groupKey, name })
+      const created = await operations.create({
+        groupKey,
+        name,
+        ...(aspect ? { aspect: aspectValue } : {}),
+      })
       setDefs((prev) => [...(prev ?? []), created])
       setDrafts((prev) => ({ ...prev, [draftKey(groupKey)]: '' }))
+      setDraftAspects((prev) => ({ ...prev, [draftKey(groupKey)]: '' }))
       setFeedback(null)
     } catch (e) {
       setFeedback({ tone: 'error', groupKey, id: null, text: errText(e) })
+    }
+  }
+
+  // Change an existing row's aspect. Rename is untouched by design — the migration
+  // harness pins that a rename must not move meaning, and the UI honours the same rule.
+  const commitAspect = async (d: VocabDef, value: string) => {
+    if (!aspect) return
+    try {
+      const updated = await aspect.set({ id: d.id, value })
+      setDefs((prev) => (prev ?? []).map((x) => (x.id === d.id ? updated : x)))
+      setFeedback(null)
+    } catch (e) {
+      setFeedback({ tone: 'error', groupKey: d.group, id: d.id, text: errText(e) })
     }
   }
 
@@ -321,6 +369,21 @@ export default function VocabularyEditor({ groups, operations, copy }: Vocabular
                       </button>
                     )}
 
+                    {aspect && (
+                      <select
+                        aria-label={`${aspect.label} for ${d.name}`}
+                        value={d.aspect ?? ''}
+                        onChange={(e) => void commitAspect(d, e.target.value)}
+                        className="shrink-0 rounded-sm border border-border-subtle bg-bg-2 px-1.5 py-1 text-[11px] text-fg-secondary transition-colors hover:border-gold focus:border-gold focus:outline-none"
+                      >
+                        {aspect.options.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
                     {confirmingId === d.id ? (
                       <div className="flex shrink-0 items-center gap-1 text-[11px]">
                         <span className="text-fg-tertiary">Remove?</span>
@@ -376,10 +439,30 @@ export default function VocabularyEditor({ groups, operations, copy }: Vocabular
               placeholder={copy.addPlaceholder}
               className="flex-1 bg-transparent text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none"
             />
+            {aspect && (
+              <select
+                aria-label={`${aspect.label} for the new entry`}
+                value={draftAspects[draftKey(group.key)] ?? ''}
+                onChange={(e) =>
+                  setDraftAspects((prev) => ({ ...prev, [draftKey(group.key)]: e.target.value }))
+                }
+                className="shrink-0 rounded-sm border border-border-subtle bg-bg-2 px-1.5 py-1 text-[11px] text-fg-secondary transition-colors hover:border-gold focus:border-gold focus:outline-none"
+              >
+                <option value="">{aspect.createPrompt}</option>
+                {aspect.options.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               onClick={() => void addDraft(group.key)}
-              disabled={!(drafts[draftKey(group.key)] ?? '').trim()}
+              disabled={
+                !(drafts[draftKey(group.key)] ?? '').trim() ||
+                (!!aspect && !(draftAspects[draftKey(group.key)] ?? ''))
+              }
               className="rounded-sm border border-border-subtle px-2 py-0.5 text-[10px] uppercase tracking-wider text-fg-secondary transition-colors duration-150 hover:border-gold hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
             >
               add

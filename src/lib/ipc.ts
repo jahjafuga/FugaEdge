@@ -31,6 +31,7 @@ import type {
   RenameCatalystDefInput,
   ReorderCatalystDefsInput,
   CatalystDefIdInput,
+  SetCatalystDefKindInput,
 } from '@shared/catalyst-types'
 import type { AddAttachmentsInput } from '@shared/attachment-types'
 import type { SaveJournalInput } from '@shared/journal-types'
@@ -208,6 +209,8 @@ export const ipc = {
     window.api.catalystDefUnarchive(input),
   catalystDefDelete: (input: CatalystDefIdInput) =>
     window.api.catalystDefDelete(input),
+  catalystDefSetKind: (input: SetCatalystDefKindInput) =>
+    window.api.catalystDefSetKind(input),
   sessionSentimentSave: (input: import('@shared/session-types').SaveSentimentInput) =>
     window.api.sessionSentimentSave(input),
   sessionListAll: () => window.api.sessionListAll(),

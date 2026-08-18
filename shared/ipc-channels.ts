@@ -90,6 +90,9 @@ export const IPC = {
   CATALYST_DEF_ARCHIVE: 'catalyst:defArchive',
   CATALYST_DEF_UNARCHIVE: 'catalyst:defUnarchive',
   CATALYST_DEF_DELETE: 'catalyst:defDelete',
+  // Beat 1 (schema 49) — set an entry's KIND. Separate from rename on purpose:
+  // wording and meaning are different edits.
+  CATALYST_DEF_SET_KIND: 'catalyst:defSetKind',
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',
   TRADE_PLANNED_STOP_LOSS_SAVE: 'trade:plannedStopLossSave',
