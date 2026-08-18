@@ -8,8 +8,15 @@ import {
   type ColumnDef,
   type Row,
   type SortingState,
+  type VisibilityState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+  UNHIDEABLE_COLUMN,
+  readColumnVisibility,
+  resetColumnVisibility,
+  writeColumnVisibility,
+} from '@/lib/prefs/columns'
 import { ChevronUp, ChevronDown } from 'lucide-react'
 import type {
   TradeListRow,
@@ -76,16 +83,6 @@ interface TradesTableProps {
     mode: 'add' | 'remove',
     mistakeDefIds: number[],
   ) => Promise<void>
-  /** Show the Shares Out column. Off by default to keep the table dense. */
-  showFloatColumn?: boolean
-  /** Show the Country column. Defaults to true. */
-  showCountryColumn?: boolean
-  /** Show the Catalyst column (catalyst_type). Off by default. */
-  showCatalystColumn?: boolean
-  /** Show the Mistakes column (first mistake + N more). Off by default. */
-  showMistakesColumn?: boolean
-  /** Show the per-row sparkline mini-chart column. Off by default. */
-  showSparkline?: boolean
 }
 
 // MASTER §5.3 + §7.2 — data-dense, virtualized table. Row click opens the
@@ -221,15 +218,19 @@ export default function TradesTable({
   onBulkSetPlaybook,
   onBulkSetCatalyst,
   onBulkSetMistakes,
-  showFloatColumn = false,
-  showCountryColumn = true,
-  showCatalystColumn = false,
-  showMistakesColumn = false,
-  showSparkline = false,
 }: TradesTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: 'open_time', desc: true },
   ])
+  // v0.2.7 — column visibility. TanStack owns the state; src/lib/prefs/columns.ts
+  // owns persistence and pins `symbol` visible. One mechanism, replacing the four
+  // localStorage keys + five boolean props this used to be spread across.
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+    () => readColumnVisibility(),
+  )
+  useEffect(() => {
+    writeColumnVisibility(columnVisibility as Record<string, boolean>)
+  }, [columnVisibility])
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   // v0.2.3 Phase 4 — bulk selection. Greenfield (no prior multi-select in the
@@ -421,6 +422,9 @@ export default function TradesTable({
       col.accessor('symbol', {
         id: 'symbol',
         header: 'Symbol',
+        // Unhideable: without it the rows cannot be told apart. Enforced here AND in
+        // the prefs module, so neither a UI path nor a hand-edited store can lose it.
+        enableHiding: false,
         size: COLUMN_WIDTHS.symbol,
         cell: (info) => {
           // Under 'all' the row carries its owning-account dot (tooltip =
@@ -547,62 +551,31 @@ export default function TradesTable({
         },
       }),
     ]
-    // Insert the Float column just before the Net P&L column so it sits
-    // alongside the trade-quality fields rather than at the row's edge.
-    if (showFloatColumn) {
-      const netPnlIdx = base.findIndex((c) => c.id === 'net_pnl')
-      if (netPnlIdx > -1) base.splice(netPnlIdx, 0, floatColumn)
-      else base.push(floatColumn)
-    }
-    if (showCountryColumn) {
-      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
-      const insertAt = playbookIdx >= 0 ? playbookIdx + 1 : 5
-      base.splice(insertAt, 0, countryColumn)
-    }
-    // Catalyst after Country (else after Playbook); Mistakes after Catalyst (else
-    // Country, else Playbook) — findIndex keeps them grouped for any on/off combo.
-    if (showCatalystColumn) {
-      const countryIdx = base.findIndex((c) => c.id === 'country')
-      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
-      const insertAt =
-        countryIdx >= 0 ? countryIdx + 1 : playbookIdx >= 0 ? playbookIdx + 1 : 6
-      base.splice(insertAt, 0, catalystColumn)
-    }
-    if (showMistakesColumn) {
-      const catIdx = base.findIndex((c) => c.id === 'catalyst')
-      const countryIdx = base.findIndex((c) => c.id === 'country')
-      const playbookIdx = base.findIndex((c) => c.id === 'playbook')
-      const insertAt =
-        catIdx >= 0
-          ? catIdx + 1
-          : countryIdx >= 0
-            ? countryIdx + 1
-            : playbookIdx >= 0
-              ? playbookIdx + 1
-              : 6
-      base.splice(insertAt, 0, mistakesColumn)
-    }
-    if (showSparkline) base.push(sparkColumn)
+    // v0.2.7: the registry is FIXED. Every column is always defined, in one order,
+    // and TanStack's columnVisibility decides what renders. The old build spliced
+    // columns in and out by findIndex against five boolean props — so the array's
+    // SHAPE changed with the toggles, and the props were a second source of truth
+    // beside the table's own state. A fixed registry cannot disagree with itself.
+    const netIdx = base.findIndex((c) => c.id === 'net_pnl')
+    base.splice(netIdx, 0, floatColumn)
+    const playbookIdx = base.findIndex((c) => c.id === 'playbook')
+    base.splice(playbookIdx + 1, 0, countryColumn, catalystColumn, mistakesColumn)
+    base.push(sparkColumn)
     return base
-  }, [
-    accountFor,
-    showFloatColumn,
-    showCountryColumn,
-    showCatalystColumn,
-    showMistakesColumn,
-    showSparkline,
-  ])
+  }, [accountFor])
 
   const table = useReactTable({
     data: trades,
     columns,
-    state: { sorting },
+    state: { sorting, columnVisibility },
     onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
 
   const sortedRows = table.getRowModel().rows
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
@@ -829,6 +802,53 @@ export default function TradesTable({
           a flex child won't shrink below its content height without it, which
           would break the inner scroll AND push the bar off-screen again. Do
           not remove it. The virtualizer still reads scrollTop from this el. */}
+      <div className="flex items-center justify-end gap-2 px-3 py-2">
+        <div className="relative">
+          <button
+            type="button"
+            data-testid="columns-button"
+            onClick={() => setColumnMenuOpen((v) => !v)}
+            className="rounded-md border border-border-subtle px-2 py-1 text-[10px] uppercase tracking-wider text-fg-secondary transition-colors hover:border-gold hover:text-gold"
+          >
+            Columns
+          </button>
+          {columnMenuOpen && (
+            <div
+              data-testid="columns-menu"
+              className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-md border border-border-subtle bg-bg-2 p-2 shadow-lg"
+            >
+              {table.getAllLeafColumns().map((c) => {
+                const locked = c.id === UNHIDEABLE_COLUMN
+                return (
+                  <label
+                    key={c.id}
+                    data-testid={`col-toggle-${c.id}`}
+                    className={`flex items-center gap-2 px-1.5 py-1 text-xs ${
+                      locked ? 'text-fg-muted' : 'cursor-pointer text-fg-secondary hover:text-gold'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={c.getIsVisible()}
+                      disabled={locked}
+                      onChange={c.getToggleVisibilityHandler()}
+                    />
+                    <span>{c.id}</span>
+                  </label>
+                )
+              })}
+              <button
+                type="button"
+                data-testid="columns-reset"
+                onClick={() => setColumnVisibility(resetColumnVisibility())}
+                className="mt-1 w-full rounded-sm border border-border-subtle px-2 py-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors hover:border-gold hover:text-gold"
+              >
+                Reset to defaults
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
           <thead className="sticky top-0 z-10 bg-bg-header">

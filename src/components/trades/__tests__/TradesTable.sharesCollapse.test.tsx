@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { TradeListRow } from '@shared/trades-types'
 import { makeTrade } from '@/test/fixtures/trade'
 import TradesTable from '../TradesTable'
+import { COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
 
 // TradesTable renders TradeDetailModal, which (via PlaybookPicker) calls
 // ipc.playbooksList() on mount — stub the whole ipc surface (house pattern
@@ -46,8 +47,12 @@ const PROPS = {
   showCountryColumn: false,
 }
 
-const renderTable = (trades: TradeListRow[], extra: Record<string, boolean> = {}) =>
-  render(<TradesTable {...PROPS} trades={trades} {...extra} />)
+// v0.2.7: visibility is persisted state, not props. The helper seeds the pref the
+// way the app does, so these still exercise the real path.
+const renderTable = (trades: TradeListRow[], show: Record<string, boolean> = {}) => {
+  localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(show))
+  return render(<TradesTable {...PROPS} trades={trades} />)
+}
 
 const tableEl = () => screen.getByRole('table')
 
@@ -119,35 +124,36 @@ describe('TradesTable — the BOUGHT+SOLD collapse (Dave #15)', () => {
     expect(screen.getByTitle('Bought 300 · Sold 300').textContent).toContain('300')
   })
 
-  it('(7a) FLOAT toggle still splices just before Net P&L', () => {
-    renderTable(ROWS, { showFloatColumn: true })
+  // v0.2.7: the column array no longer changes SHAPE with the toggles — every
+  // column is always defined, in one fixed order, and visibility hides them. The
+  // guarantee these pinned (columns stay in the right relative order for any on/off
+  // combination) is now structural rather than the product of four splice sites.
+  it('(7a) FLOAT sits just before Net P&L when shown', () => {
+    renderTable(ROWS, { float: true })
     const h = headers()
     expect(h.indexOf('Float')).toBe(h.indexOf('Net P&L') - 1)
     expect(h.filter((x) => x === 'Shares')).toHaveLength(1)
   })
 
-  it('(7b) CATALYST toggle still splices right after Playbook (country off)', () => {
-    renderTable(ROWS, { showCatalystColumn: true })
+  it('(7b) CATALYST sits right after Playbook when Country is hidden', () => {
+    renderTable(ROWS, { catalyst: true, country: false })
     const h = headers()
     expect(h.indexOf('Catalyst')).toBe(h.indexOf('Playbook') + 1)
     expect(h.filter((x) => x === 'Shares')).toHaveLength(1)
   })
 
-  it('(7c) MISTAKES toggle alone splices right after Playbook', () => {
-    renderTable(ROWS, { showMistakesColumn: true })
+  it('(7c) MISTAKES sits right after Playbook when Country and Catalyst are hidden', () => {
+    renderTable(ROWS, { mistakes: true, country: false, catalyst: false })
     const h = headers()
     expect(h.indexOf('Mistakes')).toBe(h.indexOf('Playbook') + 1)
     expect(h.filter((x) => x === 'Shares')).toHaveLength(1)
   })
 
-  it('(7d) all three toggles: Playbook -> Catalyst -> Mistakes stay grouped, Float before Net P&L', () => {
-    renderTable(ROWS, {
-      showFloatColumn: true,
-      showCatalystColumn: true,
-      showMistakesColumn: true,
-    })
+  it('(7d) Playbook -> Country -> Catalyst -> Mistakes stay grouped, Float before Net P&L', () => {
+    renderTable(ROWS, { float: true, catalyst: true, mistakes: true })
     const h = headers()
-    expect(h.indexOf('Catalyst')).toBe(h.indexOf('Playbook') + 1)
+    const pb = h.indexOf('Playbook')
+    expect(h.indexOf('Catalyst')).toBeGreaterThan(pb)
     expect(h.indexOf('Mistakes')).toBe(h.indexOf('Catalyst') + 1)
     expect(h.indexOf('Float')).toBe(h.indexOf('Net P&L') - 1)
     expect(h.filter((x) => x === 'Shares')).toHaveLength(1)

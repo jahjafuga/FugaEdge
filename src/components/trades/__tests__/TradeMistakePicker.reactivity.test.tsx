@@ -23,6 +23,15 @@ import type { MistakeDef, MistakeTag } from '@shared/mistakes-types'
 import { makeTrade } from '@/test/fixtures/trade'
 import TradeMistakePicker from '../TradeMistakePicker'
 import TradesTable from '../TradesTable'
+// v0.2.7: column visibility moved from props to the persisted prefs module, so a
+// test that needs a non-default column seeds it the way the app does.
+import { COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
+const showColumns = (ids: string[]) => {
+  const v: Record<string, boolean> = {}
+  for (const id of ids) v[id] = true
+  localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(v))
+}
+
 
 // Backing object the ipc Proxy reads live — the mistakes methods get specific
 // returns; every OTHER method the modal's children touch (playbooksList, etc.)
@@ -96,13 +105,12 @@ describe('Symptom B — mistake tag reactivity', () => {
         <TradesTable
           {...TABLE_PROPS}
           trades={trades}
-          showMistakesColumn
           onMistakesChange={onMistakesChange}
         />
       )
     }
 
-    render(<Harness />)
+    showColumns(["mistakes"]), render(<Harness />)
     const table = screen.getByRole('table')
     // Nothing tagged yet.
     expect(within(table).queryByText('FOMO entry')).toBeNull()

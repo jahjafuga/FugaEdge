@@ -2,6 +2,15 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { TradeListRow } from '@shared/trades-types'
 import TradesTable from '../TradesTable'
+// v0.2.7: column visibility moved from props to the persisted prefs module, so a
+// test that needs a non-default column seeds it the way the app does.
+import { COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
+const showColumns = (ids: string[]) => {
+  const v: Record<string, boolean> = {}
+  for (const id of ids) v[id] = true
+  localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(v))
+}
+
 
 // TradesTable renders TradeDetailModal, which (via PlaybookPicker) calls
 // ipc.playbooksList() on mount. Stub the whole ipc surface so the table renders
@@ -78,11 +87,12 @@ const PROPS = {
   onSaveFloat: noop,
   onSaveCatalyst: noop,
   onSaveCountry: noop,
-  showCountryColumn: false,
 }
 
-const renderTable = (trades: TradeListRow[]) =>
-  render(<TradesTable {...PROPS} trades={trades} showMistakesColumn />)
+const renderTable = (trades: TradeListRow[]) => {
+  showColumns(['mistakes', 'country'])
+  return render(<TradesTable {...PROPS} trades={trades} />)
+}
 
 const tableEl = () => screen.getByRole('table')
 

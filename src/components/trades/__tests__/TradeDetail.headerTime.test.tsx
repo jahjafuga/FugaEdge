@@ -50,6 +50,15 @@ vi.mock('@tanstack/react-virtual', async () => ({
 import TradeDetailModal from '../TradeDetailModal'
 import { TradeDetailSheet } from '../TradeDetailSheet'
 import TradesTable from '../TradesTable'
+// v0.2.7: column visibility moved from props to the persisted prefs module, so a
+// test that needs a non-default column seeds it the way the app does.
+import { COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
+const showColumns = (ids: string[]) => {
+  const v: Record<string, boolean> = {}
+  for (const id of ids) v[id] = true
+  localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(v))
+}
+
 
 const noop = async () => {}
 
@@ -104,7 +113,7 @@ beforeEach(() => {
 
 describe('TradeDetailModal header — entry time after the date (Dave #16)', () => {
   it('(1) THE TICKET: date · time · fills · legs, time byte-equal to the OPEN column formatter', () => {
-    render(<TradeDetailModal {...MODAL_PROPS} trade={GMM} />)
+    showColumns(["country"]), render(<TradeDetailModal {...MODAL_PROPS} trade={GMM} />)
     expect(subtitleUnder('trade-detail-title')).toBe(
       `Jul 10 2026 · ${formatEastern(OPEN_UTC)} · 2 fills · 25 sh bought · 25 sh sold`,
     )
@@ -113,7 +122,7 @@ describe('TradeDetailModal header — entry time after the date (Dave #16)', () 
 
   it('(2) SAME-SOURCE PIN: the header and the Round Trips OPEN column render the identical string for the identical row', () => {
     // The OPEN column, rendered for the same row.
-    const table = render(<TradesTable {...MODAL_PROPS} trades={[GMM]} showCountryColumn={false} />)
+    const table = render(<TradesTable {...MODAL_PROPS} trades={[GMM]} />)
     const ths = Array.from(document.querySelectorAll('thead th')).map(
       (el) => el.textContent?.trim() ?? '',
     )

@@ -20,7 +20,6 @@ import { ipc } from '@/lib/ipc'
 import { useAccountScope } from '@/lib/accountScope'
 import { accountIndicatorFor } from '@/core/trades/accountIndicator'
 import { int } from '@/lib/format'
-import { readShowSparkline, writeShowSparkline } from '@/lib/prefs/sparkline'
 import { normalizeIso } from '@/core/country/source'
 import { getCountryName, getRegionForCountry } from '@/core/country/regions'
 import { isWin, isLoss } from '@/core/classify/outcome'
@@ -38,10 +37,10 @@ import type {
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
-const FLOAT_COL_STORAGE_KEY = 'trades.showFloatColumn'
-const COUNTRY_COL_STORAGE_KEY = 'trades.showCountryColumn'
-const CATALYST_COL_STORAGE_KEY = 'trades.showCatalystColumn'
-const MISTAKES_COL_STORAGE_KEY = 'trades.showMistakesColumn'
+// v0.2.7: the four column-visibility keys and their state/effect pairs are GONE.
+// Visibility is TanStack state inside TradesTable, persisted by
+// src/lib/prefs/columns.ts, which folds these old keys in on first read. Keeping a
+// copy here would be a second source of truth for the same toggles.
 
 export default function Trades() {
   // Multi-account slice — the switcher's scope: the list fetch carries it
@@ -52,62 +51,6 @@ export default function Trades() {
   const [err, setErr] = useState<string | null>(null)
   const [view, setView] = useState<TradesView>('table')
   const [filters, setFilters] = useState<TradesFilterState>(emptyFilters())
-  const [showFloatColumn, setShowFloatColumn] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(FLOAT_COL_STORAGE_KEY) === '1'
-  })
-  // Country column defaults to visible. Setter reserved for future toggle UI.
-  const [showCountryColumn] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true
-    const v = window.localStorage.getItem(COUNTRY_COL_STORAGE_KEY)
-    return v === null ? true : v === '1'
-  })
-  // Catalyst + Mistakes columns default OFF (clone Float's inline-localStorage).
-  const [showCatalystColumn, setShowCatalystColumn] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(CATALYST_COL_STORAGE_KEY) === '1'
-  })
-  const [showMistakesColumn, setShowMistakesColumn] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false
-    return window.localStorage.getItem(MISTAKES_COL_STORAGE_KEY) === '1'
-  })
-  const [showSparkline, setShowSparkline] = useState<boolean>(() => readShowSparkline())
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      FLOAT_COL_STORAGE_KEY,
-      showFloatColumn ? '1' : '0',
-    )
-  }, [showFloatColumn])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      COUNTRY_COL_STORAGE_KEY,
-      showCountryColumn ? '1' : '0',
-    )
-  }, [showCountryColumn])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      CATALYST_COL_STORAGE_KEY,
-      showCatalystColumn ? '1' : '0',
-    )
-  }, [showCatalystColumn])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(
-      MISTAKES_COL_STORAGE_KEY,
-      showMistakesColumn ? '1' : '0',
-    )
-  }, [showMistakesColumn])
-
-  useEffect(() => {
-    writeShowSparkline(showSparkline)
-  }, [showSparkline])
 
   useEffect(() => {
     let cancelled = false
@@ -399,58 +342,6 @@ export default function Trades() {
               {/* Column-visibility toggle. The Shares Out column is off by default
                   to keep the table dense — most users only care about it
                   during specific symbol research. Preference persists. */}
-              <button
-                type="button"
-                onClick={() => setShowFloatColumn((v) => !v)}
-                aria-pressed={showFloatColumn}
-                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                  showFloatColumn
-                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-                }`}
-                title="Show / hide the Float column"
-              >
-                Float col
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCatalystColumn((v) => !v)}
-                aria-pressed={showCatalystColumn}
-                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                  showCatalystColumn
-                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-                }`}
-                title="Show / hide the Catalyst column"
-              >
-                Catalyst col
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowMistakesColumn((v) => !v)}
-                aria-pressed={showMistakesColumn}
-                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                  showMistakesColumn
-                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-                }`}
-                title="Show / hide the Mistakes column"
-              >
-                Mistakes col
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSparkline((v) => !v)}
-                aria-pressed={showSparkline}
-                className={`inline-flex h-7 cursor-pointer items-center rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
-                  showSparkline
-                    ? 'border-gold/50 bg-gold/[0.10] text-gold'
-                    : 'border-border-subtle bg-bg-2 text-fg-tertiary hover:border-gold/40 hover:text-gold'
-                }`}
-                title="Show / hide the per-row sparkline mini-chart"
-              >
-                Sparkline
-              </button>
               <TradesViewToggle value={view} onChange={setView} />
             </div>
           </div>
@@ -479,11 +370,6 @@ export default function Trades() {
             onBulkSetPlaybook={handleBulkSetPlaybook}
             onBulkSetCatalyst={handleBulkSetCatalyst}
             onBulkSetMistakes={handleBulkSetMistakes}
-            showFloatColumn={showFloatColumn}
-            showCountryColumn={showCountryColumn}
-            showCatalystColumn={showCatalystColumn}
-            showMistakesColumn={showMistakesColumn}
-            showSparkline={showSparkline}
           />
         ) : view === 'charts-large' ? (
           <div className="space-y-3">
