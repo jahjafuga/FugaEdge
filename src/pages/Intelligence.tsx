@@ -14,6 +14,7 @@ import { useEdgeScore } from '@/lib/useEdgeScore'
 import { useDnaConfig } from '@/lib/useDnaConfig'
 import { useAccountScope } from '@/lib/accountScope'
 import { computeDnaAdherence } from '@/core/dna/adherence'
+import { useCatalystDefs } from '@/lib/useCatalystDefs'
 import { RANGE_LABEL, type TimeRange } from '@shared/dashboard-types'
 
 // v0.2.5 EdgeIQ — the /intelligence home, top-to-bottom: the EdgeIQ mark + the
@@ -35,12 +36,17 @@ export default function Intelligence() {
   const insightsData = useInsights(range)
   const edgeScore = useEdgeScore(range, scope)
   const dnaConfig = useDnaConfig()
+  const catalystDefs = useCatalystDefs()
   const dna = useMemo(
     () =>
       dnaConfig.config
-        ? computeDnaAdherence(insightsData.windowedTrades, dnaConfig.config)
+        ? computeDnaAdherence(
+            insightsData.windowedTrades,
+            dnaConfig.config,
+            catalystDefs.defs,
+          )
         : null,
-    [insightsData.windowedTrades, dnaConfig.config],
+    [insightsData.windowedTrades, dnaConfig.config, catalystDefs.defs],
   )
   return (
     <PageShell>

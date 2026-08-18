@@ -1,4 +1,5 @@
 import { Dna } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { DnaAdherence } from '@/core/dna/adherence'
 import { signed, percent, pnlClass } from '@/lib/format'
 
@@ -78,15 +79,70 @@ export default function TraderDnaCard({
           // would state a fact we haven't established. Skeleton until we know
           // (mirrors ScoreCard's own loading branch).
           <div className="skeleton mt-4 h-[180px]" />
+        ) : data.catalystDefsUnavailable ? (
+          <div className="mt-4 rounded-md border border-dashed border-loss/40 bg-bg-1 p-6 text-center text-sm text-fg-secondary">
+            Your catalyst vocabulary didn't load, so these trades can't be judged on
+            it. The numbers below would be wrong, so they're withheld rather than
+            guessed — reopen this page, or check Settings if it persists.
+          </div>
         ) : judgeable < MIN_JUDGEABLE ? (
           <div className="mt-4 rounded-md border border-dashed border-border-subtle bg-bg-1 p-6 text-center text-sm text-fg-secondary">
-            Not enough fully-tagged trades to read your DNA yet — needs at least 5.
+            <p>
+              Only {judgeable} of {data.buckets.total} trades in this range can be
+              fully judged — reading your DNA needs at least {MIN_JUDGEABLE}.
+            </p>
+            <UntaggedRoute data={data} requireCatalyst={requireCatalyst} />
           </div>
         ) : (
-          <DnaBody data={data} requireCatalyst={requireCatalyst} />
+          <>
+            <DnaBody data={data} requireCatalyst={requireCatalyst} />
+            {requireCatalyst && data.buckets.incomplete > 0 && (
+              <div className="mt-4 rounded-md border border-dashed border-border-subtle bg-bg-1 px-4 py-3 text-center text-xs text-fg-tertiary">
+                <UntaggedRoute data={data} requireCatalyst={requireCatalyst} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </section>
+  )
+}
+
+/** Name the gap and offer the way through it. An empty state that only reports a
+ *  shortfall makes the user guess what to do; this one counts the trades holding the
+ *  sample back and points at the tool that fixes them in one pass.
+ *
+ *  It routes to Trades rather than deep-linking the "No catalyst" filter: that filter
+ *  exists (tradesFilter.catalystTypes accepts null for the untagged bucket) but Trades
+ *  reads no URL or route state today, so a real deep-link would mean building filter
+ *  plumbing — a second selection path, which is exactly what this beat must not add. */
+function UntaggedRoute({
+  data,
+  requireCatalyst,
+}: {
+  data: DnaAdherence
+  requireCatalyst: boolean
+}) {
+  const untagged = data.catalystCoverage.total - data.catalystCoverage.tagged
+  if (!requireCatalyst || untagged === 0) {
+    return (
+      <p className="mt-2 text-xs text-fg-tertiary">
+        Trades missing price, day-change, RVOL or float data can't be judged against
+        your profile.
+      </p>
+    )
+  }
+  return (
+    <p className="mt-2 text-xs text-fg-tertiary">
+      {untagged} {untagged === 1 ? 'trade needs' : 'trades need'} a catalyst tag.{' '}
+      <Link
+        to="/trades"
+        className="font-semibold text-gold underline-offset-2 hover:underline"
+      >
+        Tag them on Trades
+      </Link>{' '}
+      — filter to “No catalyst”, select the rows, then Set catalyst.
+    </p>
   )
 }
 

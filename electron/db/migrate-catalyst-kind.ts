@@ -28,9 +28,6 @@
 
 import type Database from 'better-sqlite3'
 
-/** The schema version this migration lands in. */
-export const CATALYST_KIND_TARGET_SCHEMA_VERSION = 49
-
 /** The SEEDED name of the no-catalyst row (migrate-catalyst-vocabulary SEED[13]).
  *  Matched ONCE, at migration time, to derive that row's kind. Nothing downstream
  *  may match this literal — kind is the contract from here on. */

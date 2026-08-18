@@ -5,10 +5,18 @@
 // identically in the renderer today and a future web target.
 //
 // The honesty contract (founder-locked) is the whole point of this module:
-//   (a) CATALYST is a coverage SIGNAL, never pass/fail — catalyst_type is a name
-//       or null, so there's no "confirmed no-catalyst" value to fail against.
-//       Reported as "X% of trades had a catalyst tagged"; EXCLUDED from the
-//       fit-all/broke classification.
+//   (a) CATALYST is a PILLAR when the user asks for one, and a coverage signal
+//       otherwise. THE OLD REASON EXPIRED: this rule used to read "catalyst_type is
+//       a name or null, so there's no confirmed no-catalyst value to fail against".
+//       That stopped being true the moment the seeded vocabulary shipped
+//       'Technical / No Catalyst' (schema 35) — a value that already counts as
+//       tagged for XP award D8 and already buckets beside Earnings in Analytics.
+//       Schema 49 made the meaning explicit as catalyst_def.kind, so a trade can now
+//       say "I checked and there was nothing" and be judged on it. The pillar joins
+//       the required set ONLY when dna_require_catalyst is true; with the flag off,
+//       nobody's numbers move and catalyst is still REPORTED as coverage.
+//       Resolution is by kind, NEVER by label: users rename freely, including that
+//       seeded row, and a rename must never change what a trade meant.
 //   (b) NULL = EXCLUDED per pillar (the no-fake law). A trade missing a pillar's
 //       data drops OUT of that pillar's denominator — it is never a silent fail.
 //       pct is null (→ "—") when n=0, never 0 and never NaN.
@@ -21,6 +29,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import type { SettingsValues } from '@shared/settings-types'
+import type { CatalystDef } from '@shared/catalyst-types'
 import { aggregate, type TradeAggregate } from '@/core/insights/helpers'
 
 /** The seven scan-profile settings this module reads. Type-only Pick off the
@@ -50,6 +59,8 @@ export interface DnaAdherence {
     change: PillarStat
     rvol: PillarStat
     float: PillarStat
+    /** Always MEASURED; only ENFORCED when dna_require_catalyst is true. */
+    catalyst: PillarStat
   }
   /** Coverage signal (a): tagged = trades with a non-empty catalyst_type;
    *  total = ALL trades; pct null when there are no trades. */
@@ -59,6 +70,13 @@ export interface DnaAdherence {
   /** P&L cross-cut (d): aggregate() over the fitAll set vs the brokeAny set.
    *  Incomplete trades belong to neither. */
   pnl: { fitAll: TradeAggregate; brokeAny: TradeAggregate }
+  /** TRUE when the pillar was requested but the vocabulary could not be read. This
+   *  is a LOAD FAILURE and must never be rendered as "your book is untagged": with
+   *  no vocabulary, every tag is unresolvable, which would sweep the whole book into
+   *  `incomplete` and tell the user to go and tag trades they have already tagged.
+   *  So the pillar STANDS DOWN — buckets stay the four-pillar result — and the UI
+   *  reports the load problem instead. Distinguishable here, not just on screen. */
+  catalystDefsUnavailable: boolean
 }
 
 /** Entry price by side — long enters on the buy, short on the sell. Mirrors the
@@ -69,8 +87,8 @@ function entryPrice(t: TradeListRow): number {
   return t.side === 'long' ? t.avg_buy_price : t.avg_sell_price
 }
 
-/** A numeric pillar: does the trade have data for it, and does that data pass?
- *  `passes` is written null-safe so it doubles as the bucket-level predicate. */
+/** A pillar: does the trade have data for it, and does that data pass? `passes` is
+ *  written null-safe so it doubles as the bucket-level predicate. */
 interface Pillar {
   hasData: (t: TradeListRow) => boolean
   passes: (t: TradeListRow) => boolean
@@ -87,7 +105,18 @@ function statFor(trades: TradeListRow[], pillar: Pillar): PillarStat {
   return { passed, n, pct: n > 0 ? passed / n : null }
 }
 
-export function computeDnaAdherence(trades: TradeListRow[], config: DnaConfig): DnaAdherence {
+/** Normalise a vocabulary name or a trade's stored tag to its lookup key. Matches
+ *  renameCatalystDef's `lower(name)` collision rule, plus a trim, so the pillar is
+ *  never STRICTER than the store that accepted the value. */
+function catalystKey(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
+export function computeDnaAdherence(
+  trades: TradeListRow[],
+  config: DnaConfig,
+  catalystDefs: CatalystDef[],
+): DnaAdherence {
   // The 4 numeric pillars. price never lacks data (entry price is always present);
   // the other three exclude NULLs from their denominator (the no-fake law).
   const price: Pillar = {
@@ -112,13 +141,41 @@ export function computeDnaAdherence(trades: TradeListRow[], config: DnaConfig): 
       t.float_shares >= config.dna_float_min &&
       t.float_shares <= config.dna_float_max,
   }
-  const numeric = [price, change, rvol, float]
+  // The catalyst pillar. Resolution is tag -> vocabulary row -> KIND; the label is
+  // only ever a lookup key. ARCHIVED rows are included deliberately: a trade tagged
+  // with a since-archived catalyst is still a judged trade, and dropping it would
+  // silently rewrite history when the user tidies their vocabulary.
+  const kindByName = new Map<string, CatalystDef['kind']>()
+  for (const d of catalystDefs) kindByName.set(catalystKey(d.name), d.kind)
+  const kindOf = (t: TradeListRow): CatalystDef['kind'] | null => {
+    const raw = t.catalyst_type
+    if (raw == null || raw.trim() === '') return null
+    return kindByName.get(catalystKey(raw)) ?? null
+  }
+  const catalyst: Pillar = {
+    // A tag the vocabulary cannot explain is UNJUDGEABLE, not a pass and not a fail
+    // — the same no-fake rule the other pillars apply to a missing value.
+    hasData: (t) => kindOf(t) !== null,
+    passes: (t) => kindOf(t) === 'news',
+  }
+
+  // The pillar is requested but the vocabulary is missing: stand down rather than
+  // condemn every trade as incomplete. See DnaAdherence.catalystDefsUnavailable.
+  const catalystDefsUnavailable = config.dna_require_catalyst && catalystDefs.length === 0
+  const enforceCatalyst = config.dna_require_catalyst && !catalystDefsUnavailable
+
+  const numeric = enforceCatalyst
+    ? [price, change, rvol, float, catalyst]
+    : [price, change, rvol, float]
 
   const perPillar = {
     price: statFor(trades, price),
     change: statFor(trades, change),
     rvol: statFor(trades, rvol),
     float: statFor(trades, float),
+    // MEASURED unconditionally — reporting coverage costs nothing and lets the tile
+    // stay honest with the flag off. Only the `numeric` set above decides ENFORCEMENT.
+    catalyst: statFor(trades, catalyst),
   }
 
   // Catalyst coverage (a) — a tagged catalyst is any non-null, non-empty name.
@@ -129,7 +186,8 @@ export function computeDnaAdherence(trades: TradeListRow[], config: DnaConfig): 
   }
   const catalystCoverage = { tagged, total, pct: total > 0 ? tagged / total : null }
 
-  // 3-bucket classification (c) — complete = data for ALL 4 numeric pillars.
+  // 3-bucket classification (c) — complete = data for every REQUIRED pillar (the
+  // four numeric ones, plus catalyst when the profile demands one).
   const fitAllTrades: TradeListRow[] = []
   const brokeAnyTrades: TradeListRow[] = []
   let incomplete = 0
@@ -156,5 +214,5 @@ export function computeDnaAdherence(trades: TradeListRow[], config: DnaConfig): 
     brokeAny: aggregate(brokeAnyTrades),
   }
 
-  return { perPillar, catalystCoverage, buckets, pnl }
+  return { perPillar, catalystCoverage, buckets, pnl, catalystDefsUnavailable }
 }

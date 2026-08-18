@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { computeDnaAdherence, type DnaConfig } from '../adherence'
+import type { CatalystDef } from '@shared/catalyst-types'
 import { aggregate } from '@/core/insights/helpers'
 import type { TradeListRow } from '@shared/trades-types'
 
 // The Ross-Cameron-style profile the honesty contract is measured against:
-// price $2–20, day change ≥10%, RVOL ≥5×, float 1M–20M. require_catalyst does
-// NOT affect compute (catalyst is always reported as coverage, never pass/fail).
+// price $2–20, day change ≥10%, RVOL ≥5×, float 1M–20M. These cases predate the
+// catalyst pillar and deliberately keep require_catalyst OFF, so they pin the
+// four-pillar behaviour unchanged; the pillar itself lives in adherence-catalyst.test.ts.
 const CONFIG: DnaConfig = {
   dna_price_min: 2,
   dna_price_max: 20,
@@ -13,12 +15,16 @@ const CONFIG: DnaConfig = {
   dna_rvol_min: 5,
   dna_float_min: 1_000_000,
   dna_float_max: 20_000_000,
-  dna_require_catalyst: true,
+  dna_require_catalyst: false,
 }
 
 // A fully-complete, all-pass baseline row (price 5, change 15, rvol 8, float 5M,
 // catalyst tagged) → classifies fitAll on its own. Overrides flip one dimension
 // at a time so each test isolates a single pillar / bucket transition.
+// The pillar is off in this file, so the vocabulary is only present to satisfy the
+// signature — it changes nothing here, which T13 in adherence-catalyst.test.ts pins.
+const DEFS: CatalystDef[] = []
+
 let nextId = 1
 function mk(over: Partial<TradeListRow>): TradeListRow {
   return {
@@ -76,13 +82,13 @@ describe('computeDnaAdherence — per-pillar pass/exclude', () => {
       mk({ side: 'long', avg_buy_price: 5 }), // pass (2..20)
       mk({ side: 'long', avg_buy_price: 25 }), // fail (>20)
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.price).toEqual({ passed: 1, n: 2, pct: 0.5 })
   })
 
   it('price pillar uses the SELL price for shorts (buy price ignored)', () => {
     const trades = [mk({ side: 'short', avg_sell_price: 10, avg_buy_price: 999 })]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.price).toEqual({ passed: 1, n: 1, pct: 1 })
   })
 
@@ -92,13 +98,13 @@ describe('computeDnaAdherence — per-pillar pass/exclude', () => {
       mk({ daily_change_pct: 5 }), // fail (>=10)
       mk({ daily_change_pct: null }), // EXCLUDED from n
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.change).toEqual({ passed: 1, n: 2, pct: 0.5 })
   })
 
   it('change pillar is signed — a down-at-entry trade FAILS (not excluded)', () => {
     const trades = [mk({ daily_change_pct: -3 })]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.change).toEqual({ passed: 0, n: 1, pct: 0 })
   })
 
@@ -108,7 +114,7 @@ describe('computeDnaAdherence — per-pillar pass/exclude', () => {
       mk({ rvol: 2 }), // fail (>=5)
       mk({ rvol: null }), // excluded
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.rvol).toEqual({ passed: 1, n: 2, pct: 0.5 })
   })
 
@@ -118,13 +124,13 @@ describe('computeDnaAdherence — per-pillar pass/exclude', () => {
       mk({ float_shares: 50_000_000 }), // fail (>20M)
       mk({ float_shares: null }), // excluded
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.float).toEqual({ passed: 1, n: 2, pct: 0.5 })
   })
 
   it('a numeric pillar with no data anywhere → n 0, pct null (never NaN, never 0)', () => {
     const trades = [mk({ rvol: null }), mk({ rvol: null })]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.perPillar.rvol).toEqual({ passed: 0, n: 0, pct: null })
   })
 })
@@ -132,24 +138,24 @@ describe('computeDnaAdherence — per-pillar pass/exclude', () => {
 describe('computeDnaAdherence — inclusive edges (both ends pass)', () => {
   it('price==min, price==max, change==min, rvol==min, float==min, float==max all pass', () => {
     expect(
-      computeDnaAdherence([mk({ side: 'long', avg_buy_price: 2 })], CONFIG).perPillar.price,
+      computeDnaAdherence([mk({ side: 'long', avg_buy_price: 2 })], CONFIG, DEFS).perPillar.price,
     ).toEqual({ passed: 1, n: 1, pct: 1 })
     expect(
-      computeDnaAdherence([mk({ side: 'long', avg_buy_price: 20 })], CONFIG).perPillar.price,
+      computeDnaAdherence([mk({ side: 'long', avg_buy_price: 20 })], CONFIG, DEFS).perPillar.price,
     ).toEqual({ passed: 1, n: 1, pct: 1 })
     expect(
-      computeDnaAdherence([mk({ daily_change_pct: 10 })], CONFIG).perPillar.change,
+      computeDnaAdherence([mk({ daily_change_pct: 10 })], CONFIG, DEFS).perPillar.change,
     ).toEqual({ passed: 1, n: 1, pct: 1 })
-    expect(computeDnaAdherence([mk({ rvol: 5 })], CONFIG).perPillar.rvol).toEqual({
+    expect(computeDnaAdherence([mk({ rvol: 5 })], CONFIG, DEFS).perPillar.rvol).toEqual({
       passed: 1,
       n: 1,
       pct: 1,
     })
     expect(
-      computeDnaAdherence([mk({ float_shares: 1_000_000 })], CONFIG).perPillar.float,
+      computeDnaAdherence([mk({ float_shares: 1_000_000 })], CONFIG, DEFS).perPillar.float,
     ).toEqual({ passed: 1, n: 1, pct: 1 })
     expect(
-      computeDnaAdherence([mk({ float_shares: 20_000_000 })], CONFIG).perPillar.float,
+      computeDnaAdherence([mk({ float_shares: 20_000_000 })], CONFIG, DEFS).perPillar.float,
     ).toEqual({ passed: 1, n: 1, pct: 1 })
   })
 })
@@ -162,7 +168,7 @@ describe('computeDnaAdherence — catalyst coverage (signal, not pass/fail)', ()
       mk({ catalyst_type: null }),
       mk({ catalyst_type: '' }),
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.catalystCoverage).toEqual({ tagged: 2, total: 4, pct: 0.5 })
   })
 
@@ -172,7 +178,7 @@ describe('computeDnaAdherence — catalyst coverage (signal, not pass/fail)', ()
       mk({ catalyst_type: null }),
       mk({ catalyst_type: '' }),
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     // all three are complete + pass all 4 numeric pillars regardless of catalyst
     expect(r.buckets).toEqual({ fitAll: 3, brokeAny: 0, incomplete: 0, total: 3 })
   })
@@ -185,7 +191,7 @@ describe('computeDnaAdherence — 3-bucket classification', () => {
       mk({ rvol: 2 }), // complete, rvol fails → brokeAny
       mk({ rvol: null }), // missing rvol → incomplete (NOT brokeAny, NOT fitAll)
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.buckets).toEqual({ fitAll: 1, brokeAny: 1, incomplete: 1, total: 3 })
   })
 
@@ -198,7 +204,7 @@ describe('computeDnaAdherence — 3-bucket classification', () => {
       mk({ side: 'long', avg_buy_price: 100 }), // brokeAny (price)
       mk({ daily_change_pct: null, rvol: null }), // incomplete (two missing → still ONE incomplete)
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.buckets).toEqual({ fitAll: 1, brokeAny: 2, incomplete: 3, total: 6 })
     expect(r.buckets.fitAll + r.buckets.brokeAny + r.buckets.incomplete).toBe(trades.length)
   })
@@ -210,7 +216,7 @@ describe('computeDnaAdherence — 3-bucket classification', () => {
       mk({ daily_change_pct: null }),
       mk({}),
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.buckets).toEqual({ fitAll: 1, brokeAny: 0, incomplete: 3, total: 4 })
   })
 })
@@ -227,7 +233,7 @@ describe('computeDnaAdherence — P&L cross-cut (fitAll vs brokeAny)', () => {
       // incomplete (missing rvol) — must NOT pollute either pnl aggregate
       mk({ rvol: null, net_pnl: 9999 }),
     ]
-    const r = computeDnaAdherence(trades, CONFIG)
+    const r = computeDnaAdherence(trades, CONFIG, DEFS)
     expect(r.pnl.fitAll.trade_count).toBe(2)
     expect(r.pnl.fitAll.net_pnl).toBe(50)
     expect(r.pnl.fitAll.win_rate).toBe(0.5) // 1 win / (1 win + 1 loss)
@@ -239,7 +245,7 @@ describe('computeDnaAdherence — P&L cross-cut (fitAll vs brokeAny)', () => {
 
 describe('computeDnaAdherence — divide-by-zero / empty', () => {
   it('empty trades: all pct null, all buckets 0, pnl = aggregate([]) (no throw)', () => {
-    const r = computeDnaAdherence([], CONFIG)
+    const r = computeDnaAdherence([], CONFIG, DEFS)
     expect(r.perPillar.price).toEqual({ passed: 0, n: 0, pct: null })
     expect(r.perPillar.change).toEqual({ passed: 0, n: 0, pct: null })
     expect(r.perPillar.rvol).toEqual({ passed: 0, n: 0, pct: null })

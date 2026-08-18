@@ -20,6 +20,10 @@ vi.mock('@/lib/ipc', () => ({
     settingsGet: vi.fn(),
     settingsSave: vi.fn(),
     accountsList: vi.fn(),
+    // The DNA catalyst pillar resolves tags against the vocabulary, so the page now
+    // reads it (archived included). Resolved to [] here: this suite is about scope
+    // refetching, not adherence.
+    catalystDefsGet: vi.fn(() => Promise.resolve([])),
   },
 }))
 vi.mock('@/components/intelligence/HeroCards', () => ({ default: () => null }))
