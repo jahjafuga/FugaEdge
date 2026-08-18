@@ -106,8 +106,10 @@ export function annotateFeeStatus(
   const existsStmt = db.prepare(
     'SELECT 1 FROM day_fees WHERE date = ? AND symbol = ? AND account_id = ? LIMIT 1',
   )
+  // LIVE trips only. Without the deleted_at filter a trashed-but-restorable trade
+  // inflated the preview's count, promising the fee row more trades than exist.
   const tripCountStmt = db.prepare(
-    'SELECT COUNT(*) AS n FROM trades WHERE date = ? AND symbol = ? AND account_id = ?',
+    'SELECT COUNT(*) AS n FROM trades WHERE date = ? AND symbol = ? AND account_id = ? AND deleted_at IS NULL',
   )
   return fees.map((f) => {
     const exists = existsStmt.get(f.date, f.symbol, scope)

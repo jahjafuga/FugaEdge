@@ -24,6 +24,7 @@ import { parseTradeZeroSummaryCsv } from './parse-tradezero-summary'
 import { parseWebullDesktopXlsx } from './parse-webull-desktop'
 import { parseOceanOneXls, detectOceanOneXls } from './parse-ocean-one'
 import { buildRoundTrips } from '@/core/import/build-round-trips'
+import { withMatchedTrips } from '@/core/import/matched-trips'
 import { deriveFeesUnavailable } from '@/core/import/feesUnavailable'
 import { parseFilenameDate } from './parse-filename'
 import { annotateFeeStatus, annotateTripStatus, commit, markSummariesSuperseded } from './repo'
@@ -664,17 +665,14 @@ export function registerImportIpc(): void {
       const feesWithoutDate = allFees.filter((f) => !f.date)
       const fees = [...annotateFeeStatus(feesWithDate, scopeAccountId), ...feesWithoutDate]
 
-      // Bump matchedTrips for fees whose (date, symbol) is also coming in
-      // from the executions file in this same batch.
-      const incomingPairs = new Map<string, number>()
-      for (const t of trips) {
-        const k = `${t.date}|${t.symbol}`
-        incomingPairs.set(k, (incomingPairs.get(k) ?? 0) + 1)
-      }
-      for (const f of fees) {
-        const extra = incomingPairs.get(`${f.date}|${f.symbol}`) ?? 0
-        f.matchedTrips += extra
-      }
+      // Add the trips arriving in this batch that will actually be INSERTED. The
+      // old code added every arriving trip regardless of status, so a re-import
+      // counted the same round trips twice — once from the DB, once from the file.
+      // See src/core/import/matched-trips.ts for why this deliberately differs from
+      // the pro-rata divisor.
+      const feesCounted = withMatchedTrips(fees, trips)
+      fees.length = 0
+      fees.push(...feesCounted)
 
       const newTrips = trips.filter((t) => t.status === 'new').length
       const duplicateTrips = trips.length - newTrips
