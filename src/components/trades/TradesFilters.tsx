@@ -34,9 +34,25 @@ interface TradesFiltersProps {
   filters: TradesFilterState
   onChange: (next: TradesFilterState) => void
   trades: TradeListRow[]
+  /** Numeric columns currently VISIBLE in the table. Only these get range inputs —
+   *  an invisible column silently narrowing the table is a filter nobody can see to
+   *  clear. Supplied by the page, which owns column visibility. */
+  numericColumns?: { id: string; label: string }[]
 }
 
-export default function TradesFilters({ filters, onChange, trades: _trades }: TradesFiltersProps) {
+export default function TradesFilters({
+  filters,
+  onChange,
+  trades: _trades,
+  numericColumns = [],
+}: TradesFiltersProps) {
+  const setRange = (id: string, key: 'min' | 'max', raw: string) => {
+    const n = raw.trim() === '' ? null : Number(raw)
+    const value = n != null && Number.isFinite(n) ? n : null
+    const next = { ...(filters.ranges ?? {}) }
+    next[id] = { ...(next[id] ?? {}), [key]: value }
+    onChange({ ...filters, ranges: next })
+  }
   const filtering = isFiltering(filters)
 
   return (
@@ -119,6 +135,40 @@ export default function TradesFilters({ filters, onChange, trades: _trades }: Tr
             Clear
           </button>
         )}
+
+      {numericColumns.length > 0 && (
+        <div
+          data-testid="range-filters"
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-border-subtle/60 bg-bg-1/40 px-3 py-2"
+        >
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Ranges
+          </span>
+          {numericColumns.map((c) => (
+            <div key={c.id} data-testid={`range-${c.id}`} className="flex items-center gap-1">
+              <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
+                {c.label}
+              </span>
+              <input
+                type="number"
+                aria-label={`${c.label} minimum`}
+                value={filters.ranges?.[c.id]?.min ?? ''}
+                onChange={(e) => setRange(c.id, 'min', e.target.value)}
+                placeholder="min"
+                className="h-7 w-16 rounded-md border border-border-subtle bg-bg-1 px-1.5 font-mono text-[11px] text-fg-primary placeholder:text-fg-muted focus:border-gold focus:outline-none"
+              />
+              <input
+                type="number"
+                aria-label={`${c.label} maximum`}
+                value={filters.ranges?.[c.id]?.max ?? ''}
+                onChange={(e) => setRange(c.id, 'max', e.target.value)}
+                placeholder="max"
+                className="h-7 w-16 rounded-md border border-border-subtle bg-bg-1 px-1.5 font-mono text-[11px] text-fg-primary placeholder:text-fg-muted focus:border-gold focus:outline-none"
+              />
+            </div>
+          ))}
+        </div>
+      )}
       </div>
     </div>
   )

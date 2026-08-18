@@ -58,6 +58,38 @@ export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   mfe: false,
 }
 
+/** The human label for every column — ONE source, read by the table registry's meta
+ *  and by the filter bar's range inputs, so a column cannot be named one thing where
+ *  you toggle it and another where you filter it. */
+export const COLUMN_LABELS: Record<string, string> = {
+  open_time: 'Date', open: 'Open', close: 'Close', symbol: 'Symbol',
+  playbook: 'Playbook', country: 'Country', catalyst: 'Catalyst',
+  mistakes: 'Mistakes', side: 'Side', shares: 'Shares', avg_buy: 'Buy avg',
+  avg_sell: 'Sell avg', float: 'Float', net_pnl: 'Net P&L', fees: 'Fees',
+  spark: 'Chart', hold_time: 'Hold time', price_move_pct: 'Price move %',
+  pnl_gain_pct: 'Gain %', exec_count: 'Fills', first_entry: 'First entry',
+  stop_price: 'Stop price', r_multiple: 'R multiple',
+  risk_per_share: 'Risk / share', total_risk: 'Total risk', rvol: 'RVOL',
+  daily_change_pct: 'Day change %', confidence: 'Confidence',
+  entry_timeframe: 'Timeframe', days_since_catalyst: 'Days since catalyst',
+  mae: 'MAE', mfe: 'MFE',
+}
+
+/** Columns a min/max range can filter on. Exactly the ids rangeValueOf resolves —
+ *  T30 asserts the two agree, so a numeric column cannot be added to the table and
+ *  quietly left unreachable from the filter bar. */
+export const NUMERIC_COLUMN_IDS = [
+  'shares', 'avg_buy', 'avg_sell', 'fees', 'net_pnl', 'float',
+  'hold_time', 'price_move_pct', 'pnl_gain_pct', 'exec_count', 'first_entry',
+  'stop_price', 'r_multiple', 'risk_per_share', 'total_risk', 'rvol',
+  'daily_change_pct', 'confidence', 'days_since_catalyst', 'mae', 'mfe',
+] as const
+
+/** True when the column is currently shown (absent means visible, TanStack's rule). */
+export function isVisible(v: ColumnVisibility, id: string): boolean {
+  return v[id] !== false
+}
+
 // The four keys this module folds in. Read ONCE, when the new key is absent, so a
 // user's existing toggles survive the change rather than silently resetting.
 const LEGACY = [

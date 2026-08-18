@@ -37,6 +37,14 @@ import type {
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
+import {
+  COLUMN_LABELS,
+  NUMERIC_COLUMN_IDS,
+  isVisible,
+  readColumnVisibility,
+  writeColumnVisibility,
+} from '@/lib/prefs/columns'
+
 // v0.2.7: the four column-visibility keys and their state/effect pairs are GONE.
 // Visibility is TanStack state inside TradesTable, persisted by
 // src/lib/prefs/columns.ts, which folds these old keys in on first read. Keeping a
@@ -51,6 +59,36 @@ export default function Trades() {
   const [err, setErr] = useState<string | null>(null)
   const [view, setView] = useState<TradesView>('table')
   const [filters, setFilters] = useState<TradesFilterState>(emptyFilters())
+  // ONE visibility state, owned here because two consumers need it: the table renders
+  // by it, and the filter bar offers range inputs only for columns it can see.
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
+    () => readColumnVisibility(),
+  )
+  // Hiding a column CLEARS its range. A filter still narrowing the table from a
+  // control the user can no longer see is a trap, not a feature.
+  const onColumnVisibilityChange = useCallback((next: Record<string, boolean>) => {
+    setColumnVisibility(next)
+    writeColumnVisibility(next)
+    setFilters((f) => {
+      const ranges = { ...(f.ranges ?? {}) }
+      let changed = false
+      for (const id of Object.keys(ranges)) {
+        if (!isVisible(next, id)) {
+          delete ranges[id]
+          changed = true
+        }
+      }
+      return changed ? { ...f, ranges } : f
+    })
+  }, [])
+  const numericColumns = useMemo(
+    () =>
+      NUMERIC_COLUMN_IDS.filter((id) => isVisible(columnVisibility, id)).map((id) => ({
+        id,
+        label: COLUMN_LABELS[id] ?? id,
+      })),
+    [columnVisibility],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -332,7 +370,8 @@ export default function Trades() {
             surface + padding. The VIEW strip stays here (rendered for every view)
             so the Table/Charts/Grid toggle persists outside the table card. */}
         <div className="card-premium space-y-4 p-4">
-          <TradesFilters filters={filters} onChange={setFilters} trades={trades} />
+          <TradesFilters
+            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades} />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
@@ -351,6 +390,8 @@ export default function Trades() {
           <NoMatch onClear={() => setFilters(emptyFilters())} />
         ) : view === 'table' ? (
           <TradesTable
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={onColumnVisibilityChange}
             trades={filtered}
             accountFor={accountFor}
             onSaveNote={handleSaveNote}

@@ -9,7 +9,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
-import { applyRanges, type NumericRange } from '@/core/trades/numericRange'
+import { applyRanges, isRangeActive, type NumericRange } from '@/core/trades/numericRange'
 import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
 import { computeExecutionStats } from '@/core/trades/executionStats'
 
@@ -55,7 +55,6 @@ export interface TradesFilterState {
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
   switch (columnId) {
     case 'net_pnl': return t.net_pnl
-    case 'gross_pnl': return t.gross_pnl
     case 'fees': return t.total_fees
     case 'shares': return Math.max(t.shares_bought, t.shares_sold)
     case 'avg_buy': return t.avg_buy_price
@@ -109,7 +108,10 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.mistakesOnly ||
     f.playbookIds.length > 0 ||
     f.mistakeKeys.length > 0 ||
-    f.catalystTypes.length > 0
+    f.catalystTypes.length > 0 ||
+    // A range alone must surface the Clear control, or a user can narrow the table
+    // and find no way to widen it again.
+    Object.values(f.ranges ?? {}).some(isRangeActive)
   )
 }
 
