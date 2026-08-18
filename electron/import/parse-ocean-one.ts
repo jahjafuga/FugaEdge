@@ -308,12 +308,16 @@ export function parseOceanOneXls(
     let finra = 0
     let nscc = 0
     let other = 0
-    // Beat B2a: the raw fee sum, full precision (no per-cell 2dp rounding). The
-    // 2dp components below still drive total_fees + the day_fees ledger.
+    // v0.2.7 Bug 5: components accumulate from the RAW read, not the broker's 2dp
+    // DISPLAY. Reading the display rounds every cell before it is ever summed, and
+    // the discarded halves compound across a multi-trip day until the column sits a
+    // cent away from the broker's own total — the number the user reconciles
+    // against. The raw read has existed since B2a for total_fees_precise; this uses
+    // it for the components too. Rounding happens ONCE, on emit.
     let feesPrecise = 0
     for (const col of FEE_COLUMNS) {
-      const v = num(cell(row, col))
-      feesPrecise += cellRawNum(i, col)
+      const v = cellRawNum(i, col)
+      feesPrecise += v
       switch (FEE_TO_FIELD[col]) {
         case 'commission':
           commission += v
@@ -337,7 +341,7 @@ export function parseOceanOneXls(
           other += v
       }
     }
-    const totalFees = round2(commission + ecn + sec + cat + finra + nscc + other)
+    const totalFees = round2(feesPrecise)
 
     // Beat B: trust the file's AUTHORITATIVE Gross column instead of recomputing
     // from the (rounded-average) Entry/Exit prices. The recompute dropped
@@ -408,14 +412,16 @@ export function parseOceanOneXls(
       }
       dayFeeByKey.set(feeKey, df)
     }
-    df.fee_ecn = round2(df.fee_ecn + ecn)
-    df.fee_sec = round2(df.fee_sec + sec)
-    df.fee_finra = round2(df.fee_finra + finra)
-    df.fee_cat = round2(df.fee_cat + cat)
-    df.fee_commission = round2(df.fee_commission + commission)
-    df.fee_nscc = round2(df.fee_nscc + nscc)
-    df.fee_other = round2(df.fee_other + other)
-    df.total_fees = round2(df.total_fees + totalFees)
+    // RAW accumulation — rounded once when the ledger is emitted below. Rounding
+    // here would reintroduce the compounding this commit removes.
+    df.fee_ecn += ecn
+    df.fee_sec += sec
+    df.fee_finra += finra
+    df.fee_cat += cat
+    df.fee_commission += commission
+    df.fee_nscc += nscc
+    df.fee_other += other
+    df.total_fees += feesPrecise
 
     roundTrips.push({
       date: opened.date,
@@ -452,5 +458,21 @@ export function parseOceanOneXls(
     trace.push({ row: i, outcome: 'kept', symbol })
   }
 
-  return { roundTrips, dayFees: Array.from(dayFeeByKey.values()), skipped, warnings, trace }
+  // THE SINGLE ROUNDING of the day ledger. Components and total are rounded from
+  // the same raw sums, so the total always equals the sum of the columns the import
+  // preview renders — the guarantee the preview table asserts.
+  const dayFees = Array.from(dayFeeByKey.values()).map((d) => ({
+    ...d,
+    fee_ecn: round2(d.fee_ecn),
+    fee_sec: round2(d.fee_sec),
+    fee_finra: round2(d.fee_finra),
+    fee_htb: round2(d.fee_htb),
+    fee_cat: round2(d.fee_cat),
+    fee_commission: round2(d.fee_commission),
+    fee_nscc: round2(d.fee_nscc),
+    fee_other: round2(d.fee_other),
+    total_fees: round2(d.total_fees),
+  }))
+
+  return { roundTrips, dayFees, skipped, warnings, trace }
 }
