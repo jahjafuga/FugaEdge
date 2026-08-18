@@ -6,7 +6,7 @@ import { computeRiskBreakdown } from '../lib/r-multiple'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
 import { computeGiveback } from '@/core/analytics/giveback'
-import { buildEquityCurve, computeDrawdown } from '@/core/performance/equity'
+import { buildEquityCurve } from '@/core/performance/equity'
 import { utcToEasternParts } from '@/lib/format'
 import { classifyOutcome, isWin, isLoss } from '@/core/classify/outcome'
 import { isSummaryTrip } from '@/core/classify/summaryTrip'
@@ -26,11 +26,9 @@ import type {
   SentimentBucket,
   CurrentStreak,
   DisciplineStats,
-  EquityPoint,
   ExitDelta,
   ExtendedEntryCompare,
   FeeImpact,
-  MaxDrawdown,
   MistakeImpact,
   MistakesAnalytics,
   MomentumAnalytics,
@@ -899,41 +897,13 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
     `)
     .all(...sf.params) as TradeRow[]
 
-  // ONE equity implementation (src/core/performance/equity.ts). get.ts used to carry
-  // a second copy of the same algorithm, differing only in the output field name —
-  // two sources for the number the whole Analytics page rests on. The shared curve is
-  // built once here; `cumulative` is renamed to the IPC contract's
-  // `cumulative_net_pnl` at the boundary, and computeDrawdown consumes the shared
-  // shape directly instead of mapping back.
+  // v0.2.7: this curve is INTERNAL ONLY. The payload no longer ships an equity
+  // series or a drawdown — the Overview computes both from the page's filtered trade
+  // list, so an unfiltered copy here could only ever disagree with what is on screen.
+  // The shared builder is still used for the per-date net P&L the rule-break rollup
+  // below pairs against, which is the one consumer that legitimately remains.
   const curve = buildEquityCurve(rows)
-  const equity: EquityPoint[] = curve.map((p) => ({
-    date: p.date,
-    daily_pnl: p.daily_pnl,
-    cumulative_net_pnl: p.cumulative,
-  }))
-  // Drawdown comes from the SAME pure, guarded computeDrawdown the Reports
-  // drawdown card uses, so the two can't drift. (An earlier near-zero-base
-  // ratio guard reached only the pure copy; the old local computeMaxDrawdown
-  // divided amount/peak unguarded, so a small peak could read below -100%.)
-  // Map the analytics EquityPoint (cumulative_net_pnl) onto the pure shape
-  // (cumulative), then project DrawdownInfo down to the MaxDrawdown fields the
-  // renderer reads (dropping the pure curve/extra fields so the IPC payload
-  // stays lean). Keep the prior "null when there's no real drawdown" contract
-  // so the card's empty state is unchanged.
-  const ddInfo = computeDrawdown(curve)
-  const maxDrawdown: MaxDrawdown | null =
-    ddInfo && ddInfo.amount > 0
-      ? {
-          amount: ddInfo.amount,
-          percent: ddInfo.percent,
-          peak_date: ddInfo.peak_date,
-          peak_value: ddInfo.peak_value,
-          trough_date: ddInfo.trough_date,
-          trough_value: ddInfo.trough_value,
-          recovered: ddInfo.recovered,
-          recovery_date: ddInfo.recovery_date,
-        }
-      : null
+
   const { longestWin, longestLoss, current } = computeStreaks(rows)
   const feeImpact = computeFeeImpact(rows)
   const { best, worst } = computeSymbols(rows)
@@ -963,7 +933,7 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
   // electron/ruleBreaks/__tests__/repo.inmemory.ts, fixture [A].
   const ruleBreaksByDate = readRuleBreaksByDate(db)
   const netPnlByDate = new Map<string, number>(
-    equity.map((p) => [p.date, p.daily_pnl]),
+    curve.map((p) => [p.date, p.daily_pnl]),
   )
   const ruleBreaks = computeRuleBreaks(ruleBreaksByDate, netPnlByDate)
 
@@ -999,8 +969,6 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
 
   return {
     trade_count: rows.length,
-    equity,
-    maxDrawdown,
     longestWinStreak: longestWin,
     longestLossStreak: longestLoss,
     currentStreak: current,

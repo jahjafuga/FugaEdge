@@ -271,8 +271,10 @@ export interface DisciplineStats {
 
 export interface AnalyticsData {
   trade_count: number
-  equity: EquityPoint[]
-  maxDrawdown: MaxDrawdown | null
+  // v0.2.7: equity + maxDrawdown REMOVED. The Analytics Overview computes both from
+  // the page's filtered trade list (src/core/performance/overviewSnapshot.ts), so an
+  // unfiltered copy in this payload had no consumer and could only ever disagree with
+  // what the user is looking at.
   longestWinStreak: Streak | null
   longestLossStreak: Streak | null
   currentStreak: CurrentStreak | null

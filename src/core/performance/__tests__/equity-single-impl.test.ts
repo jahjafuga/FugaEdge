@@ -44,6 +44,21 @@ describe('equity — a single shared implementation', () => {
     ])
   })
 
+  it('T17 the analytics payload ships NO equity series and NO drawdown', () => {
+    const types = src('shared/analytics-types.ts')
+    // Removed in v0.2.7 — the Overview computes both from the filtered trade list,
+    // so an unfiltered copy in the payload could only disagree with the screen.
+    expect(types).not.toMatch(/^\s*equity:\s*EquityPoint\[\]/m)
+    expect(types).not.toMatch(/^\s*maxDrawdown:/m)
+
+    const get = src('electron/analytics/get.ts')
+    expect(get).not.toMatch(/^\s*equity,$/m)
+    expect(get).not.toMatch(/^\s*maxDrawdown,$/m)
+    // NOTE: get.ts still CALLS the shared buildEquityCurve — the rule-break rollup
+    // pairs against the per-date net P&L it produces. That is a legitimate internal
+    // consumer, not a second implementation, which is what T3 below guards.
+  })
+
   it('T3 electron/analytics/get.ts defines NO equity builder of its own', () => {
     const text = src('electron/analytics/get.ts')
     // The duplicate this commit removes.

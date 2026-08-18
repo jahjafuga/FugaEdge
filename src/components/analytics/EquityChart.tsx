@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { EquityPoint, MaxDrawdown } from '@shared/analytics-types'
+import type { EquityPoint, DrawdownInfo } from '@/core/performance/equity'
 import { money, signed, longDate, shortDate } from '@/lib/format'
 import { useThemeMode } from '@/lib/theme'
 import { chartColors } from '@/lib/chartColors'
@@ -17,7 +17,7 @@ import { CUMULATIVE_LINE_TYPE } from '@/core/charts/cumulativeStyle'
 
 interface EquityChartProps {
   equity: EquityPoint[]
-  maxDrawdown: MaxDrawdown | null
+  maxDrawdown: DrawdownInfo | null
 }
 
 export default function EquityChart({ equity, maxDrawdown }: EquityChartProps) {
@@ -83,14 +83,14 @@ export default function EquityChart({ equity, maxDrawdown }: EquityChartProps) {
 
           <Area
             type={CUMULATIVE_LINE_TYPE}
-            dataKey="cumulative_net_pnl"
+            dataKey="cumulative"
             stroke="none"
             fill="url(#equityFill)"
             isAnimationActive={false}
           />
           <Line
             type={CUMULATIVE_LINE_TYPE}
-            dataKey="cumulative_net_pnl"
+            dataKey="cumulative"
             stroke="#d4af37"
             strokeWidth={1.75}
             dot={false}
@@ -116,7 +116,7 @@ function EquityTooltip({
     <div className="rounded-md border border-border-subtle bg-bg-1/95 px-3 py-2 shadow-lg backdrop-blur">
       <div className="font-mono text-xs text-fg-secondary">{longDate(d.date)}</div>
       <div className="mt-1 font-mono text-sm font-medium text-gold">
-        {signed(d.cumulative_net_pnl)}
+        {signed(d.cumulative)}
       </div>
       <div className="mt-1 text-[11px] text-fg-tertiary">
         day {signed(d.daily_pnl)}

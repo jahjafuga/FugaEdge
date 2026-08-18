@@ -18,6 +18,10 @@ import {
   emptyFilters,
   type OverviewFilters,
 } from '@/core/performance'
+import {
+  computeOverviewSnapshot,
+  type OverviewSnapshot,
+} from '@/core/performance/overviewSnapshot'
 import { int, longDate, money, pnlClass, signed } from '@/lib/format'
 import type { AnalyticsData } from '@shared/analytics-types'
 import type { ReportsData } from '@shared/reports-types'
@@ -32,43 +36,28 @@ interface OverviewTabProps {
   trades: TradeListRow[]
 }
 
-interface DayPnl {
-  date: string
-  net_pnl: number
-}
-
-function bestAndWorstDay(equity: AnalyticsData['equity']): {
-  best: DayPnl | null
-  worst: DayPnl | null
-} {
-  let best: DayPnl | null = null
-  let worst: DayPnl | null = null
-  for (const p of equity) {
-    if (p.daily_pnl === 0) continue
-    if (!best || p.daily_pnl > best.net_pnl) {
-      best = { date: p.date, net_pnl: p.daily_pnl }
-    }
-    if (!worst || p.daily_pnl < worst.net_pnl) {
-      worst = { date: p.date, net_pnl: p.daily_pnl }
-    }
-  }
-  return { best, worst }
-}
-
 export default function OverviewTab({ data, reports, trades }: OverviewTabProps) {
-  const { best, worst } = useMemo(() => bestAndWorstDay(data.equity), [data.equity])
-  const netPnl = data.feeImpact.total_net_pnl
 
   // ── Re-homed daily dashboard (from Reports → Overview) ──────────────────
   // Open positions are dropped so the per-day series match the Reports
   // snapshot's source exactly; the equity/KPI snapshot above keeps its own
   // `data` source untouched.
   const dashTrades = useMemo(() => trades.filter((t) => !t.is_open), [trades])
+  // PAGE-LEVEL filters (v0.2.7): every widget on this tab — equity curve, tiles,
+  // best/worst day, drawdown — derives from ONE filtered set, so the chart and the
+  // number beside it can never describe different books. Default is ALL, not 7d: a
+  // filter that silently hides most of the book on arrival is not a default.
   const [filters, setFilters] = useState<OverviewFilters>(() => ({
     ...emptyFilters(),
-    range: rangeForQuickKey('7d'),
+    range: rangeForQuickKey('all'),
   }))
-  const [quick, setQuick] = useState<QuickKey>('7d')
+  const [quick, setQuick] = useState<QuickKey>('all')
+  const snapshot = useMemo(
+    () => computeOverviewSnapshot(dashTrades, filters),
+    [dashTrades, filters],
+  )
+  const { best, worst } = { best: snapshot.metrics.bestDay, worst: snapshot.metrics.worstDay }
+  const netPnl = snapshot.metrics.netPnL
   const filtered = useMemo(() => applyFilters(dashTrades, filters), [dashTrades, filters])
   const daily = useMemo(() => computeDailyPnL(filtered, filters.range), [filtered, filters.range])
   const cumulative = useMemo(
@@ -101,22 +90,22 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
       />
 
       <Card title="Equity curve" subtitle="Cumulative net P&L. Max drawdown highlighted in red.">
-        <EquityChart equity={data.equity} maxDrawdown={data.maxDrawdown} />
-        {data.maxDrawdown && (
+        <EquityChart equity={snapshot.curve} maxDrawdown={snapshot.drawdown} />
+        {snapshot.drawdown && (
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs">
             <span className="text-fg-tertiary">
               Peak{' '}
-              <span className={`font-mono ${pnlClass(data.maxDrawdown.peak_value)}`}>
-                {signed(data.maxDrawdown.peak_value)}
+              <span className={`font-mono ${pnlClass(snapshot.drawdown.peak_value)}`}>
+                {signed(snapshot.drawdown.peak_value)}
               </span>{' '}
-              on {longDate(data.maxDrawdown.peak_date)}
+              on {longDate(snapshot.drawdown.peak_date)}
             </span>
             <span className="text-fg-tertiary">
               Trough{' '}
-              <span className={`font-mono ${pnlClass(data.maxDrawdown.trough_value)}`}>
-                {signed(data.maxDrawdown.trough_value)}
+              <span className={`font-mono ${pnlClass(snapshot.drawdown.trough_value)}`}>
+                {signed(snapshot.drawdown.trough_value)}
               </span>{' '}
-              on {longDate(data.maxDrawdown.trough_date)}
+              on {longDate(snapshot.drawdown.trough_date)}
             </span>
           </div>
         )}
@@ -168,10 +157,10 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
         </Card>
 
         <Card title="Drawdown" subtitle="Biggest peak-to-trough on the equity curve.">
-          {data.maxDrawdown ? (
+          {snapshot.drawdown ? (
             <DrawdownSummary
-              dd={data.maxDrawdown}
-              equity={data.equity}
+              dd={snapshot.drawdown}
+              equity={snapshot.curve}
             />
           ) : (
             <div className="rounded-md border border-border-subtle/40 bg-bg-1/40 p-4 text-sm text-fg-tertiary">
@@ -214,9 +203,11 @@ function BookendBlock({
   day,
 }: {
   label: string
-  day: DayPnl | null
+  // PeriodMetrics' DayPnL — { date, pnl }. The old local DayPnl carried net_pnl and
+  // was the third copy of best/worst-day; it went with the duplicate that built it.
+  day: NonNullable<OverviewSnapshot['metrics']['bestDay']> | null
 }) {
-  const pnl = day?.net_pnl ?? 0
+  const pnl = day?.pnl ?? 0
   const borderColor =
     pnl > 0 ? 'border-win/30' : pnl < 0 ? 'border-loss/30' : 'border-border-subtle/60'
   return (
@@ -224,8 +215,8 @@ function BookendBlock({
       <div className="text-[10px] uppercase tracking-wider text-fg-tertiary">{label}</div>
       {day ? (
         <>
-          <div className={`mt-1 font-mono text-xl font-medium ${pnlClass(day.net_pnl)}`}>
-            {signed(day.net_pnl)}
+          <div className={`mt-1 font-mono text-xl font-medium ${pnlClass(day.pnl)}`}>
+            {signed(day.pnl)}
           </div>
           <div className="mt-1 text-[11px] text-fg-secondary">{longDate(day.date)}</div>
         </>
@@ -240,8 +231,8 @@ function DrawdownSummary({
   dd,
   equity,
 }: {
-  dd: NonNullable<AnalyticsData['maxDrawdown']>
-  equity: AnalyticsData['equity']
+  dd: NonNullable<OverviewSnapshot['drawdown']>
+  equity: OverviewSnapshot['curve']
 }) {
   // Tiny sparkline of the drawdown segment from peak through trough.
   const peakIdx = equity.findIndex((p) => p.date === dd.peak_date)
@@ -254,14 +245,14 @@ function DrawdownSummary({
   const sparkH = 40
   let path = ''
   if (slice.length > 1) {
-    const min = Math.min(...slice.map((p) => p.cumulative_net_pnl))
-    const max = Math.max(...slice.map((p) => p.cumulative_net_pnl))
+    const min = Math.min(...slice.map((p) => p.cumulative))
+    const max = Math.max(...slice.map((p) => p.cumulative))
     const range = max - min || 1
     path = slice
       .map((p, i) => {
         const x = (i / (slice.length - 1)) * sparkW
         const y =
-          sparkH - ((p.cumulative_net_pnl - min) / range) * sparkH
+          sparkH - ((p.cumulative - min) / range) * sparkH
         return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`
       })
       .join(' ')
