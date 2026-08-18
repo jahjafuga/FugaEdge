@@ -11,6 +11,7 @@ import {
   type PlaybookPerfRow,
 } from '@/core/playbook/tiers'
 import { primaryState } from '@/core/playbook/primaryState'
+import { netPerShare } from '@/core/performance/perShare'
 import { computeOutcomeStats, type OutcomeStats } from '@/core/stats/outcomeStats'
 import type { PlaybookTier } from '@shared/playbook-types'
 import type { TradeListRow } from '@shared/trades-types'
@@ -19,7 +20,7 @@ interface TierPerformanceCardProps {
   trades: readonly TradeListRow[]
 }
 
-// The table is 7 columns wide (Tier · Setups · Trades · Win% · Net P&L ·
+// The table is 8 columns wide (Tier · Setups · Trades · Win% · Net P&L · c/share ·
 // Expectancy · P/L ratio); the expansion row spans all of them.
 
 // Tier Performance — the headline insight view for v0.1.5. Proves (or
@@ -50,6 +51,8 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
     [trades],
   )
   const noSetupStats = useMemo(() => computeOutcomeStats(noSetup), [noSetup])
+  // Same shared basis as every other row — the card performs no division of its own.
+  const noSetupPerShare = useMemo(() => netPerShare(noSetup), [noSetup])
 
   if (rows.length === 0) {
     return (
@@ -68,7 +71,7 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
   return (
     <Card
       title="Tier performance"
-      subtitle="One row per setup tier with at least one tagged trade, A+ → A → B → C, plus a gradeless No-Setup row when present. Click a tier to break it down by playbook."
+      subtitle="One row per setup tier with at least one tagged trade, A+ → A → B → C, plus a gradeless No-Setup row when present. Click a tier to break it down by playbook. c/share is net P&L divided by shares held."
       padded={false}
     >
       <div className="overflow-auto">
@@ -80,6 +83,7 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
               <th className="px-3 py-2 text-right font-semibold">Trades</th>
               <th className="px-3 py-2 text-right font-semibold">Win %</th>
               <th className="px-3 py-2 text-right font-semibold">Net P&amp;L</th>
+              <th className="px-3 py-2 text-right font-semibold">c/share</th>
               <th className="px-3 py-2 text-right font-semibold">Expectancy</th>
               <th className="px-3 py-2 text-right font-semibold">P/L ratio</th>
             </tr>
@@ -95,13 +99,25 @@ export default function TierPerformanceCard({ trades }: TierPerformanceCardProps
               />
             ))}
             {noSetup.length > 0 && (
-              <NoSetupRow count={noSetup.length} stats={noSetupStats} />
+              <NoSetupRow
+                count={noSetup.length}
+                stats={noSetupStats}
+                perShare={noSetupPerShare}
+              />
             )}
           </tbody>
         </table>
       </div>
     </Card>
   )
+}
+
+// Net P&L per share HELD, in cents. The BASIS is the shared perShare helper (one leg,
+// not both) — the same denominator Compare's per-share family already uses. Cents
+// because a per-share figure on a small-cap momentum book is almost always under a
+// dollar, and "0.07" reads as noise where "7.06c" reads as a number.
+function formatCentsPerShare(v: number | null): string {
+  return v == null ? '—' : `${(v * 100).toFixed(2)}c`
 }
 
 function TierRow({
@@ -184,6 +200,15 @@ function TierRow({
           {signed(r.net_pnl)}
         </td>
         <td className="px-3 py-2 text-right font-mono tnum">
+          {r.net_per_share == null ? (
+            <span className="text-fg-tertiary">—</span>
+          ) : (
+            <span className={pnlClass(r.net_per_share)}>
+              {formatCentsPerShare(r.net_per_share)}
+            </span>
+          )}
+        </td>
+        <td className="px-3 py-2 text-right font-mono tnum">
           {r.expectancy == null ? (
             <span className="text-fg-tertiary">—</span>
           ) : (
@@ -239,6 +264,15 @@ function PlaybookRow({ row: p }: { row: PlaybookPerfRow }) {
         {signed(p.net_pnl)}
       </td>
       <td className="px-3 py-1.5 text-right font-mono text-xs tnum">
+        {p.net_per_share == null ? (
+          <span className="text-fg-tertiary">—</span>
+        ) : (
+          <span className={pnlClass(p.net_per_share)}>
+            {formatCentsPerShare(p.net_per_share)}
+          </span>
+        )}
+      </td>
+      <td className="px-3 py-1.5 text-right font-mono text-xs tnum">
         {p.expectancy == null ? (
           <span className="text-fg-tertiary">—</span>
         ) : (
@@ -264,7 +298,15 @@ function PlaybookRow({ row: p }: { row: PlaybookPerfRow }) {
 // win%). Neutral throughout — a tally of trading without a setup, never a verdict.
 // Setups is "—": these trades have no playbook, so a setup count is meaningless.
 // Not expandable (no playbooks to break out).
-function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
+function NoSetupRow({
+  count,
+  stats,
+  perShare,
+}: {
+  count: number
+  stats: OutcomeStats
+  perShare: number | null
+}) {
   return (
     <tr data-row="nosetup" className="border-t-2 border-border-strong bg-fg-muted/[0.05]">
       <td className="px-3 py-2">
@@ -288,6 +330,13 @@ function NoSetupRow({ count, stats }: { count: number; stats: OutcomeStats }) {
         className={`px-3 py-2 text-right font-mono font-medium tnum ${pnlClass(stats.net_pnl)}`}
       >
         {signed(stats.net_pnl)}
+      </td>
+      <td className="px-3 py-2 text-right font-mono tnum">
+        {perShare == null ? (
+          <span className="text-fg-tertiary">—</span>
+        ) : (
+          <span className={pnlClass(perShare)}>{formatCentsPerShare(perShare)}</span>
+        )}
       </td>
       <td className="px-3 py-2 text-right font-mono tnum">
         {stats.expectancy == null ? (

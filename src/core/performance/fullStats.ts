@@ -1,4 +1,5 @@
 import { isWin, isLoss, isScratch } from '@/core/classify/outcome'
+import { positionShares } from './perShare'
 import { avgShareSize } from './avgShareSize'
 import type { FullStats } from '@shared/reports-types'
 import { buildEquityCurve } from './equity'
@@ -137,10 +138,7 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
   // Per-share P&L divides by POSITION size (one leg = max of the two), not the
   // both-leg sum above. totalShares stays both-leg — it feeds the volume stats
   // (total_shares_traded, avg_daily_volume), which legitimately count both legs.
-  const totalPositionShares = trades.reduce(
-    (s, t) => s + Math.max(t.shares_bought, t.shares_sold),
-    0,
-  )
+  const totalPositionShares = trades.reduce((s, t) => s + positionShares(t), 0)
 
   const avgTrade = trades.length > 0 ? totalNet / trades.length : null
   const avgDaily = distinctDays > 0 ? totalNet / distinctDays : null
@@ -165,7 +163,7 @@ export function computeFullStats(rows: TradeForStats[]): FullStats {
   // winner/loser subsets (mirroring avg_winner/avg_loser). A zero-position row is
   // guarded out. Null when the side has no qualifying trades (em-dash downstream).
   const perShareOf = (t: TradeForStats): number | null => {
-    const pos = Math.max(t.shares_bought, t.shares_sold)
+    const pos = positionShares(t)
     return pos > 0 ? t.net_pnl / pos : null
   }
   const winnerPerShares = winners.map(perShareOf).filter((v): v is number => v != null)

@@ -98,3 +98,29 @@ describe('TierPerformanceCard — one table', () => {
     expect(text).toContain('67%') // 2 of 3 decided
   })
 })
+
+describe('TierPerformanceCard — cents per share', () => {
+  it('T11 the c/share column sits in the SAME slot on parent and child rows', () => {
+    const c = setup()
+    expandFirstTier(c)
+    const headers = Array.from(c.querySelectorAll('thead th')).map((h) => h.textContent!.trim())
+    const slot = headers.indexOf('c/share')
+    expect(slot).toBeGreaterThan(-1)
+
+    const parentCells = c.querySelector('[data-row="tier"]')!.querySelectorAll(':scope > td')
+    const childCells = c.querySelector('[data-row="playbook"]')!.querySelectorAll(':scope > td')
+    // Asserted by INDEX: same column, same position, both rows.
+    expect(parentCells[slot].textContent).toMatch(/c$/)
+    expect(childCells[slot].textContent).toMatch(/c$/)
+    expect(parentCells.length).toBe(childCells.length)
+  })
+
+  it('the No-Setup row keeps the same cell count with the new column', () => {
+    const c = setup()
+    const noSetup = c.querySelector('[data-row="nosetup"]')!
+    const tier = c.querySelector('[data-row="tier"]')!
+    expect(noSetup.querySelectorAll(':scope > td').length).toBe(
+      tier.querySelectorAll(':scope > td').length,
+    )
+  })
+})

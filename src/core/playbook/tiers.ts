@@ -7,6 +7,7 @@
 // untagged trade has no tier claim.
 
 import type { TradeListRow } from '@shared/trades-types'
+import { netPerShare } from '@/core/performance/perShare'
 import { PLAYBOOK_TIERS, type PlaybookTier } from '@shared/playbook-types'
 import { computeOutcomeStats } from '@/core/stats/outcomeStats'
 
@@ -17,6 +18,10 @@ export interface TierPerformanceRow {
   losers: number
   scratches: number
   net_pnl: number
+  /** Net P&L per share HELD (the shared perShare basis — one leg, not both). Null
+   *  when the set holds no shares. Aggregate over the bucket's trades, never an
+   *  average of its children's figures. */
+  net_per_share: number | null
   gross_pnl: number
   total_fees: number
   win_rate: number | null
@@ -46,6 +51,9 @@ export interface PlaybookPerfRow {
   losers: number
   scratches: number
   net_pnl: number
+  /** Same shared basis as the tier row above, so a playbook and its tier are
+   *  directly comparable. */
+  net_per_share: number | null
   win_rate: number | null
   expectancy: number | null
   pnl_ratio: number | null
@@ -75,6 +83,7 @@ function bucketToRow(
     losers: s.losers,
     scratches: s.scratches,
     net_pnl: s.net_pnl,
+    net_per_share: netPerShare(trades),
     gross_pnl,
     total_fees,
     win_rate: s.win_rate,
@@ -148,6 +157,7 @@ export function aggregatePlaybooksInTier(
       losers: s.losers,
       scratches: s.scratches,
       net_pnl: s.net_pnl,
+      net_per_share: netPerShare(pbTrades),
       win_rate: s.win_rate,
       expectancy: s.expectancy,
       pnl_ratio: s.pnl_ratio,
