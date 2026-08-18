@@ -11,6 +11,8 @@ import {
   type VisibilityState,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { computeExecutionStats } from '@/core/trades/executionStats'
+import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
 import {
   UNHIDEABLE_COLUMN,
   readColumnVisibility,
@@ -31,7 +33,7 @@ import type {
   UpdateTimeframeInput,
 } from '@shared/trades-types'
 import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
-import { money, price, int, pnlClass, signed, longDate, compactShares, formatEastern } from '@/lib/format'
+import { money, price, int, pnlClass, signed, signedPct, duration, longDate, compactShares, formatEastern } from '@/lib/format'
 import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
 import { tierRank } from '@/core/playbook/tierRank'
 import Flag from '@/components/ui/Flag'
@@ -197,6 +199,18 @@ const TradesTableRow = memo(function TradesTableRow({
     </tr>
   )
 })
+
+/** The em dash every optional column shows when its source is null. A zero here
+ *  would claim a measurement nobody took. */
+const EMPTY = '—'
+
+/** Right-aligned monospace cell, shared by all fifteen optional columns so their
+ *  formatting cannot drift apart one column at a time. */
+function Num({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-right font-mono text-xs text-fg-secondary tnum">{children}</div>
+  )
+}
 
 export default function TradesTable({
   trades,
@@ -561,6 +575,110 @@ export default function TradesTable({
     const playbookIdx = base.findIndex((c) => c.id === 'playbook')
     base.splice(playbookIdx + 1, 0, countryColumn, catalystColumn, mistakesColumn)
     base.push(sparkColumn)
+
+    // v0.2.7 — the fifteen optional columns, all default hidden. Values are either
+    // DELIVERED on the row or computed by a core module; nothing is derived here.
+    //
+    // MEMOISATION: computeExecutionStats walks a trade's fills, so calling it inside
+    // three separate cell renderers would walk them three times per row, on every
+    // render and every sort. One WeakMap keyed by the row object collapses that to
+    // once per trade for the lifetime of that object, and lets the entry drop when
+    // the row does. A plain Map would pin every trade the table had ever seen.
+    const execCache = new WeakMap<TradeListRow, ReturnType<typeof computeExecutionStats>>()
+    const execOf = (t: TradeListRow) => {
+      let v = execCache.get(t)
+      if (!v) {
+        v = computeExecutionStats(t)
+        execCache.set(t, v)
+      }
+      return v
+    }
+    const num = (v: number | null | undefined, render: (n: number) => string) =>
+      v == null || !Number.isFinite(v) ? EMPTY : render(v)
+
+    const optional: ColumnDef<TradeListRow, any>[] = [
+      col.accessor((r) => holdTimeSeconds(r), {
+        id: 'hold_time', header: 'Hold', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => duration(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor((r) => execOf(r).priceMovePct, {
+        id: 'price_move_pct', header: 'Move %', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor((r) => pnlGainPct(r), {
+        id: 'pnl_gain_pct', header: 'Gain %', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor((r) => r.executions.length, {
+        id: 'exec_count', header: 'Fills', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{int(i.getValue() as number)}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor((r) => execOf(r).firstEntry?.price ?? null, {
+        id: 'first_entry', header: '1st entry', size: COLUMN_WIDTHS.avg_buy,
+        cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('planned_stop_loss_price', {
+        id: 'stop_price', header: 'Stop', size: COLUMN_WIDTHS.avg_buy,
+        cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('r_multiple', {
+        id: 'r_multiple', header: 'R', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => `${n.toFixed(2)}R`)}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('risk_per_share', {
+        id: 'risk_per_share', header: 'Risk/sh', size: COLUMN_WIDTHS.avg_buy,
+        cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('total_risk', {
+        id: 'total_risk', header: 'Risk $', size: COLUMN_WIDTHS.fees,
+        cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('rvol', {
+        id: 'rvol', header: 'RVOL', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => `${n.toFixed(2)}x`)}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('daily_change_pct', {
+        id: 'daily_change_pct', header: 'Day %', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n, 2))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('confidence', {
+        id: 'confidence', header: 'Conf', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => String(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('entry_timeframe', {
+        id: 'entry_timeframe', header: 'TF', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{(i.getValue() as string | null) ?? EMPTY}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('days_since_catalyst', {
+        id: 'days_since_catalyst', header: 'Days since', size: COLUMN_WIDTHS.shares,
+        cell: (i) => <Num>{num(i.getValue(), (n) => int(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('mae', {
+        id: 'mae', header: 'MAE', size: COLUMN_WIDTHS.fees,
+        cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+      col.accessor('mfe', {
+        id: 'mfe', header: 'MFE', size: COLUMN_WIDTHS.fees,
+        cell: (i) => <Num>{num(i.getValue(), (n) => money(n))}</Num>,
+        sortUndefined: 'last',
+      }),
+    ]
+    base.push(...optional)
     return base
   }, [accountFor])
 
