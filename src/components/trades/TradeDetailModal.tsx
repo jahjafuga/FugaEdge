@@ -864,7 +864,22 @@ function FloatField({
 // save logic — including its render-phase draft-resync guard — is untouched:
 // the reveal mounts a fresh editor seeded from the current props, so the guard
 // idles (draft already matches) instead of fighting the toggle.
-function CatalystField({
+//
+// v0.2.7 Bug 4 — THE PENCIL WOULD NOT OPEN. Two defects, both fixed here.
+// RACE: wrapRef used to be attached ONLY to the editing branch, so the trigger was
+// never inside the guarded subtree. If the open effect's document listener landed
+// mid-bubble — which it can in a browser, though jsdom's scheduler never does — the
+// opening click read as an OUTSIDE click and closed the panel it had just opened.
+// The ref now wraps BOTH branches, so contains() is true for the trigger and the
+// ordering stops mattering. Structural, not a timeout racing a timeout.
+// CountryEditor's identical 24px pencil never had this: it has no document listener
+// at all, a <Modal> owns its dismissal. That contrast is what identified the cause.
+// GEOMETRY: the target was 24x24, under the 32x32 minimum, and two people missed it.
+// It is now 32x32 of hit area around an UNCHANGED 24x24 of paint, via an
+// absolutely-positioned overlay that is out of flow and shifts no layout. The sizes
+// are inline because jsdom performs no layout, so a test can only measure what the
+// DOM actually carries.
+export function CatalystField({
   catalystType,
   daysSince,
   onChange,
@@ -887,42 +902,53 @@ function CatalystField({
     return () => document.removeEventListener('click', onDocClick)
   }, [editing])
 
-  if (editing) {
-    return (
-      <div ref={wrapRef}>
-        <CatalystEditor
-          catalystType={catalystType}
-          daysSince={daysSince}
-          onChange={onChange}
-        />
-        <button
-          type="button"
-          onClick={() => setEditing(false)}
-          className="mt-2 cursor-pointer text-xs text-fg-tertiary transition-colors duration-150 hover:text-gold"
-        >
-          Done
-        </button>
-      </div>
-    )
-  }
-
+  // ONE guarded root across both branches — this is the race fix. The document
+  // listener asks whether the click landed inside `wrapRef`; with the trigger inside
+  // it, the answer for the opening click is always yes.
   return (
-    <div className="flex items-center gap-2">
-      <span
-        className={`text-sm font-semibold ${
-          catalystType ? 'text-fg-primary' : 'text-fg-muted'
-        }`}
-      >
-        {catalystLabel(catalystType, daysSince)}
-      </span>
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
-        aria-label="Edit catalyst"
-        className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-gold/60 hover:text-gold"
-      >
-        <Pencil size={11} strokeWidth={2} />
-      </button>
+    <div ref={wrapRef} data-reveal-root>
+      {editing ? (
+        <>
+          <CatalystEditor
+            catalystType={catalystType}
+            daysSince={daysSince}
+            onChange={onChange}
+          />
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="mt-2 cursor-pointer text-xs text-fg-tertiary transition-colors duration-150 hover:text-gold"
+          >
+            Done
+          </button>
+        </>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-sm font-semibold ${
+              catalystType ? 'text-fg-primary' : 'text-fg-muted'
+            }`}
+          >
+            {catalystLabel(catalystType, daysSince)}
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit catalyst"
+            style={{ width: 24, height: 24 }}
+            className="relative inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md border border-border-subtle text-fg-tertiary transition-colors duration-150 hover:border-gold/60 hover:text-gold"
+          >
+            {/* 24 + 4 on every side = a 32x32 target. Absolute, so it paints
+                nothing and moves nothing; clicks on it still land on the button. */}
+            <span
+              aria-hidden="true"
+              data-hit-area
+              style={{ position: 'absolute', top: -4, right: -4, bottom: -4, left: -4 }}
+            />
+            <Pencil size={11} strokeWidth={2} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
