@@ -208,7 +208,7 @@ export default function Analytics() {
         </div>
 
         <div key={tab} className="animate-fade-in">
-          {tab === 'overview' && <OverviewTab data={data} reports={reports} trades={trades} />}
+          {tab === 'overview' && <OverviewTab trades={trades} />}
           {tab === 'compare' && (
             <AnalyticsCompareTab
               trades={trades}

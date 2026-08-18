@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import EquityChart from '@/components/analytics/EquityChart'
-import KpiCard from '@/components/analytics/KpiCard'
+import OverviewTiles from '@/components/analytics/OverviewTiles'
 import NormalCharts from '@/components/reports/overview/NormalCharts'
 import AnalyticsFilterBar, {
   rangeForQuickKey,
@@ -10,7 +10,6 @@ import AnalyticsFilterBar, {
   type QuickKey,
 } from '@/components/analytics/AnalyticsFilterBar'
 import {
-  applyFilters,
   computeCumulativePnL,
   computeDailyPnL,
   computeDailyVolume,
@@ -22,26 +21,24 @@ import {
   computeOverviewSnapshot,
   type OverviewSnapshot,
 } from '@/core/performance/overviewSnapshot'
-import { int, longDate, money, pnlClass, signed } from '@/lib/format'
-import type { AnalyticsData } from '@shared/analytics-types'
-import type { ReportsData } from '@shared/reports-types'
+import { longDate, money, pnlClass, signed } from '@/lib/format'
 import type { TradeListRow } from '@shared/trades-types'
 
+// v0.2.7: this tab no longer takes the AnalyticsData or ReportsData payloads. Every
+// widget on it now derives from the filtered trade list, so the pre-aggregated,
+// UNFILTERED snapshots had nothing left to contribute — keeping them as props would
+// have invited someone to reach for a number the filters cannot reach.
 interface OverviewTabProps {
-  data: AnalyticsData
-  reports: ReportsData | null
-  /** Full trade list (already fetched by the Analytics page). Powers the
-   *  re-homed daily dashboard below the snapshot; open positions are dropped
-   *  to match the Reports → Overview source. */
+  /** Full trade list (already fetched by the Analytics page). Open positions are
+   *  dropped to match the Reports -> Overview source. */
   trades: TradeListRow[]
 }
 
-export default function OverviewTab({ data, reports, trades }: OverviewTabProps) {
+export default function OverviewTab({ trades }: OverviewTabProps) {
 
   // ── Re-homed daily dashboard (from Reports → Overview) ──────────────────
   // Open positions are dropped so the per-day series match the Reports
-  // snapshot's source exactly; the equity/KPI snapshot above keeps its own
-  // `data` source untouched.
+  // snapshot's source exactly.
   const dashTrades = useMemo(() => trades.filter((t) => !t.is_open), [trades])
   // PAGE-LEVEL filters (v0.2.7): every widget on this tab — equity curve, tiles,
   // best/worst day, drawdown — derives from ONE filtered set, so the chart and the
@@ -57,8 +54,9 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
     [dashTrades, filters],
   )
   const { best, worst } = { best: snapshot.metrics.bestDay, worst: snapshot.metrics.worstDay }
-  const netPnl = snapshot.metrics.netPnL
-  const filtered = useMemo(() => applyFilters(dashTrades, filters), [dashTrades, filters])
+  // The snapshot already applied the filters — reuse its result rather than running
+  // applyFilters a second time over the same inputs.
+  const filtered = snapshot.trades
   const daily = useMemo(() => computeDailyPnL(filtered, filters.range), [filtered, filters.range])
   const cumulative = useMemo(
     () => computeCumulativePnL(filtered, filters.range),
@@ -73,14 +71,6 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
     [filtered, filters.range],
   )
   const rangeLabel = quickKeyLabel(quick)
-  const profitFactor = reports?.fullStats.profit_factor ?? null
-  const winRate = (() => {
-    const w = reports?.fullStats.winners ?? 0
-    const l = reports?.fullStats.losers ?? 0
-    const decided = w + l
-    return decided > 0 ? w / decided : null
-  })()
-  const expectancy = data.r.expectancy
 
   return (
     <div className="space-y-6">
@@ -111,42 +101,11 @@ export default function OverviewTab({ data, reports, trades }: OverviewTabProps)
         )}
       </Card>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <KpiCard
-          label="Net P&L"
-          value={signed(netPnl)}
-          tone={netPnl > 0 ? 'green' : netPnl < 0 ? 'red' : 'gold'}
-          detail={`${int(data.trade_count)} trades`}
-        />
-        <KpiCard
-          label="Win rate"
-          value={winRate == null ? '—' : `${(winRate * 100).toFixed(1)}%`}
-          tone="gold"
-          detail={
-            reports
-              ? `${int(reports.fullStats.winners)} W / ${int(reports.fullStats.losers)} L`
-              : '—'
-          }
-        />
-        <KpiCard
-          label="Expectancy"
-          value={expectancy == null ? '—' : `${expectancy >= 0 ? '+' : ''}${expectancy.toFixed(2)}R`}
-          tone={expectancy == null ? 'gold' : expectancy >= 0 ? 'green' : 'red'}
-          detail={`${int(data.r.coverage)}/${int(data.r.total_trades)} with planned risk`}
-        />
-        <KpiCard
-          label="Profit factor"
-          value={
-            profitFactor == null
-              ? 'N/A'
-              : !Number.isFinite(profitFactor)
-                ? '∞'
-                : profitFactor.toFixed(2)
-          }
-          tone="gold"
-          detail="Gross wins ÷ gross losses"
-        />
-      </div>
+      {/* v0.2.7: twelve tiles, all from the SAME filtered snapshot as the curve
+          above. Six ratio tiles carry a sample guard keyed to their own denominator
+          — see OverviewTiles. Net P&L lost its trade-count subtitle; Trade Count
+          owns that now. */}
+      <OverviewTiles metrics={snapshot.metrics} />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card title="Best day vs worst day" subtitle="Your single-session bookends.">
