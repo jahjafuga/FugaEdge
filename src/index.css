@@ -600,6 +600,25 @@
   /* Premium card shape — adopted by the Card primitive (all 29 consumers) and
      the inline Edge cards. Var-driven so it's ONE class (a consumer's Tailwind
      className still overrides by layer order) and light = the flat tokens. */
+  /* Trailing edge of the frozen column block. A horizontal cast, so the app's
+     downward shadow tokens cannot express it — the alphas are taken from
+     --shadow-md in each theme so it sits in the same family. Applied ONLY while
+     the table is scrolled sideways: at rest there is nothing passing underneath,
+     and a permanent shadow would claim there is. */
+  /* The frozen cells' own surface: the CARD's colour at full alpha. The rows are
+     transparent so the felt reads through them, which means a frozen cell has to
+     supply that felt itself — the same hue as --card-surface, just solid, so the
+     block reads as the row continuing rather than as a different material. */
+  .pinned-surface { background-color: rgb(10 15 28); }
+  :root.light .pinned-surface { background-color: rgb(252 253 255); }
+
+  /* Trailing edge of the frozen block, and the ONLY thing that explains a sliver
+     of a value with no header above it. Deliberately heavier than a hairline:
+     "content passes under here" has to be legible at a glance, or the shear reads
+     as a rendering fault. Applied only while the table is scrolled sideways. */
+  .pinned-edge { box-shadow: 14px 0 16px -8px rgb(0 0 0 / 0.72); }
+  :root.light .pinned-edge { box-shadow: 14px 0 16px -8px rgb(15 23 42 / 0.30); }
+
   .card-premium {
     background-color: var(--card-surface);
     border: 1px solid var(--card-border);

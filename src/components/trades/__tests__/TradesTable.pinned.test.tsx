@@ -9,6 +9,8 @@
 // Date and Symbol are pinned. Pinned cells must be OPAQUE — a sticky cell with a
 // transparent background has the scrolling content drawn straight through it.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TradesTable from '@/components/trades/TradesTable'
@@ -85,15 +87,25 @@ describe('T5 the pinned columns survive a horizontal scroll', () => {
 })
 
 describe('T6 pinned cells are opaque', () => {
-  it('every sticky cell carries a background token with no alpha', () => {
+  it('every sticky cell carries the opaque surface class', () => {
     allOn()
     render(<TradesTable {...PROPS} trades={TRADES} />)
     for (const el of [...sticky(ths()), ...sticky(firstRowTds())]) {
-      const bg = (el as HTMLElement).className.match(/\bbg-[a-z0-9-]+(?:\/\[?[0-9.]+\]?)?/g) ?? []
-      expect(bg.length, `a sticky cell paints no background: ${el.className}`).toBeGreaterThan(0)
-      // bg-bg-2/80 would let the scrolling content read through.
-      for (const b of bg) expect(b, `${b} is translucent`).not.toMatch(/\//)
+      const cls = el.getAttribute('class') ?? ''
+      // The surface moved from a bg-* utility to a named class when the rows went
+      // transparent again — .pinned-surface is the card's own colour at full alpha.
+      // The invariant is unchanged: nothing scrolling under may read through.
+      expect(cls, `a sticky cell paints no surface: ${cls}`).toContain('pinned-surface')
+      const translucent = cls.split(/\s+/).filter((c) => /^bg-[a-z0-9-]+\//.test(c))
+      expect(translucent, `translucent surface: ${cls}`).toEqual([])
     }
+  })
+
+  it('and that class is opaque in both themes', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8')
+    const rules = css.match(/\.pinned-surface\s*\{[^}]*\}/g) ?? []
+    expect(rules.length, 'pinned-surface is not defined twice').toBeGreaterThanOrEqual(2)
+    for (const r of rules) expect(r, `translucent: ${r}`).not.toMatch(/\/\s*0?\.\d/)
   })
 })
 

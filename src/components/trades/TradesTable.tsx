@@ -29,8 +29,8 @@ import {
   COLUMN_WIDTHS,
   PINNED_COLUMNS,
   isLockedColumn,
-  readColumnVisibility,
   resetColumnVisibility,
+  readColumnVisibility,
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
 import { ChevronUp, ChevronDown } from 'lucide-react'
@@ -144,6 +144,7 @@ const TradesTableRow = memo(function TradesTableRow({
   index,
   onSelect,
   onToggle,
+  scrolledX,
 }: {
   row: Row<TradeListRow>
   isSelected: boolean
@@ -151,6 +152,8 @@ const TradesTableRow = memo(function TradesTableRow({
   index: number
   onSelect: (id: number) => void
   onToggle: (id: number, index: number, shiftKey: boolean) => void
+  /** True while the table is scrolled sideways — see the sentinel in the body. */
+  scrolledX: boolean
   /** The ids of the currently visible columns, joined. NOT rendered — this is the
    *  row's dependency on the column model, and the memo comparator below names it.
    *
@@ -171,12 +174,15 @@ const TradesTableRow = memo(function TradesTableRow({
     <tr
       onClick={() => onSelect(t.id)}
       style={{ height: ROW_HEIGHT }}
-      className="cursor-pointer border-b border-border-subtle/60 transition-colors duration-150 ease-out-soft hover:bg-bg-3"
+      // TRANSPARENT at rest, so the card's felt surface shows through the rows the
+      // way it did before anything was frozen. The pinned cells carry their own
+      // opaque surface; `group/row` is what lets them follow this row's hover.
+      className="group/row cursor-pointer border-b border-border-subtle/60 transition-colors duration-150 ease-out-soft hover:bg-bg-3"
     >
       {bulkEnabled && (
         <td
           style={{ width: CHECKBOX_W, left: 0 }}
-          className="group sticky z-[1] cursor-pointer bg-bg-2 px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
+          className="group sticky z-[1] cursor-pointer pinned-surface px-3 text-center align-middle transition-colors duration-150 group-hover/row:bg-bg-3 hover:bg-gold/10"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -195,7 +201,7 @@ const TradesTableRow = memo(function TradesTableRow({
         </td>
       )}
       {row.getVisibleCells().map((cell) => {
-        const pin = pinnedCell(cell.column, bulkEnabled ? CHECKBOX_W : 0)
+        const pin = pinnedCell(cell.column, bulkEnabled ? CHECKBOX_W : 0, scrolledX, true)
         return (
           <td
             key={cell.id}
@@ -220,6 +226,7 @@ const TradesTableRow = memo(function TradesTableRow({
   a.index === b.index &&
   a.onSelect === b.onSelect &&
   a.onToggle === b.onToggle &&
+  a.scrolledX === b.scrolledX &&
   a.visibleKey === b.visibleKey)
 
 /** The selection column's width. It is rendered outside TanStack, so every
@@ -232,12 +239,35 @@ const CHECKBOX_W = 36
  *  card surface the table already sits on, so the pinned pair reads as part of
  *  the table rather than as a floating panel. */
 function pinnedCell(
-  column: { getIsPinned: () => false | 'left' | 'right'; getStart: (p: 'left') => number },
+  column: {
+    id: string
+    getIsPinned: () => false | 'left' | 'right'
+    getStart: (p: 'left') => number
+  },
   offset: number,
+  scrolledX: boolean,
+  /** True for a BODY cell, false for a header cell.
+   *
+   *  The row hover is the one thing header and body must NOT share. A header is
+   *  not a row: it has no record behind it to highlight, so carrying the row's
+   *  hover made the frozen pair light as a single block whenever the cursor
+   *  crossed the header — the only two cells in it that did, which read as a
+   *  selection of Date-and-Symbol rather than as a hover.
+   *
+   *  Everything else here IS shared, deliberately: surface, offset and edge are
+   *  what make the frozen block continuous from the header to the last row. */
+  hoverable: boolean,
 ): { className: string; style: { left: number } } | null {
   if (column.getIsPinned() !== 'left') return null
+  const edge =
+    scrolledX && column.id === PINNED_COLUMNS[PINNED_COLUMNS.length - 1]
+      ? ' pinned-edge'
+      : ''
+  // pinned-surface is the card's OWN colour at full alpha — the rows are
+  // transparent, so a frozen cell has to supply the felt itself.
+  const hover = hoverable ? ' group-hover/row:bg-bg-3' : ''
   return {
-    className: 'sticky z-[1] bg-bg-2',
+    className: 'sticky z-[1] pinned-surface' + hover + edge,
     style: { left: column.getStart('left') + offset },
   }
 }
@@ -1031,6 +1061,26 @@ export default function TradesTable({
   // ONE derivation of the visible column model, read by the scroll spacers below and
   // by every row. Recomputed each render; the joined string is value-equal when
   // nothing changed, so it never busts a memo on its own.
+  // SCROLLED-SIDEWAYS DETECTION. Same shape as the Analytics toolbar's stuck
+  // sentinel: a zero-size marker that sits at the content's left edge and is
+  // watched against the scroll container. While it is in view nothing is passing
+  // under the frozen columns, so they cast no shadow; the moment it scrolls out
+  // they do. `sticky top-0` keeps it vertically in view so only the horizontal
+  // axis can move it. Guarded because jsdom has no IntersectionObserver.
+  const xSentinelRef = useRef<HTMLDivElement | null>(null)
+  const [scrolledX, setScrolledX] = useState(false)
+  useEffect(() => {
+    const el = xSentinelRef.current
+    const root = containerRef.current
+    if (!el || !root || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setScrolledX(!e.isIntersecting), {
+      root,
+      threshold: 1,
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   const visibleLeaf = table.getVisibleLeafColumns()
   const visibleKey = visibleLeaf.map((c) => c.id).join(',')
   // VISIBLE columns, not the whole registry. The table is `tableLayout: fixed`, so
@@ -1099,22 +1149,32 @@ export default function TradesTable({
         </div>
       </div>
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
+        <div
+          ref={xSentinelRef}
+          aria-hidden="true"
+          className="pointer-events-none sticky top-0 h-px w-px"
+        />
         <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
           {/* ONE opaque surface. Pinning gave the table a second layer, and the
               header was painting a different token from it — three surfaces in one
               table, two of them existing only because something has to be opaque.
               bg-bg-2 is the app's cards-and-tiles token, so the whole opaque layer
               is one named colour that resolves in both themes. */}
-          <thead className="sticky top-0 z-10 bg-bg-2">
+          {/* The background lives on the header ROW, not here. A pinned cell takes
+              its colour with bg-inherit, and inherit reads the IMMEDIATE parent —
+              so a fill on the thead left the pinned header cells transparent while
+              the body's worked, because the body's parent is a tr that paints.
+              One source of colour per row, header and body alike. */}
+          <thead className="sticky top-0 z-10">
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
-                className="border-b border-border-subtle text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
+                className="border-b border-border pinned-surface text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
               >
                 {bulkEnabled && (
                   <th
                     style={{ width: CHECKBOX_W, left: 0 }}
-                    className="group sticky z-[1] cursor-pointer bg-bg-2 px-3 py-2.5 text-center transition-colors duration-150 hover:bg-gold/10"
+                    className="group sticky z-[1] cursor-pointer pinned-surface px-3 py-2.5 text-center transition-colors duration-150 hover:bg-gold/10"
                   >
                     <input
                       type="checkbox"
@@ -1131,7 +1191,7 @@ export default function TradesTable({
                 {hg.headers.map((h) => {
                   const sorted = h.column.getIsSorted()
                   const canSort = h.column.getCanSort()
-                  const pin = pinnedCell(h.column, bulkEnabled ? CHECKBOX_W : 0)
+                  const pin = pinnedCell(h.column, bulkEnabled ? CHECKBOX_W : 0, scrolledX, false)
                   return (
                     <th
                       key={h.id}
@@ -1184,6 +1244,7 @@ export default function TradesTable({
                   onSelect={setSelectedId}
                   onToggle={toggleRow}
                   visibleKey={visibleKey}
+                  scrolledX={scrolledX}
                 />
               )
             })}

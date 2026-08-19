@@ -49,37 +49,43 @@ const allOn = () => {
   for (const id of ALL_COLUMN_IDS) v[id] = true
   setVis(v)
 }
-const bgOf = (cls: string) => (cls.match(/\bbg-[a-z0-9-]+(?:\/\[?[0-9.]+\]?)?/g) ?? [])
-  .filter((b) => !b.startsWith('bg-gold'))
+/** Backgrounds painted AT REST. Split on whitespace: a word-boundary regex also
+ *  matches inside hover:bg-bg-3, which would count a hover colour as a resting one
+ *  and is exactly the distinction these assertions turn on. */
+const bgOf = (cls: string) =>
+  cls.split(/\s+/).filter((c) => c.startsWith('bg-') && !c.startsWith('bg-gold'))
 
 beforeEach(() => localStorage.clear())
 
-describe('T10 the table has ONE opaque surface token', () => {
-  it('the header and the pinned cells paint the same token', () => {
+describe('T10 the table has ONE opaque surface, and only where it must', () => {
+  it('the frozen cells carry it; the rows do not', () => {
     allOn()
     render(<TradesTable {...PROPS} trades={TRADES} />)
-    const head = document.querySelector('thead') as HTMLElement
-    const headBg = bgOf(head.className)
-    expect(headBg.length, 'the header paints no background').toBe(1)
-
-    const pinned = Array.from(document.querySelectorAll('thead th, tbody td')).filter(
-      (e) => e.className.includes('sticky'),
+    const frozen = Array.from(document.querySelectorAll('thead th, tbody td')).filter(
+      (e) => (e.getAttribute('class') ?? '').includes('sticky'),
     )
-    expect(pinned.length).toBeGreaterThan(0)
-    for (const el of pinned) {
+    expect(frozen.length).toBeGreaterThan(0)
+    for (const el of frozen) {
       expect(
-        bgOf(el.className),
-        `a pinned cell paints ${bgOf(el.className)} while the header paints ${headBg}`,
-      ).toEqual(headBg)
+        el.getAttribute('class'),
+        'a frozen cell paints nothing, so content scrolls through it',
+      ).toContain('pinned-surface')
+    }
+    // And the rows stay transparent so the card's felt reads through them.
+    for (const row of Array.from(document.querySelectorAll('tbody tr')).filter(
+      (r) => r.querySelectorAll('td').length > 1,
+    )) {
+      expect(bgOf(row.className)).toEqual([])
     }
   })
 
-  it('and it is a named token, not an arbitrary colour', () => {
-    allOn()
-    render(<TradesTable {...PROPS} trades={TRADES} />)
-    const head = (document.querySelector('thead') as HTMLElement).className
-    expect(head).not.toMatch(/bg-\[/) // bg-[#123456] or bg-[rgb(...)]
-    expect(bgOf(head)[0]).toMatch(/^bg-bg-[0-9a-z]+$/)
+  it('and it is a named class bound to a token, not an arbitrary colour', () => {
+    const css = src('src/index.css')
+    expect(css).toMatch(/\.pinned-surface\s*\{[^}]*background-color/)
+    expect(css).toMatch(/:root\.light \.pinned-surface\s*\{[^}]*background-color/)
+    const bar = src('src/components/trades/TradesTable.tsx')
+    const classAttrs = (bar.match(/className=(?:"[^"]*"|\{`[^`]*`\})/g) ?? []).join(' ')
+    expect(classAttrs).not.toMatch(/bg-\[/)
   })
 })
 
@@ -137,7 +143,7 @@ describe('T13 STAND-DOWN: with Chart hidden, nothing changes', () => {
   it('and the header surface is unchanged by hiding it', () => {
     allOn()
     const { unmount } = render(<TradesTable {...PROPS} trades={TRADES} />)
-    const withChart = bgOf((document.querySelector('thead') as HTMLElement).className)
+    const withChart = bgOf((document.querySelector('thead tr') as HTMLElement).className)
     unmount()
     document.body.replaceChildren()
     localStorage.clear()
@@ -147,6 +153,6 @@ describe('T13 STAND-DOWN: with Chart hidden, nothing changes', () => {
     v.spark = false
     setVis(v)
     render(<TradesTable {...PROPS} trades={TRADES} />)
-    expect(bgOf((document.querySelector('thead') as HTMLElement).className)).toEqual(withChart)
+    expect(bgOf((document.querySelector('thead tr') as HTMLElement).className)).toEqual(withChart)
   })
 })
