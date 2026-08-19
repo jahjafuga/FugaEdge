@@ -1,0 +1,152 @@
+// @vitest-environment jsdom
+// v0.2.7 — one opaque surface, and the Chart column stays inside its own cell.
+//
+// Pinning gave the table a second opaque layer. Before this the header painted
+// bg-header while the pinned cells painted bg-2 and the body painted nothing at
+// all over the card felt: three surfaces in one table, two of which only exist
+// because something has to be opaque. They are now the SAME named token.
+//
+// The Chart column drew an eighty-pixel sparkline out of a one-pixel cell until
+// the width commit; it has a real width now, but nothing stopped it overflowing,
+// so it constrains itself rather than relying on the number staying right.
+
+import { render } from '@testing-library/react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import TradesTable from '@/components/trades/TradesTable'
+import { ALL_COLUMN_IDS, COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
+import { makeTrade } from '@/test/fixtures/trade'
+import type { TradeListRow } from '@shared/trades-types'
+
+vi.mock('@/lib/ipc', () => ({
+  ipc: new Proxy({}, { get: () => () => Promise.resolve([]) }),
+}))
+vi.mock('@tanstack/react-virtual', async () => ({
+  useVirtualizer: (await import('@/test/mockVirtualizer')).passthroughVirtualizer,
+}))
+
+const noop = async () => {}
+const PROPS = {
+  onSaveNote: noop, onSaveTimeframe: noop, onSavePlaybook: noop,
+  onSaveConfidence: noop, onSavePlannedRisk: noop, onSavePlannedStopLoss: noop,
+  onSaveFloat: noop, onSaveCatalyst: noop, onSaveCountry: noop,
+}
+const TRADES: TradeListRow[] = [
+  makeTrade({
+    id: 1, symbol: 'INLF', date: '2026-08-05',
+    executions: [
+      { side: 'B', price: 9.9, shares: 50, time: '2026-08-05T13:30:00Z' },
+      { side: 'S', price: 11, shares: 50, time: '2026-08-05T14:00:00Z' },
+    ] as never,
+  }),
+]
+const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
+const setVis = (v: Record<string, boolean>) =>
+  localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(v))
+const allOn = () => {
+  const v: Record<string, boolean> = {}
+  for (const id of ALL_COLUMN_IDS) v[id] = true
+  setVis(v)
+}
+const bgOf = (cls: string) => (cls.match(/\bbg-[a-z0-9-]+(?:\/\[?[0-9.]+\]?)?/g) ?? [])
+  .filter((b) => !b.startsWith('bg-gold'))
+
+beforeEach(() => localStorage.clear())
+
+describe('T10 the table has ONE opaque surface token', () => {
+  it('the header and the pinned cells paint the same token', () => {
+    allOn()
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    const head = document.querySelector('thead') as HTMLElement
+    const headBg = bgOf(head.className)
+    expect(headBg.length, 'the header paints no background').toBe(1)
+
+    const pinned = Array.from(document.querySelectorAll('thead th, tbody td')).filter(
+      (e) => e.className.includes('sticky'),
+    )
+    expect(pinned.length).toBeGreaterThan(0)
+    for (const el of pinned) {
+      expect(
+        bgOf(el.className),
+        `a pinned cell paints ${bgOf(el.className)} while the header paints ${headBg}`,
+      ).toEqual(headBg)
+    }
+  })
+
+  it('and it is a named token, not an arbitrary colour', () => {
+    allOn()
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    const head = (document.querySelector('thead') as HTMLElement).className
+    expect(head).not.toMatch(/bg-\[/) // bg-[#123456] or bg-[rgb(...)]
+    expect(bgOf(head)[0]).toMatch(/^bg-bg-[0-9a-z]+$/)
+  })
+})
+
+describe('T11 the Chart cell constrains its own overflow', () => {
+  it('its renderer declares containment', () => {
+    const bar = src('src/components/trades/TradesTable.tsx')
+    const spark = bar.slice(bar.indexOf("id: 'spark'"), bar.indexOf("id: 'spark'") + 600)
+    expect(spark, 'the Chart cell can paint outside its column').toContain('overflow-hidden')
+  })
+
+  it('renders inside a containing element', () => {
+    allOn()
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    const svg = document.querySelector('tbody svg')
+    expect(svg, 'no sparkline rendered').toBeTruthy()
+    const holder = (svg as Element).closest('[class*="overflow-hidden"]')
+    expect(holder, 'the sparkline is not inside an overflow-hidden box').toBeTruthy()
+  })
+})
+
+describe('T12 both themes resolve every token used', () => {
+  const css = src('src/index.css')
+  const light = css.slice(css.indexOf(':root.light'))
+
+  it('the surface tokens the table paints are defined in both', () => {
+    for (const t of ['--bg-2', '--bg-3', '--border-subtle']) {
+      expect(css.includes(t + ':'), `${t} missing from :root`).toBe(true)
+      expect(light.includes(t + ':'), `${t} missing from the light theme`).toBe(true)
+    }
+  })
+
+  it('the table paints no raw colour anywhere', () => {
+    const bar = src('src/components/trades/TradesTable.tsx')
+    const classAttrs = (bar.match(/className=(?:"[^"]*"|\{`[^`]*`\})/g) ?? []).join(' ')
+    expect(classAttrs).not.toMatch(/bg-\[#/)
+    expect(classAttrs).not.toMatch(/text-\[#/)
+  })
+})
+
+describe('T13 STAND-DOWN: with Chart hidden, nothing changes', () => {
+  it('the table renders and stays aligned', () => {
+    const v: Record<string, boolean> = {}
+    for (const id of ALL_COLUMN_IDS) v[id] = true
+    v.spark = false
+    setVis(v)
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    expect(document.querySelector('tbody svg')).toBeNull()
+    const h = document.querySelectorAll('thead th').length
+    const row = Array.from(document.querySelectorAll('tbody tr')).find(
+      (tr) => tr.querySelectorAll('td').length > 1,
+    ) as HTMLElement
+    expect(row.querySelectorAll('td').length).toBe(h)
+  })
+
+  it('and the header surface is unchanged by hiding it', () => {
+    allOn()
+    const { unmount } = render(<TradesTable {...PROPS} trades={TRADES} />)
+    const withChart = bgOf((document.querySelector('thead') as HTMLElement).className)
+    unmount()
+    document.body.replaceChildren()
+    localStorage.clear()
+
+    const v: Record<string, boolean> = {}
+    for (const id of ALL_COLUMN_IDS) v[id] = true
+    v.spark = false
+    setVis(v)
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    expect(bgOf((document.querySelector('thead') as HTMLElement).className)).toEqual(withChart)
+  })
+})

@@ -446,11 +446,16 @@ export default function TradesTable({
       meta: { label: COLUMN_LABELS['spark'] },
       header: '',
       size: COLUMN_WIDTHS.spark,
+      // The sparkline draws at its own intrinsic width, which is not derived from
+      // the column's. It fits today; containment here means it cannot paint across
+      // its neighbour again if either number moves.
       cell: ({ row }) => (
-        <Sparkline
-          executions={row.original.executions}
-          netPnl={row.original.net_pnl}
-        />
+        <div className="overflow-hidden">
+          <Sparkline
+            executions={row.original.executions}
+            netPnl={row.original.net_pnl}
+          />
+        </div>
       ),
     })
     const base: ColumnDef<TradeListRow, any>[] = [
@@ -1095,7 +1100,12 @@ export default function TradesTable({
       </div>
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
-          <thead className="sticky top-0 z-10 bg-bg-header">
+          {/* ONE opaque surface. Pinning gave the table a second layer, and the
+              header was painting a different token from it — three surfaces in one
+              table, two of them existing only because something has to be opaque.
+              bg-bg-2 is the app's cards-and-tiles token, so the whole opaque layer
+              is one named colour that resolves in both themes. */}
+          <thead className="sticky top-0 z-10 bg-bg-2">
             {table.getHeaderGroups().map((hg) => (
               <tr
                 key={hg.id}
