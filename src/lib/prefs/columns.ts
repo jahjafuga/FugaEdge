@@ -72,8 +72,33 @@ export const COLUMN_LABELS: Record<string, string> = {
   stop_price: 'Stop price', r_multiple: 'R multiple',
   risk_per_share: 'Risk / share', total_risk: 'Total risk', rvol: 'RVOL',
   daily_change_pct: 'Day change %', confidence: 'Confidence',
-  entry_timeframe: 'Timeframe', days_since_catalyst: 'Days since catalyst',
+  entry_timeframe: 'Timeframe', days_since_catalyst: 'Catalyst age',
   mae: 'MAE', mfe: 'MFE', stop_source: 'Stop set by',
+}
+
+/** Rendered width in px, one entry per column id. The table is `tableLayout:
+ *  fixed`, so these ARE the column widths — nothing is measured from content.
+ *
+ *  DERIVED, not chosen: max(header chars x 7.5, longest formatter output x 7.2)
+ *  + 24px of cell padding, rounded up to 5. Header type is 10px semibold with
+ *  wide tracking; values are 12px monospace.
+ *
+ *  Before this existed the table sized 33 columns from a 15-key map, so every
+ *  v0.2.7 addition rendered at "whatever Shares is", and Chart declared ONE pixel
+ *  while its sparkline draws eighty — which is how it painted across its
+ *  neighbour. */
+export const COLUMN_WIDTHS: Record<string, number> = {
+  // text, width set by the content they truncate
+  open_time: 110, open: 85, close: 85, symbol: 80, playbook: 130,
+  country: 65, catalyst: 130, mistakes: 150, side: 60,
+  spark: 105, // the Sparkline's own 80px + 24px padding
+  // numeric, width set by the wider of the label and the worst-case value
+  shares: 90, avg_buy: 90, avg_sell: 90, float: 65, net_pnl: 105, fees: 90,
+  hold_time: 95, price_move_pct: 115, pnl_gain_pct: 85, exec_count: 65,
+  first_entry: 110, stop_price: 100, stop_source: 110, r_multiple: 100,
+  risk_per_share: 115, total_risk: 100, rvol: 70, daily_change_pct: 115,
+  confidence: 100, entry_timeframe: 95, days_since_catalyst: 115,
+  mae: 100, mfe: 90,
 }
 
 /** Columns a min/max range can filter on. Exactly the ids rangeValueOf resolves —

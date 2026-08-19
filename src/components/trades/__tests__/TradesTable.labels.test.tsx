@@ -55,7 +55,10 @@ describe('column labels', () => {
     openMenu()
     const menu = screen.getByTestId('columns-menu')
     expect(menu.textContent).toContain('Gain %')
-    expect(menu.textContent).toContain('Days since catalyst')
+    // Shortened when every column got a real width: nineteen characters over a
+    // three-digit number forced the header to wrap, which changed the height of
+    // the whole header row depending on what was visible.
+    expect(menu.textContent).toContain('Catalyst age')
     expect(menu.textContent).not.toContain('pnl_gain_pct')
     expect(menu.textContent).not.toContain('days_since_catalyst')
   })
