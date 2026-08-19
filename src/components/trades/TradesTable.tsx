@@ -167,13 +167,20 @@ const TradesTableRow = memo(function TradesTableRow({
   index: number
   onSelect: (id: number) => void
   onToggle: (id: number, index: number, shiftKey: boolean) => void
-  // Memo-busting signal ONLY (intentionally not destructured/rendered): React.memo
-  // shallow-compares the whole props object, so a change here re-renders the row.
-  // A column toggle (Float / Country / Sparkline) changes columns.length but NONE
-  // of the other props (the row model is memoized on data/sorting, not columns), so
-  // without this the memoized row would render stale cells one column behind the
-  // header (the 201aa2b misalignment). Stable on scroll — columns.length is
-  // unchanged while scrolling — so Beat 2's skip-rows-on-scroll win is preserved.
+  /** The ids of the currently visible columns, joined. NOT rendered — this is the
+   *  row's dependency on the column model, and the memo comparator below names it.
+   *
+   *  A row's output is `row.getVisibleCells()`, so it depends on visibility. None of
+   *  the other props move when a column is toggled — TanStack memoizes the row model
+   *  on data and sorting, not on columns — so without this the memo skips the row and
+   *  it keeps rendering the PREVIOUS column model while the header renders the new
+   *  one. That is how a table can show a twelve-column header above thirty-three-cell
+   *  rows, with values still in them from columns that are switched off.
+   *
+   *  It is the column IDS, not a count: hiding one column and showing another leaves
+   *  the count unchanged while the model is completely different. Stable during
+   *  scroll, so the memo still skips untouched rows on every scroll frame. */
+  visibleKey: string
 }) {
   const t = row.original
   return (
@@ -214,7 +221,19 @@ const TradesTableRow = memo(function TradesTableRow({
       ))}
     </tr>
   )
-})
+},
+// Named explicitly rather than left to the default shallow compare. visibleKey has
+// no other reader, and an unread prop reads as dead weight — it was in fact deleted
+// as dead once. Referencing it here makes removing it a compile error instead of a
+// silent regression to stale rows.
+(a, b) =>
+  a.row === b.row &&
+  a.isSelected === b.isSelected &&
+  a.bulkEnabled === b.bulkEnabled &&
+  a.index === b.index &&
+  a.onSelect === b.onSelect &&
+  a.onToggle === b.onToggle &&
+  a.visibleKey === b.visibleKey)
 
 /** The em dash every optional column shows when its source is null. A zero here
  *  would claim a measurement nobody took. */
@@ -989,6 +1008,11 @@ export default function TradesTable({
       setBulkRetagBusy(false)
     }
   }
+  // ONE derivation of the visible column model, read by the scroll spacers below and
+  // by every row. Recomputed each render; the joined string is value-equal when
+  // nothing changed, so it never busts a memo on its own.
+  const visibleLeaf = table.getVisibleLeafColumns()
+  const visibleKey = visibleLeaf.map((c) => c.id).join(',')
   // VISIBLE columns, not the whole registry. The table is `tableLayout: fixed`, so
   // its column model is whatever the widest row declares — and the scroll spacers
   // below are the widest row. Counting the registry made every spacer declare a
@@ -997,7 +1021,7 @@ export default function TradesTable({
   // squeezing the real ones. It appears the moment the list is scrolled far enough
   // to need a top spacer and vanishes when it is scrolled back, which is what makes
   // it so hard to catch.
-  const colCount = table.getVisibleLeafColumns().length + (bulkEnabled ? 1 : 0)
+  const colCount = visibleLeaf.length + (bulkEnabled ? 1 : 0)
 
   return (
     <div className="card-premium card-glow-gold flex max-h-[calc(100vh-340px)] flex-col overflow-hidden">
@@ -1124,6 +1148,7 @@ export default function TradesTable({
                   index={vi.index}
                   onSelect={setSelectedId}
                   onToggle={toggleRow}
+                  visibleKey={visibleKey}
                 />
               )
             })}
