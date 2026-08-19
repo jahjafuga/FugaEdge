@@ -15,6 +15,8 @@ import {
 
 const base: RiskParams = {
   side: 'long',
+  stop_source: null,
+  first_entry_price: null,
   avg_buy_price: 10,
   avg_sell_price: 11,
   shares_bought: 100,
@@ -69,29 +71,61 @@ describe('T2 the stop-price path wins when a stop is set', () => {
   })
 })
 
-describe('T3 CHARACTERISATION: the denominator is the AVERAGE entry', () => {
+describe('T4 the denominator follows the stop PROVENANCE', () => {
   // NCRA id 4 from the live book, 2026-07-29. First entry 2.70, average 3.0533,
-  // and a stop the auto-fill derived as 3% off the FIRST entry.
+  // and a stop the auto-fill derived as 3% off the FIRST entry: 2.619.
+  //
+  // Measured during the auto-stop verify, this trade read 14.22% risk against a
+  // setting that said 3.00% — nearly five times over — because the risk was taken
+  // from the average while the stop was taken from the first fill. A derived stop
+  // now measures against the price it was derived FROM.
   const NCRA = p({
     avg_buy_price: 3.0533,
     avg_sell_price: 0,
     shares_bought: 100,
     shares_sold: 100,
     planned_stop_loss_price: 2.619,
+    first_entry_price: 2.7,
   })
 
-  it('so a stop derived from the first entry reads as a much larger risk', () => {
-    const r = computeRiskBreakdown(0, NCRA)
-    // 3.0533 - 2.619 = 0.4343 per share, which is 14.22% of the average — not the
-    // 3.00% the stop was derived at. Recorded here as the CURRENT behaviour.
+  it('a DERIVED stop measures from the first entry — 14.22% becomes 3.00%', () => {
+    const r = computeRiskBreakdown(0, { ...NCRA, stop_source: 'auto' })
+    // 2.70 - 2.619 = 0.081 per share, which is exactly the 3.00% it was derived at.
+    expect(r.risk_per_share).toBeCloseTo(0.081, 10)
+    const pct = ((r.risk_per_share as number) / 2.7) * 100
+    expect(pct).toBeCloseTo(3.0, 6)
+  })
+
+  it('a TYPED stop still measures from the average — that behaviour is unchanged', () => {
+    const r = computeRiskBreakdown(0, { ...NCRA, stop_source: 'manual' })
     expect(r.risk_per_share).toBeCloseTo(0.4343, 4)
-    const pctOfAvg = (r.risk_per_share as number) / NCRA.avg_buy_price * 100
-    expect(pctOfAvg).toBeCloseTo(14.22, 1)
+    const pct = ((r.risk_per_share as number) / NCRA.avg_buy_price) * 100
+    expect(pct).toBeCloseTo(14.22, 1)
   })
 
-  it('and the function cannot tell a derived stop from a typed one', () => {
-    // RiskParams carries no provenance, so both kinds take the same denominator.
-    const keys = Object.keys(NCRA)
-    expect(keys).not.toContain('stop_source')
+  it('and so does a stop with no provenance at all', () => {
+    // Every trade in the book before the provenance column existed.
+    const r = computeRiskBreakdown(0, { ...NCRA, stop_source: null })
+    expect(r.risk_per_share).toBeCloseTo(0.4343, 4)
+  })
+
+  it('a derived stop with NO first entry falls back rather than inventing one', () => {
+    const r = computeRiskBreakdown(0, {
+      ...NCRA,
+      stop_source: 'auto',
+      first_entry_price: null,
+    })
+    // It cannot know the price it was derived from, so it reports the average
+    // reading rather than a fabricated one.
+    expect(r.risk_per_share).toBeCloseTo(0.4343, 4)
+  })
+
+  it('the total and the R follow the same denominator', () => {
+    const auto = computeRiskBreakdown(810, { ...NCRA, stop_source: 'auto' })
+    expect(auto.total_risk).toBeCloseTo(8.1, 8)   // 0.081 x 100 shares
+    expect(auto.r_multiple).toBeCloseTo(100, 6)
+    const manual = computeRiskBreakdown(810, { ...NCRA, stop_source: 'manual' })
+    expect(manual.total_risk).toBeCloseTo(43.43, 6)
+    expect(manual.r_multiple).not.toBeCloseTo(100, 6)
   })
 })

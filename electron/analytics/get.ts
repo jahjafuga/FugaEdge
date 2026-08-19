@@ -2,7 +2,7 @@ import { openDatabase } from '../db/database'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
 import { readRuleBreaksByDate } from '../ruleBreaks/repo'
-import { computeRiskBreakdown } from '@/core/trades/riskBreakdown'
+import { computeRiskBreakdown, firstEntryPriceOf } from '@/core/trades/riskBreakdown'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
 import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
 import { computeGiveback } from '@/core/analytics/giveback'
@@ -58,6 +58,7 @@ interface TradeRow {
   net_pnl: number
   source_format: string | null
   executions_json: string
+  stop_source: string | null
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
   confidence: number | null
@@ -553,6 +554,10 @@ function computeRAnalytics(rows: TradeRow[]): RAnalytics {
       shares_sold: t.shares_sold,
       planned_risk: t.planned_risk,
       planned_stop_loss_price: t.planned_stop_loss_price,
+          // A derived stop is measured from the first entry, so the R that lands in
+      // these buckets agrees with the R on the trade itself.
+      stop_source: (t.stop_source as 'manual' | 'auto' | null) ?? null,
+      first_entry_price: firstEntryPriceOf(t.side, parseExecs(t.executions_json)),
     })
     if (r === null || !Number.isFinite(r)) continue
     rs.push(r)
@@ -873,7 +878,7 @@ export function getAnalytics(scope: AccountScope = 'all'): AnalyticsData {
       SELECT t.id, t.date, t.symbol, t.side, t.open_time, t.close_time,
              t.shares_bought, t.shares_sold,
              t.avg_buy_price, t.avg_sell_price,
-             t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json,
+             t.gross_pnl, t.total_fees, t.net_pnl, t.executions_json, t.stop_source,
              t.entry_timeframe, t.entry_ema9_distance_pct,
              t.confidence,
              mn.tags AS mistake_tags_json,

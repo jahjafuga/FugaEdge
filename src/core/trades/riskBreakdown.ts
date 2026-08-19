@@ -30,6 +30,34 @@ export interface RiskParams {
   shares_sold: number
   planned_risk: number | null
   planned_stop_loss_price: number | null
+  /** WHO set the stop. 'auto' means the app derived it from the FIRST entry, so
+   *  that is the price its risk has to be measured against. Without this the two
+   *  halves disagree: a stop derived three percent off the first fill was reported
+   *  as a fourteen percent risk because the reading came off the average. */
+  stop_source: 'manual' | 'auto' | null
+  /** The first entry-side fill's price — the number a derived stop was derived
+   *  FROM. Null when the trade has no entry fills, which is the only case where a
+   *  derived stop cannot be measured honestly. */
+  first_entry_price: number | null
+}
+
+/** The first entry-side fill's price for a trade, or null when it has none.
+ *  Exported so every caller of computeRiskBreakdown derives it the same way
+ *  rather than each writing its own idea of "first". */
+export function firstEntryPriceOf(
+  side: 'long' | 'short',
+  executions: readonly { side: 'B' | 'S'; price: number; time: string }[] | null | undefined,
+): number | null {
+  if (!executions || executions.length === 0) return null
+  const want: 'B' | 'S' = side === 'long' ? 'B' : 'S'
+  let best: { price: number; time: string } | null = null
+  for (const f of executions) {
+    if (f.side !== want) continue
+    // Fill times are ISO-8601 UTC, so a lexical compare sorts chronologically —
+    // the same rule computeExecutionStats uses for its bookends.
+    if (best === null || f.time < best.time) best = { price: f.price, time: f.time }
+  }
+  return best ? best.price : null
 }
 
 export interface RiskBreakdown {
@@ -38,7 +66,26 @@ export interface RiskBreakdown {
   r_multiple: number | null
 }
 
+/** The price a stop's risk is measured against.
+ *
+ *  A DERIVED stop is measured from the first entry, because that is the price it
+ *  was derived from — measuring it against anything else reports a risk the user
+ *  never chose. A TYPED stop keeps the average, which is the reading it has always
+ *  had and the one the trader was looking at when they typed the number.
+ *
+ *  A derived stop with no first entry falls back to the average rather than
+ *  guessing. It cannot happen through the auto-fill, which refuses to derive a
+ *  stop without a first entry at all, but the column is nullable and a fallback
+ *  that reports something measurable beats one that reports nothing. */
 function entryPrice(p: RiskParams): number {
+  if (
+    p.stop_source === 'auto' &&
+    p.first_entry_price != null &&
+    Number.isFinite(p.first_entry_price) &&
+    p.first_entry_price > 0
+  ) {
+    return p.first_entry_price
+  }
   if (p.side === 'short') return p.avg_sell_price || p.avg_buy_price
   return p.avg_buy_price || p.avg_sell_price
 }

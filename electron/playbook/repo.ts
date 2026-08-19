@@ -1,7 +1,7 @@
 import { openDatabase } from '../db/database'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
-import { computeRiskBreakdown } from '@/core/trades/riskBreakdown'
+import { computeRiskBreakdown, firstEntryPriceOf } from '@/core/trades/riskBreakdown'
 import {
   PLAYBOOK_TIERS,
   type CreatePlaybookInput,
@@ -76,6 +76,19 @@ interface TradeRowForStats {
   shares_sold: number
   planned_risk: number | null
   planned_stop_loss_price: number | null
+  stop_source: string | null
+  executions_json: string | null
+}
+
+/** executions_json -> the fill list, tolerant of a null or malformed column. */
+function parseRepoExecs(raw: string | null): { side: 'B' | 'S'; price: number; time: string }[] {
+  if (!raw) return []
+  try {
+    const v: unknown = JSON.parse(raw)
+    return Array.isArray(v) ? (v as { side: 'B' | 'S'; price: number; time: string }[]) : []
+  } catch {
+    return []
+  }
 }
 
 function computeStatsForPlaybook(playbookId: number, scope: AccountScope): PlaybookStats {
@@ -88,7 +101,8 @@ function computeStatsForPlaybook(playbookId: number, scope: AccountScope): Playb
     .prepare(`
       SELECT net_pnl, side, avg_buy_price, avg_sell_price,
              shares_bought, shares_sold,
-             planned_risk, planned_stop_loss_price
+             planned_risk, planned_stop_loss_price,
+             stop_source, executions_json
       FROM trades WHERE playbook_id = ? AND deleted_at IS NULL AND ${sf.clause}
     `)
     .all(playbookId, ...sf.params) as TradeRowForStats[]
@@ -122,6 +136,10 @@ function computeStatsForPlaybook(playbookId: number, scope: AccountScope): Playb
       shares_sold: t.shares_sold,
       planned_risk: t.planned_risk,
       planned_stop_loss_price: t.planned_stop_loss_price,
+          // Same denominator rule as the per-trade read, so the playbook's average R
+      // cannot disagree with the trades it averages.
+      stop_source: (t.stop_source as 'manual' | 'auto' | null) ?? null,
+      first_entry_price: firstEntryPriceOf(t.side, parseRepoExecs(t.executions_json)),
     })
     if (r !== null && Number.isFinite(r)) {
       rSum += r

@@ -1,5 +1,5 @@
 import { openDatabase } from '../db/database'
-import { computeRiskBreakdown } from '@/core/trades/riskBreakdown'
+import { computeRiskBreakdown, firstEntryPriceOf } from '@/core/trades/riskBreakdown'
 import { orderByIds } from '@/lib/orderByIds'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
@@ -74,6 +74,9 @@ function rowRisk(row: TradeRowDb) {
     shares_sold: row.shares_sold,
     planned_risk: row.planned_risk,
     planned_stop_loss_price: row.planned_stop_loss_price,
+    // A DERIVED stop is measured against the price it was derived from.
+    stop_source: (row.stop_source as 'manual' | 'auto' | null) ?? null,
+    first_entry_price: firstEntryPriceOf(row.side, parseExecutions(row.executions_json)),
   })
 }
 
