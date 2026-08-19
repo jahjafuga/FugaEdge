@@ -1,7 +1,7 @@
 import { openDatabase } from '../db/database'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
-import { computeRiskBreakdown } from '../lib/r-multiple'
+import { computeRiskBreakdown } from '@/core/trades/riskBreakdown'
 import {
   PLAYBOOK_TIERS,
   type CreatePlaybookInput,

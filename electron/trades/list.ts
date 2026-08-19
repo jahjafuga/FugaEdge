@@ -1,5 +1,5 @@
 import { openDatabase } from '../db/database'
-import { computeRiskBreakdown } from '../lib/r-multiple'
+import { computeRiskBreakdown } from '@/core/trades/riskBreakdown'
 import { orderByIds } from '@/lib/orderByIds'
 import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'

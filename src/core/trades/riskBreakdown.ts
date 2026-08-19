@@ -1,3 +1,12 @@
+// R-multiple and the risk breakdown behind it.
+//
+// PURE per ARCHITECTURE #1: zero electron / fs / sqlite / React imports. It lived
+// in electron/lib, which put arithmetic every screen depends on outside the core
+// test lane — nothing in the 400-file suite could reach it, and the divergence
+// between how a stop is DERIVED and how its risk is MEASURED went unnoticed
+// because of it. Moved verbatim: this commit changes no behaviour, and the tests
+// beside it characterise what that behaviour currently is.
+//
 // Shared R-multiple computation. Two inputs:
 //   * planned_stop_loss_price (new): a price; risk_per_share = |entry - stop|;
 //     total_risk = risk_per_share × max(shares_bought, shares_sold); R is
