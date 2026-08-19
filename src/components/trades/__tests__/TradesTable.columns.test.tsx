@@ -14,7 +14,7 @@ import { resolve } from 'node:path'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TradesTable from '@/components/trades/TradesTable'
-import { COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
+import { COLUMN_LABELS, COLUMN_PREFS_KEY } from '@/lib/prefs/columns'
 import { makeTrade } from '@/test/fixtures/trade'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -33,16 +33,11 @@ const NEW_COLS = [
   'daily_change_pct', 'confidence', 'entry_timeframe', 'days_since_catalyst',
   'mae', 'mfe',
 ]
-// Headers ARE the registry labels as of the labels commit — one source, so this map
-// tracks them rather than restating a second vocabulary.
-const HEADERS: Record<string, string> = {
-  hold_time: 'Hold time', price_move_pct: 'Price move %', pnl_gain_pct: 'Gain %',
-  exec_count: 'Fills', first_entry: 'First entry', stop_price: 'Stop price',
-  r_multiple: 'R multiple', risk_per_share: 'Risk / share', total_risk: 'Total risk',
-  rvol: 'RVOL', daily_change_pct: 'Day change %', confidence: 'Confidence',
-  entry_timeframe: 'Timeframe', days_since_catalyst: 'Days since catalyst',
-  mae: 'MAE', mfe: 'MFE',
-}
+// Headers ARE the registry labels — so this READS them rather than restating a
+// second vocabulary. It used to restate them, and a rename that landed in the
+// registry left this copy behind: exactly the two-names-per-column defect the
+// header now avoids by reading COLUMN_LABELS itself.
+const HEADERS: Record<string, string> = COLUMN_LABELS
 
 const noop = async () => {}
 const PROPS = {

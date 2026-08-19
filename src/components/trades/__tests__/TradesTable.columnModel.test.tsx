@@ -13,11 +13,13 @@
 // broke onto extra lines and took the whole header row with it — the header grew
 // and shrank depending on which columns were switched on.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TradesTable from '@/components/trades/TradesTable'
 import {
-  ALL_COLUMN_IDS, COLUMN_LABELS, COLUMN_PREFS_KEY, COLUMN_WIDTHS,
+  ALL_COLUMN_IDS, COLUMN_LABELS, COLUMN_PREFS_KEY, COLUMN_WIDTHS, NUMERIC_COLUMN_IDS,
 } from '@/lib/prefs/columns'
 import { makeTrade } from '@/test/fixtures/trade'
 import type { TradeListRow } from '@shared/trades-types'
@@ -53,6 +55,7 @@ const minimal = () => {
   v.symbol = true
   setVis(v)
 }
+const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
 const ths = () => Array.from(document.querySelectorAll('thead th'))
 
 beforeEach(() => localStorage.clear())
@@ -165,5 +168,44 @@ describe('T4 STAND-DOWN: the default set is unchanged in content', () => {
     expect(labels).toContain('Net P&L')
     expect(labels).not.toContain('Mistakes')
     expect(labels).not.toContain('Catalyst')
+  })
+})
+
+describe('T4 no header label is wider than its column', () => {
+  it('all 33, from the measured label width', () => {
+    const HDR = 7.5
+    const PAD = 24
+    const tooNarrow = ALL_COLUMN_IDS.map((id) => {
+      const label = COLUMN_LABELS[id] ?? id
+      const need = Math.ceil(label.length * HDR) + PAD
+      return need > COLUMN_WIDTHS[id]
+        ? id + ' "' + label + '" needs ' + need + ', has ' + COLUMN_WIDTHS[id]
+        : null
+    }).filter(Boolean)
+    expect(tooNarrow, 'labels that will truncate: ' + tooNarrow.join(' | ')).toEqual([])
+  })
+})
+
+describe('T5 one name per column', () => {
+  it('the header renders exactly the shared label', () => {
+    allOn()
+    render(<TradesTable {...PROPS} trades={TRADES} />)
+    const rendered = ths().map((t) => t.textContent?.trim())
+    for (const id of ALL_COLUMN_IDS) {
+      expect(rendered, id + ' header is not its shared label').toContain(COLUMN_LABELS[id])
+    }
+  })
+
+  it('no column hardcodes a header string beside the shared one', () => {
+    const bar = src('src/components/trades/TradesTable.tsx')
+    const literals = bar.match(/header:\s*'[^']+'/g) ?? []
+    expect(literals, 'headers bypassing COLUMN_LABELS: ' + literals.join(', ')).toEqual([])
+  })
+
+  it('and the Ranges row reads the same map, so a rename lands in both', () => {
+    const filters = src('src/components/trades/TradesFilters.tsx')
+    const page = src('src/pages/Trades.tsx')
+    expect(page + filters).toContain('COLUMN_LABELS')
+    for (const id of NUMERIC_COLUMN_IDS) expect(COLUMN_LABELS[id]).toBeTruthy()
   })
 })

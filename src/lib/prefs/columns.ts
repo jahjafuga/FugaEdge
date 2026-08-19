@@ -100,6 +100,11 @@ export const COLUMN_LABELS: Record<string, string> = {
  *  + 24px of cell padding, rounded up to 5. Header type is 10px semibold with
  *  wide tracking; values are 12px monospace.
  *
+ *  DERIVATION MISS, corrected: a handful of columns were pinned to the width they
+ *  already had rather than run through the formula, and Country's 65 was one of
+ *  them — its own label needs 77. Every override is now checked against its label
+ *  too, and a test walks all 33 so the next one cannot slip through.
+ *
  *  Before this existed the table sized 33 columns from a 15-key map, so every
  *  v0.2.7 addition rendered at "whatever Shares is", and Chart declared ONE pixel
  *  while its sparkline draws eighty — which is how it painted across its
@@ -107,7 +112,7 @@ export const COLUMN_LABELS: Record<string, string> = {
 export const COLUMN_WIDTHS: Record<string, number> = {
   // text, width set by the content they truncate
   open_time: 110, open: 85, close: 85, symbol: 80, playbook: 130,
-  country: 65, catalyst: 130, mistakes: 150, side: 60,
+  country: 80, catalyst: 130, mistakes: 150, side: 60,
   spark: 105, // the Sparkline's own 80px + 24px padding
   // numeric, width set by the wider of the label and the worst-case value
   shares: 90, avg_buy: 90, avg_sell: 90, float: 65, net_pnl: 105, fees: 90,
