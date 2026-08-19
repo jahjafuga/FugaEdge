@@ -17,6 +17,7 @@
 
 import type Database from 'better-sqlite3'
 import { cleanJournalRules } from '@/core/journal/rules'
+import { isValidStopPct } from '@/core/trades/autoStop'
 import type { SettingsUpdate } from '@shared/settings-types'
 
 export const KEYS = {
@@ -44,6 +45,9 @@ export const KEYS = {
   dnaFloatMin: 'dna_float_min',
   dnaFloatMax: 'dna_float_max',
   dnaRequireCatalyst: 'dna_require_catalyst',
+  // v0.2.7 Feature 3 — auto-fill stop (toggle + companion number).
+  autofillStopEnabled: 'autofill_stop_enabled',
+  autofillStopPct: 'autofill_stop_pct',
   // Multi-account Beat 4 — the switcher's persisted scope ('all' | ULID).
   accountScope: 'account_scope',
 } as const
@@ -218,6 +222,18 @@ export function saveSettingsOn(
     }
     if (input.dna_require_catalyst != null) {
       upsert.run(KEYS.dnaRequireCatalyst, input.dna_require_catalyst ? '1' : '0')
+    }
+    // Auto-stop. The toggle reuses the '1'/'0' encoding; the percentage does NOT
+    // reuse the DNA >= 0 guard, because 0 is exactly the value that must not land
+    // (a zero-width stop makes risk zero and every R infinite). isValidStopPct is
+    // the same predicate the engine plans with, so storage and derivation cannot
+    // disagree about what a usable percentage is.
+    if (input.autofill_stop_enabled != null) {
+      upsert.run(KEYS.autofillStopEnabled, input.autofill_stop_enabled ? '1' : '0')
+    }
+    if (input.autofill_stop_pct != null) {
+      const v = Number(input.autofill_stop_pct)
+      if (isValidStopPct(v)) upsert.run(KEYS.autofillStopPct, String(v))
     }
     if (input.account_scope != null) {
       // 'all' or an account ULID — trimmed non-empty guard (the api-key

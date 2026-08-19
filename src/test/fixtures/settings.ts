@@ -29,6 +29,8 @@ export function makeSettingsValues(overrides: Partial<SettingsValues> = {}): Set
     dna_float_min: 0,
     dna_float_max: 20_000_000,
     dna_require_catalyst: true,
+    autofill_stop_enabled: false,
+    autofill_stop_pct: 3,
     account_scope: 'all',
     ...overrides,
   }

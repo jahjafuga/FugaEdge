@@ -59,6 +59,14 @@ export interface SettingsValues {
   dna_float_min: number
   dna_float_max: number
   dna_require_catalyst: boolean
+  /** v0.2.7 Feature 3 — derive a planned stop from the FIRST entry when a trade
+   *  arrives without one, so R has a denominator. Off by default: a setting that
+   *  writes to every trade in the book does not turn itself on. */
+  autofill_stop_enabled: boolean
+  /** Percent off the first entry for the derived stop (e.g. 3.5). Strictly
+   *  between 0 and 100 — see isValidStopPct in src/core/trades/autoStop.ts, which
+   *  the save path reuses so an unusable value never reaches storage. */
+  autofill_stop_pct: number
   /** Multi-account Beat 4 — the TopBar switcher's persisted read scope:
    *  'all' or a trading-account ULID. The renderer falls back to 'all' when
    *  the stored id no longer exists (deleted account). Written by the

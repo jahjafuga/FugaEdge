@@ -33,6 +33,10 @@ const DEFAULTS: SettingsValues = {
   dna_float_min: 0,
   dna_float_max: 20_000_000,
   dna_require_catalyst: true,
+  // Auto-stop: OFF, at a 3% first-entry stop. A momentum trader's initial risk is
+  // typically a few percent; the number only matters once the user opts in.
+  autofill_stop_enabled: false,
+  autofill_stop_pct: 3,
   account_scope: 'all',
 }
 
@@ -116,6 +120,13 @@ export function getSettings(): SettingsPayload {
       map[KEYS.dnaRequireCatalyst],
       DEFAULTS.dna_require_catalyst,
     ),
+    // Auto-stop — the toggle via parseBoolean, the percentage via parseNumber,
+    // same shape as the DNA pair above.
+    autofill_stop_enabled: parseBoolean(
+      map[KEYS.autofillStopEnabled],
+      DEFAULTS.autofill_stop_enabled,
+    ),
+    autofill_stop_pct: parseNumber(map[KEYS.autofillStopPct], DEFAULTS.autofill_stop_pct),
     // 'all' | account ULID; a stale/deleted id is resolved renderer-side
     // (fallback to 'all') so the stored value stays an honest history.
     account_scope: (map[KEYS.accountScope] ?? '').trim() || DEFAULTS.account_scope,
