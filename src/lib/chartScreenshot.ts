@@ -1,11 +1,29 @@
-// Pure branded-screenshot compositor. Takes a chart canvas already captured by
+// Branded-screenshot compositor. Takes a chart canvas already captured by
 // lightweight-charts and paints a FugaEdge-branded header + 5-cell footer around
-// it, returning a new canvas ready for toBlob(). No React, no Electron, no IPC —
-// just canvas drawing + the bundled icon asset. ChartTab orchestrates (capture →
-// format strings via @/lib/format → call this → blob → save).
+// it, returning a new canvas ready for toBlob(). No Electron, no IPC — canvas
+// drawing, the bundled icon asset, and ONE read of streamer mode. ChartTab
+// orchestrates (capture → format strings via @/lib/format → call this → blob →
+// save).
+//
+// STREAMER MODE IS READ HERE, not passed in. On screen the masking is a CSS blur
+// on .masked-money; a canvas has no DOM and cannot inherit a filter, so a card
+// exported with dollars hidden printed them anyway — on the one artefact actually
+// meant to leave the machine. Reading it at compose time also means a toggle takes
+// effect on the very next export, with nothing cached in between.
 import iconUrl from '@/assets/fugaedge-icon-light.png'
 import { chartColors } from '@/lib/chartColors'
+import { readStreamerMode } from '@/lib/streamerMode'
 import type { ResolvedTheme } from '@/lib/theme'
+
+/** What replaces an account-level amount when streamer mode is on.
+ *
+ *  A DELIBERATE mark, not a blank: an empty cell in the footer grid reads as
+ *  missing data, which is a different and worse claim than "withheld". Bullets
+ *  are the universal withheld glyph, they keep the cell occupied so the grid
+ *  still looks finished, and the value keeps its win/loss colour — exactly what
+ *  the on-screen blur preserves and hides: the sign stays legible, the magnitude
+ *  does not. */
+export const MASKED_AMOUNT = '••••••'
 
 /** One indicator line of the composited legend. */
 export interface BrandedScreenshotLegendRow {
@@ -249,8 +267,16 @@ export async function composeBrandedScreenshot(
   ctx.lineTo(W, footerY + 0.5)
   ctx.stroke()
 
+  // Per-share PRICES are deliberately exempt, matching the CSS rule on screen
+  // ("Per-share prices never carry the class") — a stock's price is public.
+  // Only the account-level amount is withheld.
+  const streamer = readStreamerMode()
   const cells: { label: string; value: string; color: string }[] = [
-    { label: 'Net P&L', value: data.netPnlText, color: data.netPnl >= 0 ? WIN : LOSS },
+    {
+      label: 'Net P&L',
+      value: streamer ? MASKED_AMOUNT : data.netPnlText,
+      color: data.netPnl >= 0 ? WIN : LOSS,
+    },
     { label: 'Avg Entry', value: data.avgEntryText, color: WHITE },
     { label: 'Avg Exit', value: data.avgExitText, color: WHITE },
     { label: 'Shares', value: data.sharesText, color: WHITE },
