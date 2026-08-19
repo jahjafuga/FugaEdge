@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Card from '@/components/ui/Card'
 import SectionHeader from '@/components/ui/SectionHeader'
 import EquityChart from '@/components/analytics/EquityChart'
@@ -82,6 +82,26 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
   // the population outright. See src/core/performance/overviewScopeLabel.ts.
   const narrowed = isNarrowedBeyondRange(filters)
   const rangeLabel = overviewScope({ rangeLabel: quickKeyLabel(quick), narrowed })
+  // STUCK DETECTION. There is no CSS selector for "a sticky element is currently
+  // pinned", so a zero-height sentinel sits directly above the bar: while it is in
+  // view the bar is resting, and the moment it scrolls out the bar is pinned with
+  // content moving underneath. That is what steps the shadow from resting to lifted,
+  // and that step is the only thing on screen that says the bar is stuck.
+  //
+  // Guarded because jsdom has no IntersectionObserver: without it `stuck` simply
+  // stays false and the bar renders at its resting elevation.
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting), {
+      threshold: 1,
+    })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   const scopeLabel = overviewCountLine({
     count: filtered.length,
     total: dashTrades.length,
@@ -99,7 +119,14 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
           stay reachable from the bottom of it. Safe here because the nearest scrolling
           ancestor is AppLayout's overflow-y-auto pane and nothing between the two
           clips overflow. The blur keeps scrolled content legible underneath. */}
-      <div className="sticky top-0 z-20 bg-bg-0/95 py-2 backdrop-blur-sm">
+      <div ref={sentinelRef} aria-hidden="true" className="h-px" />
+      {/* THE WRAPPER PAINTS NOTHING. It positions and nothing else. `bg-bg-0` here
+          stamped a flat #0d0f14 rectangle over .app-aurora — the app's real backdrop,
+          an absolute z-index:-1 field that <main> is transparent to — so the bar
+          arrived wearing a slab the rest of the page does not have. The bar is the
+          one surface; the aurora shows through above and below it, and that gap is
+          what makes it read as floating. */}
+      <div className="sticky top-0 z-30 py-3">
         <AnalyticsFilterBar
           trades={dashTrades}
           filters={filters}
@@ -107,6 +134,7 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
           quick={quick}
           onQuickChange={setQuick}
           scopeLabel={scopeLabel}
+          elevated={stuck}
         />
       </div>
 

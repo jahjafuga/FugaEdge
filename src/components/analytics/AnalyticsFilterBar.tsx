@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import {
@@ -114,6 +115,9 @@ interface AnalyticsFilterBarProps {
   /** Local highlight key (incl. '7d'); owned by the dashboard. */
   quick: QuickKey
   onQuickChange: (q: QuickKey) => void
+  /** True once the bar is PINNED and content is scrolling under it. Drives the
+   *  shadow step from resting to lifted — the only cue that says "this is stuck". */
+  elevated?: boolean
   /** Honest in-tab population line ("X of Y round trips - scope"). Mirrors
    *  TechnicalsFilterBar's scopeLabel: the page subtitle is all-time and shared by
    *  every tab, so the tab states its OWN population here instead of letting that
@@ -128,9 +132,48 @@ export default function AnalyticsFilterBar({
   quick,
   onQuickChange,
   scopeLabel,
+  elevated = false,
 }: AnalyticsFilterBarProps) {
   const [moreOpen, setMoreOpen] = useState(false)
- const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
+  const barRef = useRef<HTMLDivElement | null>(null)
+  const [anchor, setAnchor] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  )
+
+  // THE PANEL IS LIFTED OUT OF THE BAR'S TREE.
+  //
+  // The sticky wrapper this bar sits in is `sticky top-0 z-30` — a positioned element
+  // with a non-auto z-index, which makes it a STACKING CONTEXT. A stacking context
+  // flattens its descendants: the panel's own z-index is resolved INSIDE it and can
+  // never escape, so however high the panel counted it still painted at the wrapper's
+  // 30. Measured against the app's scale that put it, and its full-viewport dismiss
+  // backdrop, UNDER the TopBar (sticky z-40) — clicking the header while the panel
+  // was open did not close it.
+  //
+  // Raising the wrapper instead would be wrong: content-level sticky belongs below
+  // the chrome, and the bar out-ranking the TopBar is a worse bug than the one being
+  // fixed. So the panel leaves the tree entirely via a portal to document.body, where
+  // it sits in the ROOT stacking context and its z-index finally means what it says.
+  // It tracks the bar by measured rect rather than by CSS anchoring, which is the
+  // price of the portal and the reason for the scroll/resize listeners.
+  useEffect(() => {
+    if (!moreOpen) return
+    const measure = () => {
+      const el = barRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setAnchor({ top: r.bottom + 8, left: r.left, width: r.width })
+    }
+    measure()
+    // Capture phase: the bar scrolls inside AppLayout's pane, not the window.
+    window.addEventListener('scroll', measure, true)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', measure)
+    }
+  }, [moreOpen])
+  const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
   const catalystOptions = useMemo(() => distinctCatalysts(trades), [trades])
   const mistakeOptions = useMemo(() => distinctMistakes(trades), [trades])
 
@@ -167,11 +210,25 @@ export default function AnalyticsFilterBar({
     filters.mistakes.length > 0
 
   return (
-    // NOT a Card. A control strip is not a content container, and the eyebrow and
-    // description a Card wants both described controls that sit visibly beneath them.
-    <div data-testid="overview-toolbar" className="space-y-3">
-      {/* ONE ROW: search, side, range, then status and the expander anchored right. */}
-      <div className="flex flex-wrap items-center gap-2">
+    // ONE SURFACE. An elevated container rather than a strip on the page: the app's
+    // card language (--card-radius, a real border, bg-bg-2, a themed shadow token)
+    // so it reads as sitting ABOVE the content rather than floating in it.
+    //
+    // NO backdrop-blur. At the 95% opacity it sat behind, the blur was invisible,
+    // cost a compositor layer on every scroll frame, and — the reason it had to go —
+    // backdrop-filter creates a stacking context that would have trapped the
+    // More-filters overlay inside the bar's own bounds.
+    //
+    // `relative` is the overlay's anchor: the panel below is absolutely positioned
+    // against THIS box, so opening it cannot change the bar's height.
+    <div className="relative">
+      <div
+        ref={barRef}
+        data-testid="overview-toolbar"
+        className={`flex flex-wrap items-center gap-2 rounded-[var(--card-radius)] border border-border-subtle bg-bg-2 px-3 py-2.5 transition-shadow duration-200 ${
+          elevated ? 'shadow-lg' : 'shadow-md'
+        }`}
+      >
         {/* GROUP 1 — search. The symbol box is a search field now: leading icon and
             a clear affordance, matching TradesFilters' field, the most finished
             control cluster in the app. */}
@@ -263,9 +320,32 @@ export default function AnalyticsFilterBar({
         </div>
       </div>
 
-      {/* More filters — collapsed by default, in flow beneath the row. */}
-      {moreOpen && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
+      {/* MORE FILTERS, portaled to document.body — see the note on the effect above.
+          It anchors to the bar's measured bottom edge, matches its width and radius,
+          and is not in the bar's tree at all, so it cannot change the bar's height.
+
+          z-[44] / z-[45] come from the app's OWN measured scale: TopBar 40, modals 50,
+          activation 60, toasts 110/210. The backdrop clears the TopBar so a click
+          anywhere dismisses; the panel stays below modal chrome, which should still
+          out-rank a filter popover.
+
+          bg-bg-2 is fully opaque — the panel is the one surface here that nothing may
+          show through, so it deliberately does NOT use .card-premium's 0.92 felt. */}
+      {moreOpen &&
+        anchor &&
+        createPortal(
+          <>
+            <div
+              data-testid="overview-more-backdrop"
+              className="fixed inset-0 z-[44]"
+              onClick={() => setMoreOpen(false)}
+            />
+            <div
+              data-testid="overview-more-panel"
+              style={{ top: anchor.top, left: anchor.left, width: anchor.width }}
+              className="fixed z-[45] rounded-[var(--card-radius)] border border-border-subtle bg-bg-2 p-3 shadow-lg"
+            >
+            <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-1.5">
               <span
                 className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
@@ -315,8 +395,11 @@ export default function AnalyticsFilterBar({
                 }
               />
             </div>
-        </div>
-      )}
+            </div>
+            </div>
+          </>,
+          document.body,
+        )}
     </div>
   )
 }
