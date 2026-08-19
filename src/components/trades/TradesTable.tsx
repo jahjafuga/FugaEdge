@@ -174,7 +174,6 @@ const TradesTableRow = memo(function TradesTableRow({
   // without this the memoized row would render stale cells one column behind the
   // header (the 201aa2b misalignment). Stable on scroll — columns.length is
   // unchanged while scrolling — so Beat 2's skip-rows-on-scroll win is preserved.
-  columnCount: number
 }) {
   const t = row.original
   return (
@@ -990,7 +989,15 @@ export default function TradesTable({
       setBulkRetagBusy(false)
     }
   }
-  const colCount = columns.length + (bulkEnabled ? 1 : 0)
+  // VISIBLE columns, not the whole registry. The table is `tableLayout: fixed`, so
+  // its column model is whatever the widest row declares — and the scroll spacers
+  // below are the widest row. Counting the registry made every spacer declare a
+  // colSpan for columns that are switched OFF (33 against 4 in the narrow case),
+  // and a fixed layout hands those phantom columns a share of the table's width,
+  // squeezing the real ones. It appears the moment the list is scrolled far enough
+  // to need a top spacer and vanishes when it is scrolled back, which is what makes
+  // it so hard to catch.
+  const colCount = table.getVisibleLeafColumns().length + (bulkEnabled ? 1 : 0)
 
   return (
     <div className="card-premium card-glow-gold flex max-h-[calc(100vh-340px)] flex-col overflow-hidden">
@@ -1117,7 +1124,6 @@ export default function TradesTable({
                   index={vi.index}
                   onSelect={setSelectedId}
                   onToggle={toggleRow}
-                  columnCount={columns.length}
                 />
               )
             })}
