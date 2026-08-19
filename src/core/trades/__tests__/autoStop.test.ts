@@ -228,16 +228,23 @@ describe('APPLY / RE-DERIVE / CLEAR never touch a typed stop', () => {
 describe('the guards', () => {
   const OFF = { enabled: false, pct: 3.5 }
 
-  it('T15 STAND-DOWN: with the setting off, none of the three runs and no row changes', async () => {
-    for (const op of ['apply', 'rederive', 'clear'] as const) {
-      const book = [
-        mk({
-          id: 1,
-          executions: [{ side: 'B', price: 20, time: '2026-08-10T13:30:00Z' }],
-          avg_buy_price: 20,
-        }),
-        mk({ id: 2, planned_stop_loss_price: 9.65, stop_source: 'auto' }),
-      ]
+  /** An empty stop, plus a derived one, plus a typed one. */
+  const offBook = () => [
+    mk({
+      id: 1,
+      executions: [{ side: 'B', price: 20, time: '2026-08-10T13:30:00Z' }],
+      avg_buy_price: 20,
+    }),
+    mk({ id: 2, planned_stop_loss_price: 9.65, stop_source: 'auto' }),
+    mk({ id: 3, planned_stop_loss_price: 6.1234, stop_source: 'manual' }),
+  ]
+
+  it('T25 STAND-DOWN: with the setting off, APPLY and RE-DERIVE do not run', async () => {
+    // Narrowed from the original three-way guard. CLEAR is deliberately NOT in this
+    // list any more — see T24. The two operations that WRITE derived values are the
+    // ones the switch governs.
+    for (const op of ['apply', 'rederive'] as const) {
+      const book = offBook()
       const snapshot = JSON.stringify(book)
       const { d, backup, writeStops } = deps(book)
 
@@ -249,6 +256,49 @@ describe('the guards', () => {
       expect(backup).not.toHaveBeenCalled()
       expect(JSON.stringify(book)).toBe(snapshot)
     }
+  })
+
+  it('T24 CLEAR still runs with the setting OFF, and still nulls only the auto row', async () => {
+    // CLEAR is the undo. Gating it behind the switch that created the rows would
+    // mean a user who turns the feature off can never remove what it wrote — the
+    // one state where the undo is most likely to be wanted is the one where it
+    // would have been unreachable.
+    const book = offBook()
+    const manualBefore = book[2].planned_stop_loss_price
+    const { d, written } = deps(book)
+
+    const r = await runAutoStop('clear', OFF, d)
+
+    expect(r.ran).toBe(true)
+    expect(r.changed).toBe(1)
+    expect(written[0]).toEqual([{ id: 2, stop: null, source: null }])
+    expect(book[1].planned_stop_loss_price).toBeNull()
+    expect(book[1].stop_source).toBeNull()
+    // The two rows CLEAR must never reach, with the switch off exactly as with it on.
+    expect(book[0].planned_stop_loss_price).toBeNull()
+    expect(book[2].planned_stop_loss_price).toBe(manualBefore)
+    expect(book[2].stop_source).toBe('manual')
+  })
+
+  it('T26 CLEAR with the setting off STILL takes the backup first', async () => {
+    // Ungating CLEAR must not ungate it from the safety rule: it is still a bulk
+    // write over the whole book, and it is the only operation that DELETES values.
+    const book = offBook()
+    const { d, order } = deps(book)
+
+    await runAutoStop('clear', OFF, d)
+    expect(order).toEqual(['backup', 'write'])
+
+    // ...and a failing backup still aborts it with nothing changed.
+    const book2 = offBook()
+    const snapshot = JSON.stringify(book2)
+    const bad = deps(book2)
+    bad.d.backup = vi.fn(async () => {
+      throw new Error('disk full')
+    })
+    await expect(runAutoStop('clear', OFF, bad.d)).rejects.toThrow('disk full')
+    expect(bad.writeStops).not.toHaveBeenCalled()
+    expect(JSON.stringify(book2)).toBe(snapshot)
   })
 
   it('T15b an invalid percentage refuses the write rather than storing a garbage stop', async () => {

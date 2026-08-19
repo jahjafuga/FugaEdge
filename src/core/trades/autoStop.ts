@@ -179,12 +179,17 @@ export async function runAutoStop(
   config: AutoStopConfig,
   deps: AutoStopDeps,
 ): Promise<AutoStopResult> {
-  // The feature is off: no read, no snapshot, no write. Turning it off means the
-  // app stops deriving stops — it does NOT mean the app deletes the ones it made.
-  if (!config.enabled) return { ran: false, changed: 0, reason: 'disabled' }
+  // The switch governs DERIVATION, not the undo. With it off the app stops writing
+  // derived stops — but CLEAR still runs, because gating the undo behind the switch
+  // that created the rows makes the state where a user most wants it the one state
+  // where it is unreachable. Turning the feature off does not delete anything; it
+  // just stops adding. Removing what was added is a separate, explicit act.
+  if (op !== 'clear' && !config.enabled) {
+    return { ran: false, changed: 0, reason: 'disabled' }
+  }
 
-  // CLEAR does not consult the percentage, so a bad one must not block the one
-  // operation that undoes damage.
+  // CLEAR does not consult the percentage either, so a bad one must not block the
+  // one operation that undoes damage.
   if (op !== 'clear' && !isValidStopPct(config.pct)) {
     return { ran: false, changed: 0, reason: 'invalid-pct' }
   }

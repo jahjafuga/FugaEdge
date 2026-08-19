@@ -109,8 +109,10 @@ export default function AutoStopSettingsSection() {
     }
   }
 
+  // Deliberately NOT gated on the toggle. Clearing is the undo, and the moment a
+  // user is most likely to want it is right after switching the feature off.
   const handleClear = async () => {
-    if (busy || !editor?.autofill_stop_enabled) return
+    if (busy) return
     setBusy(true)
     setErr(null)
     setStatus(null)
@@ -123,8 +125,6 @@ export default function AutoStopSettingsSection() {
       setBusy(false)
     }
   }
-
-  const enabled = editor?.autofill_stop_enabled === true
 
   return (
     <Card
@@ -187,12 +187,8 @@ export default function AutoStopSettingsSection() {
             <button
               type="button"
               onClick={handleClear}
-              disabled={!enabled || busy}
-              title={
-                enabled
-                  ? 'Removes every stop this app derived. Stops you typed are untouched.'
-                  : 'Turn auto-fill on to clear the stops it derived.'
-              }
+              disabled={busy}
+              title="Removes every stop this app derived, whether the setting is on or off. Stops you typed are untouched."
               className="rounded-md border border-border-subtle bg-bg-1 px-4 py-2 text-sm text-fg-secondary transition-colors duration-150 hover:border-loss/60 hover:text-loss disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? 'Clearing…' : 'Clear auto-filled stops'}
@@ -203,7 +199,9 @@ export default function AutoStopSettingsSection() {
 
           <p className="text-[11px] text-fg-tertiary">
             A stop you typed is never overwritten or cleared by any of this. Every
-            bulk change takes a database backup first.
+            bulk change takes a database backup first. Turning the setting off stops
+            new stops being derived; it does not remove the ones already derived —
+            that is what Clear is for, and it works either way.
           </p>
         </div>
       )}

@@ -163,6 +163,10 @@ describe('T22 NO DEAD ENGINE', () => {
 // ── T23 ─────────────────────────────────────────────────────────────────────
 describe('T23 STAND-DOWN: off means the app behaves as it did before this feature', () => {
   it('an import of a mixed book writes nothing at all', async () => {
+    // CLEAR is in this loop even though it is no longer gated on the setting (T24):
+    // this book holds no 'auto' rows, so there is nothing for it to remove. That is
+    // exactly the pre-feature state — an untouched book stays untouched whichever
+    // operation is asked for.
     const book = [
       imported(1, 20),
       mk({ id: 2, planned_stop_loss_price: 6.5, stop_source: 'manual' }),

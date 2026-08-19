@@ -81,10 +81,14 @@ describe('T17 every control reaches the engine', () => {
     expect(m.autoStopRun).not.toHaveBeenCalled()
   })
 
-  it('the clear button is unavailable while the feature is off, and says why', async () => {
+  it('T24 the clear button works while the feature is OFF — the undo is not gated', async () => {
+    // The card loads with autofill_stop_enabled false.
     render(<AutoStopSettingsSection />)
     const clear = await screen.findByRole('button', { name: /clear/i })
-    expect((clear as HTMLButtonElement).disabled).toBe(true)
-    expect(clear.getAttribute('title')).toMatch(/turn/i)
+    expect((clear as HTMLButtonElement).disabled).toBe(false)
+
+    fireEvent.click(clear)
+    await waitFor(() => expect(m.autoStopRun).toHaveBeenCalledWith('clear'))
+    expect(m.settingsSave).not.toHaveBeenCalled()
   })
 })
