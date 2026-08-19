@@ -74,6 +74,25 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* The filter governs EVERY widget below it — tiles, curve, drawdown, bookends
+          and the day-by-day charts all read the same filtered snapshot — so it sits
+          above all of them rather than buried in the last section, where it read as
+          if it scoped only that section.
+
+          STICKY: this tab is long, and a control that governs the whole of it has to
+          stay reachable from the bottom of it. Safe here because the nearest scrolling
+          ancestor is AppLayout's overflow-y-auto pane and nothing between the two
+          clips overflow. The blur keeps scrolled content legible underneath. */}
+      <div className="sticky top-0 z-20 bg-bg-0/95 py-2 backdrop-blur-sm">
+        <AnalyticsFilterBar
+          trades={dashTrades}
+          filters={filters}
+          onFiltersChange={setFilters}
+          quick={quick}
+          onQuickChange={setQuick}
+        />
+      </div>
+
       <SectionHeader
         title="Overview"
         description="The big picture — equity curve, the four numbers that matter, and your bookends."
@@ -139,13 +158,6 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
           description="Filter by symbol, playbook, side, and more — then read your P&L, cumulative, volume, and win rate day by day."
         />
       </div>
-      <AnalyticsFilterBar
-        trades={dashTrades}
-        filters={filters}
-        onFiltersChange={setFilters}
-        quick={quick}
-        onQuickChange={setQuick}
-      />
       <NormalCharts
         daily={daily}
         cumulative={cumulative}
