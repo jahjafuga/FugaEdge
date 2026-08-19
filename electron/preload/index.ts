@@ -181,6 +181,10 @@ const api = {
     input: UpdatePlannedStopLossInput,
   ): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_PLANNED_STOP_LOSS_SAVE, input),
+  autoStopRun: (
+    op: 'apply' | 'rederive' | 'clear',
+  ): Promise<{ ran: boolean; changed: number; reason?: string }> =>
+    ipcRenderer.invoke(IPC.AUTO_STOP_RUN, op),
   tradeFloatSave: (input: UpdateFloatInput): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_FLOAT_SAVE, input),
   tradeCatalystSave: (input: UpdateCatalystInput): Promise<TradeListRow | null> =>

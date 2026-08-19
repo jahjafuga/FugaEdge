@@ -40,6 +40,7 @@ import { backfillAllDailyChange } from '../market/daily-change-backfill'
 import { backfillAllProfiles } from './backfill-profile'
 import { enrichAggregatesForImportedSymbols } from './enrich-aggregates'
 import { backupBeforeImport } from '@/core/import/backup'
+import { runAutoStopOperation } from '../trades/auto-stop'
 import { electronBackupStorage } from '../db/backup'
 import {
   backupFailed,
@@ -783,6 +784,26 @@ export function registerImportIpc(): void {
       // Bump even on zero-insert (caller may have edited fees-only without
       // new trips — fees still affect every aggregate).
       bumpDataVersion()
+
+      // v0.2.7 Feature 3 — newly imported trades arrive with no stop, so the
+      // auto-fill pass runs here. It stands itself down when the setting is off,
+      // skips every row that already has a stop, and never touches one the user
+      // typed, so calling it unconditionally after every commit is safe. Awaited:
+      // the trades list is re-read the moment this handler returns, and a stop that
+      // appears a second later reads as a glitch. It takes its own snapshot under
+      // its own label — the pre-import backup above covers the import's writes, not
+      // this one's.
+      try {
+        const stops = await runAutoStopOperation('apply')
+        if (stops.changed > 0) {
+          console.info(`[FE stop] import auto-fill: ${stops.changed} stops derived`)
+          bumpDataVersion()
+        }
+      } catch (err) {
+        // A failed auto-fill must never fail the import: the trades are already
+        // committed and are correct without a derived stop.
+        console.warn('[FE stop] import auto-fill skipped:', err)
+      }
 
       // v0.2.5 XP hook (L11/L12 — the import act feeds session/streak
       // awards): fire-and-forget after save + bump, BEFORE the awaited

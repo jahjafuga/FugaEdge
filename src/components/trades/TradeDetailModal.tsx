@@ -529,6 +529,7 @@ function OverviewTab({
             <Card title="Stop price" className="card-glow-gold">
               <PlannedRiskEditor
                 plannedStopLossPrice={t.planned_stop_loss_price}
+                stopSource={t.stop_source}
                 entryPrice={t.side === 'short' ? t.avg_sell_price : t.avg_buy_price}
                 shares={Math.max(t.shares_bought, t.shares_sold)}
                 riskPerShare={t.risk_per_share}

@@ -83,6 +83,7 @@ export const ipc = {
     window.api.tradePlannedRiskSave(input),
   tradePlannedStopLossSave: (input: UpdatePlannedStopLossInput) =>
     window.api.tradePlannedStopLossSave(input),
+  autoStopRun: (op: 'apply' | 'rederive' | 'clear') => window.api.autoStopRun(op),
   tradeFloatSave: (input: UpdateFloatInput) =>
     window.api.tradeFloatSave(input),
   tradeCatalystSave: (input: UpdateCatalystInput) =>

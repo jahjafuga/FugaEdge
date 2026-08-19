@@ -10,6 +10,7 @@ import MistakesVocabularyEditor from '@/components/settings/MistakesVocabularyEd
 import CatalystVocabularyEditor from '@/components/settings/CatalystVocabularyEditor'
 import DataBackfillCard from '@/components/settings/DataBackfillCard'
 import DnaSettingsSection from '@/components/settings/DnaSettingsSection'
+import AutoStopSettingsSection from '@/components/settings/AutoStopSettingsSection'
 import TradingAccountsCard from '@/components/settings/TradingAccountsCard'
 import BalancesCard from '@/components/settings/BalancesCard'
 import DailyTargetSection from '@/components/settings/DailyTargetSection'
@@ -428,6 +429,7 @@ export default function Settings() {
             registry. Same own-channels pattern; local refetch reactivity. */}
         <BalancesCard />
         <DnaSettingsSection />
+        <AutoStopSettingsSection />
         </CategoryPane>
 
         {/* ── Journal ─────────────────────────────────────────────── */}

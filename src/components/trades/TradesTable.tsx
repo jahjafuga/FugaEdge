@@ -683,6 +683,20 @@ export default function TradesTable({
         cell: (i) => <Num>{num(i.getValue(), (n) => price(n))}</Num>,
         sortUndefined: 'last',
       }),
+      // v0.2.7 Feature 3 — WHO set the stop above. A derived stop and a typed one
+      // produce identical R, so without this column a book full of derived numbers
+      // reads exactly like a book full of pre-trade plans.
+      col.accessor('stop_source', {
+        id: 'stop_source', header: COLUMN_LABELS['stop_source'], size: COLUMN_WIDTHS.shares,
+        meta: { label: COLUMN_LABELS['stop_source'] },
+        cell: (i) => {
+          const v = i.getValue() as 'manual' | 'auto' | null
+          // No stop means no claim about where one came from — the em-dash rule the
+          // other v0.2.7 columns follow, not a third kind of provenance.
+          return <span>{v === 'auto' ? 'Auto' : v === 'manual' ? 'Manual' : EMPTY}</span>
+        },
+        sortUndefined: 'last',
+      }),
       col.accessor('r_multiple', {
         id: 'r_multiple', header: 'R multiple', size: COLUMN_WIDTHS.shares,
         meta: { label: COLUMN_LABELS['r_multiple'] },

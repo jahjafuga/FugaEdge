@@ -23,6 +23,8 @@ import { saveNote } from './notes'
 import { saveTimeframe } from './timeframe'
 import { saveConfidence } from './confidence'
 import { savePlannedRisk, savePlannedStopLossPrice } from './planned-risk'
+import { runAutoStopOperation } from './auto-stop'
+import type { AutoStopOp } from '@/core/trades/autoStop'
 import { saveFloat } from './float-shares'
 import { saveCatalyst, setCatalystOnTradesBulk } from './catalyst'
 import {
@@ -110,6 +112,18 @@ export function registerTradesIpc(): void {
     (_e, input: UpdatePlannedStopLossInput) =>
       withVersionBump(() => savePlannedStopLossPrice(input)),
   )
+  // v0.2.7 Feature 3 — the auto-stop engine's one entry point. The handler makes no
+  // decision: the operation is named by the caller and every rule (is it enabled, is
+  // the percentage usable, which rows are eligible) lives in src/core/trades/autoStop.
+  ipcMain.handle(IPC.AUTO_STOP_RUN, async (_e, op: AutoStopOp) => {
+    const result = await runAutoStopOperation(op)
+    if (result.changed > 0) bumpDataVersion()
+    console.info(
+      `[FE stop] auto-stop ${op}: ran=${result.ran} changed=${result.changed}` +
+        (result.reason ? ` (${result.reason})` : ''),
+    )
+    return result
+  })
   ipcMain.handle(IPC.TRADE_FLOAT_SAVE, (_e, input: UpdateFloatInput) =>
     withVersionBump(() => saveFloat(input)),
   )

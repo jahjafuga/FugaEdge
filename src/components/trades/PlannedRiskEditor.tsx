@@ -4,6 +4,11 @@ import { money, signed, signedPct } from '@/lib/format'
 interface PlannedRiskEditorProps {
   /** Pre-trade stop loss PRICE. */
   plannedStopLossPrice: number | null
+  /** WHO set that price: 'manual' = the user typed it, 'auto' = the app derived it
+   *  from the first entry, null = there is no stop. A derived stop and a typed one
+   *  produce identical R numbers, so this label is the only thing on screen that can
+   *  tell them apart — without it the app presents its own guess as the user's plan. */
+  stopSource: 'manual' | 'auto' | null
   /** Average entry price ($/share). Used to derive risk-per-share live. */
   entryPrice: number
   /** Peak position size — used to project total $ risk. */
@@ -32,6 +37,7 @@ interface PlannedRiskEditorProps {
 // Saves on blur (or Enter) — typing should not fire an IPC per keystroke.
 export default function PlannedRiskEditor({
   plannedStopLossPrice,
+  stopSource,
   entryPrice,
   shares,
   riskPerShare,
@@ -107,6 +113,24 @@ export default function PlannedRiskEditor({
           className="w-full bg-transparent font-mono text-sm text-fg-primary placeholder:text-fg-muted focus:outline-none"
         />
       </div>
+
+      {hasStop && stopSource !== null && (
+        <div
+          data-testid="stop-source"
+          className={
+            stopSource === 'auto'
+              ? 'inline-flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-fg-tertiary'
+              : 'inline-flex items-center gap-1 rounded border border-gold/40 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-gold'
+          }
+          title={
+            stopSource === 'auto'
+              ? 'Derived from the first entry and your auto-fill percentage. Type over it to make it yours.'
+              : 'You typed this stop. Nothing automatic will overwrite or clear it.'
+          }
+        >
+          {stopSource === 'auto' ? 'Derived' : 'You set this'}
+        </div>
+      )}
 
       {hasStop && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[11px] tnum text-fg-secondary">

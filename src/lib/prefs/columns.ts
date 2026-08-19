@@ -30,7 +30,7 @@ export const ALL_COLUMN_IDS = [
   'hold_time', 'price_move_pct', 'pnl_gain_pct', 'exec_count', 'first_entry',
   'stop_price', 'r_multiple', 'risk_per_share', 'total_risk', 'rvol',
   'daily_change_pct', 'confidence', 'entry_timeframe', 'days_since_catalyst',
-  'mae', 'mfe',
+  'mae', 'mfe', 'stop_source',
 ] as const
 
 /** What a fresh install shows. Mirrors the pre-v0.2.7 defaults exactly: country on,
@@ -56,6 +56,7 @@ export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   days_since_catalyst: false,
   mae: false,
   mfe: false,
+  stop_source: false,
 }
 
 /** The human label for every column — ONE source, read by the table registry's meta
@@ -72,7 +73,7 @@ export const COLUMN_LABELS: Record<string, string> = {
   risk_per_share: 'Risk / share', total_risk: 'Total risk', rvol: 'RVOL',
   daily_change_pct: 'Day change %', confidence: 'Confidence',
   entry_timeframe: 'Timeframe', days_since_catalyst: 'Days since catalyst',
-  mae: 'MAE', mfe: 'MFE',
+  mae: 'MAE', mfe: 'MFE', stop_source: 'Stop set by',
 }
 
 /** Columns a min/max range can filter on. Exactly the ids rangeValueOf resolves —

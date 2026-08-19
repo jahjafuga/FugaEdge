@@ -96,6 +96,8 @@ export const IPC = {
   TRADE_CONFIDENCE_SAVE: 'trade:confidenceSave',
   TRADE_PLANNED_RISK_SAVE: 'trade:plannedRiskSave',
   TRADE_PLANNED_STOP_LOSS_SAVE: 'trade:plannedStopLossSave',
+  /** v0.2.7 Feature 3 — run one auto-stop operation ('apply' | 'rederive' | 'clear'). */
+  AUTO_STOP_RUN: 'autoStop:run',
   TRADE_FLOAT_SAVE: 'trade:floatSave',
   TRADE_CATALYST_SAVE: 'trade:catalystSave',
   // Phase 2 — bulk set catalyst_type on many trades (mirrors TRADES_PLAYBOOK_SAVE_BULK).

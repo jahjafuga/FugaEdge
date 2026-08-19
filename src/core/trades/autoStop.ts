@@ -77,6 +77,18 @@ export function isValidStopPct(pct: number): boolean {
   return Number.isFinite(pct) && pct > 0 && pct < 100
 }
 
+/** What stop_source a MANUAL save should store for `price`.
+ *
+ *  Typing a stop is a decision, so it latches the row to 'manual' permanently —
+ *  every engine operation then skips it, exactly as country_source's 'manual'
+ *  survives every country backfill. Clearing the stop clears the attribution with
+ *  it: there is nothing to attribute when there is no value, which is the same rule
+ *  the migration applied to every empty row. If the two disagreed, a cleared stop
+ *  would keep claiming a provenance it no longer has. */
+export function stopSourceForManualSave(price: number | null): 'manual' | null {
+  return price == null ? null : 'manual'
+}
+
 /** The stop a first entry of `first` implies at `pct` percent.
  *
  *  long  → below the entry, short → above it. Returns null when there is no first
