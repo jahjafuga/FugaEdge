@@ -55,16 +55,12 @@ const renderTab = () =>
     </MemoryRouter>,
   )
 
-/** The Filters card — located by its own heading, not a test id, so the test
- *  fails if the card stops being a recognisable filter control. */
-const filterCards = () =>
-  Array.from(document.querySelectorAll('*')).filter(
-    (el) =>
-      el.tagName !== 'HTML' &&
-      el.tagName !== 'BODY' &&
-      Array.from(el.children).some(
-        (c) => c.textContent?.trim() === 'Filters' && c.children.length === 0,
-      ),
+/** DOM order index of the toolbar strip. Anchored on the strip itself rather than
+ *  a heading: the FILTERS eyebrow was deliberately deleted when the card became a
+ *  toolbar, and a position test that depends on a label is really a label test. */
+const toolbarOrder = (): number =>
+  Array.from(document.querySelectorAll('*')).findIndex(
+    (el) => (el as HTMLElement).dataset?.testid === 'overview-toolbar',
   )
 
 /** DOM order index of the first node whose text matches. */
@@ -82,7 +78,7 @@ beforeEach(() => document.body.replaceChildren())
 describe('the filter control governs the tab, so it sits above the tab', () => {
   it('T1 renders ABOVE the equity curve in DOM order', () => {
     renderTab()
-    const filters = orderOf('Filters')
+    const filters = toolbarOrder()
     const equity = orderOf('Equity curve')
     const overviewHeader = orderOf('Overview')
     expect(filters).toBeGreaterThan(-1)
@@ -94,7 +90,7 @@ describe('the filter control governs the tab, so it sits above the tab', () => {
 
   it('T2 no filter control renders inside the DAILY BREAKDOWN section', () => {
     renderTab()
-    const filters = orderOf('Filters')
+    const filters = toolbarOrder()
     const daily = orderOf('Daily breakdown')
     expect(daily).toBeGreaterThan(-1)
     expect(filters).toBeLessThan(daily)
@@ -104,14 +100,12 @@ describe('the filter control governs the tab, so it sits above the tab', () => {
     renderTab()
     // A move that copies instead of moving leaves two live controls disagreeing
     // about the same state.
-    const headings = Array.from(document.querySelectorAll('*')).filter(
-      (el) => el.children.length === 0 && el.textContent?.trim() === 'Filters',
-    )
-    expect(headings).toHaveLength(1)
-    expect(filterCards().length).toBeGreaterThan(0)
-    // One Reset button, one symbol input — the control is not duplicated.
-    expect(screen.getAllByTitle('Reset all filters')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-testid="overview-toolbar"]')).toHaveLength(1)
     expect(screen.getAllByPlaceholderText('Symbol')).toHaveLength(1)
+    expect(screen.getAllByTestId('overview-scope')).toHaveLength(1)
+    // Reset is conditional now, so activate something before counting it.
+    fireEvent.change(screen.getByPlaceholderText('Symbol'), { target: { value: 'AAAA' } })
+    expect(screen.getAllByTitle('Reset all filters')).toHaveLength(1)
   })
 })
 

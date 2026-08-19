@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, RotateCcw, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import {
   addDays,
@@ -14,8 +14,8 @@ import {
   type OverviewFilters,
   type SideFilter,
 } from '@/core/performance'
-import Card from '@/components/ui/Card'
 import MultiSelectMenu from '@/components/ui/MultiSelectMenu'
+import { isNarrowedBeyondRange } from '@/core/performance/overviewScopeLabel'
 import Segment from '@/components/ui/Segment'
 
 // Analytics-only daily-dashboard filter bar. STANDALONE by design: it does NOT
@@ -79,6 +79,34 @@ const DURATIONS: { value: DurationBucket; label: string }[] = [
   { value: 'over-30m', label: '>30m' },
 ]
 
+// ── ONE CONTROL METRIC ──────────────────────────────────────────────────────
+// Every control in this bar is built from these strings rather than styled in
+// place, so "one height, one radius, one border token, one focus ring" is enforced
+// by construction instead of by discipline.
+//
+// The vocabulary is TradesFilters' search cluster + MultiSelectMenu's trigger — the
+// most finished control cluster in the app, and already the metric Segment uses
+// (h-8 / rounded-md / border-border-strong / bg-bg-1).
+
+/** Height, radius, border, surface, transition — the shared skeleton for buttons. */
+const CONTROL =
+  'inline-flex h-8 cursor-pointer items-center rounded-md border border-border-strong bg-bg-1 transition-colors duration-150'
+
+/** The same skeleton for a container that HOLDS an input rather than being one. */
+const FIELD =
+  'inline-flex h-8 items-center rounded-md border border-border-strong bg-bg-1 transition-colors duration-150'
+
+/** THE focus ring. shadow-glow-gold was declared in tailwind.config and used by
+ *  nothing — the app had 37 focus-border treatments and no ring anywhere. This
+ *  wires up the token the design system had already defined. */
+const RING =
+  'focus-within:border-gold focus-within:shadow-glow-gold focus-visible:border-gold focus-visible:shadow-glow-gold focus-visible:outline-none'
+
+/** Hairline group separator. Whitespace alone is what made the row read loose. */
+function Rule() {
+  return <span aria-hidden="true" className="h-5 w-px shrink-0 bg-border-subtle" />
+}
+
 interface AnalyticsFilterBarProps {
   trades: TradeListRow[]
   filters: OverviewFilters
@@ -102,7 +130,7 @@ export default function AnalyticsFilterBar({
   scopeLabel,
 }: AnalyticsFilterBarProps) {
   const [moreOpen, setMoreOpen] = useState(false)
-  const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
+ const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
   const catalystOptions = useMemo(() => distinctCatalysts(trades), [trades])
   const mistakeOptions = useMemo(() => distinctMistakes(trades), [trades])
 
@@ -123,6 +151,13 @@ export default function AnalyticsFilterBar({
     onQuickChange('7d')
   }
 
+  // ONE question, asked once: is the user looking at a SUBSET of their book?
+  // A date window is a subset exactly as much as a symbol filter is, so both count.
+  // Reset appears only when this is true (there is nothing to reset otherwise) and
+  // the scope line is promoted only when this is true (it is the only thing on the
+  // page that says the numbers describe part of the book rather than all of it).
+  const subset = isNarrowedBeyondRange(filters) || quick !== 'all'
+
   // Whether any control hidden behind the expander is active — so the collapsed
   // "More filters" button can signal there's something live underneath.
   const moreActive =
@@ -132,42 +167,89 @@ export default function AnalyticsFilterBar({
     filters.mistakes.length > 0
 
   return (
-    <Card title="Filters" subtitle="Symbol, side, and range — expand for more." hover={false}>
-      <div className="space-y-3">
-        {/* Essentials — always visible */}
-        <div className="flex flex-wrap items-center gap-2">
+    // NOT a Card. A control strip is not a content container, and the eyebrow and
+    // description a Card wants both described controls that sit visibly beneath them.
+    <div data-testid="overview-toolbar" className="space-y-3">
+      {/* ONE ROW: search, side, range, then status and the expander anchored right. */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* GROUP 1 — search. The symbol box is a search field now: leading icon and
+            a clear affordance, matching TradesFilters' field, the most finished
+            control cluster in the app. */}
+        <div className={`${FIELD} w-40 gap-2 px-2.5`}>
+          <Search size={14} strokeWidth={1.75} className="shrink-0 text-fg-tertiary" />
           <input
             type="text"
             value={filters.symbol}
             onChange={(e) => set('symbol', e.target.value)}
             placeholder="Symbol"
-            className="h-8 w-28 rounded-md border border-border-strong bg-bg-1 px-2.5 text-xs text-fg-primary placeholder:text-fg-tertiary focus:border-gold focus:outline-none"
+            className="w-full bg-transparent text-xs uppercase text-fg-primary placeholder:text-fg-tertiary focus:outline-none"
           />
+          {filters.symbol && (
+            <button
+              type="button"
+              onClick={() => set('symbol', '')}
+              aria-label="Clear symbol"
+              className="shrink-0 cursor-pointer text-fg-muted hover:text-fg-secondary"
+            >
+              <X size={12} strokeWidth={2.25} />
+            </button>
+          )}
+        </div>
 
+        <Rule />
+
+        {/* GROUP 2 — side. Gold here is the SELECTED segment: active state. */}
+        <span className={`inline-flex rounded-md ${RING}`}>
           <Segment options={SIDES} value={filters.side} onChange={(v) => set('side', v)} />
+        </span>
 
+        <Rule />
+
+        {/* GROUP 3 — range. Gold here is the SELECTED window: active state. */}
+        <span className={`inline-flex rounded-md ${RING}`}>
           <Segment options={QUICK} value={quick} onChange={pickQuick} />
+        </span>
 
-          <button
-            type="button"
-            onClick={reset}
-            title="Reset all filters"
-            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-strong bg-bg-1 px-2.5 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-          >
-            <RotateCcw size={12} strokeWidth={2} />
-            Reset
-          </button>
+        {/* GROUP 4 — status + expander, anchored right. */}
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          {subset && (
+            <button
+              type="button"
+              onClick={reset}
+              title="Reset all filters"
+              className={`${CONTROL} ${RING} gap-1.5 px-2.5 text-[10px] uppercase tracking-wider text-fg-tertiary hover:border-gold/40 hover:text-gold`}
+            >
+              <RotateCcw size={12} strokeWidth={2} />
+              Reset
+            </button>
+          )}
 
-          {/* "More filters" expander toggle — CollapsibleCard chevron +
-              aria-expanded idiom. Gold-tinted when a hidden filter is active. */}
+          {/* The only thing on the page that says these numbers describe part of the
+              book rather than all of it. Muted while the whole book is in view, a
+              gold pill the moment it is not. Same words either way. */}
+          {scopeLabel && (
+            <span
+              data-testid="overview-scope"
+              className={
+                subset
+                  ? 'truncate rounded-full border border-gold/40 bg-gold/[0.10] px-2.5 py-1 text-[11px] font-semibold tracking-wide text-gold'
+                  : 'truncate text-[11px] font-medium text-fg-tertiary'
+              }
+            >
+              {scopeLabel}
+            </span>
+          )}
+
+          {/* Neutral at rest, gold ONLY when a hidden filter is actually set — the
+              accent reports that something is on, never that a button exists. */}
           <button
             type="button"
             onClick={() => setMoreOpen((v) => !v)}
             aria-expanded={moreOpen}
-            className={`ml-auto inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+            className={`${CONTROL} ${RING} gap-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-wider ${
               moreActive
                 ? 'border-gold/50 bg-gold/[0.08] text-gold'
-                : 'border-border-strong bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                : 'text-fg-tertiary hover:border-gold/40 hover:text-gold'
             }`}
           >
             <SlidersHorizontal size={12} strokeWidth={2} />
@@ -179,10 +261,11 @@ export default function AnalyticsFilterBar({
             />
           </button>
         </div>
+      </div>
 
-        {/* More filters — collapsed by default */}
-        {moreOpen && (
-          <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
+      {/* More filters — collapsed by default, in flow beneath the row. */}
+      {moreOpen && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border-subtle pt-3">
             <div className="inline-flex items-center gap-1.5">
               <span
                 className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary"
@@ -232,17 +315,9 @@ export default function AnalyticsFilterBar({
                 }
               />
             </div>
-          </div>
-        )}
-
-        {/* Honest in-tab scope line — this tab's OWN population under the active
-            filters, so the all-time page subtitle never reads as if it scoped this
-            tab. Same placement and rationale as TechnicalsFilterBar's. */}
-        {scopeLabel && (
-          <div className="text-[11px] font-medium text-fg-tertiary">{scopeLabel}</div>
-        )}
-      </div>
-    </Card>
+        </div>
+      )}
+    </div>
   )
 }
 
