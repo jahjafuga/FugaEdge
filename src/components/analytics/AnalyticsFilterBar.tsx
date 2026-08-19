@@ -86,6 +86,11 @@ interface AnalyticsFilterBarProps {
   /** Local highlight key (incl. '7d'); owned by the dashboard. */
   quick: QuickKey
   onQuickChange: (q: QuickKey) => void
+  /** Honest in-tab population line ("X of Y round trips - scope"). Mirrors
+   *  TechnicalsFilterBar's scopeLabel: the page subtitle is all-time and shared by
+   *  every tab, so the tab states its OWN population here instead of letting that
+   *  subtitle read as if it scoped this tab. Omitted = render nothing. */
+  scopeLabel?: string
 }
 
 export default function AnalyticsFilterBar({
@@ -94,6 +99,7 @@ export default function AnalyticsFilterBar({
   onFiltersChange,
   quick,
   onQuickChange,
+  scopeLabel,
 }: AnalyticsFilterBarProps) {
   const [moreOpen, setMoreOpen] = useState(false)
   const playbookOptions = useMemo(() => distinctPlaybooks(trades), [trades])
@@ -227,6 +233,13 @@ export default function AnalyticsFilterBar({
               />
             </div>
           </div>
+        )}
+
+        {/* Honest in-tab scope line — this tab's OWN population under the active
+            filters, so the all-time page subtitle never reads as if it scoped this
+            tab. Same placement and rationale as TechnicalsFilterBar's. */}
+        {scopeLabel && (
+          <div className="text-[11px] font-medium text-fg-tertiary">{scopeLabel}</div>
         )}
       </div>
     </Card>

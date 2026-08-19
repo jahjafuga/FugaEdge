@@ -21,6 +21,11 @@ import {
   computeOverviewSnapshot,
   type OverviewSnapshot,
 } from '@/core/performance/overviewSnapshot'
+import {
+  isNarrowedBeyondRange,
+  overviewCountLine,
+  overviewScope,
+} from '@/core/performance/overviewScopeLabel'
 import { longDate, money, pnlClass, signed } from '@/lib/format'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -70,7 +75,18 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
     () => computeDailyWinRate(filtered, filters.range),
     [filtered, filters.range],
   )
-  const rangeLabel = quickKeyLabel(quick)
+  // ONE scope vocabulary for the whole tab. The chart titles used to name the date
+  // range and nothing else, so any of the six non-date filters could narrow the data
+  // under a heading still claiming "All time". overviewScope decides what the active
+  // filter honestly permits the labels to say; the count line beside the filter states
+  // the population outright. See src/core/performance/overviewScopeLabel.ts.
+  const narrowed = isNarrowedBeyondRange(filters)
+  const rangeLabel = overviewScope({ rangeLabel: quickKeyLabel(quick), narrowed })
+  const scopeLabel = overviewCountLine({
+    count: filtered.length,
+    total: dashTrades.length,
+    scope: rangeLabel,
+  })
 
   return (
     <div className="space-y-6">
@@ -90,12 +106,13 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
           onFiltersChange={setFilters}
           quick={quick}
           onQuickChange={setQuick}
+          scopeLabel={scopeLabel}
         />
       </div>
 
       <SectionHeader
         title="Overview"
-        description="The big picture — equity curve, the four numbers that matter, and your bookends."
+        description="The big picture — equity curve, headline metrics, and your bookends."
       />
 
       <Card title="Equity curve" subtitle="Cumulative net P&L. Max drawdown highlighted in red.">
@@ -155,7 +172,7 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
       <div className="pt-2">
         <SectionHeader
           title="Daily breakdown"
-          description="Filter by symbol, playbook, side, and more — then read your P&L, cumulative, volume, and win rate day by day."
+          description="Your P&L, cumulative, volume, and win rate, day by day."
         />
       </div>
       <NormalCharts

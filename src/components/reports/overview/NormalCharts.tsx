@@ -30,7 +30,9 @@ interface NormalChartsProps {
   cumulative: CumulativePoint[]
   volume: DailyVolumePoint[]
   winRate: DailyWinRatePoint[]
-  /** Label used in the chart titles, e.g. "30 days", "Custom". */
+  /** SCOPE phrase for the chart titles — the whole active filter, not just the date
+   *  window: "30 days", "Filtered", "30 days, filtered". Built by overviewScope so
+   *  a title can never claim a range the data underneath it does not have. */
   rangeLabel: string
 }
 
