@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { money, signed, signedPct } from '@/lib/format'
+import { money, price, signed, signedPct } from '@/lib/format'
 
 interface PlannedRiskEditorProps {
   /** Pre-trade stop loss PRICE. */
@@ -47,13 +47,19 @@ export default function PlannedRiskEditor({
   isClosed,
   onChange,
 }: PlannedRiskEditorProps) {
-  const [text, setText] = useState<string>(
-    plannedStopLossPrice == null ? '' : String(plannedStopLossPrice),
-  )
+  // Shown at the house price precision, not raw. A derived stop is STORED
+  // unrounded on purpose -- every R this trade reports divides by it -- and six of
+  // the eleven stops the auto-fill wrote on the live book carry a full binary
+  // expansion, so the field was printing 9.593300000000001 for a nine-fifty-nine
+  // stock. price() is the one rule every quoted price in the app goes through.
+  const display = (v: number | null) => (v == null ? '' : price(v))
+  const [text, setText] = useState<string>(() => display(plannedStopLossPrice))
 
   useEffect(() => {
-    const display = plannedStopLossPrice == null ? '' : String(plannedStopLossPrice)
-    setText((cur) => (cur === display ? cur : display))
+    const next = display(plannedStopLossPrice)
+    setText((cur) => (cur === next ? cur : next))
+    // `display` is recreated each render and is a pure function of the value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plannedStopLossPrice])
 
   const commit = () => {
@@ -62,12 +68,20 @@ export default function PlannedRiskEditor({
       if (plannedStopLossPrice != null) onChange(null)
       return
     }
-    const n = Number.parseFloat(trimmed)
+    // price() groups thousands, so the text it produces is not always parseable
+    // as-is. Stripping separators keeps ONE precision rule rather than a second,
+    // grouping-free copy of it living here.
+    const n = Number.parseFloat(trimmed.replace(/,/g, ''))
     if (!Number.isFinite(n) || n <= 0) {
-      setText(plannedStopLossPrice == null ? '' : String(plannedStopLossPrice))
+      setText(display(plannedStopLossPrice))
       return
     }
-    if (n !== plannedStopLossPrice) onChange(n)
+    // THE COMPARISON IS ON THE DISPLAYED FORM, not the stored number. They differ
+    // by design now, so comparing the numbers would read every blur as an edit --
+    // clicking through the card would write the rounded value back and, because
+    // any save latches provenance, silently turn a derived stop into a typed one.
+    if (display(n) === display(plannedStopLossPrice)) return
+    onChange(n)
   }
 
   // Live preview while typing — recalc against the typed value if it parses

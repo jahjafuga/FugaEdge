@@ -57,7 +57,9 @@ describe('T19 the trade detail distinguishes a typed stop from a derived one', (
 
   it('editing still commits the typed value on blur', () => {
     const { onChange } = renderEditor()
-    const input = screen.getByDisplayValue('7.2375')
+    // The field shows the house price precision now: 7.2375 is stored, 7.24 is
+    // shown. The stored value keeps its full precision — this is the display.
+    const input = screen.getByDisplayValue('7.24')
     fireEvent.change(input, { target: { value: '7' } })
     fireEvent.blur(input)
     expect(onChange).toHaveBeenCalledWith(7)
