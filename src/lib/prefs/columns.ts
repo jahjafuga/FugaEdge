@@ -21,6 +21,23 @@ export const COLUMN_PREFS_KEY = 'fuga.trades.columnVisibility'
 /** The column the table cannot function without — you cannot tell rows apart. */
 export const UNHIDEABLE_COLUMN = 'symbol'
 
+/** The columns pinned to the left edge, in render order.
+ *
+ *  Once every column carries a real width the table is wider than its container
+ *  and scrolls sideways — and the two columns that say WHICH TRADE a row is are
+ *  the first to leave the screen, so you end up reading numbers with nothing to
+ *  attach them to. These stay put.
+ *
+ *  Pinned implies unhideable: a pinned column that could be switched off would
+ *  leave a sticky gap where nothing renders. */
+export const PINNED_COLUMNS = ['open_time', 'symbol'] as const
+
+/** True when the column may never be hidden — the pinned pair, plus the symbol
+ *  that has always been unhideable because rows cannot be told apart without it. */
+export function isLockedColumn(id: string): boolean {
+  return id === UNHIDEABLE_COLUMN || (PINNED_COLUMNS as readonly string[]).includes(id)
+}
+
 /** Every column the registry can render, in render order. */
 export const ALL_COLUMN_IDS = [
   'open_time', 'open', 'close', 'symbol', 'playbook', 'country', 'catalyst',
@@ -134,7 +151,8 @@ function storage(): Storage | null {
 /** Symbol is forced visible on every read and write — a persisted `false` from a
  *  hand-edited store cannot brick the table. */
 function pinUnhideable(v: ColumnVisibility): ColumnVisibility {
-  return { ...v, [UNHIDEABLE_COLUMN]: true }
+  const pinned = Object.fromEntries(PINNED_COLUMNS.map((id) => [id, true]))
+  return { ...v, ...pinned, [UNHIDEABLE_COLUMN]: true }
 }
 
 export function readColumnVisibility(): ColumnVisibility {

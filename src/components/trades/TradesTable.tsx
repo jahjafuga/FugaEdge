@@ -27,7 +27,8 @@ import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
 import {
   COLUMN_LABELS,
   COLUMN_WIDTHS,
-  UNHIDEABLE_COLUMN,
+  PINNED_COLUMNS,
+  isLockedColumn,
   readColumnVisibility,
   resetColumnVisibility,
   writeColumnVisibility,
@@ -174,8 +175,8 @@ const TradesTableRow = memo(function TradesTableRow({
     >
       {bulkEnabled && (
         <td
-          style={{ width: 36 }}
-          className="group cursor-pointer px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
+          style={{ width: CHECKBOX_W, left: 0 }}
+          className="group sticky z-[1] cursor-pointer bg-bg-2 px-3 text-center align-middle transition-colors duration-150 hover:bg-gold/10"
           onClick={(e) => e.stopPropagation()}
         >
           <input
@@ -193,15 +194,18 @@ const TradesTableRow = memo(function TradesTableRow({
           />
         </td>
       )}
-      {row.getVisibleCells().map((cell) => (
-        <td
-          key={cell.id}
-          style={{ width: cell.column.getSize() }}
-          className="px-3 align-middle"
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </td>
-      ))}
+      {row.getVisibleCells().map((cell) => {
+        const pin = pinnedCell(cell.column, bulkEnabled ? CHECKBOX_W : 0)
+        return (
+          <td
+            key={cell.id}
+            style={{ width: cell.column.getSize(), ...(pin?.style ?? {}) }}
+            className={`px-3 align-middle ${pin ? pin.className : ''}`}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </td>
+        )
+      })}
     </tr>
   )
 },
@@ -217,6 +221,26 @@ const TradesTableRow = memo(function TradesTableRow({
   a.onSelect === b.onSelect &&
   a.onToggle === b.onToggle &&
   a.visibleKey === b.visibleKey)
+
+/** The selection column's width. It is rendered outside TanStack, so every
+ *  pinned offset has to add it back on. */
+const CHECKBOX_W = 36
+
+/** Sticky-cell classes and offset for a pinned column, or null when it is not
+ *  pinned. The background is deliberately OPAQUE: a sticky cell that lets light
+ *  through has the scrolling content drawn straight across it. bg-bg-2 is the
+ *  card surface the table already sits on, so the pinned pair reads as part of
+ *  the table rather than as a floating panel. */
+function pinnedCell(
+  column: { getIsPinned: () => false | 'left' | 'right'; getStart: (p: 'left') => number },
+  offset: number,
+): { className: string; style: { left: number } } | null {
+  if (column.getIsPinned() !== 'left') return null
+  return {
+    className: 'sticky z-[1] bg-bg-2',
+    style: { left: column.getStart('left') + offset },
+  }
+}
 
 /** The em dash every optional column shows when its source is null. A zero here
  *  would claim a measurement nobody took. */
@@ -766,7 +790,15 @@ export default function TradesTable({
   const table = useReactTable({
     data: trades,
     columns,
-    state: { sorting, columnVisibility },
+    // TanStack owns the ORDER — pinned columns come back first from
+    // getVisibleCells() and getHeaderGroups(), so header and body agree without
+    // either of them knowing about pinning. The sticky offsets below are all this
+    // component adds.
+    state: {
+      sorting,
+      columnVisibility,
+      columnPinning: { left: [...PINNED_COLUMNS], right: [] },
+    },
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
@@ -1030,7 +1062,7 @@ export default function TradesTable({
               className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-md border border-border-subtle bg-bg-2 p-2 shadow-lg"
             >
               {table.getAllLeafColumns().map((c) => {
-                const locked = c.id === UNHIDEABLE_COLUMN
+                const locked = isLockedColumn(c.id)
                 return (
                   <label
                     key={c.id}
@@ -1071,8 +1103,8 @@ export default function TradesTable({
               >
                 {bulkEnabled && (
                   <th
-                    style={{ width: 36 }}
-                    className="group cursor-pointer px-3 py-2.5 text-center transition-colors duration-150 hover:bg-gold/10"
+                    style={{ width: CHECKBOX_W, left: 0 }}
+                    className="group sticky z-[1] cursor-pointer bg-bg-2 px-3 py-2.5 text-center transition-colors duration-150 hover:bg-gold/10"
                   >
                     <input
                       type="checkbox"
@@ -1089,11 +1121,12 @@ export default function TradesTable({
                 {hg.headers.map((h) => {
                   const sorted = h.column.getIsSorted()
                   const canSort = h.column.getCanSort()
+                  const pin = pinnedCell(h.column, bulkEnabled ? CHECKBOX_W : 0)
                   return (
                     <th
                       key={h.id}
                       onClick={canSort ? h.column.getToggleSortingHandler() : undefined}
-                      style={{ width: h.getSize() }}
+                      style={{ width: h.getSize(), ...(pin?.style ?? {}) }}
                       // HEADERS NEVER WRAP. A label that breaks onto a second line
                       // takes the whole header row with it, so the row's height
                       // changed with whichever columns happened to be visible.
@@ -1102,6 +1135,8 @@ export default function TradesTable({
                       // the columns whose name is wider than their numbers.
                       title={h.column.columnDef.meta?.label ?? h.id}
                       className={`overflow-hidden whitespace-nowrap px-3 py-2.5 font-semibold ${
+                        pin ? pin.className : ''
+                      } ${
                         canSort ? 'cursor-pointer select-none transition-colors duration-150 hover:text-fg-primary' : ''
                       }`}
                     >
