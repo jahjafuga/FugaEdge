@@ -161,6 +161,7 @@ describe('T5 the removed strings stay removed', () => {
     expect(headings).toEqual([])
   })
 })
+
 // ── T5 ──────────────────────────────────────────────────────────────────────
 describe('T5 the MORE FILTERS panel does not change the bar own height', () => {
   const bar = () => screen.getByTestId('overview-toolbar')
@@ -380,3 +381,123 @@ describe('T5 the panel out-ranks every stacking context measured on its chain', 
 // ── Candidate 4: the vertical space is REDISTRIBUTED, not inflated ──────────
 //
 // Every number below is DERIVED from the source's own classes through the same
+// Tailwind scale the browser uses, so the test measures what I measured rather
+// than restating a literal I typed once and could have got wrong.
+describe('the bar rises and the panel gets its clearance', () => {
+  const TAB = 'src/components/analytics/tabs/OverviewTab.tsx'
+  const BAR = 'src/components/analytics/AnalyticsFilterBar.tsx'
+  const PAGE = 'src/pages/Analytics.tsx'
+
+  /** Tailwind's default spacing scale, in px. */
+  const SPACE: Record<string, number> = {
+    '0': 0, px: 1, '0.5': 2, '1': 4, '1.5': 6, '2': 8, '2.5': 10, '3': 12,
+    '4': 16, '5': 20, '6': 24, '8': 32, '10': 40, '12': 48, '16': 64, '20': 80,
+  }
+  /** Resolve one utility (mt / pt / pb / py / p), `!` prefix allowed. Token
+   *  matching rather than a regex: an escape in the pattern is one more place to
+   *  be silently wrong, and this helper is the thing every measurement rests on. */
+  const px = (cls: string, prefix: string): number => {
+    for (const raw of cls.split(/\s+/)) {
+      const t = raw.startsWith('!') ? raw.slice(1) : raw
+      if (!t.startsWith(prefix + '-')) continue
+      const v = t.slice(prefix.length + 1)
+      if (v in SPACE) return SPACE[v]
+    }
+    return 0
+  }
+
+  const stickyClass = () =>
+    (src(TAB).match(/className="(sticky top-0[^"]*)"/) as RegExpMatchArray)[1]
+  const headerWrapClass = () =>
+    (src(TAB).match(/className="([^"]*)">\s*\n\s*<SectionHeader\s*\n\s*title="Overview"/) as
+      RegExpMatchArray)[1]
+  /** The space-y that wraps the tab bar AND every tab body — anchored on the
+   *  TabBar itself, because Analytics.tsx carries more than one space-y and the
+   *  first one in the file is a different block. */
+  const pageSpaceY = () => {
+    const page = src(PAGE)
+    const at = page.indexOf('<TabBar')
+    const before = page.slice(0, at)
+    const all = [...before.matchAll(/className="(space-y-[0-9]+)"/g)]
+    const last = all[all.length - 1] as RegExpMatchArray
+    return SPACE[last[1].replace('space-y-', '')]
+  }
+  const panelClass = () =>
+    (src(BAR).match(
+      /data-testid="overview-more-panel"[\s\S]{0,400}?className="([^"]*)"/,
+    ) as RegExpMatchArray)[1]
+  /** The anchor offset the effect adds below the bar's bottom edge. */
+  const anchorGap = () =>
+    Number((src(BAR).match(/r\.bottom \+ (\d+)/) as RegExpMatchArray)[1])
+
+  // ── the geometry, derived ────────────────────────────────────────────────
+  const CONTROL_H = 32 // every control in the bar and the panel is h-8
+  const SPACE_Y_6 = 24 // OverviewTab's root rhythm
+
+  const above = () => {
+    const st = stickyClass()
+    // page space-y-5 + the 1px observer sentinel + the wrapper's own top margin
+    // and padding. `!mt-0` beats space-y-6; a plain mt-0 would not.
+    const mt = /!mt-/.test(st) ? px(st, 'mt') : SPACE_Y_6
+    return pageSpaceY() + 1 + mt + px(st, 'pt') + px(st, 'py')
+  }
+  const below = () => {
+    const st = stickyClass()
+    const hw = headerWrapClass()
+    const headerMt = /!mt-/.test(hw) ? px(hw, 'mt') : SPACE_Y_6
+    return px(st, 'pb') + px(st, 'py') + headerMt
+  }
+  const panelExtent = () => {
+    const p = panelClass()
+    return anchorGap() + px(p, 'p') * 2 + CONTROL_H + 2 // +2 = the panel's border
+  }
+
+  /** What the same derivation produced BEFORE this change:
+   *  above = 20 (space-y-5) + 1 (sentinel) + 24 (space-y-6) + 12 (py-3) = 57
+   *  below = 12 (py-3) + 24 (space-y-6)                                 = 36 */
+  const BEFORE_ABOVE = 57
+  const BEFORE_BELOW = 36
+
+  it('the derivation produces finite numbers from the source', () => {
+    for (const v of [above(), below(), panelExtent(), pageSpaceY(), anchorGap()]) {
+      expect(Number.isFinite(v), 'a class failed to resolve').toBe(true)
+    }
+    expect(anchorGap()).toBeGreaterThan(0)
+  })
+
+  it('T1 the open panel does not reach the OVERVIEW header', () => {
+    expect(below()).toBeGreaterThanOrEqual(panelExtent())
+    // ...and not flush against it either.
+    expect(below() - panelExtent()).toBeGreaterThan(0)
+  })
+
+  it('T2 the bar sits closer to the tab bar than it did', () => {
+    expect(above()).toBeLessThan(BEFORE_ABOVE)
+  })
+
+  it('T3 the TOTAL is unchanged — redistribution, not inflation', () => {
+    expect(Math.abs(above() + below() - (BEFORE_ABOVE + BEFORE_BELOW))).toBeLessThanOrEqual(4)
+  })
+
+  it('the space genuinely MOVED — what the top lost, the bottom gained', () => {
+    expect(BEFORE_ABOVE - above()).toBe(below() - BEFORE_BELOW)
+  })
+
+  it('the dead -mt-px is gone; it never beat space-y-6 on specificity', () => {
+    expect(stickyClass()).not.toContain('-mt-px')
+    expect(stickyClass()).toContain('!mt-0')
+  })
+
+  it('T4 Candidate 3 still holds — the wrapper still paints nothing', () => {
+    const st = stickyClass()
+    expect(st).not.toMatch(/\bbg-/)
+    expect(st).not.toMatch(/\bborder(-|\b)/)
+    expect(st).not.toMatch(/\bshadow-/)
+  })
+
+  it('the page-level space-y is untouched — it is shared by all nine tabs', () => {
+    // Analytics.tsx:194 wraps the tab bar AND every tab body. Retuning it here
+    // would silently move Compare, Performance, Execution and the rest.
+    expect(pageSpaceY()).toBe(20)
+  })
+})

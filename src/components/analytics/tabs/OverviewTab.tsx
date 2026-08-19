@@ -126,7 +126,18 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
           arrived wearing a slab the rest of the page does not have. The bar is the
           one surface; the aurora shows through above and below it, and that gap is
           what makes it read as floating. */}
-      <div className="sticky top-0 z-30 py-3">
+      {/* SPACING IS REDISTRIBUTED, NOT ADDED. The bar had 57px above it and 36px
+          below; the overlay panel extends 66px below the bar (8px anchor gap + a
+          58px panel), so it overran the OVERVIEW header by 30px. The same 93px is
+          now split 21 above / 72 below — the bar sits 36px higher AND the panel
+          clears the header by 6px.
+
+          `!mt-0` is not decoration: the parent's `space-y-6 > :not([hidden]) ~
+          :not([hidden])` selector carries three specificity units against a plain
+          margin utility's one, so an ordinary `mt-0` loses. The `-mt-px` that used
+          to sit here was dead for exactly that reason and never cancelled the
+          sentinel it was written for. */}
+      <div className="sticky top-0 z-30 !mt-0 pb-2 pt-0">
         <AnalyticsFilterBar
           trades={dashTrades}
           filters={filters}
@@ -138,10 +149,16 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
         />
       </div>
 
-      <SectionHeader
-        title="Overview"
-        description="The big picture — equity curve, headline metrics, and your bookends."
-      />
+      {/* The clearance the overlay needs, held in ordinary flow spacing rather than
+          in the sticky box — the pinned element stays tight (62px) while the panel
+          gets its room. SectionHeader takes no className, so the margin rides on a
+          wrapper, the same shape the Daily-breakdown header already uses. */}
+      <div className="!mt-16">
+        <SectionHeader
+          title="Overview"
+          description="The big picture — equity curve, headline metrics, and your bookends."
+        />
+      </div>
 
       <Card title="Equity curve" subtitle="Cumulative net P&L. Max drawdown highlighted in red.">
         <EquityChart equity={snapshot.curve} maxDrawdown={snapshot.drawdown} />
