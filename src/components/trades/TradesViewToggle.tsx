@@ -1,4 +1,5 @@
 import { Table2, BarChart3, LayoutGrid, type LucideIcon } from 'lucide-react'
+import { viewControlIdle, viewControlOn } from '@/components/trades/viewControlClasses'
 
 export type TradesView = 'table' | 'charts-large' | 'charts-small'
 
@@ -15,7 +16,10 @@ const OPTIONS: { key: TradesView; label: string; Icon: LucideIcon }[] = [
 
 export default function TradesViewToggle({ value, onChange }: TradesViewToggleProps) {
   return (
-    <div role="tablist" className="inline-flex items-center rounded-md border border-border-subtle bg-bg-2 p-0.5">
+    // No container chrome: each segment carries its own border and surface now, so
+    // a box around them would be a box inside a box. The tablist role still groups
+    // them semantically, and the gap does it visually.
+    <div role="tablist" className="inline-flex items-center gap-1.5">
       {OPTIONS.map(({ key, label, Icon }) => {
         const active = key === value
         return (
@@ -26,11 +30,7 @@ export default function TradesViewToggle({ value, onChange }: TradesViewTogglePr
             aria-selected={active}
             onClick={() => onChange(key)}
             title={label}
- className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-[6px] px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors duration-150 ease-out-soft ${
-              active
-                ? 'bg-gold text-accent-ink'
-                : 'text-fg-tertiary hover:bg-bg-3 hover:text-fg-primary'
-            }`}
+            className={active ? viewControlOn : viewControlIdle}
           >
             <Icon size={13} strokeWidth={2} />
             {label}

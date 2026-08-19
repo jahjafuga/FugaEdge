@@ -28,8 +28,6 @@ import {
   COLUMN_LABELS,
   COLUMN_WIDTHS,
   PINNED_COLUMNS,
-  isLockedColumn,
-  resetColumnVisibility,
   readColumnVisibility,
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
@@ -54,6 +52,7 @@ import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import Sparkline from './Sparkline'
+import ColumnsMenu from '@/components/trades/ColumnsMenu'
 import TradeDetailModal from './TradeDetailModal'
 import TradesBulkActionBar from './TradesBulkActionBar'
 import BulkSetPlaybookModal from './BulkSetPlaybookModal'
@@ -841,7 +840,6 @@ export default function TradesTable({
   })
 
   const sortedRows = table.getRowModel().rows
-  const [columnMenuOpen, setColumnMenuOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({
@@ -1094,60 +1092,26 @@ export default function TradesTable({
   const colCount = visibleLeaf.length + (bulkEnabled ? 1 : 0)
 
   return (
-    <div className="card-premium card-glow-gold flex max-h-[calc(100vh-340px)] flex-col overflow-hidden">
+    // NO card-glow-gold. Its bloom is anchored at the card's top-left at 120% and
+    // fades out at 60%, which on a small tile is a corner highlight and on a table
+    // this wide is a gold wash reaching most of the way across the first columns.
+    // The class is correct and eleven other cards use it well; they are all small.
+    // The filter card above is the reference: card-premium and nothing else.
+    <div className="card-premium flex max-h-[calc(100vh-340px)] flex-col overflow-hidden">
       {/* Card is a flex column capped at the viewport: the scroll container
           flexes to fill, and the bulk action bar (below) lands at the card
           bottom instead of being pushed off-screen. min-h-0 is load-bearing —
           a flex child won't shrink below its content height without it, which
           would break the inner scroll AND push the bar off-screen again. Do
           not remove it. The virtualizer still reads scrollTop from this el. */}
-      <div className="flex items-center justify-end gap-2 px-3 py-2">
-        <div className="relative">
-          <button
-            type="button"
-            data-testid="columns-button"
-            onClick={() => setColumnMenuOpen((v) => !v)}
-            className="rounded-md border border-border-subtle px-2 py-1 text-[10px] uppercase tracking-wider text-fg-secondary transition-colors hover:border-gold hover:text-gold"
-          >
-            Columns
-          </button>
-          {columnMenuOpen && (
-            <div
-              data-testid="columns-menu"
-              className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-md border border-border-subtle bg-bg-2 p-2 shadow-lg"
-            >
-              {table.getAllLeafColumns().map((c) => {
-                const locked = isLockedColumn(c.id)
-                return (
-                  <label
-                    key={c.id}
-                    data-testid={`col-toggle-${c.id}`}
-                    className={`flex items-center gap-2 px-1.5 py-1 text-xs ${
-                      locked ? 'text-fg-muted' : 'cursor-pointer text-fg-secondary hover:text-gold'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={c.getIsVisible()}
-                      disabled={locked}
-                      onChange={c.getToggleVisibilityHandler()}
-                    />
-                    <span>{c.columnDef.meta?.label ?? c.id}</span>
-                  </label>
-                )
-              })}
-              <button
-                type="button"
-                data-testid="columns-reset"
-                onClick={() => setColumnVisibility(resetColumnVisibility())}
-                className="mt-1 w-full rounded-sm border border-border-subtle px-2 py-1 text-[10px] uppercase tracking-wider text-fg-tertiary transition-colors hover:border-gold hover:text-gold"
-              >
-                Reset to defaults
-              </button>
-            </div>
-          )}
+      {/* The columns control lives beside the view switcher on the page now. A
+          standalone table owns its own visibility, so it still mounts one; when the
+          page owns it, the page renders it and this band does not exist at all. */}
+      {!controlled && (
+        <div className="flex items-center justify-end gap-2 px-3 py-2">
+          <ColumnsMenu visibility={columnVisibility} onChange={setColumnVisibility} />
         </div>
-      </div>
+      )}
       <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
         <div
           ref={xSentinelRef}

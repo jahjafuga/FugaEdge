@@ -5,6 +5,7 @@ import PageShell from '@/components/layout/PageShell'
 import Skeleton from '@/components/ui/Skeleton'
 import TradesTable from '@/components/trades/TradesTable'
 import TradesFilters from '@/components/trades/TradesFilters'
+import ColumnsMenu from '@/components/trades/ColumnsMenu'
 import {
   applyTradesFilters,
   emptyFilters,
@@ -377,11 +378,21 @@ export default function Trades() {
             <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
               View
             </div>
-            <div className="flex items-center gap-2">
-              {/* Column-visibility toggle. The Shares Out column is off by default
-                  to keep the table dense — most users only care about it
-                  during specific symbol research. Preference persists. */}
+            {/* gap-3, not gap-2: at the same metric the two controls read as one
+                segmented group at 8px. The extra 4px is what says they are separate
+                things — a view selector and a menu. */}
+            <div className="flex items-center gap-3">
               <TradesViewToggle value={view} onChange={setView} />
+              {/* Columns sits with the view switcher: both decide what the table
+                  shows, so they belong in the same place. It used to have a band of
+                  its own above the table, which cost a strip of vertical space to
+                  hold one button. */}
+              {view === 'table' && (
+                <ColumnsMenu
+                  visibility={columnVisibility}
+                  onChange={onColumnVisibilityChange}
+                />
+              )}
             </div>
           </div>
         </div>
