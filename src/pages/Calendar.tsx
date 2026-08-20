@@ -306,8 +306,7 @@ export default function Calendar() {
         {calMode === 'month' ? (
           <>
             <CalendarHeader
-              stats={data.stats}
-              range={data.range}
+              month={data}
               onPrev={() => setView(stepMonth(view.y, view.m, -1))}
               onNext={() => setView(stepMonth(view.y, view.m, 1))}
               onToday={() => setView(realNow)}

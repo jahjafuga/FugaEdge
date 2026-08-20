@@ -1,32 +1,31 @@
-import type { CalendarMonthStats, CalendarRange } from '@shared/calendar-types'
+import type { CalendarMonth } from '@shared/calendar-types'
 import { money, int, signed, pnlClass } from '@/lib/format'
+import CalendarShareControl from '@/components/calendar/CalendarShareControl'
+import { MONTH_NAMES } from '@/core/calendar/monthCardData'
 
+// Takes the whole CalendarMonth rather than stats + range separately. The share
+// action composes the month this header is titled with, and the surest way to
+// keep those two the same month is for there to be one object.
 interface CalendarHeaderProps {
-  stats: CalendarMonthStats
-  range: CalendarRange
+  month: CalendarMonth
   onPrev: () => void
   onNext: () => void
   onToday: () => void
   isCurrentMonth: boolean
 }
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-
 function ymKey(y: number, m: number): string {
   return `${y}-${m < 10 ? '0' + m : m}`
 }
 
 export default function CalendarHeader({
-  stats,
-  range,
+  month,
   onPrev,
   onNext,
   onToday,
   isCurrentMonth,
 }: CalendarHeaderProps) {
+  const { stats, range } = month
   const currentKey = ymKey(stats.year, stats.month)
   // Disable nav arrows past the trade-range boundaries so we can't wander
   // through endless empty months. Always allow stepping inside the range.
@@ -88,6 +87,11 @@ export default function CalendarHeader({
             }
             className="text-fg-primary"
           />
+          {/* self-center: the stats row aligns on the baseline, which is right
+              for numbers and wrong for a pair of buttons. */}
+          <div className="self-center">
+            <CalendarShareControl month={month} />
+          </div>
         </div>
       </div>
     </div>

@@ -26,9 +26,15 @@ import type { ResolvedTheme } from '@/lib/theme'
 
 const FONT = 'JetBrains Mono, ui-monospace, monospace'
 
+/** Every unit the card can draw, in offer order. The list is exported so the
+ *  reachability guard can hold the UI to it: a mode the compositor implements
+ *  and the share control never offers is a dead engine, and this feature has
+ *  already produced one of those. */
+export const CALENDAR_CARD_UNITS = ['percent', 'dollars'] as const
+
 /** How a day's number is written. Percentage is the default because it says how
  *  the month went without saying how much money exists. */
-export type CalendarCardUnit = 'percent' | 'dollars'
+export type CalendarCardUnit = (typeof CALENDAR_CARD_UNITS)[number]
 
 export interface CalendarCardDay {
   /** YYYY-MM-DD. */
