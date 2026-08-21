@@ -17,20 +17,34 @@
 // vocabulary the chart export does not have. A cancelled dialog is NOT a
 // failure — main resolves { canceled: true }.
 
-import { useCallback, useEffect, useState } from 'react'
-import { Download, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, Download, Loader2, LayoutGrid } from 'lucide-react'
+import { viewControlIdle, viewControlOn } from '@/components/trades/viewControlClasses'
 import { ipc } from '@/lib/ipc'
 import { useAccountScope } from '@/lib/accountScope'
 import { useContributedCapital } from '@/lib/useContributedCapital'
 import { useThemeMode } from '@/lib/theme'
 import { useStreamerMode } from '@/lib/streamerMode'
-import { composeCalendarCard, CALENDAR_CARD_UNITS, type CalendarCardUnit } from '@/lib/calendarCard'
+import {
+  composeCalendarCard,
+  CALENDAR_CARD_UNITS,
+  CALENDAR_CARD_FORMATS,
+  CALENDAR_CARD_FORMAT_IDS,
+  type CalendarCardFormat,
+  type CalendarCardUnit,
+} from '@/lib/calendarCard'
 import { buildMonthCardData, cardFileName } from '@/core/calendar/monthCardData'
 import type { CalendarMonth } from '@shared/calendar-types'
 
 /** Persisted like calendar.showWeekly and calendar.viewMode — the page's own
  *  idiom for a per-surface choice. */
 export const SHARE_UNIT_KEY = 'calendar.shareUnit'
+export const SHARE_FORMAT_KEY = 'calendar.shareFormat'
+
+/** The portaled panel is positioned, not laid out, so its width is a number the
+ *  anchor maths needs rather than a class. */
+const MENU_W = 240
 
 function readUnit(): CalendarCardUnit {
   try {
@@ -40,7 +54,35 @@ function readUnit(): CalendarCardUnit {
   }
 }
 
+function readFormat(): CalendarCardFormat {
+  try {
+    const v = localStorage.getItem(SHARE_FORMAT_KEY)
+    return (CALENDAR_CARD_FORMAT_IDS as string[]).includes(v ?? '')
+      ? (v as CalendarCardFormat)
+      : 'square'
+  } catch {
+    return 'square'
+  }
+}
+
 const UNIT_LABEL: Record<CalendarCardUnit, string> = { percent: '%', dollars: '$' }
+
+/** Where each shape is going, and what it turns into. The layout is named
+ *  because a format is not a canvas size here — it is a different arrangement of
+ *  the same elements, and choosing blind between four sizes tells the trader
+ *  nothing about which one puts the week rail front and centre. */
+const FORMAT_LABEL: Record<CalendarCardFormat, string> = {
+  square: 'Square',
+  portrait: 'Portrait',
+  story: 'Story',
+  wide: 'Wide',
+}
+const FORMAT_HINT: Record<CalendarCardFormat, string> = {
+  square: 'grid + totals',
+  portrait: 'grid, week rail below',
+  story: 'the week rail, days inline',
+  wide: 'grid + week rail, the app’s shape',
+}
 
 export default function CalendarShareControl({ month }: { month: CalendarMonth }) {
   const { scope } = useAccountScope()
@@ -49,7 +91,54 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
   const capital = useContributedCapital(scope)
 
   const [unit, setUnit] = useState<CalendarCardUnit>(readUnit)
+  const [format, setFormat] = useState<CalendarCardFormat>(readFormat)
   const [saving, setSaving] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null)
+
+  // THE PANEL IS LIFTED OUT OF THE HEADER'S TREE.
+  //
+  // MEASURED, walking every ancestor from the panel to <body>: exactly one
+  // suspect property in the chain — `overflow-hidden` on CalendarHeader's
+  // `card-premium card-accent overflow-hidden rounded-lg` box. Nothing else has
+  // a transform, a filter, an opacity, a will-change, a contain, or a
+  // positioned z-index. .card-premium is background/border/radius/shadow and
+  // .card-accent is `@apply relative` at z-index auto, so NEITHER makes a
+  // stacking context.
+  //
+  // So the panel was CLIPPED, not painted under — z-40 was already resolving in
+  // the root stacking context and would have painted fine; the box simply cut it
+  // off. That is a different defect from the MORE FILTERS one (a `sticky z-30`
+  // wrapper TRAPPING the panel in a flattened context), and raising a number
+  // would not have touched either.
+  //
+  // The proof is in the app: ColumnsMenu uses this same idiom inside the same
+  // `card-premium` surface on the Trades page and works — that wrapper has no
+  // `overflow-hidden`.
+  //
+  // The panel therefore leaves the box, by the route AnalyticsFilterBar already
+  // took: a portal to document.body, tracking the trigger by measured rect.
+  // z-[44] / z-[45] are that fix's values, read off the app's OWN scale —
+  // TopBar 40, modals 50, activation 60, toasts 110/210 — so the backdrop clears
+  // the TopBar and the panel stays under modal chrome.
+  useEffect(() => {
+    if (!menuOpen) return
+    const measure = () => {
+      const el = triggerRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      setAnchor({ top: r.bottom + 6, left: r.right - MENU_W })
+    }
+    measure()
+    // Capture phase: the header scrolls inside AppLayout's pane, not the window.
+    window.addEventListener('scroll', measure, true)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', measure)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     try {
@@ -58,6 +147,14 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
       // persistence failed — the session still honours the choice
     }
   }, [unit])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHARE_FORMAT_KEY, format)
+    } catch {
+      // persistence failed — the session still honours the choice
+    }
+  }, [format])
 
   // Streamer mode overrides the choice rather than editing it: the button stays
   // disabled and says why, and the stored preference is left alone so turning
@@ -69,8 +166,11 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
     if (saving) return
     setSaving(true)
     try {
-      const data = buildMonthCardData(month, effectiveUnit, capital?.contributed ?? null)
-      const canvas = await composeCalendarCard(data, resolved)
+      // The whole capital object, not just its number: the card needs to know
+      // WHY a percentage is missing so it can say so, and `contributed ?? null`
+      // would flatten "still loading" and "no anchor" into one silent null.
+      const data = buildMonthCardData(month, effectiveUnit, capital)
+      const canvas = await composeCalendarCard(data, resolved, format)
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png'),
       )
@@ -78,7 +178,7 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
       const bytes = new Uint8Array(await blob.arrayBuffer())
       await ipc.chartSaveScreenshot({
         bytes,
-        suggestedName: cardFileName(data.year, data.month),
+        suggestedName: cardFileName(data.year, data.month, format),
       })
     } catch (e) {
       // Mirrors ChartTab's handleScreenshot exactly, limitation included.
@@ -87,7 +187,7 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
     } finally {
       setSaving(false)
     }
-  }, [saving, month, effectiveUnit, capital, resolved])
+  }, [saving, month, effectiveUnit, capital, resolved, format])
 
   return (
     <div className="flex items-center gap-2">
@@ -118,6 +218,78 @@ export default function CalendarShareControl({ month }: { month: CalendarMonth }
           </button>
         ))}
       </div>
+      {/* ONE control, not four. The app already has a menu-trigger idiom for
+          exactly this — ColumnsMenu's: viewControlIdle, a lucide glyph, a
+          chevron that rotates, a click-away catcher. Four segments for four
+          mutually exclusive shapes was a fifth style in a row that already had
+          two. */}
+      <div className="relative">
+        <button
+          ref={triggerRef}
+          type="button"
+          data-testid="card-format-button"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+          className={viewControlIdle}
+        >
+          <LayoutGrid size={13} strokeWidth={2} />
+          {FORMAT_LABEL[format]}
+          <ChevronDown
+            size={13}
+            strokeWidth={2}
+            className={`transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+      </div>
+      {menuOpen &&
+        anchor &&
+        createPortal(
+          <>
+            <div
+              data-testid="card-format-backdrop"
+              className="fixed inset-0 z-[44]"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div
+              data-testid="card-format-menu"
+              role="menu"
+              style={{ top: anchor.top, left: anchor.left, width: MENU_W }}
+              className="fixed z-[45] rounded-md border border-border-strong bg-bg-2 p-1 shadow-lg"
+            >
+              {CALENDAR_CARD_FORMAT_IDS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={format === f}
+                  onClick={() => {
+                    setFormat(f)
+                    setMenuOpen(false)
+                  }}
+                  // The row's other three controls are pressable OBJECTS with
+                  // their own border and surface; these were the last bare text
+                  // in it. Same shared strings as the trigger beside them —
+                  // viewControlIdle / viewControlOn — overridden only where a
+                  // two-line menu item genuinely differs from a one-line button:
+                  // full width, left-aligned, stacked, and auto height.
+                  className={`${format === f ? viewControlOn : viewControlIdle} mb-0.5 h-auto w-full flex-col items-start gap-0.5 py-1.5 text-left normal-case tracking-normal last:mb-0`}
+                >
+                  <span className="text-xs font-semibold">
+                    {FORMAT_LABEL[f]}{' '}
+                    <span className={format === f ? 'font-normal opacity-70' : 'font-normal text-fg-tertiary'}>
+                      {CALENDAR_CARD_FORMATS[f].w}×{CALENDAR_CARD_FORMATS[f].h}
+                    </span>
+                  </span>
+                  <span className={format === f ? 'text-[10px] opacity-70' : 'text-[10px] text-fg-tertiary'}>
+                    {FORMAT_HINT[f]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
       <button
         type="button"
         onClick={onShare}

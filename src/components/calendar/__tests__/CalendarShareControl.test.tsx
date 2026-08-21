@@ -162,11 +162,12 @@ describe('T1 clicking the action composes the DISPLAYED month', () => {
     mount(JULY)
     await userEvent.click(shareButton())
     await waitFor(() => expect(m.chartSaveScreenshot).toHaveBeenCalled())
-    // July's four days, by their trade counts. June's 11/4/15 must not appear.
-    expect(rec.texts).toContain('1 trade')
-    expect(rec.texts).toContain('8 trades')
-    expect(rec.texts).not.toContain('11 trades')
-    expect(rec.texts).not.toContain('15 trades')
+    // July's four days, by the app's own `{n}t` badge. June's 11/4/15 must not
+    // appear.
+    expect(rec.texts).toContain('1t')
+    expect(rec.texts).toContain('8t')
+    expect(rec.texts).not.toContain('11t')
+    expect(rec.texts).not.toContain('15t')
   })
 })
 
@@ -208,14 +209,22 @@ describe('T3 the suggested filename carries the month and no account name', () =
     mount(JULY)
     await userEvent.click(shareButton())
     await waitFor(() => expect(m.chartSaveScreenshot).toHaveBeenCalled())
-    expect(saveArg().suggestedName).toBe('fugaedge-calendar-2026-07.png')
+    expect(saveArg().suggestedName).toBe('fugaedge-calendar-2026-07-square.png')
   })
 
   it('a single-digit month is zero-padded so a folder sorts', async () => {
     mount(JUNE)
     await userEvent.click(shareButton())
     await waitFor(() => expect(m.chartSaveScreenshot).toHaveBeenCalled())
-    expect(saveArg().suggestedName).toBe('fugaedge-calendar-2026-06.png')
+    expect(saveArg().suggestedName).toBe('fugaedge-calendar-2026-06-square.png')
+  })
+
+  it('and the FORMAT, so exporting all four does not overwrite three of them', async () => {
+    localStorage.setItem('calendar.shareFormat', 'story')
+    mount(JULY)
+    await userEvent.click(shareButton())
+    await waitFor(() => expect(m.chartSaveScreenshot).toHaveBeenCalled())
+    expect(saveArg().suggestedName).toBe('fugaedge-calendar-2026-07-story.png')
   })
 
   it('and nothing account-shaped rides along in the name', async () => {

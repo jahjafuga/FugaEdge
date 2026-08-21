@@ -17,6 +17,11 @@ export interface ChartPalette {
   loss: string
   /** Gridlines + soft separators inside chart panes. */
   grid: string
+  /** --border-default, the token the app's own calendar cell outlines with
+   *  (`border-border` in CalendarGrid). Distinct from `grid` (--border-subtle):
+   *  a cell outline is a step stronger than a gridline, and the calendar card
+   *  ports the app's cell rather than approximating it. */
+  border: string
   /** Axis tick text + tick lines. */
   axis: string
   /** Compare Period A series colour (gold). */
@@ -50,6 +55,7 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
       win:  '#16a34a',
       loss: '#f87171',   // red is fine on white — already muted enough
       grid: '#e2e6ed',   // matches card border colour
+      border: '#e2e6ed',  // --border-default light (identical to subtle there)
       axis: '#6b7280',   // slate-500, "clearly secondary" per the brief
       // Compare side identity — A gold (matches UI gold), B teal. Green/red stay
       // reserved for delta direction, so Period B must NOT reuse win-green.
@@ -69,6 +75,7 @@ export function chartColors(theme: ResolvedTheme): ChartPalette {
     win:  '#34d399',
     loss: '#f87171',
     grid: '#1e2330',     // --border-subtle in dark
+    border: '#2a3142',   // --border-default in dark — the app's cell outline
     axis: '#8a94a8',     // --fg-tertiary in dark
     sideA: '#d4af37',    // existing gold (Compare Period A)
     sideB: '#2dd4bf',    // teal-400 — cool against gold, distinct from win-green

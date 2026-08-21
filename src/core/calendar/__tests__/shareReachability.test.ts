@@ -18,6 +18,11 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CALENDAR_CARD_UNITS, dayCellText } from '@/lib/calendarCard'
 import { buildMonthCardData, cardFileName } from '../monthCardData'
+import type { ContributedCapital } from '@/lib/useContributedCapital'
+
+const ANCHORED: ContributedCapital = {
+  contributed: 10_000, reason: 'ok', anchored: 1, total: 1,
+}
 
 const src = (p: string) => readFileSync(resolve(process.cwd(), p), 'utf8')
 const CONTROL = src('src/components/calendar/CalendarShareControl.tsx')
@@ -111,11 +116,11 @@ describe('T7 NO DEAD ENGINE — every export mode is reachable from the UI', () 
       weeks: [],
     }
     for (const u of CALENDAR_CARD_UNITS) {
-      const data = buildMonthCardData(month, u, 10_000)
+      const data = buildMonthCardData(month, u, ANCHORED)
       expect(data.unit, `'${u}' did not survive the mapping`).toBe(u)
       expect(data.monthLabel).toBe('July 2026')
       expect(data.days).toHaveLength(1)
     }
-    expect(cardFileName(2026, 7)).toBe('fugaedge-calendar-2026-07.png')
+    expect(cardFileName(2026, 7, 'wide')).toBe('fugaedge-calendar-2026-07-wide.png')
   })
 })

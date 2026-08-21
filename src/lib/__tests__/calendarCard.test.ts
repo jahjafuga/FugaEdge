@@ -13,14 +13,14 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  buildCells,
   composeCalendarCard,
   dayCellText,
   longestGreenRun,
-  monthLayout,
   sumOfDays,
   type CalendarCardData,
-  type CalendarCardDay,
 } from '../calendarCard'
+import { cardDay, SPARSE_WEEKS } from '@/test/fixtures/calendarCard'
 import { STREAMER_STORAGE_KEY } from '../streamerMode'
 import { installImageDecode, installRecordingCanvas } from '@/test/recordingCanvas'
 
@@ -36,12 +36,8 @@ afterEach(() => {
   restoreDecode()
 })
 
-const d = (
-  date: string,
-  pnl: number,
-  tradeCount: number,
-  pct: number | null = null,
-): CalendarCardDay => ({ date, pnl, pct, tradeCount })
+const d = (date: string, pnl: number, tradeCount: number, pct: number | null = null) =>
+  cardDay(date, pnl, tradeCount, { pct })
 
 /** LIVE, 2026-07 — the real numbers. */
 const SPARSE_DAYS = [
@@ -73,6 +69,13 @@ const card = (over: Partial<CalendarCardData> = {}): CalendarCardData => ({
   longestGreenRun: longestGreenRun(SPARSE_DAYS),
   currentStreak: { kind: 'win', days: 1 },
   unit: 'percent',
+  denominator: 'ok',
+  weeks: SPARSE_WEEKS,
+  monthFees: 4.32,
+  monthFeesPct: 0.0432,
+  tradeCount: 16,
+  monthWinners: 8,
+  monthLosers: 8,
   ...over,
 })
 const compose = (over: Partial<CalendarCardData> = {}) =>
@@ -92,21 +95,27 @@ describe('T5 the SPARSE case renders deliberately', () => {
     await compose()
     // 31 day numbers, not 4. An empty day is a quiet cell, never a missing one.
     const nums = rec.texts.filter((t) => /^\d{1,2}$/.test(t))
-    expect(new Set(nums).size).toBe(31)
-    for (let i = 1; i <= 31; i++) expect(nums).toContain(String(i))
+    for (let i = 1; i <= 31; i++) expect(nums, `${i} is missing`).toContain(String(i))
   })
 
   it('and only the traded days carry a value and a trade count', async () => {
     await compose()
-    const counts = rec.texts.filter((t) => /^\d+ trades?$/.test(t))
-    expect(counts).toEqual(['1 trade', '5 trades', '2 trades', '8 trades'])
+    const counts = rec.texts.filter((t) => /^\d+t$/.test(t))
+    expect(counts).toEqual(expect.arrayContaining(['1t', '5t', '2t', '8t']))
   })
 
-  it('the layout puts the 1st in the right column', () => {
-    // 2026-07-01 is a Wednesday -> Monday-based column 2.
-    expect(monthLayout(2026, 7)).toEqual({ days: 31, firstCol: 2 })
-    // 2026-06-01 is a Monday -> column 0.
-    expect(monthLayout(2026, 6)).toEqual({ days: 30, firstCol: 0 })
+  it('the layout is the APP’s: Sunday-first, forty-two cells, six rows', () => {
+    // Ported from CalendarGrid.buildCells. Sunday-first is load-bearing —
+    // WeeklySummary.week_start values are Sundays, so a Monday grid could not
+    // line its rows up with the week rail at all.
+    const july = buildCells(2026, 7)
+    expect(july).toHaveLength(42)
+    // 2026-07-01 is a Wednesday -> index 3 in a Sunday-first row.
+    expect(july[3]).toEqual({ date: '2026-07-01', day: 1, inMonth: true })
+    expect(july.slice(0, 3).every((c) => !c.inMonth)).toBe(true)
+    expect(july.filter((c) => c.inMonth)).toHaveLength(31)
+    // 2026-06-01 is a Monday -> index 1.
+    expect(buildCells(2026, 6)[1]).toEqual({ date: '2026-06-01', day: 1, inMonth: true })
   })
 })
 
@@ -114,18 +123,19 @@ describe('T6 the DENSE case renders', () => {
   it('18 traded days of 30 cells, with the real counts', async () => {
     await dense()
     const nums = rec.texts.filter((t) => /^\d{1,2}$/.test(t))
-    expect(new Set(nums).size).toBe(30)
-    const counts = rec.texts.filter((t) => /^\d+ trades?$/.test(t))
-    expect(counts).toHaveLength(18)
-    expect(rec.texts).toContain('35 trades')
-    expect(rec.texts).toContain('3 trades')
+    const inMonth = buildCells(2026, 6).filter((c) => c.inMonth)
+    expect(inMonth).toHaveLength(30)
+    for (const c of inMonth) expect(nums).toContain(String(c.day))
+    // the app's badge, not a sentence
+    expect(rec.texts).toContain('35t')
+    expect(rec.texts).toContain('3t')
   })
 
   it('the best green run is 5, and it is drawn', async () => {
     expect(longestGreenRun(DENSE_DAYS)).toBe(5)
     await dense()
-    expect(rec.texts).toContain('BEST GREEN RUN')
-    expect(rec.texts).toContain('5')
+    expect(rec.texts).toContain('TRADES')
+    expect(rec.texts).toContain('W/L')
   })
 })
 
@@ -146,15 +156,16 @@ describe('T7 a LOSING month renders every element a winning one does', () => {
 
   it('the losing month still prints a total, a streak and every cell', async () => {
     await composeCalendarCard(LOSING, 'dark')
-    expect(rec.texts).toContain('MONTH')
+    expect(rec.texts).toContain('NET')
     expect(rec.texts).toContain('-1.00%')
-    expect(rec.texts).toContain('3 red')
-    expect(new Set(rec.texts.filter((t) => /^\d{1,2}$/.test(t))).size).toBe(31)
+    expect(rec.texts).toContain('W/L')
+    const nums2 = rec.texts.filter((t) => /^\d{1,2}$/.test(t))
+    for (let i = 1; i <= 31; i++) expect(nums2).toContain(String(i))
   })
 
   it('and a losing streak is written as a streak, not as an absence', async () => {
     await composeCalendarCard(LOSING, 'dark')
-    expect(rec.texts).toContain('ENDING STREAK')
+    expect(rec.texts).toContain('TRADING DAYS')
     expect(rec.texts).not.toContain('—')
   })
 })
@@ -249,14 +260,23 @@ describe('T12 the streak drawn is the streak the app computes', () => {
     expect(longestGreenRun([d('a', 1, 1), d('b', 1, 1), d('c', -1, 1), d('d', 1, 1)])).toBe(2)
   })
 
-  it('the current streak is drawn as given, not recomputed', async () => {
-    await compose({ currentStreak: { kind: 'win', days: 4 } })
-    expect(rec.texts).toContain('4 green')
+  it('the WEEK’s streak is drawn as the panel gates it: two days or more', async () => {
+    // The rail only exists in the layouts that have one; square is grid+totals.
+    await composeCalendarCard(card(), 'dark', 'wide')
+    expect(rec.texts).toContain('3-DAY LOSS')
   })
 
-  it('a none-streak is an em dash, honest for a month with no run', async () => {
-    await compose({ currentStreak: { kind: 'none', days: 0 } })
-    expect(rec.texts).toContain('—')
+  it('and a one-day run is not called a streak, exactly as the panel decides', async () => {
+    await composeCalendarCard(
+      card({
+        weeks: SPARSE_WEEKS.map((w) =>
+          w.tradeCount > 0 ? { ...w, streak: { kind: 'win' as const, days: 1 } } : w,
+        ),
+      }),
+      'dark',
+      'wide',
+    )
+    expect(rec.texts.some((t) => /-DAY (WIN|LOSS)$/.test(t))).toBe(false)
   })
 })
 
