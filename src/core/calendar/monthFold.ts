@@ -16,7 +16,7 @@
 // trade_mistake rows the card is never given. The wording the card draws says
 // "across N of M weeks" for exactly that reason — it claims what it measured.
 
-import type { CalendarCardWeek } from '@/lib/calendarCard'
+import type { CalendarCardDay, CalendarCardWeek } from '@/lib/calendarCard'
 
 export interface DominantMistake {
   name: string
@@ -154,4 +154,71 @@ export function feeShareOfNet(fees: number, net: number): number | null {
   if (!Number.isFinite(fees) || !Number.isFinite(net)) return null
   if (net <= 0) return null
   return (fees / net) * 100
+}
+
+
+/** One day that carried most of a month's damage. */
+export interface ConcentratedLoss {
+  date: string
+  pnl: number
+  /** Share of the month's GROSS LOSS, as a percentage. */
+  share: number
+  /** How many days lost money at all. */
+  losingDays: number
+}
+
+/**
+ * THE THREE GATES, and why concentration alone is not one of them.
+ *
+ * GROSS LOSS IS THE DENOMINATOR, NOT NET. A month can be green and still have
+ * one day that undid a week: 2026-03 nets +$4,200 and lost $721 across six
+ * days. Measuring against net would hide exactly the case worth catching, and
+ * on a green month there is no net loss to take a share of at all.
+ *
+ * BUT SHARE ALONE CROWNS THE SMALLEST MONTHS. Measured across two books:
+ *
+ *          losers  gross loss   worst      share   vs runner-up
+ *    03       6      $721.17   -$151.14    21.0%      1.01x
+ *    04       5     $1082.92   -$277.02    25.6%      1.01x
+ *    05       7     $2026.07   -$946.79    46.7%      3.79x   <- the case
+ *    06       2      $299.31   -$193.95    64.8%      1.84x
+ *    real-07  3       $18.25    -$12.00    65.8%      2.72x
+ *
+ * The two highest shares in the table are the two months with almost nothing to
+ * concentrate. A gate tuned to catch 46.7% also crowns a twelve-dollar loss on
+ * a month that netted a dollar. So, the same shape as the mistake floor:
+ *
+ *   MIN_DAYS  4  — below four losing days there is no distribution to be
+ *                  concentrated within, and "twice the next" is a coin toss.
+ *                  This alone rejects 2026-06 and the real book's July.
+ *   MIN_RATIO 2  — standsOut's own test, pointed the other way: twice the next
+ *                  worst. Rejects 03 and 04 at 1.01x, where the "worst" day was
+ *                  merely first by a dollar and a half.
+ *   MIN_SHARE .4 — with four or more losing days an even split is at most 25%,
+ *                  so forty per cent is roughly twice an even share. It is the
+ *                  same number the mistake gate uses, for the same reason.
+ *
+ * All three do work: no single one of them separates the table on its own.
+ */
+export const LOSS_MIN_DAYS = 4
+export const LOSS_MIN_RATIO = 2
+export const LOSS_MIN_SHARE = 0.4
+
+export function concentratedLoss(
+  days: readonly CalendarCardDay[],
+  minDays: number = LOSS_MIN_DAYS,
+  minRatio: number = LOSS_MIN_RATIO,
+  minShare: number = LOSS_MIN_SHARE,
+): ConcentratedLoss | null {
+  const losers = days
+    .filter((d) => d.tradeCount > 0 && d.pnl < 0)
+    .sort((a, b) => a.pnl - b.pnl)
+  if (losers.length < Math.max(2, minDays)) return null
+  const gross = losers.reduce((a, d) => a + Math.abs(d.pnl), 0)
+  if (!(gross > 0)) return null
+  const worst = losers[0]
+  const share = Math.abs(worst.pnl) / gross
+  if (share < minShare) return null
+  if (Math.abs(worst.pnl) < Math.abs(losers[1].pnl) * minRatio) return null
+  return { date: worst.date, pnl: worst.pnl, share: share * 100, losingDays: losers.length }
 }

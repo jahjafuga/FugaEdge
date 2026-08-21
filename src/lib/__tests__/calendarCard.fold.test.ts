@@ -36,6 +36,7 @@ import {
   buildCells,
   weekMinHeight,
   type CalendarCardData,
+  type CalendarCardDay,
   type CalendarCardFormat,
   type CalendarCardWeek,
 } from '../calendarCard'
@@ -154,10 +155,39 @@ const tierTexts = (f: CalendarCardFormat, weeks: CalendarCardWeek[]) => {
     ),
   )
 }
-/** The fold's own lines, identified by the vocabulary only the fold uses. */
-const FOLD_RE = /(ACROSS \d+ OF \d+ WEEKS)|(^JOURNALED \d+ OF \d+ DAYS$)|(^BEST DAY )|(INTO NEXT MONTH$)|(^BEST GREEN RUN )|(^FEES )/
-const foldTexts = () => rec.texts.filter((t) => FOLD_RE.test(t))
-const foldPoints = () => rec.textPoints.filter((t) => FOLD_RE.test(t.text))
+/** THE FOLD IS FOUND BY GEOMETRY, NOT BY WORDING.
+ *
+ *  Five times in this arc a detector that enumerated phrasings went blind the
+ *  moment a phrasing changed. Beat 28 ends the argument: a wrapped entry's rows
+ *  are a user-authored mistake name split at word boundaries, and no regex can
+ *  recognise those. The fold is whatever is drawn inside the fold's own box. */
+let lastCompose: { data: CalendarCardData; f: CalendarCardFormat } | null = null
+async function compose(data: CalendarCardData, f: CalendarCardFormat) {
+  lastCompose = { data, f }
+  return composeCalendarCard(data, 'dark', f)
+}
+const foldBox = () => {
+  if (!lastCompose) return null
+  const { data, f } = lastCompose
+  const rail = cardRegions(f, true).find((r) => r.name === 'rail')
+  if (!rail) return null
+  const rows = visibleRows(buildCells(data.year, data.month))
+  const weeks = collapseEmptyWeeks((data.weeks as CalendarCardWeek[]).slice(0, rows))
+  return (CC as never as { planRail: typeof CC.planRail }).planRail(rail, weeks, pxOf(f)).fold
+}
+
+/** Kept only for the few assertions that still name a phrasing directly. */
+// Matched on the marker each kind keeps in EVERY rendering, not on a list of
+// phrasings — beat 27 made all of them shrinkable and a vocabulary detector
+// goes blind the moment one shortens.
+const foldPoints = () => {
+  const box = foldBox()
+  if (!box) return []
+  return rec.textPoints.filter(
+    (t) => t.y >= box.y - 1 && t.y <= box.y + box.h + 1 && t.x >= box.x - 1 && t.x <= box.x + box.w + 1,
+  )
+}
+const foldTexts = () => foldPoints().map((t) => t.text)
 
 // ─── F1 — the starved rail folds ─────────────────────────────────────────────
 
@@ -171,7 +201,7 @@ describe('F1 a starved rail drops its cards to one line and folds the month', ()
       const minTotal = shown.reduce((a, w) => a + weekMinHeight(w, px), 0)
       expect(avail, `${f} is not starved; this test measures nothing`).toBeLessThanOrEqual(minTotal)
 
-      await composeCalendarCard(card(), 'dark', f)
+      await compose(card(), f)
       expect(
         tierTexts(f, MARCH_WEEKS()).map((t) => t.text),
         `${f}: a week card still drew a tier line`,
@@ -211,7 +241,7 @@ describe('F2 a rail that is NOT starved keeps every tier line it has today', () 
       const expected = boxes.reduce((a, b, i) => a + CC.fitTierLines(shown[i], b.h, px).length, 0)
       expect(expected, 'June should have tier lines to keep').toBeGreaterThan(0)
 
-      await composeCalendarCard(june(), 'dark', f)
+      await compose(june(), f)
       const drawn = tierTexts(f, JUNE_WEEKS())
       expect(
         drawn.length,
@@ -244,7 +274,7 @@ describe('F3 the fold is below the last week card, never on top of it', () => {
       ).toBeLessThanOrEqual(rail.y + rail.h + 0.5)
 
       // and the INK agrees with the geometry
-      await composeCalendarCard(card(), 'dark', f)
+      await compose(card(), f)
       for (const t of foldPoints()) {
         expect(t.y, `${f}: fold line "${t.text}" drew above the fold region`).toBeGreaterThanOrEqual(
           plan.fold!.y,
@@ -318,8 +348,8 @@ const MODERATE = (): CalendarCardWeek[] =>
 describe('F5 a month with no dominant mistake says nothing about mistakes', () => {
   for (const f of RAIL) {
     it(`${f}: no line, not an empty one and not a dash`, async () => {
-      await composeCalendarCard(card({ weeks: WEAK() }), 'dark', f)
-      const mistakeLines = rec.texts.filter((t) => /ACROSS \d+ OF \d+ WEEKS/.test(t))
+      await compose(card({ weeks: WEAK() }), f)
+      const mistakeLines = rec.texts.filter((t) => / · \d+x/.test(t))
       expect(
         mistakeLines,
         `${f}: five names within 4% of each other were crowned: ${JSON.stringify(mistakeLines)}`,
@@ -337,13 +367,14 @@ describe('F5 a month with no dominant mistake says nothing about mistakes', () =
 
 describe('F6 a month with one dominant name among four draws it with its evidence', () => {
   it('the count is the dominant name only, not the month total', async () => {
-    await composeCalendarCard(card({ weeks: MODERATE() }), 'dark', 'wide')
-    const line = rec.texts.find((t) => /ACROSS \d+ OF \d+ WEEKS/.test(t))
+    await compose(card({ weeks: MODERATE() }), 'wide')
+    const line = rec.texts.find((t) => / · \d+x/.test(t))
     expect(line, 'the dominant mistake was not drawn').toBeDefined()
     // 17 + 15 = 32 for the dominant. The other three total 24 and must not appear.
     expect(line).toContain('32')
     expect(line).toContain('CHASED EXTENDED')
-    expect(line).toContain('2 OF 5 WEEKS')
+    // '2 OF 5 WEEKS' full, '2/5 WEEKS' shortened — the evidence, either way.
+    expect(line).toMatch(/2\s*(OF|\/)\s*5\s*WEEKS/)
     expect(line, 'the line summed every name, not the dominant one').not.toContain('56')
   })
 })
@@ -388,7 +419,7 @@ describe('F8 square and story have no rail and gain no fold', () => {
     })
 
     it(`${f}: draws not one fold line`, async () => {
-      await composeCalendarCard(card(), 'dark', f)
+      await compose(card(), f)
       expect(
         rec.texts.filter((t) => /ACROSS \d+ OF \d+ WEEKS|^JOURNALED \d+ OF \d+ DAYS$|OF NET$/.test(t)),
         `${f} drew a fold line`,
@@ -397,7 +428,7 @@ describe('F8 square and story have no rail and gain no fold', () => {
   }
 
   it('the poster still draws its own closing line, untouched', async () => {
-    await composeCalendarCard(card(), 'dark', 'story')
+    await compose(card(), 'story')
     // standsOut is true for 1331.73 against this month, so the poster's own
     // BEST DAY line is present — that is the POSTER's footer, not the fold.
     expect(rec.texts.some((t) => t.startsWith('BEST DAY '))).toBe(true)
@@ -470,8 +501,8 @@ const may = (over: Partial<CalendarCardData> = {}) =>
 describe('G1 a mistake with too few occurrences is not a month-level pattern', () => {
   for (const f of RAIL) {
     it(`${f}: May's real 3x across 2 of 5 weeks draws no mistake line`, async () => {
-      await composeCalendarCard(may(), 'dark', f)
-      const crowned = rec.texts.filter((t) => /ACROSS \d+ OF \d+ WEEKS/.test(t))
+      await compose(may(), f)
+      const crowned = rec.texts.filter((t) => / · \d+x/.test(t))
       expect(
         crowned,
         `${f}: 3 occurrences over 70 trades and 12 traded days — 0.25 a day — were ` +
@@ -486,8 +517,11 @@ describe('G1 a mistake with too few occurrences is not a month-level pattern', (
 describe('G2 and the floor does not eat the signal it was built to carry', () => {
   for (const f of RAIL) {
     it(`${f}: March's 54x across 4 of 5 still draws`, async () => {
-      await composeCalendarCard(card(), 'dark', f)
-      expect(rec.texts).toContain('CHASED EXTENDED · 54x ACROSS 4 OF 5 WEEKS')
+      await compose(card(), f)
+      expect(
+        rec.texts.some((t) => t.startsWith('CHASED EXTENDED · 54x')),
+        `March's mistake line lost its evidence: ${JSON.stringify(foldTexts())}`,
+      ).toBe(true)
     })
   }
 })
@@ -495,7 +529,7 @@ describe('G2 and the floor does not eat the signal it was built to carry', () =>
 describe('G3 a losing month is not told what share of its net the fees were', () => {
   for (const f of RAIL) {
     it(`${f}: the fee line names the amount, not a share of a net that is not there`, async () => {
-      await composeCalendarCard(may(), 'dark', f)
+      await compose(may(), f)
       const fee = rec.texts.find((t) => t.startsWith('FEES '))
       expect(fee, `${f}: no fee line drawn at all`).toBeDefined()
       expect(fee).toBe('FEES $413.65 ON TOP OF THE LOSS')
@@ -508,7 +542,7 @@ describe('G3 a losing month is not told what share of its net the fees were', ()
 describe('G4 and a winning month says exactly what it said before', () => {
   for (const f of RAIL) {
     it(`${f}: March still reads as a share of net`, async () => {
-      await composeCalendarCard(card(), 'dark', f)
+      await compose(card(), f)
       expect(rec.texts).toContain('FEES 20.3% OF NET')
     })
   }
@@ -544,7 +578,7 @@ async function foldGeom(f: CalendarCardFormat, data: CalendarCardData) {
   const weeks = collapseEmptyWeeks((data.weeks as CalendarCardWeek[]).slice(0, rows))
   const plan = (CC as never as { planRail: typeof CC.planRail }).planRail(rail, weeks, px)
   expect(plan.fold, `${f}: no fold to measure`).not.toBeNull()
-  await composeCalendarCard(data, 'dark', f)
+  await compose(data, f)
   const ys = foldPoints().map((t) => t.y).sort((a, b) => a - b)
   const fold = plan.fold!
   return {
@@ -677,5 +711,455 @@ describe('G5b the block is centred — where centred and top-packed differ at al
       'top-packed and centred no longer coincide here — G5b now covers this case ' +
         'and this exclusion should be deleted',
     ).toBe(gm.px(16))
+  })
+})
+
+// ═══ BEAT 26 ═══════════════════════════════════════════════════════════════
+//
+// MEASURED: 2026-05 lost $1,650 and its fold read journaling coverage, a green
+// streak and fees. 2026-05-20 alone was -$946.79 — 46.7% of the month's gross
+// loss and 57.4% of its net — and the card never mentioned it. There is a BEST
+// DAY line and there was no counterpart.
+//
+// CONCENTRATION IS MEASURED AGAINST GROSS LOSS, NOT NET. A green month with one
+// ugly day is exactly the case worth catching, and net hides it: 2026-03 nets
+// +$4,200 and still lost $721 across six days.
+//
+// AND THE SMALL-N TRAP IS THE SAME ONE BEAT 18 FELL INTO. Concentration alone
+// is highest where there is least to concentrate:
+//
+//        losers   gross loss   worst        share    vs runner-up
+//   03      6      $721.17     -$151.14     21.0%       1.01x
+//   04      5     $1082.92     -$277.02     25.6%       1.01x
+//   05      7     $2026.07     -$946.79     46.7%       3.79x   <- the case
+//   06      2      $299.31     -$193.95     64.8%       1.84x
+//   real-07 3       $18.25      -$12.00     65.8%       2.72x
+//
+// A bare share gate tuned to catch 46.7% also crowns a $12 loss on a month that
+// netted a dollar. So three gates, the same shape as the mistake floor.
+
+// The stable part: the date and the share. The trailing words shrink.
+const CONC_RE = /^WORST DAY .+ · \d+%/
+
+/** A GREEN month carrying one concentrated loss day. This is the case that
+ *  proves the line is about concentration and not about sign. */
+const GREEN_WITH_UGLY_DAY = (): CalendarCardDay[] => [
+  cardDay('2026-03-02', 900, 12), cardDay('2026-03-03', 850, 11),
+  cardDay('2026-03-04', 700, 10), cardDay('2026-03-05', 640, 9),
+  cardDay('2026-03-06', 610, 8),
+  cardDay('2026-03-09', -900, 14), // the ugly day: 74.4% of gross loss, 9.0x the next
+  cardDay('2026-03-10', -100, 6), cardDay('2026-03-11', -80, 5),
+  cardDay('2026-03-12', -70, 5), cardDay('2026-03-13', -60, 4),
+]
+
+/** Five losing days within 8% of each other — a bad month, not a bad DAY. */
+const EVEN_LOSSES = (): CalendarCardDay[] => [
+  cardDay('2026-03-02', 300, 8),
+  cardDay('2026-03-03', -200, 9), cardDay('2026-03-04', -195, 8),
+  cardDay('2026-03-05', -190, 8), cardDay('2026-03-06', -188, 7),
+  cardDay('2026-03-09', -185, 7),
+]
+
+/** No losing day at all. */
+const ALL_GREEN = (): CalendarCardDay[] =>
+  [420, 380, 310, 260, 240].map((v, i) => cardDay(`2026-03-0${i + 2}`, v, 9))
+
+describe('W1 a month with one dominating loss day says so', () => {
+  for (const f of RAIL) {
+    it(`${f}: 2026-05 names 2026-05-20 and its concentration`, async () => {
+      await compose(may(), f)
+      const line = rec.texts.find((t) => CONC_RE.test(t))
+      expect(
+        line,
+        `${f}: -$946.79 on 2026-05-20 was 46.7% of the month's losses and the ` +
+          `card said nothing about it`,
+      ).toBeDefined()
+      expect(line).toContain('MAY 20')
+      expect(line, 'the line carries no evidence').toMatch(/\d+%/)
+    })
+  }
+})
+
+describe('W2 a month whose losses are spread draws no such line', () => {
+  for (const f of RAIL) {
+    it(`${f}: five losing days within 8% of each other`, async () => {
+      await compose(card({ days: EVEN_LOSSES(), monthPnl: -658 }), f)
+      const hits = rec.texts.filter((t) => CONC_RE.test(t))
+      expect(hits, `${f}: a bad month was reported as a bad day: ${JSON.stringify(hits)}`).toEqual([])
+      // nothing drawn in its place, and the fold DID run
+      expect(rec.texts.filter((t) => /^WORST DAY/.test(t))).toEqual([])
+      expect(foldTexts().length, `${f}: no fold at all; W2 proves nothing`).toBeGreaterThan(0)
+    })
+  }
+})
+
+describe('W3 a GREEN month with one ugly day still says so', () => {
+  for (const f of RAIL) {
+    it(`${f}: the line is about concentration, not sign`, async () => {
+      await compose(card({ days: GREEN_WITH_UGLY_DAY(), monthPnl: 2490 }), f)
+      const line = rec.texts.find((t) => CONC_RE.test(t))
+      expect(
+        line,
+        `${f}: a month that netted +$2,490 lost $900 in one day and the card ` +
+          `only mentions it if the MONTH is red`,
+      ).toBeDefined()
+      expect(line).toContain('MAR 9')
+    })
+  }
+})
+
+describe('W4 and never on a month with no losing day at all', () => {
+  for (const f of RAIL) {
+    it(`${f}: five green days, no worst-day line`, async () => {
+      await compose(card({ days: ALL_GREEN(), monthPnl: 1610 }), f)
+      expect(rec.texts.filter((t) => /^WORST DAY/.test(t))).toEqual([])
+    })
+  }
+})
+
+describe('W5 it sits below the mistake and above journaling', () => {
+  it('FOLD_TIER_ORDER states the position explicitly', () => {
+    expect([...CC.FOLD_TIER_ORDER]).toEqual(['mistake', 'worst', 'journaled', 'flex', 'fees'])
+  })
+
+  it('and foldLines emits in that same order', () => {
+    const data = card({ days: GREEN_WITH_UGLY_DAY(), monthPnl: 2490 })
+    const kinds = (CC as never as { foldLines: typeof CC.foldLines })
+      .foldLines(data, collapseEmptyWeeks(MARCH_WEEKS())).map((l) => l.kind)
+    const rank = (k: string) => [...CC.FOLD_TIER_ORDER].indexOf(k as never)
+    for (let i = 1; i < kinds.length; i++) {
+      expect(
+        rank(kinds[i]),
+        `foldLines emitted ${kinds[i]} after ${kinds[i - 1]}, against FOLD_TIER_ORDER`,
+      ).toBeGreaterThanOrEqual(rank(kinds[i - 1]))
+    }
+    expect(kinds).toContain('worst')
+  })
+})
+
+describe('W6 BEST DAY and the worst-day line can both appear', () => {
+  it('neither suppresses the other', async () => {
+    // A standout winner AND a concentrated loser in one month.
+    const days: CalendarCardDay[] = [
+      cardDay('2026-03-02', 3000, 20), // standsOut: 3.5x the next, 60% of green
+      cardDay('2026-03-03', 850, 11), cardDay('2026-03-04', 700, 10),
+      cardDay('2026-03-05', 460, 9),
+      cardDay('2026-03-09', -900, 14),
+      cardDay('2026-03-10', -100, 6), cardDay('2026-03-11', -80, 5),
+      cardDay('2026-03-12', -70, 5), cardDay('2026-03-13', -60, 4),
+    ]
+    await compose(card({ days, monthPnl: 3800 }), 'wide')
+    const best = rec.texts.find((t) => /^BEST DAY /.test(t))
+    const worst = rec.texts.find((t) => CONC_RE.test(t))
+    expect(best, 'the best-day line vanished').toBeDefined()
+    expect(worst, 'the worst-day line vanished').toBeDefined()
+    // and the worst line comes FIRST — it is higher in FOLD_TIER_ORDER
+    const yOf = (t: string) => rec.textPoints.find((p) => p.text === t)!.y
+    expect(yOf(worst!), 'the worst line drew below the best line').toBeLessThan(yOf(best!))
+  })
+})
+
+describe('W7 2026-06 is untouched', () => {
+  for (const f of RAIL) {
+    it(`${f}: not starved, no fold, cards byte-identical`, () => {
+      const px = pxOf(f)
+      const shown = collapseEmptyWeeks(JUNE_WEEKS())
+      const rail = cardRegions(f, true).find((r) => r.name === 'rail')!
+      const plan = (CC as never as { planRail: typeof CC.planRail }).planRail(rail, shown, px)
+      expect(plan.starved, `${f}: June should not be starved`).toBe(false)
+      expect(JSON.stringify(plan.cards)).toBe(JSON.stringify(railCardBoxes(rail, shown, px)))
+    })
+  }
+})
+
+// ═══ BEAT 27 ═══════════════════════════════════════════════════════════════
+//
+// THE FOLD HAS NEVER MEASURED A LINE AGAINST ITS REGION. Four line kinds have
+// shipped and drawFold calls fillText with no measureText anywhere near it.
+//
+// SEEN: May wide's worst-day line clipped its final S. MEASURED, and it is not
+// the only one, nor the first:
+//
+//        wide usable 361px (37 chars at px(10) mono)
+//   2026-03  "CHASED EXTENDED · 54x ACROSS 4 OF 5 WEEKS"      394px   +33  CLIPPED
+//   2026-05  "WORST DAY MAY 20 · 47% OF THE MONTH'S LOSSES"   422px   +61  CLIPPED
+//
+// The March line has been clipped since the fold shipped. And the app's own
+// seeded vocabulary is worse than either: ALL 21 default mistake names overflow
+// wide, the longest by 273px --
+//   "HIGH-VOLUME PULLBACK (WANTED LOW VOLUME) · 54x ACROSS 4 OF 5 WEEKS"
+//
+// PORTRAIT IS NOT THE BINDING CASE. Its rail is the full card width (usable
+// 1010px, 153 chars) because it sits BELOW the grid; wide's is a column beside
+// it. Wide is binding by 2.8x, and nothing in either book overflows portrait.
+
+/** The card's own inset convention: px(12) each side, as drawWeekCard uses for
+ *  its range and its right-aligned chip. */
+const foldUsable = (w: number, px: (n: number) => number) => w - px(12) * 2
+const widthOf = (t: string, px: (n: number) => number) => t.length * px(10) * 0.6
+
+/** Every fold line the given card draws, with its region, for every rail format. */
+function foldLinesOf(f: CalendarCardFormat, data: CalendarCardData) {
+  const px = pxOf(f)
+  const rows = visibleRows(buildCells(data.year, data.month))
+  const weeks = collapseEmptyWeeks((data.weeks as CalendarCardWeek[]).slice(0, rows))
+  const rail = cardRegions(f, true).find((r) => r.name === 'rail')!
+  const plan = (CC as never as { planRail: typeof CC.planRail }).planRail(rail, weeks, px)
+  if (!plan.fold) return null
+  const all = (CC as never as { foldLines: typeof CC.foldLines }).foldLines(data, weeks)
+  const fit = (CC as never as { fitFoldLines: typeof CC.fitFoldLines })
+    .fitFoldLines(all, plan.fold.h, px)
+  return { px, fold: plan.fold, lines: fit }
+}
+
+const BOOK_MONTHS: [string, () => CalendarCardData][] = [
+  ['2026-03', () => card()],
+  ['2026-05', () => may()],
+]
+
+describe('O1 every fold line fits inside its region', () => {
+  for (const f of RAIL) {
+    for (const [ym, mk] of BOOK_MONTHS) {
+      it(`${f}: ${ym} draws nothing wider than the fold`, async () => {
+        const gm = foldLinesOf(f, mk())
+        expect(gm, `${f} ${ym}: no fold`).not.toBeNull()
+        await compose(mk(), f)
+        const drawn = foldPoints()
+        expect(drawn.length, `${f} ${ym}: nothing drawn`).toBeGreaterThan(0)
+        const usable = foldUsable(gm!.fold.w, gm!.px)
+        for (const t of drawn) {
+          const w = widthOf(t.text, gm!.px)
+          expect(
+            Math.round(w),
+            `${f} ${ym}: "${t.text}" is ${Math.round(w)}px in a ${Math.round(usable)}px ` +
+              `fold — ${Math.round(w - usable)}px of it is off the card`,
+          ).toBeLessThanOrEqual(Math.round(usable))
+        }
+      })
+    }
+  }
+})
+
+/** The longest name in the app's OWN seeded vocabulary (migrate-mistakes-taxonomy). */
+const LONGEST_SEEDED = 'High-volume pullback (wanted low volume)'
+
+describe('O2 and the app\'s own default vocabulary fits too', () => {
+  for (const f of RAIL) {
+    it(`${f}: the longest seeded mistake name`, async () => {
+      const weeks = MARCH_WEEKS().map((w) =>
+        w.topMistake ? { ...w, topMistake: { name: LONGEST_SEEDED, count: w.topMistake.count } } : w,
+      )
+      const data = card({ weeks })
+      const gm = foldLinesOf(f, data)
+      expect(gm).not.toBeNull()
+      await compose(data, f)
+      const usable = foldUsable(gm!.fold.w, gm!.px)
+      for (const t of foldPoints()) {
+        const w = widthOf(t.text, gm!.px)
+        expect(
+          Math.round(w),
+          `${f}: "${t.text}" is ${Math.round(w)}px in ${Math.round(usable)}px`,
+        ).toBeLessThanOrEqual(Math.round(usable))
+      }
+    })
+  }
+})
+
+describe('O3 and a name nobody would ever type still fits', () => {
+  for (const f of RAIL) {
+    it(`${f}: an 80-character mistake name`, async () => {
+      const absurd = 'A'.repeat(80)
+      const weeks = MARCH_WEEKS().map((w) =>
+        w.topMistake ? { ...w, topMistake: { name: absurd, count: w.topMistake.count } } : w,
+      )
+      const data = card({ weeks })
+      const gm = foldLinesOf(f, data)
+      expect(gm).not.toBeNull()
+      await compose(data, f)
+      const usable = foldUsable(gm!.fold.w, gm!.px)
+      for (const t of foldPoints()) {
+        expect(
+          Math.round(widthOf(t.text, gm!.px)),
+          `${f}: "${t.text}" overflowed`,
+        ).toBeLessThanOrEqual(Math.round(usable))
+      }
+    })
+  }
+})
+
+describe('O4 nothing is shortened that did not need to be', () => {
+  it('portrait: all five of March\'s lines are drawn byte-identical', async () => {
+    // Portrait's fold is 1010px usable — 153 chars. Nothing in either book comes
+    // close, so every string must survive untouched.
+    const gm = foldLinesOf('portrait', card())!
+    await compose(card(), 'portrait')
+    const drawn = foldPoints().map((t) => t.text)
+    expect(drawn).toEqual(gm.lines.map((l) => l.text))
+    expect(drawn).toHaveLength(5)
+  })
+
+  it('wide: only the line that overflows changes', async () => {
+    const gm = foldLinesOf('wide', card())!
+    const usable = foldUsable(gm.fold.w, gm.px)
+    await compose(card(), 'wide')
+    const drawn = foldPoints().map((t) => t.text)
+    expect(drawn).toHaveLength(gm.lines.length)
+    gm.lines.forEach((l, i) => {
+      if (widthOf(l.text, gm.px) <= usable) {
+        expect(drawn[i], `a line that fitted was shortened anyway`).toBe(l.text)
+      }
+    })
+    // and the one that did not fit is different, and still carries its evidence
+    const changed = gm.lines.filter((l, i) => drawn[i] !== l.text)
+    expect(changed, 'March wide has exactly one overflowing line').toHaveLength(1)
+    expect(changed[0].kind).toBe('mistake')
+  })
+})
+
+// ═══ BEAT 28 ═══════════════════════════════════════════════════════════════
+//
+// Beat 27 stopped the clipping and introduced a worse reading. Wide's fold
+// budget is 37 characters; the app's own longest seeded mistake name is 40, so
+// the ladder ran out and the elision produced
+//
+//   "HIGH-VOLUME PULLBACK (WANTED L… · 54x"
+//
+// — the name cut mid-word and the weeks gone. RULED: wrap to two lines, full
+// name on one and full evidence on the next, as the LAST rung after the whole
+// ladder. Short names keep their compact single line.
+//
+// ONLY THE MISTAKE LINE WRAPS. Measured, every other kind is bounded by a
+// format string and its ladder resolves inside the narrowest real budget:
+// worst 44ch (ladder rung 2 is 32), fees 37ch, streak 27ch, journaled 23ch,
+// best-day 14ch. The mistake name is user-authored and therefore unbounded —
+// it is the only one that can outrun a ladder.
+//
+// THE CARD HAS NO INDENT CONVENTION. Checked all four places a subordinate
+// line exists: the week card draws its range, hero, stat line and every tier
+// line at the same lx; the masthead puts label and value at the same x; the
+// day cell and the poster centre everything. Subordination is carried by SIZE
+// and ALPHA, never by position. So an indent here is a first, and it is
+// chosen deliberately — see the cure's own note.
+
+const LONGEST_SEEDED_NAME = 'High-volume pullback (wanted low volume)'
+
+const withMistake = (name: string, over: Partial<CalendarCardData> = {}) =>
+  card({
+    weeks: MARCH_WEEKS().map((w) =>
+      w.topMistake ? { ...w, topMistake: { name, count: w.topMistake.count } } : w,
+    ),
+    ...over,
+  })
+
+/** Every string drawn inside the fold, top to bottom. */
+const foldDrawn = () => foldPoints().sort((a, b) => a.y - b.y).map((t) => t.text)
+
+describe('R1a the longest seeded name keeps its whole name AND its whole evidence', () => {
+  it('wide: it wraps to two lines rather than eliding', async () => {
+    await compose(withMistake(LONGEST_SEEDED_NAME), 'wide')
+    const drawn = foldDrawn()
+    const head = drawn.find((t) => t.startsWith('HIGH-VOLUME'))
+    expect(head, `no mistake line at all: ${JSON.stringify(drawn)}`).toBeDefined()
+    // The whole name survives across however many rows it needs — wide's budget
+    // is 37 chars and this name is 40, so two rows is not reachable and it takes
+    // three. What must NOT happen is a word cut in half.
+    const i = drawn.indexOf(head!)
+    const evidence = drawn.indexOf('54x ACROSS 4 OF 5 WEEKS')
+    expect(evidence, 'the evidence line is missing entirely').toBeGreaterThan(i)
+    const nameRows = drawn.slice(i, evidence)
+    expect(
+      nameRows.join(' '),
+      `the name was cut mid-word instead of wrapping: ${JSON.stringify(nameRows)}`,
+    ).toBe(LONGEST_SEEDED_NAME.toUpperCase())
+    for (const r of nameRows) expect(r, `"${r}" was elided`).not.toContain('…')
+    expect(drawn[evidence]).not.toContain('…')
+  })
+})
+
+describe('R2a a short name still draws on one line, unchanged', () => {
+  it('wide: March is byte-identical to beat 27', async () => {
+    await compose(card(), 'wide')
+    const drawn = foldDrawn()
+    expect(drawn).toContain('CHASED EXTENDED · 54x IN 4/5 WEEKS')
+    expect(drawn.filter((t) => t === 'CHASED EXTENDED')).toEqual([])
+  })
+})
+
+describe('R3a every line of a wrapped entry fits its region', () => {
+  for (const f of RAIL) {
+    it(`${f}: the longest seeded name, both halves`, async () => {
+      const data = withMistake(LONGEST_SEEDED_NAME)
+      const gm = foldLinesOf(f, data)!
+      await compose(data, f)
+      const usable = foldUsable(gm.fold.w, gm.px)
+      for (const t of foldDrawn()) {
+        expect(
+          Math.round(widthOf(t, gm.px)),
+          `${f}: "${t}" overflows`,
+        ).toBeLessThanOrEqual(Math.round(usable))
+      }
+    })
+  }
+})
+
+describe('R4a a wrapped entry counts as two lines', () => {
+  it('wide: the clamp and the centring both see the extra line', async () => {
+    const data = withMistake(LONGEST_SEEDED_NAME)
+    const gm = foldLinesOf('wide', data)!
+    await compose(data, 'wide')
+    const ys = foldPoints().map((t) => t.y).sort((a, b) => a - b)
+    // 5 entries, one of which wraps -> 6 drawn lines
+    // 4 other entries + a 3-row mistake entry = 7 drawn lines.
+    expect(ys.length, 'the wrap did not add lines').toBe(7)
+    const px = gm.px
+    const want = Math.min(px(26), Math.max(px(14), Math.floor((gm.fold.h - px(16) - px(10)) / 6)))
+    expect(ys[1] - ys[0], 'the leading ignored the wrapped line').toBe(want)
+    const above = ys[0] - gm.fold.y
+    const below = gm.fold.y + gm.fold.h - ys[ys.length - 1]
+    expect(Math.abs(above - below), 'the block is not centred over 6 lines').toBeLessThanOrEqual(1)
+  })
+})
+
+describe('R5a wrapping is the last resort', () => {
+  it('a name that fits at a later ladder rung does not wrap', async () => {
+    // "Chased extended" fails rung 1 (41ch) and fits rung 2 (34ch) in wide.
+    await compose(card(), 'wide')
+    const drawn = foldDrawn()
+    expect(drawn, 'it wrapped when a rung would have done').not.toContain('CHASED EXTENDED')
+    expect(drawn).toContain('CHASED EXTENDED · 54x IN 4/5 WEEKS')
+  })
+})
+
+describe('R6a wrapping does not remove the floor', () => {
+  it('an 80-character name still elides rather than clipping', async () => {
+    const absurd = 'A'.repeat(80)
+    const data = withMistake(absurd)
+    const gm = foldLinesOf('wide', data)!
+    await compose(data, 'wide')
+    const usable = foldUsable(gm.fold.w, gm.px)
+    const drawn = foldDrawn()
+    for (const t of drawn) {
+      expect(Math.round(widthOf(t, gm.px)), `"${t}" overflows`).toBeLessThanOrEqual(Math.round(usable))
+    }
+    // it could not wrap (the head alone does not fit), so it elided
+    expect(drawn.some((t) => t.includes('…')), 'nothing elided; what was drawn?').toBe(true)
+  })
+})
+
+describe('R7a portrait is untouched', () => {
+  for (const [ym, mk] of BOOK_MONTHS) {
+    it(`portrait: ${ym} strings are byte-identical to foldLines`, async () => {
+      const gm = foldLinesOf('portrait', mk())!
+      await compose(mk(), 'portrait')
+      expect(foldDrawn()).toEqual(gm.lines.map((l) => l.text))
+    })
+  }
+
+  it('portrait: even the longest seeded name stays on one line', async () => {
+    const data = withMistake(LONGEST_SEEDED_NAME)
+    await compose(data, 'portrait')
+    expect(foldDrawn()).toContain(
+      `${LONGEST_SEEDED_NAME.toUpperCase()} · 54x ACROSS 4 OF 5 WEEKS`,
+    )
   })
 })

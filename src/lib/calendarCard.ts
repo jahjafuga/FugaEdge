@@ -33,6 +33,7 @@ import iconUrl from '@/assets/fugaedge-icon-light.png'
 import closedSignUrl from '@/assets/closed-sign.svg'
 import { chartColors } from '@/lib/chartColors'
 import {
+  concentratedLoss,
   dominantMistake,
   feeShareOfNet,
   journalCoverage,
@@ -411,12 +412,137 @@ export function weekTierLines(w: CalendarCardWeek): WeekTierLine[] {
 /** THE FOLD'S OWN TIER, highest value first — and therefore last to be dropped,
  *  since fitFoldLines keeps a prefix. A month with room for exactly one line
  *  says the thing the weeks could not: what kept going wrong. */
-export const FOLD_TIER_ORDER = ['mistake', 'journaled', 'flex', 'fees'] as const
+export const FOLD_TIER_ORDER = ['mistake', 'worst', 'journaled', 'flex', 'fees'] as const
 export type FoldLineKind = (typeof FOLD_TIER_ORDER)[number]
 export interface FoldLine {
   kind: FoldLineKind
+  /** The line as it reads when there is room for all of it. */
   text: string
   tone: Tone
+  /** Progressively shorter renderings of the SAME fact, longest first. The
+   *  fold picks the first that fits — it never draws a clause it measured as
+   *  too wide, and it never shortens one that fitted. */
+  alts?: string[]
+  /** When even the shortest rendering is too wide, elide `head` and keep
+   *  `tail`. The tail is the evidence; the head is the part that varies (a
+   *  user-authored mistake name can be any length at all). */
+  elide?: { head: string; tail: string }
+  /** The natural two-line split, tried AFTER the whole ladder and BEFORE any
+   *  elision. Only kinds whose length is unbounded carry one — measured, every
+   *  other kind is capped by its format string and its ladder resolves inside
+   *  the narrowest real budget. */
+  wrap?: { head: string; tail: string }
+}
+
+/**
+ * THE LINE THAT ACTUALLY GETS DRAWN, measured against the room there is.
+ *
+ * BEAT 27. drawFold called fillText and never called measureText, so four line
+ * kinds shipped without one of them ever being checked against its region.
+ * Measured: wide's fold is 361px usable — THIRTY-SEVEN characters — and
+ * "CHASED EXTENDED · 54x ACROSS 4 OF 5 WEEKS" is 394. It had been clipping
+ * since the fold shipped. Every one of the twenty-one mistake names the app
+ * seeds by default overflows wide; the longest by 273px.
+ *
+ * THE SHAPE IS fitStatTokens', not an ellipsis: shed a whole clause, in a
+ * stated order, and only cut characters when there is no clause left to shed.
+ * The day cell has done this since the beginning — it drops the P:L ratio,
+ * then the win rate, rather than truncating a number into a lie.
+ *
+ * The evidence outlives the phrasing. "47% OF THE MONTH'S LOSSES" becomes
+ * "47% OF LOSSES" and then "47%", because the share IS the finding; "WORST DAY
+ * MAY 20" without it is just a date.
+ */
+/**
+ * THE LINES ONE FOLD ENTRY ACTUALLY BECOMES — one, or two when it wraps.
+ *
+ * BEAT 28. Beat 27 stopped the clipping and produced a worse reading in its
+ * place: wide's budget is 37 characters and the app's own longest seeded
+ * mistake name is 40, so the ladder ran out and the elision drew
+ * "HIGH-VOLUME PULLBACK (WANTED L… · 54x" — the name cut mid-word and the
+ * weeks gone entirely.
+ *
+ * The order is deliberate. Every rung of the ladder is tried first, because a
+ * compact single line beats a correct pair: "CHASED EXTENDED · 54x IN 4/5
+ * WEEKS" says everything in one row and wrapping it would be worse. Only when
+ * no phrasing fits does the entry take a second row, and only when BOTH halves
+ * fit whole — a wrap that still needs an ellipsis has bought nothing, so that
+ * case falls through to the elision that was already there.
+ */
+export function fitFoldEntry(
+  line: FoldLine,
+  maxWidth: number,
+  widthOf: (t: string) => number,
+): string[] {
+  const candidates = [line.text, ...(line.alts ?? [])]
+  for (const c of candidates) if (widthOf(c) <= maxWidth) return [c]
+  if (line.wrap) {
+    const { head, tail } = line.wrap
+    const headLines = wrapWords(head, maxWidth, widthOf)
+    if (headLines && headLines.length + 1 <= FOLD_MAX_WRAP && widthOf(tail) <= maxWidth) {
+      return [...headLines, tail]
+    }
+  }
+  return [fitFoldText(line, maxWidth, widthOf)]
+}
+
+/** The most rows one fold entry may take. Three, because two is not always
+ *  reachable: wide's budget is 37 characters and the app seeds a 40-character
+ *  mistake name, so "the whole name on one row" is arithmetically impossible
+ *  there. Past three an entry stops reading as one fact and elision is the
+ *  better failure. */
+export const FOLD_MAX_WRAP = 3
+
+/** Greedy word wrap. Returns null when a single word cannot fit at all — an
+ *  unbroken 80-character string has no wrap point, and pretending otherwise
+ *  would just move the clipping to the next row. */
+function wrapWords(
+  text: string,
+  maxWidth: number,
+  widthOf: (t: string) => number,
+): string[] | null {
+  const words = text.split(' ').filter((w) => w.length > 0)
+  if (words.length === 0) return null
+  const out: string[] = []
+  let cur = ''
+  for (const w of words) {
+    if (widthOf(w) > maxWidth) return null
+    const next = cur === '' ? w : `${cur} ${w}`
+    if (widthOf(next) <= maxWidth) cur = next
+    else {
+      out.push(cur)
+      cur = w
+    }
+  }
+  if (cur !== '') out.push(cur)
+  return out
+}
+
+export function fitFoldText(
+  line: FoldLine,
+  maxWidth: number,
+  widthOf: (t: string) => number,
+): string {
+  const candidates = [line.text, ...(line.alts ?? [])]
+  for (const c of candidates) if (widthOf(c) <= maxWidth) return c
+
+  // No phrasing fits. Cut characters from the part that varies, keeping the
+  // evidence that made the line worth drawing.
+  const ELL = '…'
+  const shrink = (head: string, tail: string): string | null => {
+    let h = head
+    while (h.length > 0 && widthOf(h + ELL + tail) > maxWidth) h = h.slice(0, -1)
+    return h.length > 0 ? h + ELL + tail : null
+  }
+  if (line.elide) {
+    const r = shrink(line.elide.head, line.elide.tail)
+    if (r != null) return r
+  }
+  const last = candidates[candidates.length - 1]
+  const r = shrink(last, '')
+  // A region too narrow for one character and an ellipsis draws nothing at all
+  // rather than something misleading.
+  return r ?? ''
 }
 
 /**
@@ -424,7 +550,8 @@ export interface FoldLine {
  *
  * Every fact is either read off the week rollups or computed by something that
  * already existed. Nothing here is a second implementation:
- *   mistake    core/calendar/monthFold.dominantMistake  (gated; may be absent)
+ *   mistake    core/calendar/monthFold.dominantMistake   (gated; may be absent)
+ *   worst      core/calendar/monthFold.concentratedLoss  (gated; may be absent)
  *   journaled  core/calendar/monthFold.journalCoverage
  *   flex       standsOut and the poster footer's own two lines, reused
  *   fees       core/calendar/monthFold.feeShareOfNet
@@ -437,9 +564,38 @@ export function foldLines(
 
   const dom = dominantMistake(weeks)
   if (dom) {
+    const name = dom.name.toUpperCase()
     out.push({
       kind: 'mistake',
-      text: `${dom.name.toUpperCase()} · ${dom.count}x ACROSS ${dom.weeks} OF ${dom.ofWeeks} WEEKS`,
+      text: `${name} · ${dom.count}x ACROSS ${dom.weeks} OF ${dom.ofWeeks} WEEKS`,
+      alts: [
+        `${name} · ${dom.count}x IN ${dom.weeks}/${dom.ofWeeks} WEEKS`,
+        `${name} · ${dom.count}x`,
+      ],
+      elide: { head: name, tail: ` · ${dom.count}x` },
+      // The only kind with a user-authored component, and therefore the only
+      // one that can outrun its own ladder.
+      wrap: { head: name, tail: `${dom.count}x ACROSS ${dom.weeks} OF ${dom.ofWeeks} WEEKS` },
+      tone: 'loss',
+    })
+  }
+
+  // THE DAY THAT DID THE DAMAGE. There has been a BEST DAY line since the
+  // poster and no counterpart, so a month could lose $1,650 with 57% of it in
+  // one session and the card would report its journaling coverage. Measured
+  // against GROSS LOSS, so a green month with one ugly day says so too.
+  const conc = concentratedLoss(data.days)
+  if (conc) {
+    out.push({
+      kind: 'worst',
+      text:
+        `WORST DAY ${shortMonthDay(conc.date).toUpperCase()} · ` +
+        `${Math.round(conc.share)}% OF THE MONTH'S LOSSES`,
+      alts: [
+        `WORST DAY ${shortMonthDay(conc.date).toUpperCase()} · ${Math.round(conc.share)}% OF LOSSES`,
+        `WORST DAY ${shortMonthDay(conc.date).toUpperCase()} · ${Math.round(conc.share)}%`,
+      ],
+      // A P&L fact, unlike the fee line beside it — so it carries the loss tone.
       tone: 'loss',
     })
   }
@@ -449,6 +605,7 @@ export function foldLines(
     out.push({
       kind: 'journaled',
       text: `JOURNALED ${cov.journaled} OF ${cov.traded} DAYS`,
+      alts: [`JOURNALED ${cov.journaled}/${cov.traded} DAYS`, `JOURNALED ${cov.journaled}/${cov.traded}`],
       tone: 'gold',
     })
   }
@@ -474,10 +631,19 @@ export function foldLines(
       text: `${data.currentStreak.days}-DAY ${
         data.currentStreak.kind === 'win' ? 'GREEN' : 'RED'
       } INTO NEXT MONTH`,
+      alts: [
+        `${data.currentStreak.days}-DAY ${data.currentStreak.kind === 'win' ? 'GREEN' : 'RED'} INTO NEXT`,
+        `${data.currentStreak.days}-DAY ${data.currentStreak.kind === 'win' ? 'GREEN' : 'RED'}`,
+      ],
       tone: data.currentStreak.kind === 'win' ? 'win' : 'loss',
     })
   } else if (data.longestGreenRun >= 2) {
-    out.push({ kind: 'flex', text: `BEST GREEN RUN ${data.longestGreenRun} DAYS`, tone: 'win' })
+    out.push({
+      kind: 'flex',
+      text: `BEST GREEN RUN ${data.longestGreenRun} DAYS`,
+      alts: [`BEST RUN ${data.longestGreenRun} DAYS`, `RUN ${data.longestGreenRun}`],
+      tone: 'win',
+    })
   }
 
   // THE FEE LINE. A share of net only where a net exists to take a share of;
@@ -486,9 +652,19 @@ export function foldLines(
   // and colouring them would make them read as a result.
   const share = feeShareOfNet(data.monthFees, data.monthPnl)
   if (share != null) {
-    out.push({ kind: 'fees', text: `FEES ${share.toFixed(1)}% OF NET`, tone: 'muted' })
+    out.push({
+      kind: 'fees',
+      text: `FEES ${share.toFixed(1)}% OF NET`,
+      alts: [`FEES ${share.toFixed(1)}%`],
+      tone: 'muted',
+    })
   } else if (data.monthFees > 0 && data.monthPnl < 0) {
-    out.push({ kind: 'fees', text: `FEES ${money(data.monthFees)} ON TOP OF THE LOSS`, tone: 'muted' })
+    out.push({
+      kind: 'fees',
+      text: `FEES ${money(data.monthFees)} ON TOP OF THE LOSS`,
+      alts: [`FEES ${money(data.monthFees)} ON THE LOSS`, `FEES ${money(data.monthFees)}`],
+      tone: 'muted',
+    })
   }
   return out
 }
@@ -1557,24 +1733,53 @@ function drawFold(p: Paint, b: Box, lines: readonly FoldLine[]): void {
   // of a gap. Capped, five lines and two lines both read as a block; the air
   // that is left over is then SPLIT above and below, so the block sits in its
   // region instead of hanging from the top of it.
-  const n = lines.length
+  // MEASURED, not assumed. px(12) each side, the inset drawWeekCard already
+  // uses for its range and its right-aligned chip. The font is set BEFORE the
+  // fit, because measureText reads whatever font is current.
+  ctx.font = `600 ${px(10)}px ${FONT}`
+  const usable = b.w - px(12) * 2
+  const wf = (t: string) => ctx.measureText(t).width
+  let entries = lines.map((l) => ({ line: l, texts: fitFoldEntry(l, usable, wf) }))
+
+  // A WRAPPED ENTRY COSTS TWO SLOTS, so the vertical budget is re-taken over
+  // the lines that will actually be drawn rather than over the entries. What
+  // goes is the lowest tier, exactly as fitFoldLines would have dropped it.
+  const room = Math.max(0, Math.floor(b.h / px(14)))
+  const lineCount = () => entries.reduce((a, e) => a + e.texts.length, 0)
+  while (entries.length > 1 && lineCount() > room) entries = entries.slice(0, -1)
+
+  const n = lineCount()
   const leading =
     n > 1
       ? Math.min(px(26), Math.max(px(14), Math.floor((b.h - px(16) - px(10)) / (n - 1))))
       : 0
   let y = b.y + (b.h - leading * (n - 1)) / 2
-  for (const l of lines) {
-    ctx.font = `600 ${px(10)}px ${FONT}`
-    ctx.fillStyle =
-      l.tone === 'win'
-        ? p.WIN
-        : l.tone === 'loss'
-          ? `${p.LOSS}${alphaHex(0.9)}`
-          : l.tone === 'gold'
-            ? `${p.GOLD}${alphaHex(0.8)}`
-            : `${p.MUTED}${alphaHex(0.8)}`
-    ctx.fillText(l.text, b.x + px(12), y)
-    y += leading
+  for (const e of entries) {
+    const l = e.line
+    const bare =
+      l.tone === 'win' ? p.WIN : l.tone === 'loss' ? p.LOSS : l.tone === 'gold' ? p.GOLD : p.MUTED
+    e.texts.forEach((t, i) => {
+      ctx.font = `600 ${px(10)}px ${FONT}`
+      // THE CONTINUATION LINE. The card has no indent convention anywhere —
+      // the week card draws its range, hero, stat line and every tier line at
+      // one lx, and the masthead stacks label and value at one x — so this is
+      // a first, chosen rather than inherited. Alpha alone would not do it:
+      // the fold's tones already carry meaning (loss red, coverage gold), so a
+      // reader cannot tell a dimmer line from a different KIND of line. The
+      // indent is the only signal left that is not already spoken for.
+      ctx.fillStyle =
+        i === 0
+          ? l.tone === 'win'
+            ? p.WIN
+            : l.tone === 'loss'
+              ? `${p.LOSS}${alphaHex(0.9)}`
+              : l.tone === 'gold'
+                ? `${p.GOLD}${alphaHex(0.8)}`
+                : `${p.MUTED}${alphaHex(0.8)}`
+          : `${bare}${alphaHex(0.55)}`
+      ctx.fillText(t, b.x + px(12) + (i === 0 ? 0 : px(8)), y)
+      y += leading
+    })
   }
 }
 
