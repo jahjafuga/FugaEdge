@@ -85,6 +85,19 @@ const DOMINANT = 'Chased extended'
 // ---------------------------------------------------------------------------
 // THE SHAPE, stated before a row is written.
 // ---------------------------------------------------------------------------
+//
+// DEMO_SCALE multiplies the per-month TRADE COUNT and nothing else. Trading days
+// are bounded by the calendar -- a month cannot have eighty of them -- so volume
+// is added as trades per day, which is also how a real active book grows. The
+// default is 1, and at 1 every count below is written exactly as it always was.
+// Added to profile the table at book sizes the app has never actually seen: the
+// largest book ever run against it is this file's own 439.
+const SCALE = Number(process.env.DEMO_SCALE || 1)
+if (!Number.isFinite(SCALE) || SCALE <= 0) {
+  console.error('REFUSED: DEMO_SCALE must be a positive number, got ' + process.env.DEMO_SCALE)
+  process.exit(1)
+}
+
 const MONTHS = [
   {
     ym: '2026-03',
@@ -222,7 +235,8 @@ const rIds = mulberry32(SEEDS.ids)
 
 const plan = [] // { ym, date, state: 'traded'|'satout'|'closed'|'untouched', trades, net, journal }
 
-for (const M of MONTHS) {
+for (const M0 of MONTHS) {
+  const M = { ...M0, trades: Math.max(M0.tradingDays, Math.round(M0.trades * SCALE)) }
   const sessions = sessionsOf(M.ym)
   const closedDates = M.closed > 0 ? holidaysIn(M.ym).slice(0, M.closed) : []
 
