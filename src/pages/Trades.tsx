@@ -41,7 +41,6 @@ import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 import {
   COLUMN_LABELS,
   NUMERIC_COLUMN_IDS,
-  isVisible,
   readColumnVisibility,
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
@@ -69,30 +68,30 @@ export default function Trades() {
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
     () => readColumnVisibility(),
   )
-  // Hiding a column CLEARS its range. A filter still narrowing the table from a
-  // control the user can no longer see is a trap, not a feature.
+  // Hiding a column USED to clear its range, to avoid "a filter still narrowing
+  // the table from a control the user can no longer see". The reasoning was
+  // right and the premise was wrong: the control was never in the table. It is
+  // in the filter bar, which has its own visibility and is always on screen.
+  // Now that every numeric column carries a range input regardless of what the
+  // table is showing, hiding a column orphans nothing — and silently discarding
+  // a filter the user set is the larger surprise.
   const onColumnVisibilityChange = useCallback((next: Record<string, boolean>) => {
     setColumnVisibility(next)
     writeColumnVisibility(next)
-    setFilters((f) => {
-      const ranges = { ...(f.ranges ?? {}) }
-      let changed = false
-      for (const id of Object.keys(ranges)) {
-        if (!isVisible(next, id)) {
-          delete ranges[id]
-          changed = true
-        }
-      }
-      return changed ? { ...f, ranges } : f
-    })
   }, [])
+  // EVERY numeric column, not just the visible ones. rangeValueOf has always
+  // handled all of them and applyTradesFilters has always applied them; the
+  // only thing missing was somewhere to type the number. Sixteen of the
+  // twenty-one are hidden by default, so gating on visibility made float,
+  // RVOL, MAE, MFE, R-multiple, hold time and ten more unreachable.
+  // Not memo'd on visibility any more — the list is now constant.
   const numericColumns = useMemo(
     () =>
-      NUMERIC_COLUMN_IDS.filter((id) => isVisible(columnVisibility, id)).map((id) => ({
+      NUMERIC_COLUMN_IDS.map((id) => ({
         id,
         label: COLUMN_LABELS[id] ?? id,
       })),
-    [columnVisibility],
+    [],
   )
 
   // Switching accounts loads THAT account's filters. Keyed off the scope only,
