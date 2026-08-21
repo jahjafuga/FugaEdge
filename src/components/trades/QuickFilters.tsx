@@ -1,48 +1,22 @@
 import type { TradesFilterState } from '@/core/trades/tradesFilter'
+import {
+  withDatePreset,
+  type DatePreset,
+} from '@/core/trades/datePreset'
 
 interface QuickFiltersProps {
   filters: TradesFilterState
   onChange: (next: TradesFilterState) => void
 }
 
-type DatePreset = 'today' | 'week' | 'month'
-
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`
-}
-
-function daysAgoStr(n: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - n)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate(),
-  ).padStart(2, '0')}`
-}
-
-function activeDatePreset(f: TradesFilterState): DatePreset | null {
-  const t = todayStr()
-  if (f.dateFrom === t && f.dateTo === t) return 'today'
-  if (f.dateFrom === daysAgoStr(6) && f.dateTo === t) return 'week'
-  if (f.dateFrom === daysAgoStr(29) && f.dateTo === t) return 'month'
-  return null
-}
-
-function withDatePreset(f: TradesFilterState, p: DatePreset | null): TradesFilterState {
-  if (p === null) return { ...f, dateFrom: '', dateTo: '' }
-  const t = todayStr()
-  if (p === 'today') return { ...f, dateFrom: t, dateTo: t }
-  if (p === 'week') return { ...f, dateFrom: daysAgoStr(6), dateTo: t }
-  return { ...f, dateFrom: daysAgoStr(29), dateTo: t }
-}
-
 export default function QuickFilters({ filters, onChange }: QuickFiltersProps) {
-  const activeDate = activeDatePreset(filters)
+  // The stored intent, NOT a re-derivation. The old code recomputed today's
+  // date and string-compared it against the saved range, so a preset set
+  // yesterday matched nothing and every chip went dark.
+  const activeDate = filters.datePreset
 
   const setDate = (p: DatePreset) => {
-    onChange(withDatePreset(filters, activeDate === p ? null : p))
+    onChange(withDatePreset(filters, activeDate === p ? null : p, new Date()))
   }
 
   const setOutcome = (v: 'winners' | 'losers') => {

@@ -8,6 +8,7 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
+import type { DatePreset } from '@/core/trades/datePreset'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import { applyRanges, isRangeActive, type NumericRange } from '@/core/trades/numericRange'
 import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
@@ -23,6 +24,15 @@ export interface TradesFilterState {
   duration: DurationFilter
   dateFrom: string
   dateTo: string
+  /** v0.2.7 — the quick-filter chip the user chose, when they chose one, as an
+   *  INTENT rather than the window it happened to mean at the time. dateFrom /
+   *  dateTo remain authoritative for filtering; when this is set they are
+   *  DERIVED from it and re-derived against the clock on every restore, so a
+   *  "Today" stored yesterday is today again rather than a hard range over
+   *  yesterday under a chip that reads as unset. `null` = a hand-picked range
+   *  (or none), which the clock must never overwrite.
+   *  See core/trades/datePreset.ts. */
+  datePreset: DatePreset | null
   outcome: OutcomeFilter
   aPlus: boolean
   mistakesOnly: boolean
@@ -86,6 +96,7 @@ export function emptyFilters(): TradesFilterState {
     duration: 'all',
     dateFrom: '',
     dateTo: '',
+    datePreset: null,
     outcome: 'all',
     aPlus: false,
     mistakesOnly: false,

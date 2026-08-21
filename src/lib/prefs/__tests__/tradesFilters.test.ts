@@ -42,13 +42,17 @@ beforeEach(() => {
   localStorage.clear()
 })
 
-/** All twelve fields populated, including both null buckets and a live range. */
+/** Every field populated, including both null buckets and a live range. The
+ *  explicit March range is a HAND-PICKED one, so datePreset is null — the
+ *  preset round trip is guarded in components/trades/__tests__/
+ *  QuickFilters.datePreset.test.tsx, where a clock can be advanced. */
 const FULL = (): TradesFilterState => ({
   symbol: 'AAPL',
   side: 'long',
   duration: '1to5m',
   dateFrom: '2026-03-01',
   dateTo: '2026-03-31',
+  datePreset: null,
   outcome: 'winners',
   aPlus: true,
   mistakesOnly: true,
@@ -61,7 +65,7 @@ const FULL = (): TradesFilterState => ({
 // ─── F1 ──────────────────────────────────────────────────────────────────────
 
 describe('F1 what is written comes back', () => {
-  it('all twelve fields round-trip, including the null buckets and a range', () => {
+  it('every field round-trips, including the null buckets and a range', () => {
     const state = FULL()
     writeTradesFilters(ALL, state)
     const back = readTradesFilters(ALL)

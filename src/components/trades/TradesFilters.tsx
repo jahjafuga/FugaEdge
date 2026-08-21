@@ -8,6 +8,7 @@ import { ipc } from '@/lib/ipc'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
 import Segmented from '@/components/ui/Segmented'
+import { withManualDate } from '@/core/trades/datePreset'
 import {
   emptyFilters,
   isFiltering,
@@ -111,8 +112,9 @@ export default function TradesFilters({
           </span>
           <input
             type="date"
+            aria-label="Date from"
             value={filters.dateFrom}
-            onChange={(e) => onChange({ ...filters, dateFrom: e.target.value })}
+            onChange={(e) => onChange(withManualDate(filters, 'from', e.target.value))}
             className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
           />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
@@ -120,8 +122,9 @@ export default function TradesFilters({
           </span>
           <input
             type="date"
+            aria-label="Date to"
             value={filters.dateTo}
-            onChange={(e) => onChange({ ...filters, dateTo: e.target.value })}
+            onChange={(e) => onChange(withManualDate(filters, 'to', e.target.value))}
             className="h-8 cursor-pointer rounded-md border border-border-subtle bg-bg-1 px-2 text-xs text-fg-primary transition-colors duration-150 focus:border-gold focus:outline-none"
           />
         </div>

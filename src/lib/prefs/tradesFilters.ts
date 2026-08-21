@@ -31,6 +31,7 @@ import type { AccountScope } from '@shared/accounts-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
 import { emptyFilters, type TradesFilterState } from '@/core/trades/tradesFilter'
 import { isRangeActive, type NumericRange } from '@/core/trades/numericRange'
+import { isPreset, refreshDatePreset } from '@/core/trades/datePreset'
 import { NUMERIC_COLUMN_IDS } from '@/lib/prefs/columns'
 
 /** Bump when the STORED SHAPE changes in a way an older build would misread.
@@ -109,6 +110,7 @@ function coerce(raw: unknown): TradesFilterState {
     ),
     dateFrom: str(raw.dateFrom),
     dateTo: str(raw.dateTo),
+    datePreset: isPreset(raw.datePreset) ? raw.datePreset : null,
     outcome: oneOf(raw.outcome, ['all', 'winners', 'losers'] as const, 'all'),
     aPlus: bool(raw.aPlus),
     mistakesOnly: bool(raw.mistakesOnly),
@@ -122,7 +124,11 @@ function coerce(raw: unknown): TradesFilterState {
 /** The stored filters for a scope, or the empty filter. NEVER undefined, never
  *  a throw: a bad blob shows an unfiltered table, which is a state the user can
  *  read and act on, rather than an error screen for a preference. */
-export function readTradesFilters(scope: AccountScope): TradesFilterState {
+export function readTradesFilters(
+  scope: AccountScope,
+  /** Injected so the re-derivation below is a test rather than a wait. */
+  now: Date = new Date(),
+): TradesFilterState {
   const s = storage()
   if (!s) return emptyFilters()
   let raw: string | null = null
@@ -136,7 +142,10 @@ export function readTradesFilters(scope: AccountScope): TradesFilterState {
     const parsed: unknown = JSON.parse(raw)
     if (!isObj(parsed)) return emptyFilters()
     if (parsed.v !== TRADES_FILTER_PREFS_VERSION) return emptyFilters()
-    return coerce(parsed.state)
+    // A stored PRESET is re-derived against today's clock; a hand-picked range
+    // has no preset and is returned untouched. Without this the window is as
+    // old as the day it was saved.
+    return refreshDatePreset(coerce(parsed.state), now)
   } catch {
     return emptyFilters()
   }
