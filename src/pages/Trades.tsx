@@ -45,6 +45,7 @@ import {
   readColumnVisibility,
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
+import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
 
 // v0.2.7: the four column-visibility keys and their state/effect pairs are GONE.
 // Visibility is TanStack state inside TradesTable, persisted by
@@ -59,7 +60,10 @@ export default function Trades() {
   const [trades, setTrades] = useState<TradeListRow[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
   const [view, setView] = useState<TradesView>('table')
-  const [filters, setFilters] = useState<TradesFilterState>(emptyFilters())
+  // v0.2.7 — filters PERSIST, per account, through the columns.ts idiom. The
+  // initialiser reads the current scope so a mount restores what this account
+  // was last narrowed to; the effect below re-reads when the scope changes.
+  const [filters, setFilters] = useState<TradesFilterState>(() => readTradesFilters(scope))
   // ONE visibility state, owned here because two consumers need it: the table renders
   // by it, and the filter bar offers range inputs only for columns it can see.
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
@@ -90,6 +94,14 @@ export default function Trades() {
       })),
     [columnVisibility],
   )
+
+  // Switching accounts loads THAT account's filters. Keyed off the scope only,
+  // so it cannot fire on a filter change and clobber what the user just typed.
+  const scopeKey = scope === 'all' ? 'all' : scope.accountId
+  useEffect(() => {
+    setFilters(readTradesFilters(scope))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey])
 
   useEffect(() => {
     let cancelled = false
@@ -298,6 +310,16 @@ export default function Trades() {
     () => (trades ? applyTradesFilters(trades, effectiveFilters) : []),
     [trades, effectiveFilters],
   )
+
+  // PERSIST THE DEFERRED STATE, not the live one. columns.ts writes straight
+  // from its change handler because a column toggle is one click; the filter bar
+  // has a text input, and writing on every change would serialise the whole
+  // state on every keystroke. effectiveFilters already carries the deferred
+  // symbol, so React coalesces the burst for us and this writes once it settles.
+  useEffect(() => {
+    writeTradesFilters(scope, effectiveFilters)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, effectiveFilters])
 
   if (err) {
     return (
