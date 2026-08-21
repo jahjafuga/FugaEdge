@@ -52,6 +52,20 @@ export interface TradesFilterState {
    *  not id: catalyst is a free-form string column (trades.catalyst_type), no FK.
    *  Empty array = no catalyst filtering. */
   catalystTypes: (string | null)[]
+  /** v0.2.7 — selected REGIONS to keep (OR within the set), matched against
+   *  TradeListRow.region (the bucket key: USA, China, Hong Kong, ...). The
+   *  list read coalesces a missing region to the STRING 'Unknown', so the
+   *  `null` bucket here matches that sentinel (and any falsy region), NOT a
+   *  null cell — the row never carries one. Hong Kong is its own region and
+   *  is never folded into China (only Macau is, upstream in REGION_MAP).
+   *  Empty array = no region filtering. */
+  regions: (string | null)[]
+  /** v0.2.7 — selected COUNTRIES to keep (OR within the set), matched by ISO
+   *  3166-1 alpha-2 against TradeListRow.country, which IS nullable — so
+   *  `null` here is the truly-unresolved bucket (failed FMP fetch, manual
+   *  trade, user cleared it), exactly playbookIds' idiom. Empty array = no
+   *  country filtering. */
+  countries: (string | null)[]
   /** v0.2.7 — min/max per NUMERIC column, keyed by the table's column id. Empty or
    *  all-unset means no range filtering. The comparison itself lives in ONE place
    *  (core/trades/numericRange.ts) so fifteen columns cannot drift into fifteen
@@ -103,6 +117,8 @@ export function emptyFilters(): TradesFilterState {
     playbookIds: [],
     mistakeKeys: [],
     catalystTypes: [],
+    regions: [],
+    countries: [],
     ranges: {},
   }
 }
@@ -120,6 +136,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.playbookIds.length > 0 ||
     f.mistakeKeys.length > 0 ||
     f.catalystTypes.length > 0 ||
+    f.regions.length > 0 ||
+    f.countries.length > 0 ||
     // A range alone must surface the Clear control, or a user can narrow the table
     // and find no way to widen it again.
     Object.values(f.ranges ?? {}).some(isRangeActive)
@@ -185,6 +203,23 @@ export function applyTradesFilters(
     if (f.catalystTypes.length > 0) {
       const matches = f.catalystTypes.some((c) =>
         c === null ? t.catalyst_type === null : t.catalyst_type === c,
+      )
+      if (!matches) return false
+    }
+    // Region filter — OR within the set, AND against everything else. `null`
+    // matches the 'Unknown' sentinel the list read writes for an unresolved
+    // row (region is never null ON THE ROW; list.ts coalesces it).
+    if (f.regions.length > 0) {
+      const matches = f.regions.some((r) =>
+        r === null ? t.region === 'Unknown' || !t.region : t.region === r,
+      )
+      if (!matches) return false
+    }
+    // Country filter — OR within the set, matched by ISO alpha-2. `null` is
+    // the truly-unresolved bucket: country IS nullable on the row.
+    if (f.countries.length > 0) {
+      const matches = f.countries.some((c) =>
+        c === null ? t.country == null : t.country === c,
       )
       if (!matches) return false
     }

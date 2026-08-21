@@ -59,6 +59,8 @@ const FULL = (): TradesFilterState => ({
   playbookIds: [7, null],
   mistakeKeys: [{ axis: 'technical', name: 'Chased extension (too far from 9 EMA)' }],
   catalystTypes: ['News / PR', null],
+  regions: ['China', null],
+  countries: ['CN', null],
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
 })
 

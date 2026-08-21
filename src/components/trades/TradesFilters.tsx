@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookWithStats } from '@shared/playbook-types'
@@ -44,7 +44,7 @@ interface TradesFiltersProps {
 export default function TradesFilters({
   filters,
   onChange,
-  trades: _trades,
+  trades,
   numericColumns = [],
 }: TradesFiltersProps) {
   const setRange = (id: string, key: 'min' | 'max', raw: string) => {
@@ -104,6 +104,24 @@ export default function TradesFilters({
         <CatalystFilterDropdown
           selected={filters.catalystTypes}
           onChange={(next) => onChange({ ...filters, catalystTypes: next })}
+        />
+
+        <GeoFilterDropdown
+          label="Region"
+          trades={trades}
+          keyOf={(t) => (t.region === 'Unknown' || !t.region ? null : t.region)}
+          labelOf={(v) => v}
+          selected={filters.regions}
+          onChange={(next) => onChange({ ...filters, regions: next })}
+        />
+
+        <GeoFilterDropdown
+          label="Country"
+          trades={trades}
+          keyOf={(t) => t.country}
+          labelOf={(v, t) => t?.country_name ?? v}
+          selected={filters.countries}
+          onChange={(next) => onChange({ ...filters, countries: next })}
         />
 
         <div className="flex items-center gap-2">
@@ -326,6 +344,169 @@ function PlaybookFilterDropdown({
                 className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
               >
                 Clear playbooks
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// v0.2.7 — multi-select REGION / COUNTRY filter, one component for both. Clones
+// the Catalyst shell (trigger + count badge + click-outside/Escape + null-bucket
+// row + Clear), with ONE deliberate departure: options derive from the LOADED
+// BOOK, not a def table and not a hardcoded list — a book with no Brazil trades
+// shows no Brazil option, and the count beside each value is the book's own.
+// No IPC, no lazy load: the trades are already in the page's memory.
+// `null` is the unresolved bucket (region 'Unknown' / country IS NULL upstream);
+// keyOf maps a row to its option key, labelOf renders it (country shows the
+// cached country_name, never the bare ISO).
+function GeoFilterDropdown({
+  label,
+  trades,
+  keyOf,
+  labelOf,
+  selected,
+  onChange,
+}: {
+  label: string
+  trades: TradeListRow[]
+  keyOf: (t: TradeListRow) => string | null
+  labelOf: (value: string, sample: TradeListRow | undefined) => string
+  selected: (string | null)[]
+  onChange: (next: (string | null)[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Distinct values with counts, sorted most-traded first (the order the book
+  // itself suggests). The null bucket is tracked separately and only offered
+  // when the book actually has unresolved rows.
+  const options = useMemo(() => {
+    const counts = new Map<string, { n: number; sample: TradeListRow }>()
+    let unresolved = 0
+    for (const t of trades) {
+      const k = keyOf(t)
+      if (k === null) {
+        unresolved += 1
+        continue
+      }
+      const cur = counts.get(k)
+      if (cur) cur.n += 1
+      else counts.set(k, { n: 1, sample: t })
+    }
+    const rows = [...counts.entries()]
+      .map(([value, { n, sample }]) => ({ value, n, text: labelOf(value, sample) }))
+      .sort((a, b) => b.n - a.n || a.text.localeCompare(b.text))
+    return { rows, unresolved }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trades])
+
+  // Click-outside + Escape close it; toggling a row leaves it open (multi-select).
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const count = selected.length
+  const active = count > 0
+  const unknownSelected = selected.includes(null)
+
+  const toggle = (value: string | null) => {
+    onChange(
+      selected.includes(value) ? selected.filter((x) => x !== value) : [...selected, value],
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={`Filter by ${label.toLowerCase()}`}
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+          active
+            ? 'border-gold/40 text-fg-primary'
+            : 'border-border-subtle text-fg-tertiary hover:border-gold/40 hover:text-gold'
+        }`}
+      >
+        {label}
+        {active && (
+          <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gold px-1 text-[9px] text-accent-ink">
+            {count}
+          </span>
+        )}
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 max-h-[280px] w-[240px] overflow-auto rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
+          {/* Unresolved bucket — offered only when the book has such rows. */}
+          {options.unresolved > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => toggle(null)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-150 ${
+                  unknownSelected
+                    ? 'bg-white/[0.04] text-fg-primary'
+                    : 'text-fg-tertiary hover:bg-white/[0.04]'
+                }`}
+              >
+                <FilterCheckbox checked={unknownSelected} />
+                <span className="italic">Unknown</span>
+                <span className="ml-auto font-mono text-[10px] text-fg-muted">{options.unresolved}</span>
+              </button>
+              <div className="my-1 h-px bg-border-subtle" />
+            </>
+          )}
+
+          {options.rows.map((o) => {
+            const checked = selected.includes(o.value)
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => toggle(o.value)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-150 ${
+                  checked ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
+                }`}
+              >
+                <FilterCheckbox checked={checked} />
+                <span className="truncate">{o.text}</span>
+                <span className="ml-auto font-mono text-[10px] text-fg-muted">{o.n}</span>
+              </button>
+            )
+          })}
+          {options.rows.length === 0 && options.unresolved === 0 && (
+            <div className="px-2 py-2 text-[10px] text-fg-muted">No trades loaded</div>
+          )}
+
+          {active && (
+            <>
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+              >
+                Clear {label.toLowerCase()}
               </button>
             </>
           )}

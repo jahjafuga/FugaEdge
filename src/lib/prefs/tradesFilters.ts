@@ -117,6 +117,11 @@ function coerce(raw: unknown): TradesFilterState {
     playbookIds: nums(raw.playbookIds),
     mistakeKeys: keys(raw.mistakeKeys),
     catalystTypes: strs(raw.catalystTypes),
+    // v0.2.7 region/country — ADDITIVE, same version stamp, same reasoning as
+    // datePreset: an older blob simply lacks the keys and lands on [] here,
+    // keeping its dates and symbol. A version bump would discard it whole.
+    regions: strs(raw.regions),
+    countries: strs(raw.countries),
     ranges: normaliseRanges(raw.ranges),
   }
 }
