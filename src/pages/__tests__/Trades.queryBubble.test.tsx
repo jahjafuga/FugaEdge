@@ -426,3 +426,97 @@ describe('S2 the mark renders from the constant', () => {
     expect(fab.querySelector('svg'), 'no mark rendered').toBeTruthy()
   })
 })
+
+// ─── G1-G4 — the loupe and the lens-becomes-panel morph ──────────────────────
+
+const lensGhost = () => document.querySelector('[data-edge-lens]') as HTMLElement | null
+
+/** jsdom has no AnimationEvent, so React binds the WEBKIT-prefixed fallback —
+ *  a plain fireEvent.animationEnd never reaches the handler (proved by a
+ *  five-line repro). Dispatch the name React actually listens for. */
+const endAnimation = (el: Element) =>
+  fireEvent(el, new Event('webkitAnimationEnd', { bubbles: true }))
+
+describe('G1 the morph ghost is decoration only, and it leaves', () => {
+  it('aria-hidden, pointer-events none, and GONE from the DOM after its animation', async () => {
+    await mount()
+    openByShortcut()
+    const ghost = lensGhost()
+    expect(ghost, 'no lens ghost mounted on open').toBeTruthy()
+    expect(ghost!.getAttribute('aria-hidden')).toBe('true')
+    expect(ghost!.className).toMatch(/pointer-events-none/)
+    endAnimation(ghost!)
+    expect(lensGhost(), 'the ghost outlived its animation').toBeNull()
+  })
+
+  it('the commit morph contracts back and leaves the same way', async () => {
+    await mount()
+    openByShortcut()
+    const g = lensGhost()
+    if (g) endAnimation(g)
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+    fireEvent.keyDown(bubbleInput()!, { key: 'Enter' })
+    const back = lensGhost()
+    expect(back, 'no contracting ghost on commit').toBeTruthy()
+    expect(back!.getAttribute('aria-hidden')).toBe('true')
+    endAnimation(back!)
+    expect(lensGhost()).toBeNull()
+  })
+})
+
+describe('G2 reduced motion mounts zero ghosts', () => {
+  it('open and commit both morph-free under reduce', async () => {
+    const orig = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (q: string) => ({
+        matches: q.includes('prefers-reduced-motion'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+    try {
+      await mount()
+      openByShortcut()
+      expect(lensGhost(), 'a lens ghost mounted under reduced motion').toBeNull()
+      fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+      await waitFor(() => expect(rowCount()).toBe(1))
+      fireEvent.keyDown(bubbleInput()!, { key: 'Enter' })
+      expect(lensGhost(), 'a commit ghost mounted under reduced motion').toBeNull()
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: orig })
+    }
+  })
+})
+
+describe('G3 focus lands the same tick, ghost present', () => {
+  it('the morph never gates the input', async () => {
+    await mount()
+    vi.useFakeTimers()
+    try {
+      openByShortcut()
+      expect(lensGhost(), 'this proof needs the ghost on screen').toBeTruthy()
+      expect(document.activeElement, 'focus waited on the morph').toBe(bubbleInput())
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('G4 the shipped mark is the loupe; the override rules only when set', () => {
+  it('constant says loupe; the disc agrees; the harness override still wins when present', async () => {
+    const { EDGE_MARK } = await import('@/components/trades/QueryBubble')
+    expect(EDGE_MARK, "the founder ruled the loupe").toBe('loupe')
+    await mount()
+    expect(screen.getByTitle(/Edge/).getAttribute('data-edge-mark')).toBe('loupe')
+    ;(window as { __edgeMarkOverride?: string }).__edgeMarkOverride = 'monogram'
+    try {
+      openByShortcut()
+      fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
+      expect(screen.getByTitle(/Edge/).getAttribute('data-edge-mark')).toBe('monogram')
+    } finally {
+      delete (window as { __edgeMarkOverride?: string }).__edgeMarkOverride
+    }
+  })
+})

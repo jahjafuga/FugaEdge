@@ -55,10 +55,10 @@ describe('the no-op contract', () => {
 })
 
 describe('the sequence is data', () => {
-  it('seven numbered frames, each with a caption', () => {
-    expect(CAPTURE_SEQUENCE).toHaveLength(7)
+  it('five numbered frames, each with a caption', () => {
+    expect(CAPTURE_SEQUENCE).toHaveLength(5)
     const frames = CAPTURE_SEQUENCE.map((s) => s.frame)
-    expect(frames).toEqual(['01', '02', '03', '04', '05', '06', '07'])
+    expect(frames).toEqual(['01', '02', '03', '04', '05'])
     for (const s of CAPTURE_SEQUENCE) {
       expect(s.caption.length, `frame ${s.frame} has no caption`).toBeGreaterThan(0)
     }

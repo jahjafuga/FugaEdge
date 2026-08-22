@@ -48,8 +48,10 @@ export const EDGE_FAB_CLEARANCE_PX = 88
  *  candidates; the founder rules from the frames and the swap is this line.
  *  (The capture harness may override per shot via window.__edgeMarkOverride —
  *  dev-only, so all three can be photographed without three commits.) */
-export type EdgeMarkKind = 'swoosh' | 'monogram' | 'loop'
-export const EDGE_MARK: EdgeMarkKind = 'swoosh'
+export type EdgeMarkKind = 'swoosh' | 'monogram' | 'loop' | 'loupe'
+// FOUNDER-RULED from the frames: the mark is the LOUPE - the thing that
+// finds. The other candidates stay shipped behind the constant.
+export const EDGE_MARK: EdgeMarkKind = 'loupe'
 
 /** The three candidates, all tiny, all gold, all stroke-honest at disc scale.
  *  SWOOSH: an inline bezier echoing the aurora's curve — no logo-mark asset
@@ -78,6 +80,24 @@ export function Mark({ kind, size = 18 }: { kind: EdgeMarkKind; size?: number })
           cx="10" cy="10" r="7"
           fill="none" stroke="rgb(var(--gold))" strokeWidth="2.2"
           strokeLinecap="round" strokeDasharray="33 11" strokeDashoffset="8"
+        />
+      </svg>
+    )
+  }
+  if (kind === 'loupe') {
+    // THE LOUPE - ring + handle toward the disc's lower-right, house stroke
+    // weight. NO glass-glint arc: at sixteen pixels inside a forty-eight
+    // pixel disc a one-pixel glint reads as noise, not glass - legibility
+    // won (judged at disc scale, stated in the beat).
+    return (
+      <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+        <circle
+          cx="8.5" cy="8.5" r="5.5"
+          fill="none" stroke="rgb(var(--gold))" strokeWidth="2.2"
+        />
+        <path
+          d="M12.6 12.6 L17 17"
+          fill="none" stroke="rgb(var(--gold))" strokeWidth="2.4" strokeLinecap="round"
         />
       </svg>
     )
@@ -176,6 +196,11 @@ export default function QueryBubble({
    *  the REAL close is instant (the K battery asserts the input is gone the
    *  same tick). null = no ghost; 'commit' | 'discard' pick the speed. */
   const [ghost, setGhost] = useState<null | 'commit' | 'discard'>(null)
+  /** L2 - the lens-becomes-panel morph on open: the same input-less,
+   *  self-removing ghost idiom as the close, drawn as a ring expanding from
+   *  the loupe's lens to the panel's hairline. Decoration only; the real
+   *  panel opens the same tick. */
+  const [lensGhost, setLensGhost] = useState(false)
   const [pulse, setPulse] = useState(0)
   // The state captured at open — the restore target. Held in a ref so the
   // committed prop updating mid-session cannot quietly move the snapshot.
@@ -202,7 +227,8 @@ export default function QueryBubble({
     snapshot.current = committed
     setText('')
     setOpen(true)
-  }, [committed])
+    if (!reduced) setLensGhost(true)
+  }, [committed, reduced])
 
   const close = useCallback(
     (commit: boolean) => {
@@ -292,12 +318,13 @@ export default function QueryBubble({
     <div
       ref={rootRef}
       className="fixed bottom-6 right-6 z-40"
+      style={{ ['--edge-panel-w' as string]: '440px' }}
       onKeyDown={open ? onKeyDown : undefined}
     >
       {open && (
         <div
           {...(reduced ? {} : { 'data-edge-anim': true })}
-          className={`card-premium card-accent absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right overflow-hidden p-3 ${animCls('edge-panel-in')}`}
+          className={`card-premium card-accent absolute bottom-full right-0 mb-2 w-[var(--edge-panel-w)] origin-bottom-right overflow-hidden p-3 ${animCls('edge-panel-in')}`}
           style={{ boxShadow: '0 0 0 1px rgb(var(--gold) / 0.15), 0 0 24px rgb(var(--gold) / 0.10), 0 12px 32px rgb(0 0 0 / 0.45)' }}
         >
           {/* the wordmark — small, top-left, monogram beside it */}
@@ -405,14 +432,35 @@ export default function QueryBubble({
         </div>
       )}
 
-      {/* the closing ghost — an input-less shell drawing the collapse; the
-          real close was instant. aria-hidden, no pointer, self-removing. */}
+      {/* L2 - the open morph: lens expands to the panel's hairline. Same
+          ghost idiom as the close - aria-hidden, no pointer, self-removing.
+          End geometry derives from the shared panel vars (--edge-panel-w +
+          --card-radius), never a hand-typed copy. */}
+      {lensGhost && (
+        <div
+          aria-hidden="true"
+          data-edge-lens
+          data-edge-anim
+          onAnimationEnd={() => setLensGhost(false)}
+          className="edge-lens-open pointer-events-none absolute"
+        />
+      )}
+
+      {/* the closing ghost — the same input-less, self-removing idiom. On
+          COMMIT it is the reverse morph: hairline contracts back into the
+          lens (L3), beside the existing pulse. Escape keeps the plain fast
+          fade - a discard does not celebrate. */}
       {ghost && (
         <div
           aria-hidden="true"
           data-edge-anim
+          {...(ghost === 'commit' ? { 'data-edge-lens': true } : {})}
           onAnimationEnd={() => setGhost(null)}
-          className={`card-premium pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right ${ghost === 'commit' ? 'edge-panel-out' : 'edge-panel-out-fast'}`}
+          className={
+            ghost === 'commit'
+              ? 'edge-lens-close pointer-events-none absolute'
+              : 'card-premium pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[var(--edge-panel-w)] origin-bottom-right edge-panel-out-fast'
+          }
         />
       )}
 
@@ -422,13 +470,15 @@ export default function QueryBubble({
         title={`${EDGE_NAME} - ask your book (Ctrl+K)`}
         key={pulse}
         data-edge-mark={markKind}
-        className={`relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-0/90 text-gold backdrop-blur-sm transition-transform duration-150 ease-out-soft hover:scale-105 ${
+        className={`group relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-0/90 text-gold backdrop-blur-sm transition-transform duration-150 ease-out-soft hover:scale-105 ${
           open ? animCls('edge-fab-open') : animCls('edge-fab')
         } ${pulse > 0 && !open && !reduced ? 'edge-fab-pulse' : ''}`}
         {...(reduced ? {} : { 'data-edge-anim': true })}
       >
         <span className="flex flex-col items-center leading-none">
-          <Mark kind={markKind} size={16} />
+          <span className={animCls('transition-transform duration-150 ease-out-soft group-hover:-rotate-6')}>
+            <Mark kind={markKind} size={16} />
+          </span>
           <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide">{EDGE_NAME}</span>
         </span>
         {/* Edge remembering — a filter is active on the committed state */}

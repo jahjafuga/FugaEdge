@@ -869,4 +869,38 @@
   }
   .edge-digit { display: inline-block; animation: edge-tick 150ms var(--ease-out-soft) both; }
   .edge-pill { animation: edge-pill-in 120ms ease-out both; }
+
+  /* L2/L3 - the lens-becomes-panel morph. Start = the loupe's lens inside
+     the disc (bottom-right of the root); end = the panel's hairline bounds,
+     DERIVED from the same vars the panel consumes (--edge-panel-w, set on
+     the root; --card-radius from the house card language). 180ms on the
+     house curve; decoration only - the ghost fades as it arrives. */
+  @keyframes edge-lens-open {
+    0% {
+      right: 14px; bottom: 22px; width: 20px; height: 20px;
+      border-radius: 9999px; opacity: 1;
+    }
+    100% {
+      right: 0; bottom: 56px; width: var(--edge-panel-w); height: 96px;
+      border-radius: var(--card-radius); opacity: 0;
+    }
+  }
+  @keyframes edge-lens-close {
+    0% {
+      right: 0; bottom: 56px; width: var(--edge-panel-w); height: 96px;
+      border-radius: var(--card-radius); opacity: 0.9;
+    }
+    100% {
+      right: 14px; bottom: 22px; width: 20px; height: 20px;
+      border-radius: 9999px; opacity: 0;
+    }
+  }
+  .edge-lens-open {
+    border: 1px solid rgb(var(--gold) / 0.5);
+    animation: edge-lens-open 180ms var(--ease-out-soft) both;
+  }
+  .edge-lens-close {
+    border: 1px solid rgb(var(--gold) / 0.5);
+    animation: edge-lens-close 180ms var(--ease-out-soft) both;
+  }
 }

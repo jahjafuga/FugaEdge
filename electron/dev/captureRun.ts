@@ -50,13 +50,11 @@ export interface CaptureStep {
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
-  { frame: '01', caption: 'full page at rest - Edge disc bottom-right, last table row clear of it (clearance padding live)', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
-  { frame: '02', caption: 'the disc zoomed - SWOOSH mark (the default; breathe 3200ms, one instant)', act: [], zoomSel: 'button[title*="Edge"]' },
-  { frame: '03', caption: 'the disc zoomed - MONOGRAM candidate (harness override, one line to ship)', act: [{ op: 'setMark', mark: 'monogram' }], zoomSel: 'button[title*="Edge"]' },
-  { frame: '04', caption: 'the disc zoomed - LOOP candidate (open ring, the aperture)', act: [{ op: 'setMark', mark: 'loop' }], zoomSel: 'button[title*="Edge"]' },
-  { frame: '05', caption: 'panel open - card-premium surface, gold hairline, the greeting (open 150ms out-soft; stagger 0/80ms)', act: [{ op: 'setMark', mark: 'swoosh' }, { op: 'openEdge' }] },
-  { frame: '06', caption: 'china losers resolved - chips + live count on the new surface (chip land 150ms + 180ms shine)', act: [{ op: 'type', text: 'china losers' }] },
-  { frame: '07', caption: 'committed - the exchange logged on the premium surface (pulse 280ms, done)', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
+  { frame: '01', caption: 'full page at rest - the loupe disc, last row clear (clearance live)', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
+  { frame: '02', caption: 'the disc zoomed - the LOUPE up close (founder-ruled; breathe 3200ms, one instant)', act: [], zoomSel: 'button[title*="Edge"]' },
+  { frame: '03', caption: 'panel open - the lens-becomes-panel morph ENDED (180ms out-soft; a still cannot show the morph, this is its end state)', act: [{ op: 'openEdge' }] },
+  { frame: '04', caption: 'china losers resolved on the felt surface (chips land 150ms + 180ms shine)', act: [{ op: 'type', text: 'china losers' }] },
+  { frame: '05', caption: 'committed - exchange logged; the disc carries the memory dot (contract morph + pulse 280ms, done)', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
