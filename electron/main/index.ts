@@ -5,6 +5,7 @@ import { IPC } from '@shared/ipc-channels'
 import { resolveDataDirs } from '@/core/runtime/dataDirs'
 import { nextZoomLevel } from '@/core/zoom/zoomLevel'
 import { openDatabase, closeDatabase, setDbPathOverride } from '../db/database'
+import { installCaptureRun } from '../dev/captureRun'
 import { bootOrFail } from './startup'
 import { registerIpcHandlers } from '../db/ipc'
 import { registerImportIpc } from '../import/ipc'
@@ -241,6 +242,9 @@ app.whenReady().then(() => {
   registerXpIpc()
   registerUpdaterIpc()
   const win = createWindow()
+  // Dev-only self-photography rig — a guaranteed no-op unless
+  // FUGAEDGE_CAPTURE_DIR is set (contract pinned in electron/dev/__tests__).
+  installCaptureRun(win, app)
   // v0.2.3 — after the schema-25 migration nulls trades.mae/mfe, recompute from
   // cached intraday_bars once the window is up. Deferred to ready-to-show +
   // setImmediate so it never blocks first paint; no-op (flag unset) on launches
