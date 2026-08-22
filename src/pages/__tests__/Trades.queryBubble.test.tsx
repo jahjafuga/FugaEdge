@@ -520,3 +520,115 @@ describe('G4 the shipped mark is the loupe; the override rules only when set', (
     }
   })
 })
+
+// ─── G1-G6 — Edge learns to be carried ───────────────────────────────────────
+
+import { EDGE_POSITION_KEY } from '@/lib/prefs/edgePosition'
+
+const fab = () => screen.getByTitle(/Edge/) as HTMLButtonElement
+const edgeRoot = () => document.querySelector('[data-edge-root]') as HTMLElement
+const pointer = (type: string, target: Element | Window, x: number, y: number) =>
+  fireEvent(target, new PointerEvent(type, { bubbles: true, clientX: x, clientY: y, pointerId: 1, button: 0 }))
+
+/** A real carry: down on the disc, move past the threshold, release. */
+const drag = (fromX: number, fromY: number, toX: number, toY: number) => {
+  pointer('pointerdown', fab(), fromX, fromY)
+  pointer('pointermove', window, (fromX + toX) / 2, (fromY + toY) / 2)
+  pointer('pointermove', window, toX, toY)
+  pointer('pointerup', window, toX, toY)
+}
+
+describe('G1 a sub-threshold press-release is a CLICK and opens', () => {
+  it('four pixels of wobble still opens the panel', async () => {
+    await mount()
+    pointer('pointerdown', fab(), 1000, 700)
+    pointer('pointermove', window, 1003, 702)
+    pointer('pointerup', window, 1003, 702)
+    expect(bubbleInput(), 'a click within the threshold did not open').toBeTruthy()
+  })
+})
+
+describe('G2 a real drag moves the disc and never opens', () => {
+  it('the disc lands where carried (snapped), the panel stays closed', async () => {
+    await mount()
+    drag(1000, 700, 500, 300)
+    expect(bubbleInput(), 'a drag opened the panel').toBeNull()
+    const st = edgeRoot().style
+    expect(st.left, 'the disc did not move').not.toBe('')
+    // released at x=500 (centre-ish of 1024): snaps to the nearer LEFT edge
+    expect(parseInt(st.left, 10)).toBe(24)
+    expect(parseInt(st.top, 10)).toBeGreaterThanOrEqual(24)
+  })
+})
+
+describe('G3 the position persists across unmount and remount', () => {
+  it('write, unmount, remount - the disc is where it was left', async () => {
+    await mount()
+    drag(1000, 700, 900, 200)
+    const left = edgeRoot().style.left
+    const top = edgeRoot().style.top
+    expect(localStorage.getItem(EDGE_POSITION_KEY), 'nothing persisted').toBeTruthy()
+    cleanup()
+    await mount()
+    expect(edgeRoot().style.left, 'the position did not survive remount').toBe(left)
+    expect(edgeRoot().style.top).toBe(top)
+  })
+})
+
+describe('G4 bad stored positions never strand or crash', () => {
+  it('an off-viewport position clamps back inside on restore', async () => {
+    localStorage.setItem(EDGE_POSITION_KEY, JSON.stringify({ x: 5000, y: 9000 }))
+    await mount()
+    const st = edgeRoot().style
+    expect(parseInt(st.left, 10), 'stranded off the right edge').toBeLessThanOrEqual(1024 - 24 - 48)
+    expect(parseInt(st.top, 10), 'stranded off the bottom').toBeLessThanOrEqual(768 - 24 - 48)
+  })
+
+  it('a corrupt blob restores the default corner without a crash', async () => {
+    localStorage.setItem(EDGE_POSITION_KEY, '{oh no')
+    await mount()
+    expect(edgeRoot().className, 'the default corner classes are gone').toMatch(/bottom-6/)
+    expect(edgeRoot().style.left).toBe('')
+  })
+})
+
+describe('G5 the panel and the morph follow the disc', () => {
+  it('from top-left the panel flips down-left, the ghost starts at the lens (inside the root)', async () => {
+    localStorage.setItem(EDGE_POSITION_KEY, JSON.stringify({ x: 24, y: 24 }))
+    await mount()
+    expect(edgeRoot().style.left).toBe('24px')
+    pointer('pointerdown', fab(), 50, 50)
+    pointer('pointerup', window, 50, 50)
+    const input = bubbleInput()
+    expect(input, 'the click from top-left did not open').toBeTruthy()
+    const panel = input!.closest('[data-edge-place]') as HTMLElement
+    expect(panel.getAttribute('data-edge-place'), 'the panel did not flip').toBe('down-left')
+    expect(panel.className).toMatch(/origin-top-left/)
+    const ghost = lensGhost()
+    expect(ghost, 'no morph from the new home').toBeTruthy()
+    expect(edgeRoot().contains(ghost!), "the ghost does not start at the disc's own rect").toBe(true)
+    expect(ghost!.getAttribute('data-edge-place')).toBe('down-left')
+  })
+})
+
+describe('G6 reduced motion carries without ceremony', () => {
+  it('no snap animation class anywhere in the drag path', async () => {
+    const orig = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (q: string) => ({
+        matches: q.includes('prefers-reduced-motion'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+    try {
+      await mount()
+      drag(1000, 700, 400, 300)
+      expect(edgeRoot().className, 'a snap animation rode a reduced-motion drag').not.toMatch(/edge-snap/)
+      expect(edgeRoot().style.left).not.toBe('')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: orig })
+    }
+  })
+})

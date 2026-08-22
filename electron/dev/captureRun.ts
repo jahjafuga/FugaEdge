@@ -39,6 +39,10 @@ type Act =
   | { op: 'type'; text: string }
   | { op: 'waitTrades' }
   | { op: 'setMark'; mark: 'swoosh' | 'monogram' | 'loop' }
+  | { op: 'mouseDownSel'; sel: string }
+  | { op: 'mouseMove'; x: number; y: number }
+  | { op: 'mouseUp'; x: number; y: number }
+  | { op: 'clickSelNamed'; sel: string }
 
 export interface CaptureStep {
   frame: string
@@ -50,11 +54,11 @@ export interface CaptureStep {
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
-  { frame: '01', caption: 'full page at rest - the loupe disc, last row clear (clearance live)', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
-  { frame: '02', caption: 'the disc zoomed - the LOUPE up close (founder-ruled; breathe 3200ms, one instant)', act: [], zoomSel: 'button[title*="Edge"]' },
-  { frame: '03', caption: 'panel open - the lens-becomes-panel morph ENDED (180ms out-soft; a still cannot show the morph, this is its end state)', act: [{ op: 'openEdge' }] },
-  { frame: '04', caption: 'china losers resolved on the felt surface (chips land 150ms + 180ms shine)', act: [{ op: 'type', text: 'china losers' }] },
-  { frame: '05', caption: 'committed - exchange logged; the disc carries the memory dot (contract morph + pulse 280ms, done)', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
+  { frame: '01', caption: 'at rest - the default corner, before any carry', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
+  { frame: '02', caption: 'mid-drag - the disc under the pointer, no snap while carried (drag = real mouse input; movement past the named threshold suppresses the open)', act: [{ op: 'mouseDownSel', sel: 'button[title*="Edge"]' }, { op: 'mouseMove', x: 1100, y: 500 }, { op: 'mouseMove', x: 600, y: 300 }] },
+  { frame: '03', caption: 'dropped near top-left - snapped to the left edge (200ms out-soft), position persisted', act: [{ op: 'mouseMove', x: 140, y: 140 }, { op: 'mouseUp', x: 140, y: 140 }] },
+  { frame: '04', caption: 'panel opened FROM the carried disc - flipped down-left, morph origin at the lens (180ms; end state)', act: [{ op: 'openEdge' }] },
+  { frame: '05', caption: 'position survives a remount - navigated away and back through the same prefs read path an app relaunch takes (a single capture run cannot relaunch the app; stated, not hidden)', act: [{ op: 'key', keyCode: 'Escape' }, { op: 'clickSelNamed', sel: 'a[href*="dashboard" i], a[href$="/"]' }, { op: 'clickNav' }, { op: 'waitTrades' }] },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
@@ -146,6 +150,26 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
         return key(act.keyCode, (act.modifiers ?? []) as Electron.InputEvent['modifiers'])
       case 'type':
         return typeText(act.text)
+      case 'mouseDownSel': {
+        const r = (await js(
+          '(()=>{const el=document.querySelector(' + JSON.stringify(act.sel) + ');if(!el)return null;' +
+          'const b=el.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2}})()',
+        )) as { x: number; y: number } | null
+        if (!r) throw new Error('selector not found: ' + act.sel)
+        wc.sendInputEvent({ type: 'mouseDown', x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 })
+        await sleep(60)
+        return
+      }
+      case 'mouseMove':
+        wc.sendInputEvent({ type: 'mouseMove', x: act.x, y: act.y })
+        await sleep(80)
+        return
+      case 'mouseUp':
+        wc.sendInputEvent({ type: 'mouseUp', x: act.x, y: act.y, button: 'left', clickCount: 1 })
+        await sleep(300)
+        return
+      case 'clickSelNamed':
+        return clickSel(act.sel)
       case 'setMark': {
         // dev-only override + a re-render nudge (open/close cycles state)
         await js('window.__edgeMarkOverride = ' + JSON.stringify(act.mark))

@@ -5,6 +5,12 @@ import {
   type ResolverVocabulary,
 } from '@/core/trades/queryResolver'
 import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
+import {
+  clampEdgePosition,
+  readEdgePosition,
+  writeEdgePosition,
+  type EdgePosition,
+} from '@/lib/prefs/edgePosition'
 
 // v0.2.7 — Edge. The query resolver's face, re-homed from a filter-bar button
 // to a PRESENCE: a floating trigger at the bottom-right of the Trades content
@@ -43,6 +49,41 @@ export const EDGE_NAME = 'Edge'
  *  + disc 48 + breathing room 16. TradesTable pads its scroll container by
  *  this so no last row ever hides beneath the disc. */
 export const EDGE_FAB_CLEARANCE_PX = 88
+
+/** D1 — the line between a CLICK and a CARRY. Movement under this many
+ *  pixels is a click and opens; over it is a drag and never opens. */
+export const EDGE_DRAG_THRESHOLD_PX = 5
+
+/** The disc's box and the house margin — the clamp's inputs. */
+const DISC_PX = 48
+const MARGIN_PX = 24
+/** Panel footprint estimates for the flip decision (D4). Width is the shared
+ *  --edge-panel-w value; height is a working estimate — the flip only needs
+ *  to know whether a panel roughly this tall fits above the disc. */
+const PANEL_W_PX = 440
+const PANEL_EST_H_PX = 320
+
+type EdgePlace = { v: 'up' | 'down'; h: 'right' | 'left' }
+
+/** D4 — where the panel lives relative to the disc, from the LIVE position.
+ *  null position = the default corner = the classic up-right. */
+function placeFor(pos: EdgePosition | null, vw: number, vh: number): EdgePlace {
+  if (!pos) return { v: 'up', h: 'right' }
+  const v: EdgePlace['v'] = pos.y >= PANEL_EST_H_PX + MARGIN_PX ? 'up' : 'down'
+  // 'right' = the panel's right edge aligns with the disc's (extends left);
+  // it needs that much room to the left of the disc's right edge.
+  const h: EdgePlace['h'] = pos.x + DISC_PX >= PANEL_W_PX + MARGIN_PX ? 'right' : 'left'
+  void vh
+  void vw
+  return { v, h }
+}
+
+const PLACE_PANEL: Record<string, string> = {
+  'up-right': 'bottom-full mb-2 right-0 origin-bottom-right',
+  'up-left': 'bottom-full mb-2 left-0 origin-bottom-left',
+  'down-right': 'top-full mt-2 right-0 origin-top-right',
+  'down-left': 'top-full mt-2 left-0 origin-top-left',
+}
 
 /** S2 — the mark the disc wears. ONE constant selects among three shipped
  *  candidates; the founder rules from the frames and the swap is this line.
@@ -201,6 +242,22 @@ export default function QueryBubble({
    *  the loupe's lens to the panel's hairline. Decoration only; the real
    *  panel opens the same tick. */
   const [lensGhost, setLensGhost] = useState(false)
+  /** D2/D3 — the carried position; null = the default corner. Restored
+   *  through the clamp so a stale blob can never strand the disc. */
+  const [pos, setPos] = useState<EdgePosition | null>(() => {
+    const stored = readEdgePosition()
+    return stored
+      ? clampEdgePosition(stored, window.innerWidth, window.innerHeight, DISC_PX, MARGIN_PX)
+      : null
+  })
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    origX: number
+    origY: number
+    moved: boolean
+  } | null>(null)
   const [pulse, setPulse] = useState(0)
   // The state captured at open — the restore target. Held in a ref so the
   // committed prop updating mid-session cannot quietly move the snapshot.
@@ -309,6 +366,73 @@ export default function QueryBubble({
     }
   }
 
+  /** D1/D2 — the carry. Pointer-only enhancement: down on the disc arms a
+   *  potential drag; movement past the threshold makes it one (and suppresses
+   *  the click); release snaps to the nearest vertical edge, clamped, and
+   *  persists. jsdom carries no setPointerCapture — optional-chained, with
+   *  window move/up listeners doing the real work (the dropdown idiom). */
+  const onFabPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    const origin = pos ?? {
+      x: window.innerWidth - MARGIN_PX - DISC_PX,
+      y: window.innerHeight - MARGIN_PX - DISC_PX,
+    }
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: origin.x, origY: origin.y, moved: false }
+    ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    setDragging(true)
+  }
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      const dx = e.clientX - d.startX
+      const dy = e.clientY - d.startY
+      if (!d.moved && Math.hypot(dx, dy) <= EDGE_DRAG_THRESHOLD_PX) return
+      d.moved = true
+      setPos(
+        clampEdgePosition(
+          { x: d.origX + dx, y: d.origY + dy },
+          window.innerWidth, window.innerHeight, DISC_PX, MARGIN_PX,
+        ),
+      )
+    }
+    const onUp = (e: PointerEvent) => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDragging(false)
+      if (!d) return
+      if (!d.moved) {
+        // a click within the threshold — the disc's ordinary open/commit
+        if (open) close(true)
+        else doOpen()
+        return
+      }
+      // D2 — snap to the nearest vertical edge, clamp, persist (D3)
+      const dx = e.clientX - d.startX
+      const dy = e.clientY - d.startY
+      const raw = { x: d.origX + dx, y: d.origY + dy }
+      const clamped = clampEdgePosition(raw, window.innerWidth, window.innerHeight, DISC_PX, MARGIN_PX)
+      const snapLeft = clamped.x + DISC_PX / 2 < window.innerWidth / 2
+      const snapped = {
+        x: snapLeft ? MARGIN_PX : window.innerWidth - MARGIN_PX - DISC_PX,
+        y: clamped.y,
+      }
+      setPos(snapped)
+      writeEdgePosition(snapped)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [dragging, open, close, doOpen])
+
+  const place = placeFor(pos, window.innerWidth, window.innerHeight)
+  const placeKey = `${place.v}-${place.h}`
+  const placeCls = PLACE_PANEL[placeKey]
+
   /** Animation hook attacher — the whole skin flows through this so the
    *  reduced path strips every hook in one place. */
   const anim = (cls: string) => (reduced ? {} : { 'data-edge-anim': true, className: cls })
@@ -317,14 +441,21 @@ export default function QueryBubble({
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-6 right-6 z-40"
-      style={{ ['--edge-panel-w' as string]: '440px' }}
+      data-edge-root
+      className={`fixed z-40 ${pos ? '' : 'bottom-6 right-6'} ${
+        !dragging && !reduced ? 'edge-snap' : ''
+      }`}
+      style={{
+        ['--edge-panel-w' as string]: `${PANEL_W_PX}px`,
+        ...(pos ? { left: pos.x, top: pos.y } : {}),
+      }}
       onKeyDown={open ? onKeyDown : undefined}
     >
       {open && (
         <div
           {...(reduced ? {} : { 'data-edge-anim': true })}
-          className={`card-premium card-accent absolute bottom-full right-0 mb-2 w-[var(--edge-panel-w)] origin-bottom-right overflow-hidden p-3 ${animCls('edge-panel-in')}`}
+          data-edge-place={placeKey}
+          className={`card-premium card-accent absolute w-[var(--edge-panel-w)] overflow-hidden p-3 ${placeCls} ${animCls('edge-panel-in')}`}
           style={{ boxShadow: '0 0 0 1px rgb(var(--gold) / 0.15), 0 0 24px rgb(var(--gold) / 0.10), 0 12px 32px rgb(0 0 0 / 0.45)' }}
         >
           {/* the wordmark — small, top-left, monogram beside it */}
@@ -442,7 +573,8 @@ export default function QueryBubble({
           data-edge-lens
           data-edge-anim
           onAnimationEnd={() => setLensGhost(false)}
-          className="edge-lens-open pointer-events-none absolute"
+          data-edge-place={placeKey}
+          className={`edge-lens-open pointer-events-none absolute h-24 w-[var(--edge-panel-w)] ${placeCls}`}
         />
       )}
 
@@ -458,15 +590,23 @@ export default function QueryBubble({
           onAnimationEnd={() => setGhost(null)}
           className={
             ghost === 'commit'
-              ? 'edge-lens-close pointer-events-none absolute'
-              : 'card-premium pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[var(--edge-panel-w)] origin-bottom-right edge-panel-out-fast'
+              ? `edge-lens-close pointer-events-none absolute h-24 w-[var(--edge-panel-w)] ${placeCls}`
+              : `card-premium pointer-events-none absolute h-24 w-[var(--edge-panel-w)] edge-panel-out-fast ${placeCls}`
           }
         />
       )}
 
       <button
         type="button"
-        onClick={() => (open ? close(true) : doOpen())}
+        onPointerDown={onFabPointerDown}
+        onClick={(e) => {
+          // D6 — pointer opens are decided at pointerup (click vs carry);
+          // this onClick serves the KEYBOARD path (Enter/Space on the
+          // tabbable disc), where no pointer sequence ran.
+          if (e.detail !== 0) return
+          if (open) close(true)
+          else doOpen()
+        }}
         title={`${EDGE_NAME} - ask your book (Ctrl+K)`}
         key={pulse}
         data-edge-mark={markKind}
