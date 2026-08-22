@@ -159,6 +159,15 @@ export interface TradeListRow {
    *  List reads exclude deleted rows; getTrade returns them so the modal /
    *  Trash UI can render the deleted state. */
   deleted_at: string | null
+  /** v0.2.7 — the computed five-pillar verdict, attached by withDnaScores
+   *  (src/core/dna/adherence.ts) on surfaces that score the book; NEVER read
+   *  from the DB and never persisted. OPTIONAL: fixtures and non-scoring reads
+   *  omit it. Inline mirror of core's DnaTradeScore — `shared` is the lowest
+   *  layer and must not import from `src` (the country_source precedent).
+   *  Keep in sync with that type. */
+  dna?:
+    | { kind: 'scored'; passed: number; of: number }
+    | { kind: 'incomplete'; missing: ('price' | 'change' | 'rvol' | 'float' | 'catalyst')[] }
   /** Multi-account — the ASSIGNED trading account (accounts.id ULID; NOT NULL
    *  in the DB since the Beat 2 rebuild). Drives the All-scope per-row
    *  account indicator and the detail header's owning-account label. */

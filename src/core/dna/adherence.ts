@@ -94,6 +94,30 @@ interface Pillar {
   passes: (t: TradeListRow) => boolean
 }
 
+/** The five pillar names, as the scorer reports them. */
+export type DnaPillarKey = 'price' | 'change' | 'rvol' | 'float' | 'catalyst'
+
+/** v0.2.7 — the PER-TRADE verdict, extracted so the trades filter can ask it.
+ *  Two kinds and only two: a trade with data for every required pillar is
+ *  SCORED passed-of-N; a trade missing any required pillar's data is
+ *  INCOMPLETE and names what is missing. There is no zero-for-missing — that
+ *  is the same no-fake law the aggregate has always applied, per trade.
+ *  Kept in sync with the inline mirror on TradeListRow.dna (shared/ is the
+ *  lowest layer and cannot import this). */
+export type DnaTradeScore =
+  | { kind: 'scored'; passed: number; of: number }
+  | { kind: 'incomplete'; missing: DnaPillarKey[] }
+
+/** The built pillar set for one (config, vocabulary) pair: the five predicates
+ *  plus WHICH of them are required — catalyst joins only when the profile
+ *  demands one AND the vocabulary loaded (the stand-down rule). Built once,
+ *  shared by the aggregate and the per-trade scorer so they can never drift. */
+interface PillarSet {
+  pillars: Record<DnaPillarKey, Pillar>
+  required: DnaPillarKey[]
+  catalystDefsUnavailable: boolean
+}
+
 function statFor(trades: TradeListRow[], pillar: Pillar): PillarStat {
   let n = 0
   let passed = 0
@@ -112,11 +136,7 @@ function catalystKey(raw: string): string {
   return raw.trim().toLowerCase()
 }
 
-export function computeDnaAdherence(
-  trades: TradeListRow[],
-  config: DnaConfig,
-  catalystDefs: CatalystDef[],
-): DnaAdherence {
+function buildPillarSet(config: DnaConfig, catalystDefs: CatalystDef[]): PillarSet {
   // The 4 numeric pillars. price never lacks data (entry price is always present);
   // the other three exclude NULLs from their denominator (the no-fake law).
   const price: Pillar = {
@@ -164,9 +184,58 @@ export function computeDnaAdherence(
   const catalystDefsUnavailable = config.dna_require_catalyst && catalystDefs.length === 0
   const enforceCatalyst = config.dna_require_catalyst && !catalystDefsUnavailable
 
-  const numeric = enforceCatalyst
-    ? [price, change, rvol, float, catalyst]
-    : [price, change, rvol, float]
+  return {
+    pillars: { price, change, rvol, float, catalyst },
+    required: enforceCatalyst
+      ? ['price', 'change', 'rvol', 'float', 'catalyst']
+      : ['price', 'change', 'rvol', 'float'],
+    catalystDefsUnavailable,
+  }
+}
+
+/** Score ONE trade against a built pillar set. */
+function scoreWith(ps: PillarSet, t: TradeListRow): DnaTradeScore {
+  const missing = ps.required.filter((k) => !ps.pillars[k].hasData(t))
+  if (missing.length > 0) return { kind: 'incomplete', missing }
+  let passed = 0
+  for (const k of ps.required) {
+    if (ps.pillars[k].passes(t)) passed += 1
+  }
+  return { kind: 'scored', passed, of: ps.required.length }
+}
+
+/** v0.2.7 — the per-trade verdict, standalone. Builds the pillar set per call;
+ *  for a whole book use withDnaScores, which builds it once. */
+export function scoreTradeDna(
+  t: TradeListRow,
+  config: DnaConfig,
+  catalystDefs: CatalystDef[],
+): DnaTradeScore {
+  return scoreWith(buildPillarSet(config, catalystDefs), t)
+}
+
+/** v0.2.7 — augment a book with per-trade verdicts, non-mutating. The score
+ *  rides the row (TradeListRow.dna, optional) so the trades filter — and any
+ *  future column or export — reads it without a second compute or a changed
+ *  applyTradesFilters signature. */
+export function withDnaScores<T extends TradeListRow>(
+  trades: readonly T[],
+  config: DnaConfig,
+  catalystDefs: CatalystDef[],
+): T[] {
+  const ps = buildPillarSet(config, catalystDefs)
+  return trades.map((t) => ({ ...t, dna: scoreWith(ps, t) }))
+}
+
+export function computeDnaAdherence(
+  trades: TradeListRow[],
+  config: DnaConfig,
+  catalystDefs: CatalystDef[],
+): DnaAdherence {
+  const ps = buildPillarSet(config, catalystDefs)
+  const { price, change, rvol, float, catalyst } = ps.pillars
+  const { catalystDefsUnavailable } = ps
+  const numeric = ps.required.map((k) => ps.pillars[k])
 
   const perPillar = {
     price: statFor(trades, price),

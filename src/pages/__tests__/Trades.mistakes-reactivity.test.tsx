@@ -22,6 +22,7 @@ vi.mock('@/lib/ipc', () => ({
     settingsGet: vi.fn(),
     settingsSave: vi.fn(),
     accountsList: vi.fn(),
+    catalystDefsGet: vi.fn(),
   },
 }))
 
@@ -96,6 +97,7 @@ beforeEach(() => {
   m.settingsGet.mockResolvedValue(makeSettingsPayload({ account_scope: 'all' }))
   m.settingsSave.mockResolvedValue(makeSettingsPayload())
   m.accountsList.mockResolvedValue(ACCOUNTS)
+  m.catalystDefsGet.mockResolvedValue([])
 })
 
 describe('Trades — mistakes-change wiring', () => {

@@ -122,6 +122,18 @@ function coerce(raw: unknown): TradesFilterState {
     // keeping its dates and symbol. A version bump would discard it whole.
     regions: strs(raw.regions),
     countries: strs(raw.countries),
+    // v0.2.7 five-pillar ask — additive at the same stamp, like the fields
+    // above. Only the ASK is stored (minScore 0..5 integer, bucket) — never a
+    // threshold; those live in settings and the ask re-resolves against them.
+    dna: (() => {
+      const d = isObj(raw.dna) ? raw.dna : {}
+      const m = d.minScore
+      return {
+        minScore:
+          typeof m === 'number' && Number.isInteger(m) && m >= 0 && m <= 5 ? m : null,
+        bucket: oneOf(d.bucket, ['any', 'complete', 'incomplete'] as const, 'any'),
+      }
+    })(),
     ranges: normaliseRanges(raw.ranges),
   }
 }

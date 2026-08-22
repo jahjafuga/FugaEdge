@@ -12,6 +12,7 @@ import { withManualDate } from '@/core/trades/datePreset'
 import {
   emptyFilters,
   isFiltering,
+  type DnaFilterAsk,
   type SideFilter,
   type DurationFilter,
   type TradesFilterState,
@@ -122,6 +123,11 @@ export default function TradesFilters({
           labelOf={(v, t) => t?.country_name ?? v}
           selected={filters.countries}
           onChange={(next) => onChange({ ...filters, countries: next })}
+        />
+
+        <DnaFilterDropdown
+          ask={filters.dna}
+          onChange={(next) => onChange({ ...filters, dna: next })}
         />
 
         <div className="flex items-center gap-2">
@@ -507,6 +513,150 @@ function GeoFilterDropdown({
                 className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
               >
                 Clear {label.toLowerCase()}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// v0.2.7 — the five-pillar ASK. Same shell as the geo/catalyst dropdowns; the
+// content is two small sections rather than a list: a completeness bucket
+// (with INCOMPLETE offered by name — on a lightly-journaled book it is most of
+// the answer, and hiding it makes the filter look broken) and a "score at
+// least" bar of five chips. The two asks interact: an incomplete trade can
+// never meet a score bar, so picking a score while "Incomplete" is on returns
+// the bucket to Any, and picking "Incomplete" clears the score — the state
+// stays satisfiable instead of quietly matching nothing. Thresholds are NOT
+// here; they live in Settings and the verdicts arrive on the rows.
+function DnaFilterDropdown({
+  ask,
+  onChange,
+}: {
+  ask: DnaFilterAsk
+  onChange: (next: DnaFilterAsk) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const active = ask.minScore !== null || ask.bucket !== 'any'
+  const count = (ask.minScore !== null ? 1 : 0) + (ask.bucket !== 'any' ? 1 : 0)
+
+  const setBucket = (b: DnaFilterAsk['bucket']) => {
+    const next = ask.bucket === b ? 'any' : b
+    onChange({
+      // An incomplete trade cannot meet a score bar — keep the ask satisfiable.
+      minScore: next === 'incomplete' ? null : ask.minScore,
+      bucket: next,
+    })
+  }
+  const setMin = (n: number) => {
+    const next = ask.minScore === n ? null : n
+    onChange({
+      minScore: next,
+      bucket: next !== null && ask.bucket === 'incomplete' ? 'any' : ask.bucket,
+    })
+  }
+
+  const bucketRow = (b: 'complete' | 'incomplete', label: string) => {
+    const checked = ask.bucket === b
+    return (
+      <button
+        type="button"
+        onClick={() => setBucket(b)}
+        className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-150 ${
+          checked ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
+        }`}
+      >
+        <FilterCheckbox checked={checked} />
+        <span>{label}</span>
+      </button>
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Filter by DNA score"
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+          active
+            ? 'border-gold/40 text-fg-primary'
+            : 'border-border-subtle text-fg-tertiary hover:border-gold/40 hover:text-gold'
+        }`}
+      >
+        DNA
+        {active && (
+          <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gold px-1 text-[9px] text-accent-ink">
+            {count}
+          </span>
+        )}
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 w-[240px] rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
+          {bucketRow('complete', 'Complete (all pillars judged)')}
+          {bucketRow('incomplete', 'Incomplete (missing inputs)')}
+
+          <div className="my-1 h-px bg-border-subtle" />
+          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Score at least
+          </div>
+          <div className="flex items-center gap-1 px-2 pb-1">
+            {[1, 2, 3, 4, 5].map((n) => {
+              const on = ask.minScore === n
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMin(n)}
+                  aria-pressed={on}
+                  aria-label={`Score at least ${n}`}
+                  className={`inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border font-mono text-[11px] transition-colors duration-150 ${
+                    on
+                      ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                      : 'border-border-subtle bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                  }`}
+                >
+                  {n}
+                </button>
+              )
+            })}
+          </div>
+
+          {active && (
+            <>
+              <div className="my-1 h-px bg-border-subtle" />
+              <button
+                type="button"
+                onClick={() => onChange({ minScore: null, bucket: 'any' })}
+                className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
+              >
+                Clear DNA
               </button>
             </>
           )}

@@ -45,6 +45,9 @@ import {
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
 import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
+import { withDnaScores } from '@/core/dna/adherence'
+import { useDnaConfig } from '@/lib/useDnaConfig'
+import { useCatalystDefs } from '@/lib/useCatalystDefs'
 
 // v0.2.7: the four column-visibility keys and their state/effect pairs are GONE.
 // Visibility is TanStack state inside TradesTable, persisted by
@@ -305,9 +308,21 @@ export default function Trades() {
     () => ({ ...filters, symbol: deferredSymbol }),
     [filters, deferredSymbol],
   )
+  // v0.2.7 — the five-pillar verdicts ride the rows before the filter runs.
+  // THE RE-SCORE DEPENDENCY: [trades, dnaConfig, catalystDefs] — a changed
+  // scan profile re-fetches on mount and this memo re-derives; the stored ask
+  // then matches the NEW profile, which is the point of storing the ask.
+  // Until the config resolves the rows go through unscored, which the filter
+  // honestly reads as incomplete.
+  const { config: dnaConfig } = useDnaConfig()
+  const { defs: catalystDefs } = useCatalystDefs()
+  const scored = useMemo(
+    () => (trades && dnaConfig ? withDnaScores(trades, dnaConfig, catalystDefs) : trades),
+    [trades, dnaConfig, catalystDefs],
+  )
   const filtered = useMemo(
-    () => (trades ? applyTradesFilters(trades, effectiveFilters) : []),
-    [trades, effectiveFilters],
+    () => (scored ? applyTradesFilters(scored, effectiveFilters) : []),
+    [scored, effectiveFilters],
   )
 
   // PERSIST THE DEFERRED STATE, not the live one. columns.ts writes straight

@@ -18,6 +18,12 @@ export type SideFilter = 'all' | 'long' | 'short'
 export type DurationFilter = 'all' | 'under1m' | '1to5m' | '5to30m' | 'over30m'
 export type OutcomeFilter = 'all' | 'winners' | 'losers'
 
+/** v0.2.7 — the five-pillar ask: a score bar and a completeness bucket. */
+export interface DnaFilterAsk {
+  minScore: number | null
+  bucket: 'any' | 'complete' | 'incomplete'
+}
+
 export interface TradesFilterState {
   symbol: string
   side: SideFilter
@@ -66,6 +72,15 @@ export interface TradesFilterState {
    *  trade, user cleared it), exactly playbookIds' idiom. Empty array = no
    *  country filtering. */
   countries: (string | null)[]
+  /** v0.2.7 — the five-pillar ASK, never the thresholds. minScore matches
+   *  scored trades with passed >= minScore; an INCOMPLETE trade (missing any
+   *  required input) never matches a score ask and never fails one — it is its
+   *  own bucket, reachable by name, because on a lightly-journaled book it is
+   *  most of the answer. Thresholds live in settings; the verdict is attached
+   *  to the rows upstream (TradeListRow.dna via withDnaScores), so the same
+   *  stored ask re-resolves when the scan profile changes. A row nobody scored
+   *  counts as incomplete — the honest default. Empty ask = {null,'any'}. */
+  dna: DnaFilterAsk
   /** v0.2.7 — min/max per NUMERIC column, keyed by the table's column id. Empty or
    *  all-unset means no range filtering. The comparison itself lives in ONE place
    *  (core/trades/numericRange.ts) so fifteen columns cannot drift into fifteen
@@ -119,6 +134,7 @@ export function emptyFilters(): TradesFilterState {
     catalystTypes: [],
     regions: [],
     countries: [],
+    dna: { minScore: null, bucket: 'any' },
     ranges: {},
   }
 }
@@ -138,6 +154,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.catalystTypes.length > 0 ||
     f.regions.length > 0 ||
     f.countries.length > 0 ||
+    f.dna.minScore !== null ||
+    f.dna.bucket !== 'any' ||
     // A range alone must surface the Clear control, or a user can narrow the table
     // and find no way to widen it again.
     Object.values(f.ranges ?? {}).some(isRangeActive)
@@ -222,6 +240,16 @@ export function applyTradesFilters(
         c === null ? t.country == null : t.country === c,
       )
       if (!matches) return false
+    }
+    // Five-pillar filter — reads the verdict withDnaScores attached upstream.
+    // A row without one is INCOMPLETE, not scored: treating it as anything
+    // else would invent a verdict nobody computed.
+    if (f.dna.minScore !== null || f.dna.bucket !== 'any') {
+      const s = t.dna
+      const scored = s && s.kind === 'scored' ? s : null
+      if (f.dna.bucket === 'complete' && !scored) return false
+      if (f.dna.bucket === 'incomplete' && scored) return false
+      if (f.dna.minScore !== null && (!scored || scored.passed < f.dna.minScore)) return false
     }
     return true
   })
