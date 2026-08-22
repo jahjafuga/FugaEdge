@@ -797,6 +797,15 @@ export default function TradesTable({
         cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n))}</Num>,
         sortUndefined: 'last',
       }),
+      // v0.2.7 — the twin's twin: EMA9 distance rode the row for the detail
+      // tile while the manifest called it filterable. Registered now, same
+      // 1m snapshot, same signed rendering.
+      col.accessor((r) => r.tf_1m_ema9_dist_pct ?? null, {
+        id: 'ema9_dist_pct', header: COLUMN_LABELS['ema9_dist_pct'], size: COLUMN_WIDTHS.ema9_dist_pct,
+        meta: { label: COLUMN_LABELS['ema9_dist_pct'] },
+        cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n))}</Num>,
+        sortUndefined: 'last',
+      }),
       col.accessor('daily_change_pct', {
         id: 'daily_change_pct', header: COLUMN_LABELS['daily_change_pct'], size: COLUMN_WIDTHS.daily_change_pct,
         meta: { label: COLUMN_LABELS['daily_change_pct'] },
