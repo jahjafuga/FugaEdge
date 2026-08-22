@@ -418,7 +418,7 @@ export default function Trades() {
   const openCount = filtered.filter((t) => t.is_open).length
   const subtitle = (
     <span>
-      {isFiltering(filters) ? (
+      {isFiltering(draftFilters ?? filters) ? (
         <>
           <span className="font-mono text-fg-primary tnum">{int(shown)}</span>{' '}
           <span className="text-fg-muted">of</span>{' '}
@@ -455,19 +455,7 @@ export default function Trades() {
             so the Table/Charts/Grid toggle persists outside the table card. */}
         <div className="card-premium space-y-4 p-4">
           <TradesFilters
-            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades}
-            askSlot={
-              <QueryBubble
-                committed={filters}
-                vocab={vocab}
-                liveCount={filtered.length}
-                onDraft={setDraftFilters}
-                onCommit={(next) => {
-                  setFilters(next)
-                  setDraftFilters(null)
-                }}
-              />
-            } />
+            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades} />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
@@ -532,6 +520,16 @@ export default function Trades() {
           </div>
         )}
       </div>
+      <QueryBubble
+        committed={filters}
+        vocab={vocab}
+        liveCount={filtered.length}
+        onDraft={setDraftFilters}
+        onCommit={(next) => {
+          setFilters(next)
+          setDraftFilters(null)
+        }}
+      />
     </PageShell>
   )
 }

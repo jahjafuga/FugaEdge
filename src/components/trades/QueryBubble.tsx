@@ -6,38 +6,43 @@ import {
 } from '@/core/trades/queryResolver'
 import type { TradesFilterState } from '@/core/trades/tradesFilter'
 
-// v0.2.7 — THE BUBBLE. The query resolver's face on the Trades page.
+// v0.2.7 — HiQ. The query resolver's face, re-homed from a filter-bar button
+// to a PRESENCE: a floating trigger at the bottom-right of the Trades content
+// whose panel expands upward from it. One presence, one shortcut — the bar's
+// ASK button is retired.
 //
-// THE RULINGS this surface exists to honour:
-//   B1  LIVE CANDIDATE. Every keystroke re-resolves the whole text against
-//       the snapshot into a CANDIDATE state, pushed up through onDraft — the
-//       page filters by the draft, so the table and the header count are the
-//       candidate, live. Resolution plus a full filter pass costs a fraction
-//       of a millisecond; there is nothing to debounce.
-//   B2  ESCAPE RESTORES the state captured at open (the draft is simply
-//       dropped — the committed state was never touched). Enter and
-//       click-away COMMIT. Either way the bubble closes.
-//   B3  AMBIGUITY IS OFFERED. The resolver names candidates and picks none;
-//       clicking one EDITS THE TEXT — the ambiguous token becomes the picked
-//       word, which then resolves exactly, becomes a chip, and stays
-//       re-editable like anything else typed.
-//   B4  UNRESOLVED IS SHOWN, verbatim, muted, no error tone. It is the seam
-//       where a model sits later, and it must read as "not understood YET",
-//       never as the user's mistake.
+// THE NAME lives in one constant. The trigger wears it, the greeting signs
+// it, the input is labelled by it (which is also the structural hook the
+// tests and the self-photography harness both query — visible, not merely
+// reachable, per the falsification lesson).
 //
-// ESCAPE DISCIPLINE — DetailModalShell's lesson, taken one step further. Its
-// comment records that two document listeners cannot stop each other with
-// stopPropagation, so guards must be explicit. This component therefore adds
-// NO document keydown listener at all: Escape and Enter are handled on the
-// bubble's own React subtree, and stopPropagation() there halts the native
-// event at the React root — BEFORE it ever reaches the document-level
-// listeners beneath (the table's bulk-clear, the dropdowns). K8 pins this
-// with a probe listener. The only document listener is the mousedown-outside
-// close, mounted while open — the dropdown idiom, commit-on-click-away.
+// THE RULINGS, carried over intact and extended:
+//   B1-B4  unchanged from the first home: live candidate, Escape restores /
+//          Enter and click-away commit, ambiguity offered never picked,
+//          unresolved shown verbatim and muted.
+//   H2     CONVERSATION SURFACE. A greeting teaches two grammar shapes on
+//          open. Every COMMITTED ask appends an exchange to a session-only
+//          log — the ask verbatim, then the response line (count + what
+//          applied). Previews never log; commits do.
+//   H3     NO FAKE LATENCY. Local resolution is synchronous and renders
+//          immediately — no timer sits anywhere in the local path. The
+//          `pending` state below is the FUTURE MODEL SEAM: it renders only
+//          when a resolution genuinely awaits something, which today is
+//          never. Pinned by a frozen-timer test.
+//   H6     Brand gold on the presence; green and red stay P&L-only.
 //
-// Chips remove by SOURCE: the resolver reports the text behind every applied
-// line, so removing a chip strips those words and re-resolves. The text field
-// stays the single source of truth for the whole draft.
+// Positioning: `fixed` — the layout has no transformed ancestor (measured:
+// main is `relative isolate overflow-hidden`; isolate makes a stacking
+// context but only transform/filter would re-root fixed), so the trigger
+// anchors to the viewport at right-6 bottom-6, clear of the page scroll
+// gutter, z-40 beneath every modal layer. No portal needed.
+
+export const HIQ_NAME = 'HiQ'
+
+interface Exchange {
+  ask: string
+  response: string
+}
 
 interface QueryBubbleProps {
   /** The committed filter state — the snapshot Escape restores to. */
@@ -59,7 +64,9 @@ export default function QueryBubble({
 }: QueryBubbleProps) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
-  // The state captured at open — B2's restore target. Held in a ref so the
+  /** Session-only conversation log. Commits append; previews never do. */
+  const [exchanges, setExchanges] = useState<Exchange[]>([])
+  // The state captured at open — the restore target. Held in a ref so the
   // committed prop updating mid-session cannot quietly move the snapshot.
   const snapshot = useRef<TradesFilterState>(committed)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -70,7 +77,12 @@ export default function QueryBubble({
     [text, vocab, open], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
-  // B1 — the candidate goes up whenever it changes; down to null on close.
+  // H3 — the future model seam. Local resolution is synchronous, so nothing
+  // is ever pending today; when a model joins, THIS is the only flag that
+  // may gate a working state. Never a timer.
+  const pending = false
+
+  // The candidate goes up whenever it changes; down to null on close.
   useEffect(() => {
     onDraft(open && text.trim() !== '' ? resolution.state : null)
   }, [open, text, resolution, onDraft])
@@ -83,17 +95,24 @@ export default function QueryBubble({
 
   const close = useCallback(
     (commit: boolean) => {
-      if (commit && text.trim() !== '') onCommit(resolution.state)
+      if (commit && text.trim() !== '') {
+        onCommit(resolution.state)
+        // H2 — the exchange logs ON COMMIT, verbatim ask + response line.
+        const what = resolution.applied.length > 0 ? ' - ' + resolution.applied.join(', ') : ''
+        setExchanges((xs) => [
+          ...xs,
+          { ask: text.trim(), response: `${liveCount} trade${liveCount === 1 ? '' : 's'}${what}` },
+        ])
+      }
       setText('')
       setOpen(false)
       onDraft(null)
     },
-    [text, resolution, onCommit, onDraft],
+    [text, resolution, onCommit, onDraft, liveCount],
   )
 
-  // The shortcut — both modifier styles, registered the way Ctrl+B is:
-  // window keydown, skipped while an input/textarea/contenteditable has
-  // focus so typing a literal Ctrl+K in a notes field does nothing.
+  // The shortcut — both modifier styles, the Ctrl+B idiom: window keydown,
+  // skipped while an input/textarea/contenteditable has focus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
@@ -108,7 +127,7 @@ export default function QueryBubble({
     return () => window.removeEventListener('keydown', onKey)
   }, [doOpen])
 
-  // Click-away COMMITS (B2) — the guarded dropdown idiom, mounted while open.
+  // Click-away COMMITS — the guarded dropdown idiom, mounted while open.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
@@ -118,29 +137,28 @@ export default function QueryBubble({
     return () => document.removeEventListener('mousedown', onDown)
   }, [open, close])
 
-  // Autofocus on open.
   useEffect(() => {
     if (open) inputRef.current?.focus()
   }, [open])
 
-  /** Remove one applied chip: strip its source words, re-resolve (B5). */
+  const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  /** Remove one applied chip: strip its source words, re-resolve. */
   const removeSource = (source: string) => {
-    const pattern = new RegExp(`(^|\\s)${source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'i')
+    const pattern = new RegExp(`(^|\\s)${escapeRe(source)}(?=\\s|$)`, 'i')
     setText((t) => t.replace(pattern, ' ').replace(/\s+/g, ' ').trim())
     inputRef.current?.focus()
   }
-
   /** Resolve an ambiguity by EDITING THE TEXT — the pick becomes the word. */
   const pick = (ambiguousText: string, candidate: string) => {
-    const pattern = new RegExp(`(^|\\s)${ambiguousText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'i')
+    const pattern = new RegExp(`(^|\\s)${escapeRe(ambiguousText)}(?=\\s|$)`, 'i')
     setText((t) => t.replace(pattern, `$1${candidate}`))
     inputRef.current?.focus()
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      // Halt the native event at the React root so the document listeners
-      // beneath (bulk-clear, dropdowns) never see it — the bubble only.
+      // Halt the native event at the React root so document listeners beneath
+      // (bulk-clear, dropdown closers) never see it.
       e.stopPropagation()
       e.preventDefault()
       close(false)
@@ -151,30 +169,49 @@ export default function QueryBubble({
   }
 
   return (
-    <div ref={rootRef} className="relative" onKeyDown={open ? onKeyDown : undefined}>
-      <button
-        type="button"
-        onClick={() => (open ? close(true) : doOpen())}
-        title="Ask your book (Ctrl+K)"
-        className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border-subtle bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
-      >
-        <Sparkles size={12} strokeWidth={2} />
-        Ask
-      </button>
-
+    <div
+      ref={rootRef}
+      className="fixed bottom-6 right-6 z-40"
+      onKeyDown={open ? onKeyDown : undefined}
+    >
       {open && (
-        <div className="absolute left-0 top-full z-30 mt-1 w-[420px] rounded-md border border-border-subtle bg-bg-3 p-3 shadow-lg">
+        <div className="absolute bottom-full right-0 mb-2 w-[440px] rounded-lg border border-gold/30 bg-bg-3 p-3 shadow-lg">
+          {/* the conversation so far — session-only, commits only */}
+          {exchanges.length > 0 && (
+            <div className="mb-2 max-h-[180px] space-y-2 overflow-auto border-b border-border-subtle pb-2">
+              {exchanges.map((x, i) => (
+                <div key={i} className="text-xs">
+                  <div data-hiq-ask className="text-fg-primary">{x.ask}</div>
+                  <div className="text-fg-tertiary">{x.response}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* the greeting — teaches two grammar shapes, signed by the name */}
+          {exchanges.length === 0 && text === '' && (
+            <div className="mb-2 text-xs text-fg-secondary">
+              Hi, I&apos;m <span className="font-semibold text-gold">{HIQ_NAME}</span>. Ask your
+              book: try &quot;china losers&quot; or &quot;float under 10m&quot;.
+            </div>
+          )}
+
           <input
             ref={inputRef}
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Ask your book — try: china losers, float under 10m"
-            aria-label="Ask your book"
+            placeholder={`Ask ${HIQ_NAME}...`}
+            aria-label="Ask HiQ"
             className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none transition-colors duration-150 focus:border-gold"
           />
 
-          {/* applied chips — each removable, removal re-resolves (B5) */}
+          {/* the future model seam — renders ONLY when something truly awaits */}
+          {pending && (
+            <div className="mt-2 text-xs text-fg-muted">working on it...</div>
+          )}
+
+          {/* applied chips — each removable, removal re-resolves */}
           {resolution.applied.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {resolution.applied.map((label, i) => (
@@ -196,7 +233,7 @@ export default function QueryBubble({
             </div>
           )}
 
-          {/* ambiguity — offered, never picked (B3) */}
+          {/* ambiguity — offered, never picked */}
           {resolution.ambiguous.map((a) => (
             <div key={a.text} className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
               <span className="text-fg-tertiary">&quot;{a.text}&quot; could mean</span>
@@ -213,7 +250,7 @@ export default function QueryBubble({
             </div>
           ))}
 
-          {/* the seam — verbatim, muted, no error tone (B4) */}
+          {/* the seam — verbatim, muted, no error tone */}
           {resolution.unresolved.length > 0 && (
             <div className="mt-2 text-xs text-fg-muted">
               didn&apos;t match anything in this book:{' '}
@@ -229,6 +266,16 @@ export default function QueryBubble({
           </div>
         </div>
       )}
+
+      <button
+        type="button"
+        onClick={() => (open ? close(true) : doOpen())}
+        title={`${HIQ_NAME} - ask your book (Ctrl+K)`}
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-gold/40 bg-bg-3 px-4 text-xs font-semibold uppercase tracking-wider text-gold shadow-lg transition-colors duration-150 hover:border-gold/70 hover:bg-gold/[0.08]"
+      >
+        <Sparkles size={14} strokeWidth={2} />
+        {HIQ_NAME}
+      </button>
     </div>
   )
 }

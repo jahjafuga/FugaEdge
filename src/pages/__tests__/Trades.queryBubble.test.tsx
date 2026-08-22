@@ -97,7 +97,7 @@ async function mount() {
 }
 
 const rowCount = () => Number(screen.getByTestId('row-count').textContent)
-const bubbleInput = () => screen.queryByPlaceholderText(/ask your book/i)
+const bubbleInput = () => screen.queryByLabelText('Ask HiQ')
 const openByShortcut = () => fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
 
 // ─── K1 ──────────────────────────────────────────────────────────────────────
@@ -112,11 +112,11 @@ describe('K1 the bubble opens by shortcut and by button, input autofocused', () 
     await waitFor(() => expect(document.activeElement).toBe(input))
   })
 
-  it('the button in the filter bar opens identically', async () => {
+  it('the floating HiQ trigger opens identically', async () => {
     await mount()
     // The trigger must EXIST and be VISIBLE — a hidden button still fires
-    // onClick in jsdom, which is how the first falsification plant survived.
-    const btn = screen.getByTitle(/ask your book/i) as HTMLButtonElement
+    // onClick in jsdom (the beat-46 falsification lesson).
+    const btn = screen.getByTitle(/HiQ/) as HTMLButtonElement
     expect(btn.hidden, 'the trigger is hidden from the user').toBe(false)
     fireEvent.click(btn)
     const input = bubbleInput()
@@ -247,5 +247,84 @@ describe('K8 with the bubble open, Escape closes the bubble ONLY', () => {
     } finally {
       document.removeEventListener('keydown', probe)
     }
+  })
+})
+
+// ─── N1-N4 — HiQ, the presence ───────────────────────────────────────────────
+
+describe('N1 one presence, one shortcut', () => {
+  it('the filter-bar ASK button is RETIRED; the floating trigger is the one opener', async () => {
+    await mount()
+    // by the OLD title exactly — the new trigger's title also says what it does
+    expect(screen.queryByTitle('Ask your book (Ctrl+K)'), 'the old bar button survived').toBeNull()
+    const triggers = screen.getAllByTitle(/HiQ/)
+    expect(triggers).toHaveLength(1)
+    fireEvent.click(triggers[0])
+    expect(bubbleInput()).toBeTruthy()
+  })
+})
+
+describe('N2 greeting on open; the log appends on COMMIT only', () => {
+  it('a preview followed by Escape leaves the log untouched; a commit logs the exchange', async () => {
+    await mount()
+    openByShortcut()
+    expect(screen.getByText(/china losers/), 'no greeting taught the grammar').toBeTruthy()
+
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+    fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
+
+    openByShortcut()
+    expect(screen.queryByText('chinese losers', { selector: '[data-hiq-ask]' }), 'a PREVIEW was logged').toBeNull()
+
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+    fireEvent.keyDown(bubbleInput()!, { key: 'Enter' })
+
+    openByShortcut()
+    const ask = screen.getByText('chinese losers', { selector: '[data-hiq-ask]' })
+    expect(ask, 'the committed ask was not logged verbatim').toBeTruthy()
+    expect(screen.getByText(/1 trade/), 'the response line lacks the count').toBeTruthy()
+  })
+})
+
+describe('N3 no fake latency', () => {
+  it('local resolution renders with timers FROZEN — nothing waits on a timer', async () => {
+    await mount()
+    openByShortcut()
+    vi.useFakeTimers()
+    try {
+      fireEvent.change(bubbleInput()!, { target: { value: 'chinese' } })
+      // No timer advance, no waitFor: the chip and the live count are
+      // already rendered, or something gated rendering on a timer.
+      expect(rowCount(), 'the candidate waited on a timer').toBe(2)
+      expect(screen.getByText(/region China/i)).toBeTruthy()
+      expect(screen.queryByText(/working/i), 'a fake working state rendered locally').toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('N4 preview consistency — the frame-caught header fix', () => {
+  it('during a preview EVERY header number derives from the candidate; Escape returns all to committed', async () => {
+    await mount()
+    const subtitle = () => screen.getByText(/round trip|of/).closest('div')!.textContent!.replace(/\s+/g, ' ')
+    expect(subtitle()).toMatch(/4 round trips/)
+
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+    // the exact frame-03 defect: the total branch read the COMMITTED state
+    // while won/lost read the candidate — "528 round trips · 31 won · 28 lost"
+    expect(subtitle(), 'the header mixed branches during a preview').toMatch(/1 of 4 trades/)
+    expect(subtitle()).toMatch(/0 won/)
+    expect(subtitle()).toMatch(/1 lost/)
+
+    fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
+    await waitFor(() => expect(rowCount()).toBe(4))
+    expect(subtitle()).toMatch(/4 round trips/)
+    expect(subtitle()).toMatch(/2 won/)
+    expect(subtitle()).toMatch(/2 lost/)
   })
 })
