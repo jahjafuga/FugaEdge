@@ -38,6 +38,7 @@ type Act =
   | { op: 'key'; keyCode: string; modifiers?: string[] }
   | { op: 'type'; text: string }
   | { op: 'waitTrades' }
+  | { op: 'setMark'; mark: 'swoosh' | 'monogram' | 'loop' }
 
 export interface CaptureStep {
   frame: string
@@ -49,16 +50,13 @@ export interface CaptureStep {
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
-  { frame: '01', caption: 'Trades at rest - Edge presence visible bottom-right', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
-  { frame: '02', caption: 'Edge open - greeting showing', act: [{ op: 'openEdge' }] },
-  { frame: '03', caption: 'typed "chi" - live mid-word resolution, header consistent with the candidate', act: [{ op: 'type', text: 'chi' }] },
-  { frame: '04', caption: '"china losers" - chips + live count', act: [{ op: 'type', text: 'na losers' }] },
-  { frame: '05', caption: 'Enter committed - exchange logged, table filtered', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
-  { frame: '06', caption: 'reopened - "float under 10m" composing over the committed state', act: [{ op: 'type', text: 'float under 10m' }] },
-  { frame: '07', caption: 'Escape - candidate discarded, committed state restored', act: [{ op: 'key', keyCode: 'Escape' }] },
-  { frame: '08', caption: 'ambiguous prefix "cl" - candidates offered, none picked', act: [{ op: 'openEdge' }, { op: 'type', text: 'cl' }] },
-  { frame: '09', caption: 'gibberish - the unresolved line, verbatim, muted', act: [{ op: 'key', keyCode: 'a', modifiers: ['control'] }, { op: 'key', keyCode: 'Backspace' }, { op: 'type', text: 'qwzzk blorp' }] },
-  { frame: '10', caption: 'the resting FAB, zoomed - breathing glow at one instant (3200ms cycle; a still cannot show motion)', act: [{ op: 'key', keyCode: 'Escape' }], zoomSel: 'button[title*="Edge"]' },
+  { frame: '01', caption: 'full page at rest - Edge disc bottom-right, last table row clear of it (clearance padding live)', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
+  { frame: '02', caption: 'the disc zoomed - SWOOSH mark (the default; breathe 3200ms, one instant)', act: [], zoomSel: 'button[title*="Edge"]' },
+  { frame: '03', caption: 'the disc zoomed - MONOGRAM candidate (harness override, one line to ship)', act: [{ op: 'setMark', mark: 'monogram' }], zoomSel: 'button[title*="Edge"]' },
+  { frame: '04', caption: 'the disc zoomed - LOOP candidate (open ring, the aperture)', act: [{ op: 'setMark', mark: 'loop' }], zoomSel: 'button[title*="Edge"]' },
+  { frame: '05', caption: 'panel open - card-premium surface, gold hairline, the greeting (open 150ms out-soft; stagger 0/80ms)', act: [{ op: 'setMark', mark: 'swoosh' }, { op: 'openEdge' }] },
+  { frame: '06', caption: 'china losers resolved - chips + live count on the new surface (chip land 150ms + 180ms shine)', act: [{ op: 'type', text: 'china losers' }] },
+  { frame: '07', caption: 'committed - the exchange logged on the premium surface (pulse 280ms, done)', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
@@ -150,6 +148,14 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
         return key(act.keyCode, (act.modifiers ?? []) as Electron.InputEvent['modifiers'])
       case 'type':
         return typeText(act.text)
+      case 'setMark': {
+        // dev-only override + a re-render nudge (open/close cycles state)
+        await js('window.__edgeMarkOverride = ' + JSON.stringify(act.mark))
+        await clickSel('button[title*="Edge"]')
+        await clickSel('button[title*="Edge"]')
+        await sleep(250)
+        return
+      }
     }
   }
 

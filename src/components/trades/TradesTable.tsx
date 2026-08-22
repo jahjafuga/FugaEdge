@@ -50,6 +50,7 @@ import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
 import { tierRank } from '@/core/playbook/tierRank'
 import Flag from '@/components/ui/Flag'
 import TierBadge from '@/components/playbook/TierBadge'
+import { EDGE_FAB_CLEARANCE_PX } from './QueryBubble'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import Sparkline from './Sparkline'
 import ColumnsMenu from '@/components/trades/ColumnsMenu'
@@ -1138,7 +1139,14 @@ export default function TradesTable({
           <ColumnsMenu visibility={columnVisibility} onChange={setColumnVisibility} />
         </div>
       )}
-      <div ref={containerRef} className="min-h-0 flex-1 overflow-auto">
+      <div
+        ref={containerRef}
+        className="min-h-0 flex-1 overflow-auto"
+        // S3 — Edge's disc floats fixed at the viewport corner; this padding
+        // keeps the LAST ROW clear of it at maximum scroll. Inline (not a
+        // class) so the clearance guard can pin the mechanism in jsdom.
+        style={{ paddingBottom: EDGE_FAB_CLEARANCE_PX }}
+      >
         <div
           ref={xSentinelRef}
           aria-hidden="true"

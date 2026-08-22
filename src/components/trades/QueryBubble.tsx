@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Sparkles, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   resolveQuery,
   type ResolverVocabulary,
@@ -38,6 +38,64 @@ import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 // gutter, z-40 beneath every modal layer. No portal needed.
 
 export const EDGE_NAME = 'Edge'
+
+/** S3 — the FAB's vertical footprint the table must clear: bottom offset 24
+ *  + disc 48 + breathing room 16. TradesTable pads its scroll container by
+ *  this so no last row ever hides beneath the disc. */
+export const EDGE_FAB_CLEARANCE_PX = 88
+
+/** S2 — the mark the disc wears. ONE constant selects among three shipped
+ *  candidates; the founder rules from the frames and the swap is this line.
+ *  (The capture harness may override per shot via window.__edgeMarkOverride —
+ *  dev-only, so all three can be photographed without three commits.) */
+export type EdgeMarkKind = 'swoosh' | 'monogram' | 'loop'
+export const EDGE_MARK: EdgeMarkKind = 'swoosh'
+
+/** The three candidates, all tiny, all gold, all stroke-honest at disc scale.
+ *  SWOOSH: an inline bezier echoing the aurora's curve — no logo-mark asset
+ *  exists at this scale (the icon file is stroke clipart; the brand swoosh is
+ *  a full-page background), so the mark is drawn, not scaled down.
+ *  MONOGRAM: the E. LOOP: an open gold ring with a cut — the edge of the
+ *  loop, a filter's aperture. */
+export function Mark({ kind, size = 18 }: { kind: EdgeMarkKind; size?: number }) {
+  if (kind === 'monogram') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+        <text
+          x="10" y="15" textAnchor="middle"
+          fontSize="15" fontWeight="800" fontFamily="inherit"
+          fill="rgb(var(--gold))"
+        >
+          E
+        </text>
+      </svg>
+    )
+  }
+  if (kind === 'loop') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+        <circle
+          cx="10" cy="10" r="7"
+          fill="none" stroke="rgb(var(--gold))" strokeWidth="2.2"
+          strokeLinecap="round" strokeDasharray="33 11" strokeDashoffset="8"
+        />
+      </svg>
+    )
+  }
+  // swoosh — two nested curves, the aurora's gesture at 20px
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" aria-hidden="true">
+      <path
+        d="M2 14 C 7 15.5, 13 12, 18 4"
+        fill="none" stroke="rgb(var(--gold))" strokeWidth="2.2" strokeLinecap="round"
+      />
+      <path
+        d="M4 17 C 9 17.5, 14 15, 17.5 10"
+        fill="none" stroke="rgb(var(--gold) / 0.45)" strokeWidth="1.6" strokeLinecap="round"
+      />
+    </svg>
+  )
+}
 
 /** The AnimatedNumber matchMedia pattern: reduced motion strips every
  *  [data-edge-anim] hook so the reduced path is STRUCTURAL — asserted by test,
@@ -111,6 +169,9 @@ export default function QueryBubble({
   const [exchanges, setExchanges] = useState<Exchange[]>([])
   const reduced = useReducedMotion()
   const committedActive = isFiltering(committed)
+  // dev-only per-shot override for the capture harness; the constant rules
+  const markKind: EdgeMarkKind =
+    ((window as { __edgeMarkOverride?: EdgeMarkKind }).__edgeMarkOverride) ?? EDGE_MARK
   /** Closing ghost: the panel's collapse is drawn by an input-less shell so
    *  the REAL close is instant (the K battery asserts the input is gone the
    *  same tick). null = no ghost; 'commit' | 'discard' pick the speed. */
@@ -236,7 +297,7 @@ export default function QueryBubble({
       {open && (
         <div
           {...(reduced ? {} : { 'data-edge-anim': true })}
-          className={`absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 p-3 shadow-lg backdrop-blur-sm ${animCls('edge-panel-in')}`}
+          className={`card-premium card-accent absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right overflow-hidden p-3 ${animCls('edge-panel-in')}`}
           style={{ boxShadow: '0 0 0 1px rgb(var(--gold) / 0.15), 0 0 24px rgb(var(--gold) / 0.10), 0 12px 32px rgb(0 0 0 / 0.45)' }}
         >
           {/* the wordmark — small, top-left, monogram beside it */}
@@ -248,7 +309,7 @@ export default function QueryBubble({
           </div>
           {/* the conversation so far — session-only, commits only */}
           {exchanges.length > 0 && (
-            <div className="mb-2 max-h-[180px] space-y-2 overflow-auto border-b border-border-subtle pb-2">
+            <div className="mb-2 max-h-[180px] space-y-2 overflow-auto border-b border-gold/10 pb-2">
               {exchanges.map((x, i) => (
                 <div key={i} className="text-xs">
                   <div data-edge-ask className="text-fg-primary">{x.ask}</div>
@@ -277,7 +338,7 @@ export default function QueryBubble({
             onChange={(e) => setText(e.target.value)}
             placeholder={`Ask ${EDGE_NAME}...`}
             aria-label={`Ask ${EDGE_NAME}`}
-            className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none transition-colors duration-150 focus:border-gold"
+            className="w-full rounded-md border border-gold/25 bg-bg-0/60 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none transition-colors duration-150 focus:border-gold"
           />
 
           {/* the future model seam — renders ONLY when something truly awaits */}
@@ -319,7 +380,7 @@ export default function QueryBubble({
                   onClick={() => pick(a.text, c)}
                   {...(reduced ? {} : { 'data-edge-anim': true })}
                   style={reduced ? undefined : { animationDelay: `${a.candidates.indexOf(c) * 40}ms` }}
-                  className={`inline-flex h-6 cursor-pointer items-center rounded-full border border-gold/40 bg-bg-1 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/70 hover:text-gold ${animCls('edge-pill')}`}
+                  className={`inline-flex h-6 cursor-pointer items-center rounded-full border border-gold/40 bg-bg-0/50 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/70 hover:text-gold ${animCls('edge-pill')}`}
                 >
                   {c}
                 </button>
@@ -351,7 +412,7 @@ export default function QueryBubble({
           aria-hidden="true"
           data-edge-anim
           onAnimationEnd={() => setGhost(null)}
-          className={`pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 ${ghost === 'commit' ? 'edge-panel-out' : 'edge-panel-out-fast'}`}
+          className={`card-premium pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right ${ghost === 'commit' ? 'edge-panel-out' : 'edge-panel-out-fast'}`}
         />
       )}
 
@@ -360,14 +421,15 @@ export default function QueryBubble({
         onClick={() => (open ? close(true) : doOpen())}
         title={`${EDGE_NAME} - ask your book (Ctrl+K)`}
         key={pulse}
-        className={`relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-3 text-gold transition-transform duration-150 ease-out-soft hover:scale-105 ${
+        data-edge-mark={markKind}
+        className={`relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-0/90 text-gold backdrop-blur-sm transition-transform duration-150 ease-out-soft hover:scale-105 ${
           open ? animCls('edge-fab-open') : animCls('edge-fab')
         } ${pulse > 0 && !open && !reduced ? 'edge-fab-pulse' : ''}`}
         {...(reduced ? {} : { 'data-edge-anim': true })}
       >
         <span className="flex flex-col items-center leading-none">
-          <Sparkles size={12} strokeWidth={2} />
-          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">{EDGE_NAME}</span>
+          <Mark kind={markKind} size={16} />
+          <span className="mt-0.5 text-[8px] font-bold uppercase tracking-wide">{EDGE_NAME}</span>
         </span>
         {/* Edge remembering — a filter is active on the committed state */}
         {committedActive && (

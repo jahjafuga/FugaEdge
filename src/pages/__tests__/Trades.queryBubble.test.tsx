@@ -395,3 +395,34 @@ describe('M4 no animation timer delays input focus on open', () => {
     }
   })
 })
+
+// ─── S1/S2 — the premium surface and the mark ────────────────────────────────
+
+describe('S1 the blue-slate is gone - the bubble wears the house card language', () => {
+  it('no bg-bg-1/bg-bg-3/border-border-* class survives anywhere in the bubble', async () => {
+    await mount()
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese' } })
+    await waitFor(() => expect(rowCount()).toBe(2))
+    const root = screen.getByTitle(/Edge/).closest('.fixed') as HTMLElement
+    const offenders = [...root.querySelectorAll('*'), root].filter((el) =>
+      /(?:^|\s)(?:bg-bg-[13]|bg-bg-[13]\/|border-border-)/.test(el.className?.toString?.() ?? ''),
+    )
+    expect(
+      offenders.map((el) => el.className.toString()).join(' | '),
+      'blue-slate classes survive in the bubble',
+    ).toBe('')
+    // and the panel positively wears the house card language
+    expect(root.querySelector('.card-premium'), 'the panel does not wear card-premium').toBeTruthy()
+  })
+})
+
+describe('S2 the mark renders from the constant', () => {
+  it('the FAB carries data-edge-mark equal to EDGE_MARK, with an svg mark inside', async () => {
+    const { EDGE_MARK } = await import('@/components/trades/QueryBubble')
+    await mount()
+    const fab = screen.getByTitle(/Edge/) as HTMLButtonElement
+    expect(fab.getAttribute('data-edge-mark'), 'the mark bypassed the constant').toBe(EDGE_MARK)
+    expect(fab.querySelector('svg'), 'no mark rendered').toBeTruthy()
+  })
+})
