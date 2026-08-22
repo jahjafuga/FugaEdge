@@ -780,6 +780,15 @@ export default function TradesTable({
         cell: (i) => <Num>{num(i.getValue(), (n) => `${n.toFixed(2)}x`)}</Num>,
         sortUndefined: 'last',
       }),
+      // v0.2.7 — reference column for the market-data join; "(latest)" in the
+      // label because the value is the last refresh's snapshot, not the cap on
+      // the day of the trade. Hidden by default like the rest of the optionals.
+      col.accessor('market_cap', {
+        id: 'market_cap', header: COLUMN_LABELS['market_cap'], size: COLUMN_WIDTHS.market_cap,
+        meta: { label: COLUMN_LABELS['market_cap'] },
+        cell: (i) => <Num>{num(i.getValue(), (n) => `$${compactShares(n)}`)}</Num>,
+        sortUndefined: 'last',
+      }),
       col.accessor('daily_change_pct', {
         id: 'daily_change_pct', header: COLUMN_LABELS['daily_change_pct'], size: COLUMN_WIDTHS.daily_change_pct,
         meta: { label: COLUMN_LABELS['daily_change_pct'] },

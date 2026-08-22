@@ -52,6 +52,9 @@ interface TradeRowDb {
   country_name: string | null
   region: string | null
   country_source: string | null
+  sector: string | null
+  industry: string | null
+  market_cap: number | null
   stop_source: string | null
   note_text: string | null
   attachment_count: number
@@ -233,6 +236,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        mkt.sector, mkt.industry, mkt.market_cap,
         t.stop_source,
         t.deleted_at, t.account_id,
         n.note_text,
@@ -241,6 +245,12 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         COALESCE(tm.n, 0) AS mistake_link_count,
         mt.tags AS mistake_tags_json
       FROM trades t
+      -- v0.2.7 — sector / industry / market cap onto the row. market_data is
+      -- per-symbol-LATEST (symbol PRIMARY KEY, one fetched_at): the values are
+      -- the last refresh's snapshot, NOT the day-of-trade state — the same
+      -- contract float_shares already documents. LEFT so a symbol without a
+      -- market_data row keeps its trade and carries nulls.
+      LEFT JOIN market_data mkt ON mkt.symbol = t.symbol
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN trade_technicals tt ON tt.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -315,6 +325,9 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       country_name: r.country_name ?? 'Unknown',
       region: r.region ?? 'Unknown',
       country_source: (r.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
+      sector: r.sector,
+      industry: r.industry,
+      market_cap: r.market_cap,
       stop_source: (r.stop_source as 'manual' | 'auto' | null) ?? null,
       note: buildNote(r),
       attachment_count: r.attachment_count ?? 0,
@@ -354,6 +367,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.float_shares, t.shares_outstanding,
         t.catalyst_type, t.days_since_catalyst,
         t.country, t.country_name, t.region, t.country_source,
+        mkt.sector, mkt.industry, mkt.market_cap,
         t.stop_source,
         t.deleted_at, t.account_id,
         n.note_text,
@@ -362,6 +376,12 @@ export function getTrade(id: number): TradeListRow | null {
         COALESCE(tm.n, 0) AS mistake_link_count,
         mt.tags AS mistake_tags_json
       FROM trades t
+      -- v0.2.7 — sector / industry / market cap onto the row. market_data is
+      -- per-symbol-LATEST (symbol PRIMARY KEY, one fetched_at): the values are
+      -- the last refresh's snapshot, NOT the day-of-trade state — the same
+      -- contract float_shares already documents. LEFT so a symbol without a
+      -- market_data row keeps its trade and carries nulls.
+      LEFT JOIN market_data mkt ON mkt.symbol = t.symbol
       LEFT JOIN trade_notes n ON n.trade_id = t.id
       LEFT JOIN trade_technicals tt ON tt.trade_id = t.id
       LEFT JOIN playbooks p ON p.id = t.playbook_id
@@ -434,6 +454,9 @@ export function getTrade(id: number): TradeListRow | null {
     country_name: row.country_name ?? 'Unknown',
     region: row.region ?? 'Unknown',
     country_source: (row.country_source as 'polygon' | 'inferred' | 'manual' | 'unknown' | null) ?? 'unknown',
+    sector: row.sector,
+    industry: row.industry,
+    market_cap: row.market_cap,
     stop_source: (row.stop_source as 'manual' | 'auto' | null) ?? null,
     note: buildNote(row),
     attachment_count: row.attachment_count ?? 0,

@@ -135,6 +135,19 @@ export interface TradeListRow {
    *  'manual'   = user override; never overwritten by automatic backfill.
    *  'unknown'  = we tried and couldn't resolve. */
   country_source: 'fmp' | 'polygon' | 'inferred' | 'manual' | 'unknown'
+  /** v0.2.7 — FMP profile sector ("Healthcare"), joined from market_data at
+   *  read time. Per-symbol-LATEST, not day-of-trade. Null when the symbol has
+   *  no market_data row or FMP returned nothing. OPTIONAL only so the many
+   *  existing lightweight fixtures don't each declare it (the mistakeTags /
+   *  commission precedent); both production reads always populate it. */
+  sector?: string | null
+  /** The finer-grained companion ("Biotechnology"). Same join, same
+   *  latest-snapshot semantic, same null contract and optionality. */
+  industry?: string | null
+  /** Market capitalisation in dollars, from the SAME latest snapshot — the
+   *  cap at the last refresh, NOT the cap on the day of the trade. The
+   *  float_shares current-snapshot precedent; the column label says so. */
+  market_cap?: number | null
   /** WHO set planned_stop_loss_price. Mirrors country_source's contract, and
    *  STOP_SOURCES in electron/db/migrate-stop-source.ts mirrors this set.
    *  'manual' = the user typed it; NEVER overwritten or cleared by an automatic pass.

@@ -72,6 +72,13 @@ export interface TradesFilterState {
    *  trade, user cleared it), exactly playbookIds' idiom. Empty array = no
    *  country filtering. */
   countries: (string | null)[]
+  /** v0.2.7 — selected SECTORS to keep (OR within, AND across), matched
+   *  against the market-data join's sector. `null` = the unresolved bucket
+   *  (no market_data row / FMP had nothing) — sector IS nullable on the row,
+   *  so this is the countries idiom, not the regions sentinel. */
+  sectors: (string | null)[]
+  /** Same idiom on the finer grain (industry). */
+  industries: (string | null)[]
   /** v0.2.7 — the five-pillar ASK, never the thresholds. minScore matches
    *  scored trades with passed >= minScore; an INCOMPLETE trade (missing any
    *  required input) never matches a score ask and never fails one — it is its
@@ -114,6 +121,7 @@ export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
     case 'mae': return t.mae
     case 'mfe': return t.mfe
     case 'float': return t.float_shares
+    case 'market_cap': return t.market_cap ?? null
     default: return null
   }
 }
@@ -134,6 +142,8 @@ export function emptyFilters(): TradesFilterState {
     catalystTypes: [],
     regions: [],
     countries: [],
+    sectors: [],
+    industries: [],
     dna: { minScore: null, bucket: 'any' },
     ranges: {},
   }
@@ -154,6 +164,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.catalystTypes.length > 0 ||
     f.regions.length > 0 ||
     f.countries.length > 0 ||
+    f.sectors.length > 0 ||
+    f.industries.length > 0 ||
     f.dna.minScore !== null ||
     f.dna.bucket !== 'any' ||
     // A range alone must surface the Clear control, or a user can narrow the table
@@ -238,6 +250,20 @@ export function applyTradesFilters(
     if (f.countries.length > 0) {
       const matches = f.countries.some((c) =>
         c === null ? t.country == null : t.country === c,
+      )
+      if (!matches) return false
+    }
+    // Sector / industry — the countries idiom on the market-data join: both are
+    // nullable on the row, so `null` is the honest unresolved bucket.
+    if (f.sectors.length > 0) {
+      const matches = f.sectors.some((v) =>
+        v === null ? t.sector == null : t.sector === v,
+      )
+      if (!matches) return false
+    }
+    if (f.industries.length > 0) {
+      const matches = f.industries.some((v) =>
+        v === null ? t.industry == null : t.industry === v,
       )
       if (!matches) return false
     }

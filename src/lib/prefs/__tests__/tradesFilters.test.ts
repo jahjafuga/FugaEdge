@@ -61,6 +61,8 @@ const FULL = (): TradesFilterState => ({
   catalystTypes: ['News / PR', null],
   regions: ['China', null],
   countries: ['CN', null],
+  sectors: ['Healthcare', null],
+  industries: ['Biotechnology'],
   dna: { minScore: 3, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
 })

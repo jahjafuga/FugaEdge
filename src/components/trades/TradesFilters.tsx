@@ -125,6 +125,24 @@ export default function TradesFilters({
           onChange={(next) => onChange({ ...filters, countries: next })}
         />
 
+        <GeoFilterDropdown
+          label="Sector"
+          trades={trades}
+          keyOf={(t) => t.sector ?? null}
+          labelOf={(v) => v}
+          selected={filters.sectors}
+          onChange={(next) => onChange({ ...filters, sectors: next })}
+        />
+
+        <GeoFilterDropdown
+          label="Industry"
+          trades={trades}
+          keyOf={(t) => t.industry ?? null}
+          labelOf={(v) => v}
+          selected={filters.industries}
+          onChange={(next) => onChange({ ...filters, industries: next })}
+        />
+
         <DnaFilterDropdown
           ask={filters.dna}
           onChange={(next) => onChange({ ...filters, dna: next })}
@@ -359,7 +377,10 @@ function PlaybookFilterDropdown({
   )
 }
 
-// v0.2.7 — multi-select REGION / COUNTRY filter, one component for both. Clones
+// v0.2.7 — multi-select BOOK-DERIVED filter. Born for region/country; sector
+// and industry ride it unchanged (the market-data join, same null semantics),
+// which is the proof it generalises: any nullable string on the row with a
+// keyOf/labelOf pair gets the same dropdown. Clones
 // the Catalyst shell (trigger + count badge + click-outside/Escape + null-bucket
 // row + Clear), with ONE deliberate departure: options derive from the LOADED
 // BOOK, not a def table and not a hardcoded list — a book with no Brazil trades

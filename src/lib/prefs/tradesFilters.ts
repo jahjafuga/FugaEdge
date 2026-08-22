@@ -122,6 +122,8 @@ function coerce(raw: unknown): TradesFilterState {
     // keeping its dates and symbol. A version bump would discard it whole.
     regions: strs(raw.regions),
     countries: strs(raw.countries),
+    sectors: strs(raw.sectors),
+    industries: strs(raw.industries),
     // v0.2.7 five-pillar ask — additive at the same stamp, like the fields
     // above. Only the ASK is stored (minScore 0..5 integer, bucket) — never a
     // threshold; those live in settings and the ask re-resolves against them.

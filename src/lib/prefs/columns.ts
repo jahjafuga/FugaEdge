@@ -72,6 +72,7 @@ export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   entry_timeframe: false,
   days_since_catalyst: false,
   mae: false,
+  market_cap: false,
   mfe: false,
   stop_source: false,
 }
@@ -91,6 +92,9 @@ export const COLUMN_LABELS: Record<string, string> = {
   daily_change_pct: 'Day change %', confidence: 'Confidence',
   entry_timeframe: 'Timeframe', days_since_catalyst: 'Catalyst age',
   mae: 'MAE', mfe: 'MFE', stop_source: 'Stop set by',
+  // "(latest)" is load-bearing: market_data is a per-symbol snapshot, so this
+  // is the cap at the last refresh, not on the day of the trade.
+  market_cap: 'Mkt cap (latest)',
 }
 
 /** Rendered width in px, one entry per column id. The table is `tableLayout:
@@ -120,7 +124,7 @@ export const COLUMN_WIDTHS: Record<string, number> = {
   first_entry: 110, stop_price: 100, stop_source: 110, r_multiple: 100,
   risk_per_share: 115, total_risk: 100, rvol: 70, daily_change_pct: 115,
   confidence: 100, entry_timeframe: 95, days_since_catalyst: 115,
-  mae: 100, mfe: 90,
+  mae: 100, mfe: 90, market_cap: 120,
 }
 
 /** Columns a min/max range can filter on. Exactly the ids rangeValueOf resolves —
@@ -131,6 +135,7 @@ export const NUMERIC_COLUMN_IDS = [
   'hold_time', 'price_move_pct', 'pnl_gain_pct', 'exec_count', 'first_entry',
   'stop_price', 'r_multiple', 'risk_per_share', 'total_risk', 'rvol',
   'daily_change_pct', 'confidence', 'days_since_catalyst', 'mae', 'mfe',
+  'market_cap',
 ] as const
 
 /** True when the column is currently shown (absent means visible, TanStack's rule). */
