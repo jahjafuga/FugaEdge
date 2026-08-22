@@ -1,0 +1,423 @@
+// v0.2.7 — THE QUERY RESOLVER. Text in, TradesFilterState out.
+//
+// The filter arc built the surface piece by piece: geography, sector and
+// industry, the market-data ranges, the five-pillar ask, presets that store
+// intent. This module is the mouth: a plain-language phrase resolves against
+// the user's OWN vocabulary and composes into one filter state. No model, no
+// network, no key — and the seam where a model would sit later is a NAMED
+// OUTPUT, not an error path.
+//
+// THE LAWS (founder-ruled; the battery pins each red-first):
+//
+//   G1  BOOK-DERIVED ONLY. A token applies only against vocabulary the caller
+//       passed in — the loaded book and the def tables. Nothing is invented:
+//       "a+" is a playbook-name lookup, and with no playbook by that name it
+//       lands in unresolved rather than flipping a flag it merely resembles.
+//   G2  UNRESOLVED IS A NAMED RESULT. Gibberish leaves the state untouched
+//       and comes back verbatim in `unresolved`. "last 10" — a thing the
+//       filter cannot yet express — comes back the same way.
+//   G3  AMBIGUITY IS RETURNED, NEVER GUESSED. A prefix that hits two symbols
+//       names both candidates. The UI offers; the core never picks. The one
+//       stated exception to "never pick" is KIND PRECEDENCE (symbol before
+//       region before country before sector...), which is a documented rule
+//       applied uniformly, not a per-query coin flip: "china" means the
+//       region, everywhere, always.
+//   G4  SIGN SEMANTICS. "losers over 100" is magnitude-of-loss: net BELOW
+//       minus one hundred. "winners over 100" is net above. A bare money
+//       comparison with NO outcome in the query is ambiguous and lands in
+//       unresolved — the resolver does not guess a sign.
+//   G5  COMPOSITION per the established idiom: array fields ADD (deduped),
+//       scalar fields REPLACE and the applied line says what was replaced,
+//       and a date preset goes through withDatePreset so beat 35's
+//       preset-vs-explicit exclusivity holds here too.
+//   G6  UNITS: k / m / b multipliers, the dollar sign optional, and a bare
+//       "5x" belongs to RVOL — the only column whose label owns the suffix.
+//   G7  Matching is exact, then prefix, then substring — case-insensitive,
+//       longest phrase first. The house disavows fuzzy matching, and this
+//       module keeps that: no edit distance, no scores that invent hits, no
+//       new dependency.
+//
+// PURE per ARCHITECTURE #1: no electron / fs / sqlite / React / DB imports.
+// The vocabulary arrives as data; the clock arrives as an argument. This file
+// would run inside a Next.js page unmodified.
+
+import type { MistakeAxis } from '@shared/mistakes-types'
+import { emptyFilters, type TradesFilterState } from './tradesFilter'
+import { withDatePreset, type DatePreset } from './datePreset'
+
+/** Everything a token may resolve against. All of it book- or def-table-
+ *  derived by the CALLER — the resolver holds no vocabulary of its own. */
+export interface ResolverVocabulary {
+  symbols: string[]
+  regions: string[]
+  countries: { iso: string; name: string }[]
+  sectors: string[]
+  industries: string[]
+  playbooks: { id: number; name: string; tier: string | null }[]
+  catalystTypes: string[]
+  mistakes: { axis: MistakeAxis; name: string }[]
+}
+
+export interface AmbiguousToken {
+  text: string
+  candidates: string[]
+}
+
+export interface ResolveResult {
+  state: TradesFilterState
+  /** One human-readable line per consumed token — what it did, and what it
+   *  replaced when it replaced something. */
+  applied: string[]
+  /** Contiguous runs of text that matched nothing. THE MODEL SEAM. */
+  unresolved: string[]
+  /** Tokens that matched more than one candidate in the same kind. */
+  ambiguous: AmbiguousToken[]
+}
+
+// ── the built-in language ────────────────────────────────────────────────────
+// These are not vocabulary: they are the filter state's own enumerations
+// (outcome, side, preset, dna bucket, mistakesOnly), spelled the way a trader
+// types them. G1 governs vocabulary; the state's own words are always legal.
+
+const OUTCOME_WORDS: Record<string, 'winners' | 'losers'> = {
+  winners: 'winners', winner: 'winners', wins: 'winners', won: 'winners', winning: 'winners', green: 'winners',
+  losers: 'losers', loser: 'losers', losses: 'losers', lost: 'losers', losing: 'losers', red: 'losers',
+}
+const SIDE_WORDS: Record<string, 'long' | 'short'> = {
+  long: 'long', longs: 'long', short: 'short', shorts: 'short',
+}
+const PRESET_WORDS: Record<string, DatePreset> = {
+  today: 'today', week: 'week', weekly: 'week', month: 'month', monthly: 'month',
+}
+const DNA_WORDS: Record<string, 'complete' | 'incomplete'> = {
+  complete: 'complete', incomplete: 'incomplete',
+}
+const MISTAKE_FLAG_WORDS = new Set(['mistake', 'mistakes'])
+
+/** Filler that carries no filter meaning. Deliberately small: an unknown word
+ *  should land in `unresolved`, not vanish into a stopword list. */
+const STOPWORDS = new Set([
+  'show', 'me', 'the', 'a', 'an', 'my', 'i', 'have', 'had', 'has', 'that',
+  'with', 'of', 'in', 'on', 'all', 'and', 'for', 'to', 'from', 'by',
+  'trade', 'trades', 'company', 'companies', 'stock', 'stocks',
+])
+
+/** Demonym → the name it means. A NORMALISATION step, not vocabulary: the
+ *  result must still hit the caller's vocab or the token stays unresolved —
+ *  "brazilian" maps to "brazil" and dies there on a book with no Brazil. */
+const DEMONYMS: Record<string, string> = {
+  chinese: 'china', american: 'usa', israeli: 'israel', japanese: 'japan',
+  korean: 'korea', taiwanese: 'taiwan', canadian: 'canada',
+  australian: 'australia', british: 'uk', german: 'germany', indian: 'india',
+  brazilian: 'brazil',
+}
+
+/** Column phrases → numeric column ids. Derived from the column labels plus a
+ *  handful of spoken aliases; every id here exists in NUMERIC_COLUMN_IDS and
+ *  rangeValueOf. Two-word phrases are matched before one-word ones. */
+const COLUMN_PHRASES: [string, string][] = [
+  ['market cap', 'market_cap'], ['mkt cap', 'market_cap'],
+  ['relative volume', 'rvol'], ['hold time', 'hold_time'],
+  ['day change', 'daily_change_pct'], ['r multiple', 'r_multiple'],
+  ['float', 'float'], ['rvol', 'rvol'], ['cap', 'market_cap'],
+  ['net', 'net_pnl'], ['pnl', 'net_pnl'], ['profit', 'net_pnl'],
+  ['fees', 'fees'], ['shares', 'shares'], ['mae', 'mae'], ['mfe', 'mfe'],
+  ['confidence', 'confidence'], ['risk', 'total_risk'], ['gain', 'pnl_gain_pct'],
+  ['fills', 'exec_count'], ['stop', 'stop_price'], ['vwap', 'vwap_dist_pct'],
+  ['hold', 'hold_time'],
+]
+
+const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
+const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
+
+/** "$1.5m" → 1_500_000; "5x" → {n: 5, unit: 'x'}. Null when it is not a
+ *  number at all. */
+function parseValue(raw: string): { n: number; unit: string | null } | null {
+  const m = /^\$?(\d+(?:\.\d+)?)(k|m|b|x|%)?$/i.exec(raw)
+  if (!m) return null
+  let n = Number(m[1])
+  const unit = m[2]?.toLowerCase() ?? null
+  if (unit === 'k') n *= 1_000
+  else if (unit === 'm') n *= 1_000_000
+  else if (unit === 'b') n *= 1_000_000_000
+  return { n, unit }
+}
+
+interface Comparison {
+  colId: string | null // null = bare money, sign decided by the outcome (G4)
+  bound: 'min' | 'max'
+  value: number
+  text: string
+}
+
+type TokenState = 'free' | 'consumed' | 'stop'
+
+/** One vocabulary candidate. `key` is the lowercased match text. */
+interface PoolEntry {
+  kind: number // index into KIND ORDER — lower wins precedence
+  key: string
+  display: string
+  apply: (s: TradesFilterState, applied: string[]) => void
+}
+
+const pushUnique = <T>(arr: T[], v: T) => {
+  if (!arr.includes(v)) arr.push(v)
+}
+
+export function resolveQuery(
+  text: string,
+  vocab: ResolverVocabulary,
+  now: Date,
+  base?: TradesFilterState,
+): ResolveResult {
+  let state: TradesFilterState = {
+    ...(base ?? emptyFilters()),
+    // arrays and ranges are copied so composition never mutates the caller's
+    playbookIds: [...(base?.playbookIds ?? [])],
+    mistakeKeys: [...(base?.mistakeKeys ?? [])],
+    catalystTypes: [...(base?.catalystTypes ?? [])],
+    regions: [...(base?.regions ?? [])],
+    countries: [...(base?.countries ?? [])],
+    sectors: [...(base?.sectors ?? [])],
+    industries: [...(base?.industries ?? [])],
+    dna: { ...(base?.dna ?? emptyFilters().dna) },
+    ranges: Object.fromEntries(
+      Object.entries(base?.ranges ?? {}).map(([k, v]) => [k, { ...v }]),
+    ),
+  }
+  const applied: string[] = []
+  const unresolved: string[] = []
+  const ambiguous: AmbiguousToken[] = []
+
+  const tokens = text
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/^[^\w$]+|[.,;:!?]+$/g, ''))
+    .filter((t) => t.length > 0)
+  const marks: TokenState[] = tokens.map(() => 'free')
+
+  // ── pass 1: comparisons ────────────────────────────────────────────────────
+  // (column?)(op)(value). Found first so "over" cannot fall into a stopword
+  // and "10m" cannot be mistaken for vocabulary.
+  const comparisons: Comparison[] = []
+  for (let i = 0; i < tokens.length; i++) {
+    let op = tokens[i]
+    let opLen = 1
+    if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
+      op = tokens[i + 1]
+      opLen = 2
+    }
+    if (!MIN_OPS.has(op) && !MAX_OPS.has(op)) continue
+    const valueIdx = i + opLen
+    const value = valueIdx < tokens.length ? parseValue(tokens[valueIdx]) : null
+    if (!value) continue
+
+    // the column phrase sits just before the operator: two words, then one
+    let colId: string | null = null
+    let colStart = i
+    for (const span of [2, 1]) {
+      if (i - span < 0) continue
+      const phrase = tokens.slice(i - span, i).join(' ')
+      const hit = COLUMN_PHRASES.find(([p]) => p === phrase)
+      if (hit) {
+        colId = hit[1]
+        colStart = i - span
+        break
+      }
+    }
+    // a bare "5x" is RVOL's — the only label that owns the suffix (G6)
+    if (!colId && value.unit === 'x') colId = 'rvol'
+
+    const bound: 'min' | 'max' = MIN_OPS.has(op) ? 'min' : 'max'
+    comparisons.push({
+      colId,
+      bound,
+      value: value.n,
+      text: tokens.slice(colStart, valueIdx + 1).join(' '),
+    })
+    for (let k = colStart; k <= valueIdx; k++) marks[k] = 'consumed'
+  }
+
+  // ── pass 2: the state's own words ─────────────────────────────────────────
+  const replaceNote = (label: string, next: string, prev: string | null) =>
+    applied.push(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`)
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (marks[i] !== 'free') continue
+    const t = tokens[i]
+    if (OUTCOME_WORDS[t]) {
+      replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null)
+      state = { ...state, outcome: OUTCOME_WORDS[t] }
+      marks[i] = 'consumed'
+    } else if (SIDE_WORDS[t]) {
+      replaceNote('side', SIDE_WORDS[t], state.side !== 'all' ? state.side : null)
+      state = { ...state, side: SIDE_WORDS[t] }
+      marks[i] = 'consumed'
+    } else if (PRESET_WORDS[t]) {
+      // beat 35's exclusivity: the preset derives the window and retires any
+      // explicit dates — through the same function the chips use.
+      replaceNote('date', PRESET_WORDS[t], state.datePreset)
+      state = withDatePreset(state, PRESET_WORDS[t], now)
+      marks[i] = 'consumed'
+    } else if (DNA_WORDS[t]) {
+      replaceNote('dna', DNA_WORDS[t], state.dna.bucket !== 'any' ? state.dna.bucket : null)
+      state = { ...state, dna: { ...state.dna, bucket: DNA_WORDS[t] } }
+      marks[i] = 'consumed'
+    } else if (MISTAKE_FLAG_WORDS.has(t)) {
+      applied.push('mistakes only')
+      state = { ...state, mistakesOnly: true }
+      marks[i] = 'consumed'
+    }
+  }
+
+  // ── pass 3: vocabulary, longest phrase first (G1, G3, G7) ─────────────────
+  // KIND ORDER is the stated precedence of G3's exception: a text that means
+  // two DIFFERENT kinds of thing resolves to the earlier kind, uniformly.
+  const pool: PoolEntry[] = []
+  const addArrayEntry = (
+    kind: number,
+    key: string,
+    display: string,
+    field: 'regions' | 'countries' | 'sectors' | 'industries' | 'catalystTypes',
+    value: string,
+    label: string,
+  ) =>
+    pool.push({
+      kind, key, display,
+      apply: (s, log) => {
+        pushUnique(s[field], value)
+        log.push(`${label} ${display}`)
+      },
+    })
+
+  for (const sym of vocab.symbols)
+    pool.push({
+      kind: 0, key: sym.toLowerCase(), display: sym,
+      apply: (s, log) => {
+        replaceNoteInto(log, 'symbol', sym, s.symbol || null)
+        s.symbol = sym
+      },
+    })
+  for (const rg of vocab.regions) addArrayEntry(1, rg.toLowerCase(), rg, 'regions', rg, 'region')
+  for (const c of vocab.countries) {
+    addArrayEntry(2, c.name.toLowerCase(), c.name, 'countries', c.iso, 'country')
+    // the bare ISO is exact-only in practice: two letters never wins a prefix
+    addArrayEntry(2, c.iso.toLowerCase(), c.name, 'countries', c.iso, 'country')
+  }
+  for (const sc of vocab.sectors) addArrayEntry(3, sc.toLowerCase(), sc, 'sectors', sc, 'sector')
+  for (const ind of vocab.industries) addArrayEntry(4, ind.toLowerCase(), ind, 'industries', ind, 'industry')
+  for (const pb of vocab.playbooks)
+    pool.push({
+      kind: 5, key: pb.name.toLowerCase(), display: pb.name,
+      apply: (s, log) => {
+        if (!s.playbookIds.includes(pb.id)) s.playbookIds.push(pb.id)
+        log.push(`playbook ${pb.name}`)
+      },
+    })
+  for (const ct of vocab.catalystTypes) addArrayEntry(6, ct.toLowerCase(), ct, 'catalystTypes', ct, 'catalyst')
+  for (const mk of vocab.mistakes)
+    pool.push({
+      kind: 7, key: mk.name.toLowerCase(), display: mk.name,
+      apply: (s, log) => {
+        if (!s.mistakeKeys.some((k) => k.axis === mk.axis && k.name === mk.name))
+          s.mistakeKeys.push({ axis: mk.axis, name: mk.name })
+        log.push(`mistake ${mk.name}`)
+      },
+    })
+
+  function replaceNoteInto(log: string[], label: string, next: string, prev: string | null) {
+    log.push(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`)
+  }
+
+  /** Winning candidates for one normalized phrase: exact, then prefix, then
+   *  substring; within a tier the earliest KIND with any hit takes it. */
+  function candidatesFor(phrase: string): PoolEntry[] {
+    const tiers: ((e: PoolEntry) => boolean)[] = [
+      (e) => e.key === phrase,
+      (e) => phrase.length >= 2 && e.key.startsWith(phrase),
+      (e) => phrase.length >= 3 && e.key.includes(phrase),
+    ]
+    for (const match of tiers) {
+      const hits = pool.filter(match)
+      if (hits.length === 0) continue
+      const kind = Math.min(...hits.map((h) => h.kind))
+      const inKind = hits.filter((h) => h.kind === kind)
+      // one entry can appear under two keys (a country's name and its iso) —
+      // collapse to distinct displays before calling anything ambiguous
+      const seen = new Set<string>()
+      const distinct = inKind.filter((h) => (seen.has(h.display) ? false : (seen.add(h.display), true)))
+      return distinct
+    }
+    return []
+  }
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (marks[i] !== 'free') continue
+    let matched = false
+    for (const span of [3, 2, 1]) {
+      // a span that overruns the text just means TRY THE SHORTER ONE — a
+      // one-word query must still reach span 1.
+      if (i + span > tokens.length) continue
+      const slice = tokens.slice(i, i + span)
+      if (slice.some((_, k) => marks[i + k] !== 'free')) continue
+      const raw = slice.join(' ')
+      const phrase = DEMONYMS[raw] ?? raw
+      const hits = candidatesFor(phrase)
+      if (hits.length === 1) {
+        hits[0].apply(state, applied)
+        for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
+        matched = true
+        break
+      }
+      if (hits.length > 1) {
+        ambiguous.push({ text: raw, candidates: hits.map((h) => h.display) })
+        for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
+        matched = true
+        break
+      }
+    }
+    if (matched) continue
+    if (STOPWORDS.has(tokens[i])) marks[i] = 'stop'
+  }
+
+  // ── pass 4: apply the comparisons (the outcome is known now — G4) ─────────
+  for (const c of comparisons) {
+    let colId = c.colId
+    let bound = c.bound
+    let value = c.value
+    if (colId === null) {
+      // bare money: meaningful only under an outcome. "losers over 100" is
+      // magnitude-of-loss — net below minus the number.
+      if (state.outcome === 'losers') {
+        colId = 'net_pnl'
+        bound = bound === 'min' ? 'max' : 'min'
+        value = -value
+      } else if (state.outcome === 'winners') {
+        colId = 'net_pnl'
+      } else {
+        unresolved.push(c.text) // no outcome, no sign — never guessed
+        continue
+      }
+    }
+    const prev = state.ranges[colId] ?? { min: null, max: null }
+    state = {
+      ...state,
+      ranges: { ...state.ranges, [colId]: { ...prev, [bound]: value } },
+    }
+    applied.push(`${colId} ${bound} ${value}`)
+  }
+
+  // ── unresolved runs: contiguous free tokens, stopwords dropped ────────────
+  let run: string[] = []
+  const flush = () => {
+    if (run.length > 0) unresolved.push(run.join(' '))
+    run = []
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    if (marks[i] === 'free') run.push(tokens[i])
+    else flush()
+  }
+  flush()
+
+  return { state, applied, unresolved, ambiguous }
+}
