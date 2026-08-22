@@ -6,7 +6,7 @@ import {
 } from '@/core/trades/queryResolver'
 import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 
-// v0.2.7 — HiQ. The query resolver's face, re-homed from a filter-bar button
+// v0.2.7 — Edge. The query resolver's face, re-homed from a filter-bar button
 // to a PRESENCE: a floating trigger at the bottom-right of the Trades content
 // whose panel expands upward from it. One presence, one shortcut — the bar's
 // ASK button is retired.
@@ -37,10 +37,10 @@ import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 // anchors to the viewport at right-6 bottom-6, clear of the page scroll
 // gutter, z-40 beneath every modal layer. No portal needed.
 
-export const HIQ_NAME = 'HiQ'
+export const EDGE_NAME = 'Edge'
 
 /** The AnimatedNumber matchMedia pattern: reduced motion strips every
- *  [data-hiq-anim] hook so the reduced path is STRUCTURAL — asserted by test,
+ *  [data-edge-anim] hook so the reduced path is STRUCTURAL — asserted by test,
  *  not just visually instant. jsdom has no matchMedia; optional-chain to
  *  "not reduced" there. */
 function useReducedMotion(): boolean {
@@ -71,7 +71,7 @@ export function Roll({ text, animate = true }: { text: string; animate?: boolean
     <span className="inline-flex">
       {text.split('').map((ch, i) =>
         on ? (
-          <span key={`${i}-${ch}`} data-hiq-anim className="hiq-digit">
+          <span key={`${i}-${ch}`} data-edge-anim className="edge-digit">
             {ch}
           </span>
         ) : (
@@ -224,7 +224,7 @@ export default function QueryBubble({
 
   /** Animation hook attacher — the whole skin flows through this so the
    *  reduced path strips every hook in one place. */
-  const anim = (cls: string) => (reduced ? {} : { 'data-hiq-anim': true, className: cls })
+  const anim = (cls: string) => (reduced ? {} : { 'data-edge-anim': true, className: cls })
   const animCls = (cls: string) => (reduced ? '' : cls)
 
   return (
@@ -235,23 +235,23 @@ export default function QueryBubble({
     >
       {open && (
         <div
-          {...(reduced ? {} : { 'data-hiq-anim': true })}
-          className={`absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 p-3 shadow-lg backdrop-blur-sm ${animCls('hiq-panel-in')}`}
+          {...(reduced ? {} : { 'data-edge-anim': true })}
+          className={`absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 p-3 shadow-lg backdrop-blur-sm ${animCls('edge-panel-in')}`}
           style={{ boxShadow: '0 0 0 1px rgb(var(--gold) / 0.15), 0 0 24px rgb(var(--gold) / 0.10), 0 12px 32px rgb(0 0 0 / 0.45)' }}
         >
           {/* the wordmark — small, top-left, monogram beside it */}
           <div className="mb-2 flex items-center gap-1.5">
             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/50 text-[8px] font-bold text-gold">
-              {HIQ_NAME[0]}
+              {EDGE_NAME[0]}
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">{HIQ_NAME}</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">{EDGE_NAME}</span>
           </div>
           {/* the conversation so far — session-only, commits only */}
           {exchanges.length > 0 && (
             <div className="mb-2 max-h-[180px] space-y-2 overflow-auto border-b border-border-subtle pb-2">
               {exchanges.map((x, i) => (
                 <div key={i} className="text-xs">
-                  <div data-hiq-ask className="text-fg-primary">{x.ask}</div>
+                  <div data-edge-ask className="text-fg-primary">{x.ask}</div>
                   <div className="text-fg-tertiary">{x.response}</div>
                 </div>
               ))}
@@ -261,10 +261,10 @@ export default function QueryBubble({
           {/* the greeting — teaches two grammar shapes, signed by the name */}
           {exchanges.length === 0 && text === '' && (
             <div className="mb-2 text-xs text-fg-secondary">
-              <span {...anim('hiq-greet-line')} style={reduced ? undefined : { animationDelay: '0ms' }}>
-                Hi, I&apos;m <span className="font-semibold text-gold">{HIQ_NAME}</span>.{' '}
+              <span {...anim('edge-greet-line')} style={reduced ? undefined : { animationDelay: '0ms' }}>
+                Hi, I&apos;m <span className="font-semibold text-gold">{EDGE_NAME}</span>.{' '}
               </span>
-              <span {...anim('hiq-greet-line')} style={reduced ? undefined : { animationDelay: '80ms' }}>
+              <span {...anim('edge-greet-line')} style={reduced ? undefined : { animationDelay: '80ms' }}>
                 Ask your book: try &quot;china losers&quot; or &quot;float under 10m&quot;.
               </span>
             </div>
@@ -275,8 +275,8 @@ export default function QueryBubble({
             type="text"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={`Ask ${HIQ_NAME}...`}
-            aria-label="Ask HiQ"
+            placeholder={`Ask ${EDGE_NAME}...`}
+            aria-label={`Ask ${EDGE_NAME}`}
             className="w-full rounded-md border border-border-strong bg-bg-1 px-3 py-2 text-sm text-fg-primary placeholder:text-fg-muted outline-none transition-colors duration-150 focus:border-gold"
           />
 
@@ -291,8 +291,8 @@ export default function QueryBubble({
               {resolution.applied.map((label, i) => (
                 <span
                   key={`${label}-${i}`}
-                  {...(reduced ? {} : { 'data-hiq-anim': true })}
-                  className={`inline-flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold ${animCls('hiq-chip')}`}
+                  {...(reduced ? {} : { 'data-edge-anim': true })}
+                  className={`inline-flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold ${animCls('edge-chip')}`}
                 >
                   {label}
                   <button
@@ -317,9 +317,9 @@ export default function QueryBubble({
                   key={c}
                   type="button"
                   onClick={() => pick(a.text, c)}
-                  {...(reduced ? {} : { 'data-hiq-anim': true })}
+                  {...(reduced ? {} : { 'data-edge-anim': true })}
                   style={reduced ? undefined : { animationDelay: `${a.candidates.indexOf(c) * 40}ms` }}
-                  className={`inline-flex h-6 cursor-pointer items-center rounded-full border border-gold/40 bg-bg-1 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/70 hover:text-gold ${animCls('hiq-pill')}`}
+                  className={`inline-flex h-6 cursor-pointer items-center rounded-full border border-gold/40 bg-bg-1 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/70 hover:text-gold ${animCls('edge-pill')}`}
                 >
                   {c}
                 </button>
@@ -349,27 +349,27 @@ export default function QueryBubble({
       {ghost && (
         <div
           aria-hidden="true"
-          data-hiq-anim
+          data-edge-anim
           onAnimationEnd={() => setGhost(null)}
-          className={`pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 ${ghost === 'commit' ? 'hiq-panel-out' : 'hiq-panel-out-fast'}`}
+          className={`pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 ${ghost === 'commit' ? 'edge-panel-out' : 'edge-panel-out-fast'}`}
         />
       )}
 
       <button
         type="button"
         onClick={() => (open ? close(true) : doOpen())}
-        title={`${HIQ_NAME} - ask your book (Ctrl+K)`}
+        title={`${EDGE_NAME} - ask your book (Ctrl+K)`}
         key={pulse}
         className={`relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-3 text-gold transition-transform duration-150 ease-out-soft hover:scale-105 ${
-          open ? animCls('hiq-fab-open') : animCls('hiq-fab')
-        } ${pulse > 0 && !open && !reduced ? 'hiq-fab-pulse' : ''}`}
-        {...(reduced ? {} : { 'data-hiq-anim': true })}
+          open ? animCls('edge-fab-open') : animCls('edge-fab')
+        } ${pulse > 0 && !open && !reduced ? 'edge-fab-pulse' : ''}`}
+        {...(reduced ? {} : { 'data-edge-anim': true })}
       >
         <span className="flex flex-col items-center leading-none">
           <Sparkles size={12} strokeWidth={2} />
-          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">{HIQ_NAME}</span>
+          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">{EDGE_NAME}</span>
         </span>
-        {/* HiQ remembering — a filter is active on the committed state */}
+        {/* Edge remembering — a filter is active on the committed state */}
         {committedActive && (
           <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold shadow-[0_0_6px_rgb(var(--gold)/0.8)]" />
         )}

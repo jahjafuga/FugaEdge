@@ -97,7 +97,7 @@ async function mount() {
 }
 
 const rowCount = () => Number(screen.getByTestId('row-count').textContent)
-const bubbleInput = () => screen.queryByLabelText('Ask HiQ')
+const bubbleInput = () => screen.queryByLabelText('Ask Edge')
 const openByShortcut = () => fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
 
 // ─── K1 ──────────────────────────────────────────────────────────────────────
@@ -112,11 +112,11 @@ describe('K1 the bubble opens by shortcut and by button, input autofocused', () 
     await waitFor(() => expect(document.activeElement).toBe(input))
   })
 
-  it('the floating HiQ trigger opens identically', async () => {
+  it('the floating Edge trigger opens identically', async () => {
     await mount()
     // The trigger must EXIST and be VISIBLE — a hidden button still fires
     // onClick in jsdom (the beat-46 falsification lesson).
-    const btn = screen.getByTitle(/HiQ/) as HTMLButtonElement
+    const btn = screen.getByTitle(/Edge/) as HTMLButtonElement
     expect(btn.hidden, 'the trigger is hidden from the user').toBe(false)
     fireEvent.click(btn)
     const input = bubbleInput()
@@ -250,14 +250,14 @@ describe('K8 with the bubble open, Escape closes the bubble ONLY', () => {
   })
 })
 
-// ─── N1-N4 — HiQ, the presence ───────────────────────────────────────────────
+// ─── N1-N4 — Edge, the presence ───────────────────────────────────────────────
 
 describe('N1 one presence, one shortcut', () => {
   it('the filter-bar ASK button is RETIRED; the floating trigger is the one opener', async () => {
     await mount()
     // by the OLD title exactly — the new trigger's title also says what it does
     expect(screen.queryByTitle('Ask your book (Ctrl+K)'), 'the old bar button survived').toBeNull()
-    const triggers = screen.getAllByTitle(/HiQ/)
+    const triggers = screen.getAllByTitle(/Edge/)
     expect(triggers).toHaveLength(1)
     fireEvent.click(triggers[0])
     expect(bubbleInput()).toBeTruthy()
@@ -269,20 +269,23 @@ describe('N2 greeting on open; the log appends on COMMIT only', () => {
     await mount()
     openByShortcut()
     expect(screen.getByText(/china losers/), 'no greeting taught the grammar').toBeTruthy()
+    expect(screen.getByText(/Hi, I'm/), 'the greeting lost its salutation').toBeTruthy()
+    // the name appears at least twice: the wordmark and the greeting, both from the constant
+    expect(screen.getAllByText('Edge').length).toBeGreaterThanOrEqual(2)
 
     fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
     await waitFor(() => expect(rowCount()).toBe(1))
     fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
 
     openByShortcut()
-    expect(screen.queryByText('chinese losers', { selector: '[data-hiq-ask]' }), 'a PREVIEW was logged').toBeNull()
+    expect(screen.queryByText('chinese losers', { selector: '[data-edge-ask]' }), 'a PREVIEW was logged').toBeNull()
 
     fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
     await waitFor(() => expect(rowCount()).toBe(1))
     fireEvent.keyDown(bubbleInput()!, { key: 'Enter' })
 
     openByShortcut()
-    const ask = screen.getByText('chinese losers', { selector: '[data-hiq-ask]' })
+    const ask = screen.getByText('chinese losers', { selector: '[data-edge-ask]' })
     expect(ask, 'the committed ask was not logged verbatim').toBeTruthy()
     expect(screen.getByText(/1 trade/), 'the response line lacks the count').toBeTruthy()
   })
@@ -342,7 +345,7 @@ describe('M1 content-first: the chip and count exist the same tick as resolution
       expect(screen.getByText(/region China/i), 'the chip waited on something').toBeTruthy()
       // and the motion layer is genuinely present — this is not the reduced path
       expect(
-        document.querySelectorAll('[data-hiq-anim]').length,
+        document.querySelectorAll('[data-edge-anim]').length,
         'no animation layer present - M1 would prove nothing',
       ).toBeGreaterThan(0)
     } finally {
@@ -369,7 +372,7 @@ describe('M2 reduced motion: every state renders with zero animation hooks', () 
       await waitFor(() => expect(rowCount()).toBe(2))
       expect(screen.getByText(/region China/i), 'reduced motion lost the content').toBeTruthy()
       expect(
-        document.querySelectorAll('[data-hiq-anim]').length,
+        document.querySelectorAll('[data-edge-anim]').length,
         'animation hooks rendered under reduced motion',
       ).toBe(0)
     } finally {
@@ -383,7 +386,7 @@ describe('M4 no animation timer delays input focus on open', () => {
     await mount()
     vi.useFakeTimers()
     try {
-      fireEvent.click(screen.getByTitle(/HiQ/))
+      fireEvent.click(screen.getByTitle(/Edge/))
       const input = bubbleInput()
       expect(input).toBeTruthy()
       expect(document.activeElement, 'focus waited on a timer').toBe(input)

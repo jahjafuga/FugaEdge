@@ -34,7 +34,7 @@ import { join } from 'path'
 
 type Act =
   | { op: 'clickNav' }
-  | { op: 'openHiq' }
+  | { op: 'openEdge' }
   | { op: 'key'; keyCode: string; modifiers?: string[] }
   | { op: 'type'; text: string }
   | { op: 'waitTrades' }
@@ -49,16 +49,16 @@ export interface CaptureStep {
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
-  { frame: '01', caption: 'Trades at rest - HiQ presence visible bottom-right', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
-  { frame: '02', caption: 'HiQ open - greeting showing', act: [{ op: 'openHiq' }] },
+  { frame: '01', caption: 'Trades at rest - Edge presence visible bottom-right', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
+  { frame: '02', caption: 'Edge open - greeting showing', act: [{ op: 'openEdge' }] },
   { frame: '03', caption: 'typed "chi" - live mid-word resolution, header consistent with the candidate', act: [{ op: 'type', text: 'chi' }] },
   { frame: '04', caption: '"china losers" - chips + live count', act: [{ op: 'type', text: 'na losers' }] },
-  { frame: '05', caption: 'Enter committed - exchange logged, table filtered', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openHiq' }] },
+  { frame: '05', caption: 'Enter committed - exchange logged, table filtered', act: [{ op: 'key', keyCode: 'Enter' }, { op: 'openEdge' }] },
   { frame: '06', caption: 'reopened - "float under 10m" composing over the committed state', act: [{ op: 'type', text: 'float under 10m' }] },
   { frame: '07', caption: 'Escape - candidate discarded, committed state restored', act: [{ op: 'key', keyCode: 'Escape' }] },
-  { frame: '08', caption: 'ambiguous prefix "cl" - candidates offered, none picked', act: [{ op: 'openHiq' }, { op: 'type', text: 'cl' }] },
+  { frame: '08', caption: 'ambiguous prefix "cl" - candidates offered, none picked', act: [{ op: 'openEdge' }, { op: 'type', text: 'cl' }] },
   { frame: '09', caption: 'gibberish - the unresolved line, verbatim, muted', act: [{ op: 'key', keyCode: 'a', modifiers: ['control'] }, { op: 'key', keyCode: 'Backspace' }, { op: 'type', text: 'qwzzk blorp' }] },
-  { frame: '10', caption: 'the resting FAB, zoomed - breathing glow at one instant (3200ms cycle; a still cannot show motion)', act: [{ op: 'key', keyCode: 'Escape' }], zoomSel: 'button[title*="HiQ"]' },
+  { frame: '10', caption: 'the resting FAB, zoomed - breathing glow at one instant (3200ms cycle; a still cannot show motion)', act: [{ op: 'key', keyCode: 'Escape' }], zoomSel: 'button[title*="Edge"]' },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
@@ -128,22 +128,22 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
     throw new Error('never appeared: ' + sel)
   }
 
-  const HIQ_INPUT = 'input[aria-label="Ask HiQ"]'
+  const EDGE_INPUT = 'input[aria-label="Ask Edge"]'
   const run = async (act: Act) => {
     switch (act.op) {
       case 'clickNav':
         return clickSel('a[href*="trades" i]')
       case 'waitTrades':
         return waitSel('[data-testid="range-filters"], table')
-      case 'openHiq': {
-        if (await present(HIQ_INPUT)) return
+      case 'openEdge': {
+        if (await present(EDGE_INPUT)) return
         await key('k', ['control'])
         await sleep(400)
-        if (await present(HIQ_INPUT)) return
-        manifest.push('NOTE: Ctrl+K did not register; opened via the HiQ trigger (genuine click)')
-        await clickSel('button[title*="HiQ"]')
+        if (await present(EDGE_INPUT)) return
+        manifest.push('NOTE: Ctrl+K did not register; opened via the Edge trigger (genuine click)')
+        await clickSel('button[title*="Edge"]')
         await sleep(400)
-        if (!(await present(HIQ_INPUT))) throw new Error('HiQ never opened')
+        if (!(await present(EDGE_INPUT))) throw new Error('Edge never opened')
         return
       }
       case 'key':

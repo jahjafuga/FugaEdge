@@ -803,70 +803,70 @@
   }
 }
 
-/* ─── v0.2.7 HiQ — the presence wears the brand ──────────────────────────────
+/* ─── v0.2.7 Edge — the presence wears the brand ──────────────────────────────
    THE MOTION LAW: no animation ever delays content. Every keyframe below
    DECORATES a node that is already in the DOM with its final content; nothing
    gates rendering, focus, or state on animation-end. Durations come from the
    house motion tokens (150 / 200 / 280) and --ease-out-soft; the shimmer is
    the badge-shine gradient. REDUCED MOTION: the global reset at the top of
    this file already zeroes every animation-duration; the component ALSO
-   strips its [data-hiq-anim] hooks via the AnimatedNumber matchMedia pattern,
+   strips its [data-edge-anim] hooks via the AnimatedNumber matchMedia pattern,
    so the reduced path is structural, not merely instant. */
 @layer components {
-  @keyframes hiq-breathe {
+  @keyframes edge-breathe {
     0%, 100% { box-shadow: 0 0 10px 0 rgb(var(--gold) / 0.18), 0 0 0 1px rgb(var(--gold) / 0.35); }
     50%      { box-shadow: 0 0 18px 2px rgb(var(--gold) / 0.32), 0 0 0 1px rgb(var(--gold) / 0.5); }
   }
-  @keyframes hiq-open {
+  @keyframes edge-open {
     0%   { opacity: 0; transform: scale(0.92) translateY(6px); }
     100% { opacity: 1; transform: scale(1) translateY(0); }
   }
-  @keyframes hiq-close {
+  @keyframes edge-close {
     0%   { opacity: 1; transform: scale(1) translateY(0); }
     100% { opacity: 0; transform: scale(0.92) translateY(6px); }
   }
-  @keyframes hiq-greet {
+  @keyframes edge-greet {
     0%   { opacity: 0; transform: translateY(3px); }
     100% { opacity: 1; transform: translateY(0); }
   }
-  @keyframes hiq-chip-land {
+  @keyframes edge-chip-land {
     0%   { transform: scale(1.06); }
     60%  { transform: scale(0.98); }
     100% { transform: scale(1); }
   }
-  @keyframes hiq-shine-once {
+  @keyframes edge-shine-once {
     0%   { transform: translateX(-120%); }
     100% { transform: translateX(120%); }
   }
-  @keyframes hiq-tick {
+  @keyframes edge-tick {
     0%   { opacity: 0; transform: translateY(0.45em); }
     100% { opacity: 1; transform: translateY(0); }
   }
-  @keyframes hiq-pill-in {
+  @keyframes edge-pill-in {
     0%   { opacity: 0; transform: translateX(6px); }
     100% { opacity: 1; transform: translateX(0); }
   }
-  @keyframes hiq-pulse {
+  @keyframes edge-pulse {
     0%   { box-shadow: 0 0 0 0 rgb(var(--gold) / 0.45); }
     100% { box-shadow: 0 0 0 14px rgb(var(--gold) / 0); }
   }
 
-  .hiq-fab { animation: hiq-breathe 3.2s ease-in-out infinite; }
-  .hiq-fab-open { animation: none; box-shadow: 0 0 0 1px rgb(var(--gold) / 0.35); }
-  .hiq-fab-pulse { animation: hiq-pulse 280ms var(--ease-out-soft) 1; }
-  .hiq-panel-in { animation: hiq-open 150ms var(--ease-out-soft) both; }
-  .hiq-panel-out { animation: hiq-close 150ms var(--ease-out-soft) both; }
-  .hiq-panel-out-fast { animation: hiq-close 100ms var(--ease-out-soft) both; }
-  .hiq-greet-line { animation: hiq-greet 200ms ease-out both; }
-  .hiq-chip { position: relative; overflow: hidden; animation: hiq-chip-land 150ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .hiq-chip::after {
+  .edge-fab { animation: edge-breathe 3.2s ease-in-out infinite; }
+  .edge-fab-open { animation: none; box-shadow: 0 0 0 1px rgb(var(--gold) / 0.35); }
+  .edge-fab-pulse { animation: edge-pulse 280ms var(--ease-out-soft) 1; }
+  .edge-panel-in { animation: edge-open 150ms var(--ease-out-soft) both; }
+  .edge-panel-out { animation: edge-close 150ms var(--ease-out-soft) both; }
+  .edge-panel-out-fast { animation: edge-close 100ms var(--ease-out-soft) both; }
+  .edge-greet-line { animation: edge-greet 200ms ease-out both; }
+  .edge-chip { position: relative; overflow: hidden; animation: edge-chip-land 150ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .edge-chip::after {
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     background: linear-gradient(105deg, transparent 40%, rgb(var(--gold-hover) / 0.16) 50%, transparent 60%);
-    animation: hiq-shine-once 180ms ease-out 1 both;
+    animation: edge-shine-once 180ms ease-out 1 both;
   }
-  .hiq-digit { display: inline-block; animation: hiq-tick 150ms var(--ease-out-soft) both; }
-  .hiq-pill { animation: hiq-pill-in 120ms ease-out both; }
+  .edge-digit { display: inline-block; animation: edge-tick 150ms var(--ease-out-soft) both; }
+  .edge-pill { animation: edge-pill-in 120ms ease-out both; }
 }
