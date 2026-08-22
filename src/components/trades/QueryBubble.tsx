@@ -4,7 +4,7 @@ import {
   resolveQuery,
   type ResolverVocabulary,
 } from '@/core/trades/queryResolver'
-import type { TradesFilterState } from '@/core/trades/tradesFilter'
+import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 
 // v0.2.7 — HiQ. The query resolver's face, re-homed from a filter-bar button
 // to a PRESENCE: a floating trigger at the bottom-right of the Trades content
@@ -39,6 +39,49 @@ import type { TradesFilterState } from '@/core/trades/tradesFilter'
 
 export const HIQ_NAME = 'HiQ'
 
+/** The AnimatedNumber matchMedia pattern: reduced motion strips every
+ *  [data-hiq-anim] hook so the reduced path is STRUCTURAL — asserted by test,
+ *  not just visually instant. jsdom has no matchMedia; optional-chain to
+ *  "not reduced" there. */
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState<boolean>(
+    () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    const onChange = () => setReduced(mq.matches)
+    mq.addEventListener?.('change', onChange)
+    return () => mq.removeEventListener?.('change', onChange)
+  }, [])
+  return reduced
+}
+
+/** THE MOTION LAW made a component: the NEW value is in the DOM the same tick
+ *  it arrives — the roll only decorates. Each digit that changed remounts
+ *  (key = position+char) and ticks up into place; unchanged digits hold
+ *  still. Deliberately NOT AnimatedNumber: its count-up interpolates through
+ *  wrong intermediate values, which gates the answer on an animation. */
+export function Roll({ text, animate = true }: { text: string; animate?: boolean }) {
+  // Reduce-aware HERE so every consumer — the panel's count, the page
+  // header — strips its hooks without each caller knowing about motion.
+  const reduced = useReducedMotion()
+  const on = animate && !reduced
+  return (
+    <span className="inline-flex">
+      {text.split('').map((ch, i) =>
+        on ? (
+          <span key={`${i}-${ch}`} data-hiq-anim className="hiq-digit">
+            {ch}
+          </span>
+        ) : (
+          <span key={`${i}-${ch}`}>{ch}</span>
+        ),
+      )}
+    </span>
+  )
+}
+
 interface Exchange {
   ask: string
   response: string
@@ -66,6 +109,13 @@ export default function QueryBubble({
   const [text, setText] = useState('')
   /** Session-only conversation log. Commits append; previews never do. */
   const [exchanges, setExchanges] = useState<Exchange[]>([])
+  const reduced = useReducedMotion()
+  const committedActive = isFiltering(committed)
+  /** Closing ghost: the panel's collapse is drawn by an input-less shell so
+   *  the REAL close is instant (the K battery asserts the input is gone the
+   *  same tick). null = no ghost; 'commit' | 'discard' pick the speed. */
+  const [ghost, setGhost] = useState<null | 'commit' | 'discard'>(null)
+  const [pulse, setPulse] = useState(0)
   // The state captured at open — the restore target. Held in a ref so the
   // committed prop updating mid-session cannot quietly move the snapshot.
   const snapshot = useRef<TradesFilterState>(committed)
@@ -107,8 +157,12 @@ export default function QueryBubble({
       setText('')
       setOpen(false)
       onDraft(null)
+      if (!reduced) {
+        setGhost(commit ? 'commit' : 'discard')
+        if (commit) setPulse((n) => n + 1)
+      }
     },
-    [text, resolution, onCommit, onDraft, liveCount],
+    [text, resolution, onCommit, onDraft, liveCount, reduced],
   )
 
   // The shortcut — both modifier styles, the Ctrl+B idiom: window keydown,
@@ -168,6 +222,11 @@ export default function QueryBubble({
     }
   }
 
+  /** Animation hook attacher — the whole skin flows through this so the
+   *  reduced path strips every hook in one place. */
+  const anim = (cls: string) => (reduced ? {} : { 'data-hiq-anim': true, className: cls })
+  const animCls = (cls: string) => (reduced ? '' : cls)
+
   return (
     <div
       ref={rootRef}
@@ -175,7 +234,18 @@ export default function QueryBubble({
       onKeyDown={open ? onKeyDown : undefined}
     >
       {open && (
-        <div className="absolute bottom-full right-0 mb-2 w-[440px] rounded-lg border border-gold/30 bg-bg-3 p-3 shadow-lg">
+        <div
+          {...(reduced ? {} : { 'data-hiq-anim': true })}
+          className={`absolute bottom-full right-0 mb-2 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 p-3 shadow-lg backdrop-blur-sm ${animCls('hiq-panel-in')}`}
+          style={{ boxShadow: '0 0 0 1px rgb(var(--gold) / 0.15), 0 0 24px rgb(var(--gold) / 0.10), 0 12px 32px rgb(0 0 0 / 0.45)' }}
+        >
+          {/* the wordmark — small, top-left, monogram beside it */}
+          <div className="mb-2 flex items-center gap-1.5">
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gold/50 text-[8px] font-bold text-gold">
+              {HIQ_NAME[0]}
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-gold">{HIQ_NAME}</span>
+          </div>
           {/* the conversation so far — session-only, commits only */}
           {exchanges.length > 0 && (
             <div className="mb-2 max-h-[180px] space-y-2 overflow-auto border-b border-border-subtle pb-2">
@@ -191,8 +261,12 @@ export default function QueryBubble({
           {/* the greeting — teaches two grammar shapes, signed by the name */}
           {exchanges.length === 0 && text === '' && (
             <div className="mb-2 text-xs text-fg-secondary">
-              Hi, I&apos;m <span className="font-semibold text-gold">{HIQ_NAME}</span>. Ask your
-              book: try &quot;china losers&quot; or &quot;float under 10m&quot;.
+              <span {...anim('hiq-greet-line')} style={reduced ? undefined : { animationDelay: '0ms' }}>
+                Hi, I&apos;m <span className="font-semibold text-gold">{HIQ_NAME}</span>.{' '}
+              </span>
+              <span {...anim('hiq-greet-line')} style={reduced ? undefined : { animationDelay: '80ms' }}>
+                Ask your book: try &quot;china losers&quot; or &quot;float under 10m&quot;.
+              </span>
             </div>
           )}
 
@@ -217,7 +291,8 @@ export default function QueryBubble({
               {resolution.applied.map((label, i) => (
                 <span
                   key={`${label}-${i}`}
-                  className="inline-flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold"
+                  {...(reduced ? {} : { 'data-hiq-anim': true })}
+                  className={`inline-flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold ${animCls('hiq-chip')}`}
                 >
                   {label}
                   <button
@@ -242,7 +317,9 @@ export default function QueryBubble({
                   key={c}
                   type="button"
                   onClick={() => pick(a.text, c)}
-                  className="inline-flex h-6 cursor-pointer items-center rounded-full border border-border-subtle bg-bg-1 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/40 hover:text-gold"
+                  {...(reduced ? {} : { 'data-hiq-anim': true })}
+                  style={reduced ? undefined : { animationDelay: `${a.candidates.indexOf(c) * 40}ms` }}
+                  className={`inline-flex h-6 cursor-pointer items-center rounded-full border border-gold/40 bg-bg-1 px-2 font-mono text-[11px] text-fg-primary transition-colors duration-150 hover:border-gold/70 hover:text-gold ${animCls('hiq-pill')}`}
                 >
                   {c}
                 </button>
@@ -260,21 +337,42 @@ export default function QueryBubble({
 
           <div className="mt-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-fg-tertiary">
             <span>
-              <span className="font-mono text-fg-primary tnum">{liveCount}</span> trades match
+              <span className="font-mono text-fg-primary tnum"><Roll text={String(liveCount)} /></span> trades match
             </span>
             <span>Enter applies · Esc cancels</span>
           </div>
         </div>
       )}
 
+      {/* the closing ghost — an input-less shell drawing the collapse; the
+          real close was instant. aria-hidden, no pointer, self-removing. */}
+      {ghost && (
+        <div
+          aria-hidden="true"
+          data-hiq-anim
+          onAnimationEnd={() => setGhost(null)}
+          className={`pointer-events-none absolute bottom-full right-0 mb-2 h-24 w-[440px] origin-bottom-right rounded-lg border border-gold/40 bg-bg-3/95 ${ghost === 'commit' ? 'hiq-panel-out' : 'hiq-panel-out-fast'}`}
+        />
+      )}
+
       <button
         type="button"
         onClick={() => (open ? close(true) : doOpen())}
         title={`${HIQ_NAME} - ask your book (Ctrl+K)`}
-        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-gold/40 bg-bg-3 px-4 text-xs font-semibold uppercase tracking-wider text-gold shadow-lg transition-colors duration-150 hover:border-gold/70 hover:bg-gold/[0.08]"
+        key={pulse}
+        className={`relative inline-flex h-12 w-12 cursor-pointer items-center justify-center rounded-full border border-gold/50 bg-bg-3 text-gold transition-transform duration-150 ease-out-soft hover:scale-105 ${
+          open ? animCls('hiq-fab-open') : animCls('hiq-fab')
+        } ${pulse > 0 && !open && !reduced ? 'hiq-fab-pulse' : ''}`}
+        {...(reduced ? {} : { 'data-hiq-anim': true })}
       >
-        <Sparkles size={14} strokeWidth={2} />
-        {HIQ_NAME}
+        <span className="flex flex-col items-center leading-none">
+          <Sparkles size={12} strokeWidth={2} />
+          <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">{HIQ_NAME}</span>
+        </span>
+        {/* HiQ remembering — a filter is active on the committed state */}
+        {committedActive && (
+          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold shadow-[0_0_6px_rgb(var(--gold)/0.8)]" />
+        )}
       </button>
     </div>
   )

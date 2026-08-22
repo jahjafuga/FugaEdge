@@ -43,6 +43,9 @@ export interface CaptureStep {
   frame: string
   caption: string
   act: Act[]
+  /** Crop the shot to an element's neighbourhood instead of the full page —
+   *  frame 10 zooms the resting FAB so a still can carry the glow. */
+  zoomSel?: string
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
@@ -55,6 +58,7 @@ export const CAPTURE_SEQUENCE: CaptureStep[] = [
   { frame: '07', caption: 'Escape - candidate discarded, committed state restored', act: [{ op: 'key', keyCode: 'Escape' }] },
   { frame: '08', caption: 'ambiguous prefix "cl" - candidates offered, none picked', act: [{ op: 'openHiq' }, { op: 'type', text: 'cl' }] },
   { frame: '09', caption: 'gibberish - the unresolved line, verbatim, muted', act: [{ op: 'key', keyCode: 'a', modifiers: ['control'] }, { op: 'key', keyCode: 'Backspace' }, { op: 'type', text: 'qwzzk blorp' }] },
+  { frame: '10', caption: 'the resting FAB, zoomed - breathing glow at one instant (3200ms cycle; a still cannot show motion)', act: [{ op: 'key', keyCode: 'Escape' }], zoomSel: 'button[title*="HiQ"]' },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
@@ -70,9 +74,25 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
   const settle = () => js('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,150))))')
   const manifest: string[] = []
 
-  const shot = async (n: string, caption: string) => {
+  const shot = async (n: string, caption: string, zoomSel?: string) => {
     await settle()
-    const img = await wc.capturePage()
+    let rect: Electron.Rectangle | undefined
+    if (zoomSel) {
+      const r = (await js(
+        '(()=>{const el=document.querySelector(' + JSON.stringify(zoomSel) + ');if(!el)return null;' +
+        'const b=el.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height}})()',
+      )) as { x: number; y: number; w: number; h: number } | null
+      if (r) {
+        const pad = 90
+        rect = {
+          x: Math.max(0, Math.round(r.x - pad)),
+          y: Math.max(0, Math.round(r.y - pad)),
+          width: Math.round(r.w + pad * 2),
+          height: Math.round(r.h + pad * 2),
+        }
+      }
+    }
+    const img = rect ? await wc.capturePage(rect) : await wc.capturePage()
     fsCap.writeFileSync(join(capDir, n + '.png'), img.toPNG())
     manifest.push(n + '  ' + caption)
   }
@@ -139,9 +159,10 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
         win.setSize(1600, 900)
         win.center()
         await sleep(1500)
+        manifest.push('NOTE: stills cannot show motion - every animated moment is captured at its END state; timings ride the captions (open 150ms out-soft, chip land 150ms + 180ms shine, digits 150ms, pills 120ms staggered 40ms, commit pulse 280ms, breathe 3200ms)')
         for (const step of CAPTURE_SEQUENCE) {
           for (const a of step.act) await run(a)
-          await shot(step.frame, step.caption)
+          await shot(step.frame, step.caption, step.zoomSel)
         }
       } catch (e) {
         manifest.push('CAPTURE ERROR: ' + (e instanceof Error ? e.message : String(e)))

@@ -46,7 +46,7 @@ import {
 } from '@/lib/prefs/columns'
 import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
 import { withDnaScores } from '@/core/dna/adherence'
-import QueryBubble from '@/components/trades/QueryBubble'
+import QueryBubble, { Roll } from '@/components/trades/QueryBubble'
 import type { ResolverVocabulary } from '@/core/trades/queryResolver'
 import type { PlaybookWithStats } from '@shared/playbook-types'
 import type { MistakeDef } from '@shared/mistakes-types'
@@ -420,7 +420,7 @@ export default function Trades() {
     <span>
       {isFiltering(draftFilters ?? filters) ? (
         <>
-          <span className="font-mono text-fg-primary tnum">{int(shown)}</span>{' '}
+          <span className="font-mono text-fg-primary tnum"><Roll text={int(shown)} /></span>{' '}
           <span className="text-fg-muted">of</span>{' '}
           <span className="font-mono text-fg-primary tnum">{int(total)}</span> trades
         </>

@@ -328,3 +328,67 @@ describe('N4 preview consistency — the frame-caught header fix', () => {
     expect(subtitle()).toMatch(/2 lost/)
   })
 })
+
+// ─── M1/M2/M4 — the skin guards that survive a re-skin ───────────────────────
+
+describe('M1 content-first: the chip and count exist the same tick as resolution', () => {
+  it('with timers frozen and animations still attached, the answer is already there', async () => {
+    await mount()
+    openByShortcut()
+    vi.useFakeTimers()
+    try {
+      fireEvent.change(bubbleInput()!, { target: { value: 'chinese' } })
+      expect(rowCount(), 'the count waited on something').toBe(2)
+      expect(screen.getByText(/region China/i), 'the chip waited on something').toBeTruthy()
+      // and the motion layer is genuinely present — this is not the reduced path
+      expect(
+        document.querySelectorAll('[data-hiq-anim]').length,
+        'no animation layer present - M1 would prove nothing',
+      ).toBeGreaterThan(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('M2 reduced motion: every state renders with zero animation hooks', () => {
+  it('under prefers-reduced-motion the skin strips itself', async () => {
+    const orig = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (q: string) => ({
+        matches: q.includes('prefers-reduced-motion'),
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      }),
+    })
+    try {
+      await mount()
+      openByShortcut()
+      fireEvent.change(bubbleInput()!, { target: { value: 'chinese' } })
+      await waitFor(() => expect(rowCount()).toBe(2))
+      expect(screen.getByText(/region China/i), 'reduced motion lost the content').toBeTruthy()
+      expect(
+        document.querySelectorAll('[data-hiq-anim]').length,
+        'animation hooks rendered under reduced motion',
+      ).toBe(0)
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, value: orig })
+    }
+  })
+})
+
+describe('M4 no animation timer delays input focus on open', () => {
+  it('the input holds focus in the same tick, timers frozen', async () => {
+    await mount()
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(screen.getByTitle(/HiQ/))
+      const input = bubbleInput()
+      expect(input).toBeTruthy()
+      expect(document.activeElement, 'focus waited on a timer').toBe(input)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
