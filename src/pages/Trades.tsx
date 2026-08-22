@@ -46,6 +46,10 @@ import {
 } from '@/lib/prefs/columns'
 import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
 import { withDnaScores } from '@/core/dna/adherence'
+import QueryBubble from '@/components/trades/QueryBubble'
+import type { ResolverVocabulary } from '@/core/trades/queryResolver'
+import type { PlaybookWithStats } from '@shared/playbook-types'
+import type { MistakeDef } from '@shared/mistakes-types'
 import { useDnaConfig } from '@/lib/useDnaConfig'
 import { useCatalystDefs } from '@/lib/useCatalystDefs'
 
@@ -320,10 +324,53 @@ export default function Trades() {
     () => (trades && dnaConfig ? withDnaScores(trades, dnaConfig, catalystDefs) : trades),
     [trades, dnaConfig, catalystDefs],
   )
+  // v0.2.7 — the bubble's LIVE CANDIDATE (B1). While a draft exists the table
+  // and the header count render IT; the committed state (and the prefs write,
+  // which keys off effectiveFilters alone) is untouched until Enter commits.
+  const [draftFilters, setDraftFilters] = useState<TradesFilterState | null>(null)
   const filtered = useMemo(
-    () => (scored ? applyTradesFilters(scored, effectiveFilters) : []),
-    [scored, effectiveFilters],
+    () => (scored ? applyTradesFilters(scored, draftFilters ?? effectiveFilters) : []),
+    [scored, draftFilters, effectiveFilters],
   )
+
+  // The resolver's vocabulary: book-derived lists straight off the loaded
+  // trades; def-table lists fetched once at mount (the catalyst defs were
+  // already here for the DNA scorer).
+  const [playbooks, setPlaybooks] = useState<PlaybookWithStats[]>([])
+  const [mistakeDefs, setMistakeDefs] = useState<MistakeDef[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void ipc.playbooksList().then((list) => {
+      if (!cancelled) setPlaybooks(list)
+    })
+    void ipc.mistakeDefsGet().then((list) => {
+      if (!cancelled) setMistakeDefs(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const vocab = useMemo<ResolverVocabulary>(() => {
+    const rows = trades ?? []
+    const uniq = (xs: (string | null | undefined)[]) =>
+      [...new Set(xs.filter((x): x is string => !!x && x !== 'Unknown'))]
+    const countryPairs = new Map<string, string>()
+    for (const t of rows) {
+      if (t.country) countryPairs.set(t.country, t.country_name)
+    }
+    return {
+      symbols: uniq(rows.map((t) => t.symbol)),
+      regions: uniq(rows.map((t) => t.region)),
+      countries: [...countryPairs.entries()].map(([iso, name]) => ({ iso, name })),
+      sectors: uniq(rows.map((t) => t.sector)),
+      industries: uniq(rows.map((t) => t.industry)),
+      playbooks: playbooks
+        .filter((p) => !p.archived)
+        .map((p) => ({ id: p.id, name: p.name, tier: p.tier ?? null })),
+      catalystTypes: catalystDefs.map((d) => d.name),
+      mistakes: mistakeDefs.map((d) => ({ axis: d.axis, name: d.name })),
+    }
+  }, [trades, playbooks, mistakeDefs, catalystDefs])
 
   // PERSIST THE DEFERRED STATE, not the live one. columns.ts writes straight
   // from its change handler because a column toggle is one click; the filter bar
@@ -408,7 +455,19 @@ export default function Trades() {
             so the Table/Charts/Grid toggle persists outside the table card. */}
         <div className="card-premium space-y-4 p-4">
           <TradesFilters
-            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades} />
+            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades}
+            askSlot={
+              <QueryBubble
+                committed={filters}
+                vocab={vocab}
+                liveCount={filtered.length}
+                onDraft={setDraftFilters}
+                onCommit={(next) => {
+                  setFilters(next)
+                  setDraftFilters(null)
+                }}
+              />
+            } />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">

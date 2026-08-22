@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, Search, X } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
 import type { PlaybookWithStats } from '@shared/playbook-types'
@@ -36,6 +36,10 @@ interface TradesFiltersProps {
   filters: TradesFilterState
   onChange: (next: TradesFilterState) => void
   trades: TradeListRow[]
+  /** v0.2.7 — the query bubble's trigger, composed by the page (which owns
+   *  the draft state and the vocabulary). Rendered at the head of the first
+   *  filter row so the bar grows no new row. */
+  askSlot?: ReactNode
   /** Numeric columns currently VISIBLE in the table. Only these get range inputs —
    *  an invisible column silently narrowing the table is a filter nobody can see to
    *  clear. Supplied by the page, which owns column visibility. */
@@ -46,6 +50,7 @@ export default function TradesFilters({
   filters,
   onChange,
   trades,
+  askSlot,
   numericColumns = [],
 }: TradesFiltersProps) {
   const setRange = (id: string, key: 'min' | 'max', raw: string) => {
@@ -60,6 +65,7 @@ export default function TradesFilters({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        {askSlot}
         <div className="flex h-8 items-center gap-2 rounded-md border border-border-subtle bg-bg-1 px-2.5 transition-colors duration-150 focus-within:border-gold">
           <Search size={14} strokeWidth={1.75} className="text-fg-tertiary" />
           <input

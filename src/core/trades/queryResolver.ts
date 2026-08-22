@@ -68,6 +68,9 @@ export interface ResolveResult {
   /** One human-readable line per consumed token — what it did, and what it
    *  replaced when it replaced something. */
   applied: string[]
+  /** The SOURCE text behind each applied line, index-parallel to `applied`.
+   *  The bubble's chips remove by source: strip the words, re-resolve. */
+  appliedSources: string[]
   /** Contiguous runs of text that matched nothing. THE MODEL SEAM. */
   unresolved: string[]
   /** Tokens that matched more than one candidate in the same kind. */
@@ -157,7 +160,7 @@ interface PoolEntry {
   kind: number // index into KIND ORDER — lower wins precedence
   key: string
   display: string
-  apply: (s: TradesFilterState, applied: string[]) => void
+  apply: (s: TradesFilterState, log: (line: string) => void) => void
 }
 
 const pushUnique = <T>(arr: T[], v: T) => {
@@ -186,7 +189,12 @@ export function resolveQuery(
     ),
   }
   const applied: string[] = []
+  const appliedSources: string[] = []
   const unresolved: string[] = []
+  const log = (line: string, source: string) => {
+    applied.push(line)
+    appliedSources.push(source)
+  }
   const ambiguous: AmbiguousToken[] = []
 
   const tokens = text
@@ -239,32 +247,32 @@ export function resolveQuery(
   }
 
   // ── pass 2: the state's own words ─────────────────────────────────────────
-  const replaceNote = (label: string, next: string, prev: string | null) =>
-    applied.push(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`)
+  const replaceNote = (label: string, next: string, prev: string | null, source: string) =>
+    log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`, source)
 
   for (let i = 0; i < tokens.length; i++) {
     if (marks[i] !== 'free') continue
     const t = tokens[i]
     if (OUTCOME_WORDS[t]) {
-      replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null)
+      replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null, t)
       state = { ...state, outcome: OUTCOME_WORDS[t] }
       marks[i] = 'consumed'
     } else if (SIDE_WORDS[t]) {
-      replaceNote('side', SIDE_WORDS[t], state.side !== 'all' ? state.side : null)
+      replaceNote('side', SIDE_WORDS[t], state.side !== 'all' ? state.side : null, t)
       state = { ...state, side: SIDE_WORDS[t] }
       marks[i] = 'consumed'
     } else if (PRESET_WORDS[t]) {
       // beat 35's exclusivity: the preset derives the window and retires any
       // explicit dates — through the same function the chips use.
-      replaceNote('date', PRESET_WORDS[t], state.datePreset)
+      replaceNote('date', PRESET_WORDS[t], state.datePreset, t)
       state = withDatePreset(state, PRESET_WORDS[t], now)
       marks[i] = 'consumed'
     } else if (DNA_WORDS[t]) {
-      replaceNote('dna', DNA_WORDS[t], state.dna.bucket !== 'any' ? state.dna.bucket : null)
+      replaceNote('dna', DNA_WORDS[t], state.dna.bucket !== 'any' ? state.dna.bucket : null, t)
       state = { ...state, dna: { ...state.dna, bucket: DNA_WORDS[t] } }
       marks[i] = 'consumed'
     } else if (MISTAKE_FLAG_WORDS.has(t)) {
-      applied.push('mistakes only')
+      log('mistakes only', t)
       state = { ...state, mistakesOnly: true }
       marks[i] = 'consumed'
     }
@@ -286,7 +294,7 @@ export function resolveQuery(
       kind, key, display,
       apply: (s, log) => {
         pushUnique(s[field], value)
-        log.push(`${label} ${display}`)
+        log(`${label} ${display}`)
       },
     })
 
@@ -311,7 +319,7 @@ export function resolveQuery(
       kind: 5, key: pb.name.toLowerCase(), display: pb.name,
       apply: (s, log) => {
         if (!s.playbookIds.includes(pb.id)) s.playbookIds.push(pb.id)
-        log.push(`playbook ${pb.name}`)
+        log(`playbook ${pb.name}`)
       },
     })
   for (const ct of vocab.catalystTypes) addArrayEntry(6, ct.toLowerCase(), ct, 'catalystTypes', ct, 'catalyst')
@@ -321,12 +329,12 @@ export function resolveQuery(
       apply: (s, log) => {
         if (!s.mistakeKeys.some((k) => k.axis === mk.axis && k.name === mk.name))
           s.mistakeKeys.push({ axis: mk.axis, name: mk.name })
-        log.push(`mistake ${mk.name}`)
+        log(`mistake ${mk.name}`)
       },
     })
 
-  function replaceNoteInto(log: string[], label: string, next: string, prev: string | null) {
-    log.push(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`)
+  function replaceNoteInto(log: (line: string) => void, label: string, next: string, prev: string | null) {
+    log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`)
   }
 
   /** Winning candidates for one normalized phrase: exact, then prefix, then
@@ -364,7 +372,7 @@ export function resolveQuery(
       const phrase = DEMONYMS[raw] ?? raw
       const hits = candidatesFor(phrase)
       if (hits.length === 1) {
-        hits[0].apply(state, applied)
+        hits[0].apply(state, (line) => log(line, raw))
         for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
         matched = true
         break
@@ -404,7 +412,7 @@ export function resolveQuery(
       ...state,
       ranges: { ...state.ranges, [colId]: { ...prev, [bound]: value } },
     }
-    applied.push(`${colId} ${bound} ${value}`)
+    log(`${colId} ${bound} ${value}`, c.text)
   }
 
   // ── unresolved runs: contiguous free tokens, stopwords dropped ────────────
@@ -419,5 +427,5 @@ export function resolveQuery(
   }
   flush()
 
-  return { state, applied, unresolved, ambiguous }
+  return { state, applied, appliedSources, unresolved, ambiguous }
 }

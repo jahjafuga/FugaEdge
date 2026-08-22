@@ -1,0 +1,251 @@
+// @vitest-environment jsdom
+// v0.2.7 — THE BUBBLE. The resolver gets a face on the Trades page.
+//
+// THE RULINGS, pinned here through the real page:
+//   B1  LIVE CANDIDATE — typing resolves continuously into a candidate state;
+//       the table and the header count render the candidate live.
+//   B2  ESCAPE RESTORES the state captured at open, byte-equal. Enter and
+//       click-away COMMIT. Either way the bubble closes.
+//   B3  AMBIGUITY IS OFFERED — candidates listed, click picks. The core never
+//       chooses and the UI never auto-picks.
+//   B4  UNRESOLVED IS SHOWN, verbatim, muted, no error tone. The seam.
+//
+// The harness is the range-ungate page harness: real TradesFilters, real
+// QueryBubble, real resolver, stub table exposing the live row count.
+
+import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import type { TradeListRow } from '@shared/trades-types'
+import { makeTrade } from '@/test/fixtures/trade'
+import { makeSettingsPayload } from '@/test/fixtures/settings'
+import { readTradesFilters } from '@/lib/prefs/tradesFilters'
+
+vi.mock('@/lib/ipc', () => ({
+  ipc: {
+    tradesList: vi.fn(),
+    settingsGet: vi.fn(),
+    settingsSave: vi.fn(),
+    accountsList: vi.fn(),
+    playbooksList: vi.fn(),
+    mistakeDefsGet: vi.fn(),
+    catalystDefsGet: vi.fn(),
+  },
+}))
+vi.mock('@/components/trades/TradesTable', () => ({
+  default: (p: { trades: TradeListRow[] }) => (
+    <div data-testid="table-stub">
+      <span data-testid="row-count">{p.trades.length}</span>
+    </div>
+  ),
+}))
+vi.mock('@/components/trades/TradesViewToggle', () => ({ default: () => null }))
+vi.mock('@/components/trades/TradeChartCard', () => ({ default: () => null }))
+vi.mock('@/components/trades/TradeChartTile', () => ({ default: () => null }))
+vi.mock('@/components/data-health/MigrationCollisionsBanner', () => ({ default: () => null }))
+
+import Trades from '../Trades'
+import { AccountScopeProvider } from '@/lib/accountScope'
+import { ipc } from '@/lib/ipc'
+
+const m = vi.mocked(ipc)
+
+/** Four trades, hand-arithmetic: chinese losers = [2] (1 row); losers = [2,4]
+ *  (2); prefix "as" hits ASTC and ASND. */
+const BOOK: TradeListRow[] = [
+  makeTrade({ id: 1, symbol: 'ASTC', region: 'USA', country: 'US', country_name: 'United States', net_pnl: 60 } as Partial<TradeListRow>),
+  makeTrade({ id: 2, symbol: 'AZI', region: 'China', country: 'CN', country_name: 'China', net_pnl: -80 } as Partial<TradeListRow>),
+  makeTrade({ id: 3, symbol: 'RYOJ', region: 'China', country: 'CN', country_name: 'China', net_pnl: 45 } as Partial<TradeListRow>),
+  makeTrade({ id: 4, symbol: 'ASND', region: 'USA', country: 'US', country_name: 'United States', net_pnl: -20 } as Partial<TradeListRow>),
+]
+
+function installMockLocalStorage() {
+  const store = new Map<string, string>()
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, String(v)),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    },
+  })
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  installMockLocalStorage()
+  m.tradesList.mockResolvedValue(BOOK)
+  m.settingsGet.mockResolvedValue(makeSettingsPayload({ account_scope: 'all' }))
+  m.settingsSave.mockResolvedValue(makeSettingsPayload())
+  m.accountsList.mockResolvedValue([])
+  m.playbooksList.mockResolvedValue([])
+  m.mistakeDefsGet.mockResolvedValue([])
+  m.catalystDefsGet.mockResolvedValue([])
+})
+afterEach(() => cleanup())
+
+async function mount() {
+  render(
+    <MemoryRouter>
+      <AccountScopeProvider>
+        <Trades />
+      </AccountScopeProvider>
+    </MemoryRouter>,
+  )
+  await waitFor(() => expect(screen.getByTestId('table-stub')).toBeTruthy())
+}
+
+const rowCount = () => Number(screen.getByTestId('row-count').textContent)
+const bubbleInput = () => screen.queryByPlaceholderText(/ask your book/i)
+const openByShortcut = () => fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+
+// ─── K1 ──────────────────────────────────────────────────────────────────────
+
+describe('K1 the bubble opens by shortcut and by button, input autofocused', () => {
+  it('Ctrl+K opens and focuses', async () => {
+    await mount()
+    expect(bubbleInput()).toBeNull()
+    openByShortcut()
+    const input = bubbleInput()
+    expect(input, 'the shortcut did not open the bubble').toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(input))
+  })
+
+  it('the button in the filter bar opens identically', async () => {
+    await mount()
+    // The trigger must EXIST and be VISIBLE — a hidden button still fires
+    // onClick in jsdom, which is how the first falsification plant survived.
+    const btn = screen.getByTitle(/ask your book/i) as HTMLButtonElement
+    expect(btn.hidden, 'the trigger is hidden from the user').toBe(false)
+    fireEvent.click(btn)
+    const input = bubbleInput()
+    expect(input, 'the button did not open the bubble').toBeTruthy()
+    await waitFor(() => expect(document.activeElement).toBe(input))
+  })
+
+  it('and Cmd+K (metaKey) works the same way', async () => {
+    await mount()
+    fireEvent.keyDown(window, { key: 'k', metaKey: true })
+    expect(bubbleInput()).toBeTruthy()
+  })
+})
+
+// ─── K2 — the live candidate ─────────────────────────────────────────────────
+
+describe('K2 typing applies to the candidate and the count is live', () => {
+  it('"chinese losers" narrows the live table to the hand-computed one row', async () => {
+    await mount()
+    expect(rowCount()).toBe(4)
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount(), 'the table did not render the candidate').toBe(1))
+  })
+})
+
+// ─── K3 — Escape restores ────────────────────────────────────────────────────
+
+describe('K3 Escape restores the open snapshot, byte-equal', () => {
+  it('the narrowing vanishes and the stored prefs never moved', async () => {
+    await mount()
+    const before = JSON.stringify(readTradesFilters('all'))
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+
+    fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
+    expect(bubbleInput(), 'Escape did not close the bubble').toBeNull()
+    await waitFor(() => expect(rowCount(), 'Escape did not restore the table').toBe(4))
+    expect(JSON.stringify(readTradesFilters('all')), 'Escape leaked into the prefs').toBe(before)
+  })
+})
+
+// ─── K4 — Enter commits ──────────────────────────────────────────────────────
+
+describe('K4 Enter commits, and the commit survives the prefs write path', () => {
+  it('the narrowing stays and the stored blob carries it', async () => {
+    await mount()
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+
+    fireEvent.keyDown(bubbleInput()!, { key: 'Enter' })
+    expect(bubbleInput()).toBeNull()
+    expect(rowCount()).toBe(1)
+    await waitFor(() => {
+      const stored = readTradesFilters('all')
+      expect(stored.regions, 'the commit never reached the prefs').toEqual(['China'])
+      expect(stored.outcome).toBe('losers')
+    })
+  })
+})
+
+// ─── K5 — ambiguity offered ──────────────────────────────────────────────────
+
+describe('K5 a colliding prefix lists both candidates and applies neither', () => {
+  it('"as" offers ASTC and ASND; the click applies the pick', async () => {
+    await mount()
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'as' } })
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'ASTC' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'ASND' })).toBeTruthy()
+    })
+    expect(rowCount(), 'an ambiguous token narrowed the table').toBe(4)
+
+    fireEvent.click(screen.getByRole('button', { name: 'ASTC' }))
+    await waitFor(() => expect(rowCount()).toBe(1))
+  })
+})
+
+// ─── K6 — the seam ───────────────────────────────────────────────────────────
+
+describe('K6 unresolved text renders verbatim', () => {
+  it('gibberish is named, not swallowed and not an error', async () => {
+    await mount()
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'qwzzk blorp' } })
+    await waitFor(() => expect(screen.getByText(/qwzzk blorp/)).toBeTruthy())
+    expect(rowCount()).toBe(4)
+  })
+})
+
+// ─── K7 — chips ──────────────────────────────────────────────────────────────
+
+describe('K7 removing a chip recomputes', () => {
+  it('dropping the region chip widens back to all losers', async () => {
+    await mount()
+    openByShortcut()
+    fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+    await waitFor(() => expect(rowCount()).toBe(1))
+
+    fireEvent.click(screen.getByRole('button', { name: /remove region China/i }))
+    await waitFor(() => expect(rowCount(), 'the removal did not recompute').toBe(2))
+  })
+})
+
+// ─── K8 — Escape touches nothing beneath ─────────────────────────────────────
+
+describe('K8 with the bubble open, Escape closes the bubble ONLY', () => {
+  it('nothing beneath sees the keydown; a second Escape changes nothing further', async () => {
+    await mount()
+    const probe = vi.fn()
+    document.addEventListener('keydown', probe)
+    try {
+      openByShortcut()
+      fireEvent.change(bubbleInput()!, { target: { value: 'chinese losers' } })
+      await waitFor(() => expect(rowCount()).toBe(1))
+      probe.mockClear()
+
+      fireEvent.keyDown(bubbleInput()!, { key: 'Escape' })
+      expect(bubbleInput()).toBeNull()
+      expect(probe, 'the Escape leaked to a document listener beneath the bubble').not.toHaveBeenCalled()
+
+      fireEvent.keyDown(document.body, { key: 'Escape' })
+      expect(bubbleInput(), 'a second Escape re-opened or moved something').toBeNull()
+      await waitFor(() => expect(rowCount()).toBe(4))
+    } finally {
+      document.removeEventListener('keydown', probe)
+    }
+  })
+})

@@ -22,6 +22,8 @@ vi.mock('@/lib/ipc', () => ({
     settingsSave: vi.fn(),
     accountsList: vi.fn(),
     catalystDefsGet: vi.fn(),
+    playbooksList: vi.fn(),
+    mistakeDefsGet: vi.fn(),
   },
 }))
 vi.mock('@/components/trades/TradesTable', () => ({
@@ -104,6 +106,8 @@ beforeEach(() => {
   m.settingsSave.mockResolvedValue(makeSettingsPayload())
   m.accountsList.mockResolvedValue(ACCOUNTS)
   m.catalystDefsGet.mockResolvedValue([])
+  m.playbooksList.mockResolvedValue([])
+  m.mistakeDefsGet.mockResolvedValue([])
 })
 
 describe('Trades — scope-aware fetching + row indicator', () => {

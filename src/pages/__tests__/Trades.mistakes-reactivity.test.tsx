@@ -23,6 +23,8 @@ vi.mock('@/lib/ipc', () => ({
     settingsSave: vi.fn(),
     accountsList: vi.fn(),
     catalystDefsGet: vi.fn(),
+    playbooksList: vi.fn(),
+    mistakeDefsGet: vi.fn(),
   },
 }))
 
@@ -98,6 +100,8 @@ beforeEach(() => {
   m.settingsSave.mockResolvedValue(makeSettingsPayload())
   m.accountsList.mockResolvedValue(ACCOUNTS)
   m.catalystDefsGet.mockResolvedValue([])
+  m.playbooksList.mockResolvedValue([])
+  m.mistakeDefsGet.mockResolvedValue([])
 })
 
 describe('Trades — mistakes-change wiring', () => {
