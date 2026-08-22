@@ -48,6 +48,11 @@ export interface TradeListRow {
    *  column. Optional: only the trades read path (listTrades/getTrade) populates it;
    *  null when the trade has no complete technicals row yet (→ tile shows pending). */
   tf_1m_ema9_dist_pct?: number | null
+  /** v0.2.7 — entry distance from VWAP over 1-minute bars, from the SAME
+   *  trade_technicals snapshot as the 9EMA twin above; threaded one beat
+   *  after the inventory found it one SELECT away in a join that already
+   *  existed. Same optionality and null contract. */
+  tf_1m_vwap_dist_pct?: number | null
   /** Max adverse / favorable excursion in $/share between entry and exit,
    *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
    *  intraday bars cover the trade's window. */

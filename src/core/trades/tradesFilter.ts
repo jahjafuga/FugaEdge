@@ -122,6 +122,7 @@ export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
     case 'mfe': return t.mfe
     case 'float': return t.float_shares
     case 'market_cap': return t.market_cap ?? null
+    case 'vwap_dist_pct': return t.tf_1m_vwap_dist_pct ?? null
     default: return null
   }
 }

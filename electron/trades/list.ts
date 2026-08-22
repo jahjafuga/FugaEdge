@@ -34,6 +34,7 @@ interface TradeRowDb {
   entry_timeframe: string | null
   entry_ema9_distance_pct: number | null
   tf_1m_ema9_dist_pct: number | null
+  tf_1m_vwap_dist_pct: number | null
   mae: number | null
   mfe: number | null
   daily_change_pct: number | null
@@ -229,7 +230,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
         t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
-        tt.tf_1m_ema9_dist_pct,
+        tt.tf_1m_ema9_dist_pct, tt.tf_1m_vwap_dist_pct,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
         t.confidence, t.planned_risk, t.planned_stop_loss_price,
@@ -302,6 +303,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       entry_timeframe: parseTimeframe(r.entry_timeframe),
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
       tf_1m_ema9_dist_pct: r.tf_1m_ema9_dist_pct,
+      tf_1m_vwap_dist_pct: r.tf_1m_vwap_dist_pct,
       mae: r.mae,
       mfe: r.mfe,
       daily_change_pct: r.daily_change_pct,
@@ -360,7 +362,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.gross_pnl, t.total_fees, t.commission, t.net_pnl, t.executions_json,
         t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
-        tt.tf_1m_ema9_dist_pct,
+        tt.tf_1m_ema9_dist_pct, tt.tf_1m_vwap_dist_pct,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
         t.confidence, t.planned_risk, t.planned_stop_loss_price,
@@ -431,6 +433,7 @@ export function getTrade(id: number): TradeListRow | null {
     entry_timeframe: parseTimeframe(row.entry_timeframe),
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,
     tf_1m_ema9_dist_pct: row.tf_1m_ema9_dist_pct,
+    tf_1m_vwap_dist_pct: row.tf_1m_vwap_dist_pct,
     mae: row.mae,
     mfe: row.mfe,
     daily_change_pct: row.daily_change_pct,

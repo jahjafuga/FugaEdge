@@ -789,6 +789,14 @@ export default function TradesTable({
         cell: (i) => <Num>{num(i.getValue(), (n) => `$${compactShares(n)}`)}</Num>,
         sortUndefined: 'last',
       }),
+      // v0.2.7 — entry distance from VWAP (1m snapshot), the 9EMA twin the
+      // detail tile already shows; signed like the other percent columns.
+      col.accessor((r) => r.tf_1m_vwap_dist_pct ?? null, {
+        id: 'vwap_dist_pct', header: COLUMN_LABELS['vwap_dist_pct'], size: COLUMN_WIDTHS.vwap_dist_pct,
+        meta: { label: COLUMN_LABELS['vwap_dist_pct'] },
+        cell: (i) => <Num>{num(i.getValue(), (n) => signedPct(n))}</Num>,
+        sortUndefined: 'last',
+      }),
       col.accessor('daily_change_pct', {
         id: 'daily_change_pct', header: COLUMN_LABELS['daily_change_pct'], size: COLUMN_WIDTHS.daily_change_pct,
         meta: { label: COLUMN_LABELS['daily_change_pct'] },

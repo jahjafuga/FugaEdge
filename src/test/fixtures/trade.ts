@@ -49,6 +49,7 @@ export function makeTrade(overrides: Partial<TradeListRow> = {}): TradeListRow {
     country_name: 'Unknown',
     region: 'Unknown',
     country_source: 'unknown',
+    tf_1m_vwap_dist_pct: null,
     sector: null,
     industry: null,
     market_cap: null,
