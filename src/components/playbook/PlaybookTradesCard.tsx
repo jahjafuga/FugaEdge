@@ -7,8 +7,10 @@ import { int, longDate, pnlClass, price, signed } from '@/lib/format'
 // Brendan: "inside each playbook setup, it would be nice to have a trades tab
 // that show all trades that were listed under that setup instead of going to
 // trades to find them." Not a tab in the end — a card in the right-hand stack,
-// between the numbers and the rules, so the panel reads top to bottom as: how
-// this setup performs, which trades say so, what the setup is.
+// LAST, below the setup definition: the panel reads top to bottom as how this
+// setup performs, what the setup is, and then the trades that say so. It first
+// shipped between the numbers and the rules; seeing it in the running app
+// reversed that, because a long list above the rules pushed them off the fold.
 //
 // WHAT THIS BORROWS, AND FROM WHERE. The eight-row cap with a "Show all N"
 // expander is BucketTradeTable's interaction shape (the MACD bucket accordion),
@@ -68,7 +70,23 @@ export default function PlaybookTradesCard({
           No trades logged under {setupName} yet.
         </div>
       ) : (
-        <div className="overflow-x-auto px-5 py-4">
+        <div className="px-5 py-4">
+          {/* SELF-CONTAINED. Expanding the list must not move anything else on
+              the page, so the rows scroll inside this box rather than growing
+              it. The height is NOT a new number — it is the same
+              max-h-[600px] the playbook list on this page already uses
+              (src/pages/Playbook.tsx:288), so the two scroll regions in one
+              view cannot disagree.
+
+              The classes are UNCONDITIONAL: the same box in both states, never
+              geometry that appears on expand. And they sit here rather than on
+              the Card, because a Card that scrolls takes its own header away
+              with the rows — and the expander below stays outside the box for
+              the same reason, so it is still reachable at row twenty-nine. */}
+          <div
+            data-playbook-trades-scroll
+            className="max-h-[600px] overflow-x-auto overflow-y-auto"
+          >
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle text-[10px] uppercase tracking-wider text-fg-tertiary">
@@ -127,6 +145,7 @@ export default function PlaybookTradesCard({
               })}
             </tbody>
           </table>
+          </div>
 
           {hasMore && (
             <div className="mt-3 border-t border-border-subtle/60 pt-3">

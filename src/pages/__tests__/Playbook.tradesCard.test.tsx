@@ -104,9 +104,16 @@ beforeEach(() => {
 
 afterEach(() => cleanup())
 
-// --- G7 ---------------------------------------------------------------------
+// --- G7 (INVERTED in v0.2.7 -- see the note) ---------------------------------
 
-describe('G7 the trades Card sits BETWEEN performance and definition', () => {
+// PLACEMENT REVERSED, deliberately. This guard shipped asserting
+// performance -> TRADES -> definition. Seeing it in the running app reversed
+// the ruling: the trades now sit LAST, below the rules.
+//
+// The guard is INVERTED IN PLACE rather than deleted. A deleted order guard is
+// how an order regression comes back silently a year later -- the assertion
+// still has to hold, it just holds the other way round now.
+describe('G1 the trades Card sits BELOW the definition Card', () => {
   it('the three cards render in the ruled order, by DOM position', async () => {
     const { container } = mount()
     await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
@@ -117,13 +124,18 @@ describe('G7 the trades Card sits BETWEEN performance and definition', () => {
 
     // DOCUMENT_POSITION_FOLLOWING === 4: the argument comes AFTER the subject.
     expect(
-      perf.compareDocumentPosition(trades) & Node.DOCUMENT_POSITION_FOLLOWING,
-      'the trades card is not after the performance card',
+      perf.compareDocumentPosition(def) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the definition card is not after the performance card',
     ).toBeTruthy()
     expect(
-      trades.compareDocumentPosition(def) & Node.DOCUMENT_POSITION_FOLLOWING,
-      'the definition card is not after the trades card',
+      def.compareDocumentPosition(trades) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the trades card is not after the definition card -- the old order is back',
     ).toBeTruthy()
+    // And explicitly NOT the order this file used to assert.
+    expect(
+      trades.compareDocumentPosition(def) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the definition card follows the trades card -- that is the OLD placement',
+    ).toBeFalsy()
   })
 
   it('all three are siblings in one stack -- no tab strip was introduced', async () => {

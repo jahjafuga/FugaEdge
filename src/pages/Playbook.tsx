@@ -379,9 +379,6 @@ export default function Playbook() {
               <PlaybookPerformance stats={selected.stats} />
             </div>
 
-            {/* The trades behind the numbers, before the rules. */}
-            <PlaybookTradesCard trades={trades} setupName={selected.name} />
-
             <div data-playbook-definition>
             <Card padded={false}>
               <div className="flex items-baseline justify-between border-b border-white/[0.05] px-5 py-3">
@@ -517,6 +514,12 @@ export default function Playbook() {
               </div>
             </Card>
             </div>
+
+            {/* v0.2.7 — the trades LAST, below the rules. Seeing the panel in
+                the running app reversed the earlier placement: the definition
+                is what the user came to read and edit, and a long trade list
+                above it pushed the rules off the fold. */}
+            <PlaybookTradesCard trades={trades} setupName={selected.name} />
           </div>
         )}
       </div>

@@ -80,6 +80,79 @@ describe('G5 the list caps at eight, and the affordance tells the truth', () => 
   })
 })
 
+// --- G2 / G3 ----------------------------------------------------------------
+
+describe('G2 the list is self-contained -- it scrolls inside its own box', () => {
+  // STRUCTURAL ONLY, and saying so out loud: jsdom has no layout engine, so
+  // nothing here proves a pixel height or that anything actually scrolls. What
+  // it pins is that the containment classes are on the scroll box and stay
+  // there. The real acceptance instrument is a click in the running app.
+  //
+  // The height is NOT a new number: it is the same max-h-[600px] the playbook
+  // list on this page already uses (src/pages/Playbook.tsx:288), reused so the
+  // two scroll regions in the same view cannot disagree.
+  const scrollBox = (c: HTMLElement) =>
+    c.querySelector('[data-playbook-trades-scroll]') as HTMLElement | null
+
+  it('the scroll box exists', () => {
+    const { container } = mount(trades(29))
+    expect(scrollBox(container), 'there is no dedicated scroll box').toBeTruthy()
+  })
+
+  it('it carries the reused max height and vertical overflow', () => {
+    const { container } = mount(trades(29))
+    const cls = scrollBox(container)!.className
+    expect(cls, 'the reused max-height is missing').toMatch(/max-h-\[600px\]/)
+    expect(cls, 'the vertical overflow is missing').toMatch(/overflow-y-auto/)
+  })
+
+  it('the containment is NOT on the Card -- the header must not scroll away', () => {
+    const { container } = mount(trades(29))
+    const card = container.querySelector('[data-playbook-trades]') as HTMLElement
+    expect(
+      card.className,
+      'the Card itself scrolls, which takes the header with it',
+    ).not.toMatch(/overflow-y-auto/)
+    expect(card.className).not.toMatch(/max-h-\[600px\]/)
+  })
+
+  it('the affordance sits OUTSIDE the scroll box, so it stays reachable', () => {
+    const { container } = mount(trades(29))
+    const btn = screen.getByRole('button', { name: /show all 29/i })
+    expect(
+      scrollBox(container)!.contains(btn),
+      'the expander scrolled away with the rows',
+    ).toBe(false)
+  })
+})
+
+describe('G3 containment holds in BOTH states, not just when expanded', () => {
+  const clsOf = (c: HTMLElement) =>
+    (c.querySelector('[data-playbook-trades-scroll]') as HTMLElement).className
+
+  it('collapsed: the classes are already there', () => {
+    const { container } = mount(trades(29))
+    expect(clsOf(container)).toMatch(/max-h-\[600px\]/)
+    expect(clsOf(container)).toMatch(/overflow-y-auto/)
+  })
+
+  it('expanded: the SAME classes, unchanged -- no conditional geometry', () => {
+    const { container } = mount(trades(29))
+    const before = clsOf(container)
+    fireEvent.click(screen.getByRole('button', { name: /show all 29/i }))
+    expect(
+      clsOf(container),
+      'the geometry changed on expand -- it must be one class set',
+    ).toBe(before)
+  })
+
+  it('a SHORT list is contained too -- containment is unconditional', () => {
+    const { container } = mount(trades(3))
+    expect(clsOf(container)).toMatch(/max-h-\[600px\]/)
+    expect(clsOf(container)).toMatch(/overflow-y-auto/)
+  })
+})
+
 // --- G6 ---------------------------------------------------------------------
 
 describe('G6 an untagged setup says so, once', () => {
