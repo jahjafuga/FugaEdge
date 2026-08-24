@@ -2,6 +2,7 @@ import { openDatabase } from '../db/database'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
 import { sqlIsWin, sqlIsLoss } from '@/core/classify/outcome'
 import { scopeFilter } from '../accounts/scope'
+import { topMistake, type MistakeTagRow } from '@/core/calendar/topMistake'
 import type { AccountScope } from '@shared/accounts-types'
 import type {
   CalendarDay,
@@ -283,6 +284,64 @@ interface YearMonthRowDb {
 // the per-day averages, which would be statistically wrong). Returns ONLY the
 // months that actually have trades, keyed by month (1..12); getCalendarYear
 // fills the untraded months as zero rows.
+/** The top mistake per month of `year`, keyed by month number (1..12).
+ *  Months with no tagged trade are simply absent from the map.
+ *
+ *  Grouped in SQL down to one row per (month, mistake) with its count, then
+ *  folded by the SHARED topMistake comparator rather than an ORDER BY LIMIT 1
+ *  -- the tiebreak law (count desc, sort_position asc, name asc) lives in one
+ *  pure function that both calendar surfaces call, and a second copy of it in
+ *  SQL is exactly the drift this codebase keeps paying for.
+ *
+ *  Scoped like every other year trade-read: the non-sim wall (or the single
+ *  account) plus the soft-delete filter. */
+function readYearMonthMistakes(
+  db: ReturnType<typeof openDatabase>,
+  year: number,
+  scope: AccountScope,
+): Map<number, { name: string; count: number }> {
+  const sf = scopeFilter(scope)
+  const rows = db
+    .prepare(`
+      SELECT
+        substr(t.date, 1, 7) AS ym,
+        md.name              AS name,
+        md.sort_position     AS sort_position,
+        COUNT(*)             AS c
+      FROM trades t
+      JOIN trade_mistake tm ON tm.trade_id = t.id
+      JOIN mistake_def md   ON md.id = tm.mistake_def_id
+      WHERE t.date LIKE ? AND t.deleted_at IS NULL AND ${sf.clause}
+      GROUP BY ym, md.id
+      ORDER BY ym
+    `)
+    .all(`${year}-%`, ...sf.params) as {
+    ym: string
+    name: string
+    sort_position: number
+    c: number
+  }[]
+
+  // Re-expand each (month, mistake, count) group into `count` rows so the
+  // shared fold sees exactly the shape it was written for. The groups are
+  // tiny (one row per distinct mistake per month), so this is cheap and keeps
+  // ONE ranking implementation rather than two.
+  const byMonth = new Map<number, MistakeTagRow[]>()
+  for (const r of rows) {
+    const m = Number(r.ym.slice(5, 7))
+    if (!Number.isFinite(m) || m < 1 || m > 12) continue
+    const list = byMonth.get(m) ?? []
+    for (let i = 0; i < r.c; i++) list.push({ name: r.name, sort_position: r.sort_position })
+    byMonth.set(m, list)
+  }
+  const out = new Map<number, { name: string; count: number }>()
+  for (const [m, list] of byMonth) {
+    const top = topMistake(list)
+    if (top) out.set(m, top)
+  }
+  return out
+}
+
 function readYearMonths(
   db: ReturnType<typeof openDatabase>,
   year: number,
@@ -326,6 +385,9 @@ function readYearMonths(
     byMonth.set(month, {
       year,
       month,
+      // The stats read knows nothing of mistakes; getCalendarYear fills this
+      // from the junction read. Null is the honest default, not a placeholder.
+      top_mistake: null,
       net_pnl: r.net_pnl,
       gross_pnl: r.gross_pnl,
       total_fees: r.total_fees,
@@ -346,6 +408,7 @@ function emptyMonth(year: number, month: number): CalendarYearMonth {
   return {
     year,
     month,
+    top_mistake: null,
     net_pnl: 0,
     gross_pnl: 0,
     total_fees: 0,
@@ -365,9 +428,11 @@ function emptyMonth(year: number, month: number): CalendarYearMonth {
 export function getCalendarYear(year: number, scope: AccountScope = 'all'): CalendarYear {
   const db = openDatabase()
   const byMonth = readYearMonths(db, year, scope)
+  const mistakes = readYearMonthMistakes(db, year, scope)
   const months: CalendarYearMonth[] = []
   for (let m = 1; m <= 12; m++) {
-    months.push(byMonth.get(m) ?? emptyMonth(year, m))
+    const base = byMonth.get(m) ?? emptyMonth(year, m)
+    months.push({ ...base, top_mistake: mistakes.get(m) ?? null })
   }
   return {
     year,

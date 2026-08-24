@@ -119,6 +119,13 @@ export interface CalendarMonth {
 export interface CalendarYearMonth extends CalendarMonthStats {
   avg_winner: number | null
   avg_loser: number | null
+  /** v0.2.7 -- the month's most-tagged mistake, or null when no trade in the
+   *  month carries one. Same shape and same ranking as the week cell's
+   *  top_mistake (count desc, then mistake_def.sort_position asc, then name
+   *  asc, via the shared topMistake fold), so the two surfaces cannot drift.
+   *  Null is the common case on a real book: the year grid renders NOTHING for
+   *  it, never a placeholder. */
+  top_mistake: { name: string; count: number } | null
 }
 
 export interface CalendarYear {

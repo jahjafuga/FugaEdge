@@ -1,5 +1,6 @@
 import type { CalendarYear, CalendarYearMonth } from '@shared/calendar-types'
 import { signed, int, percent, pnlClass } from '@/lib/format'
+import { X as XIcon } from 'lucide-react'
 import Skeleton from '@/components/ui/Skeleton'
 import YearCumulativeChart from '@/components/calendar/YearCumulativeChart'
 
@@ -287,6 +288,24 @@ function MonthTile({
           <span className="font-mono text-xl font-semibold leading-none text-fg-muted">—</span>
         )}
       </div>
+
+      {/* v0.2.7 -- what kept going wrong this month. ONE line, in the
+          WeeklyPanel supporting-tier idiom (pt-1.5, nine-pixel uppercase,
+          truncated with the full name and count in the tooltip). It fits the
+          slack between this tile's content height and its min-height, so the
+          tile does not grow. A month with no tagged trade renders NOTHING --
+          on a real book most months are untagged, and twelve placeholders
+          would say less than silence. */}
+      {month.top_mistake && (
+        <span
+          data-month-mistake
+          className="flex items-center pt-1.5 text-[9px] uppercase leading-none tracking-wider text-loss/80"
+          title={`Top mistake: ${month.top_mistake.name} (${month.top_mistake.count}×)`}
+        >
+          <XIcon size={9} strokeWidth={2.5} className="mr-1 shrink-0" />
+          <span className="truncate">{month.top_mistake.name}</span>
+        </span>
+      )}
     </button>
   )
 }
