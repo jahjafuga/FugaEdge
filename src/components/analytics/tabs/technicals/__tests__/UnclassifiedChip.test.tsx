@@ -9,7 +9,7 @@ describe('UnclassifiedChip', () => {
   it('renders the count + the default (MACD) reason', () => {
     render(<UnclassifiedChip count={3} />)
     expect(
-      screen.getByText('3 excluded from this split (no prior bar)'),
+      screen.getByText('3 excluded from this split (signal not settled)'),
     ).toBeTruthy()
   })
 

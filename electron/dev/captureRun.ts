@@ -43,22 +43,26 @@ type Act =
   | { op: 'mouseMove'; x: number; y: number }
   | { op: 'mouseUp'; x: number; y: number }
   | { op: 'clickSelNamed'; sel: string }
+  | { op: 'clickText'; text: string }
+  | { op: 'waitText'; text: string }
 
 export interface CaptureStep {
   frame: string
   caption: string
   act: Act[]
+  /** Crop to the element whose (case-insensitive) text matches, walking up to
+   *  its card container — for close-ups the page selector cannot name. */
+  zoomText?: string
   /** Crop the shot to an element's neighbourhood instead of the full page —
    *  frame 10 zooms the resting FAB so a still can carry the glow. */
   zoomSel?: string
 }
 
 export const CAPTURE_SEQUENCE: CaptureStep[] = [
-  { frame: '01', caption: 'at rest - the default corner, before any carry', act: [{ op: 'clickNav' }, { op: 'waitTrades' }] },
-  { frame: '02', caption: 'mid-drag - the disc under the pointer, no snap while carried (drag = real mouse input; movement past the named threshold suppresses the open)', act: [{ op: 'mouseDownSel', sel: 'button[title*="Edge"]' }, { op: 'mouseMove', x: 1100, y: 500 }, { op: 'mouseMove', x: 600, y: 300 }] },
-  { frame: '03', caption: 'dropped near top-left - snapped to the left edge (200ms out-soft), position persisted', act: [{ op: 'mouseMove', x: 140, y: 140 }, { op: 'mouseUp', x: 140, y: 140 }] },
-  { frame: '04', caption: 'panel opened FROM the carried disc - flipped down-left, morph origin at the lens (180ms; end state)', act: [{ op: 'openEdge' }] },
-  { frame: '05', caption: 'position survives a remount - navigated away and back through the same prefs read path an app relaunch takes (a single capture run cannot relaunch the app; stated, not hidden)', act: [{ op: 'key', keyCode: 'Escape' }, { op: 'clickSelNamed', sel: 'a[href*="dashboard" i], a[href$="/"]' }, { op: 'clickNav' }, { op: 'waitTrades' }] },
+  { frame: '01', caption: 'MACD STATE panel - the four open/closed buckets with real numbers from the 528 book', act: [{ op: 'clickSelNamed', sel: 'a[href*="analytics" i]' }, { op: 'waitText', text: 'Technicals' }, { op: 'clickText', text: 'Technicals' }, { op: 'clickText', text: 'YTD' }, { op: 'waitText', text: 'MACD state' }] },
+  { frame: '02', caption: 'the exclusion chip, zoomed - the new wording names the unsettled signal', act: [], zoomText: 'excluded from this split' },
+  { frame: '03', caption: 'the alignment card, zoomed - MACD positive + open at entry', act: [], zoomText: 'macd positive + open at entry' },
+  { frame: '04', caption: 'the discipline score card, zoomed - moved with the shared predicate, no second edit', act: [], zoomText: 'discipline score (full alignment)' },
 ]
 
 /** Wire the capture run onto a freshly created window. Returns true when the
@@ -74,10 +78,30 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
   const settle = () => js('new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>setTimeout(r,150))))')
   const manifest: string[] = []
 
-  const shot = async (n: string, caption: string, zoomSel?: string) => {
+  const shot = async (n: string, caption: string, zoomSel?: string, zoomText?: string) => {
     await settle()
     let rect: Electron.Rectangle | undefined
-    if (zoomSel) {
+    if (zoomText) {
+      const r = (await js(
+        '(()=>{const t=' + JSON.stringify(zoomText.toLowerCase()) + ';' +
+        'const all=[...document.querySelectorAll("div,span,section")];' +
+        'const hit=all.filter((e)=>(e.textContent||"").toLowerCase().includes(t))' +
+        '.sort((a,b)=>(a.textContent||"").length-(b.textContent||"").length)[0];' +
+        'if(!hit)return null;let el=hit;' +
+        'while(el.parentElement && el.getBoundingClientRect().height < 60) el=el.parentElement;' +
+        'const b=el.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height}})()',
+      )) as { x: number; y: number; w: number; h: number } | null
+      if (r) {
+        const pad = 26
+        rect = {
+          x: Math.max(0, Math.round(r.x - pad)),
+          y: Math.max(0, Math.round(r.y - pad)),
+          width: Math.round(r.w + pad * 2),
+          height: Math.round(r.h + pad * 2),
+        }
+      }
+    }
+    if (!rect && zoomSel) {
       const r = (await js(
         '(()=>{const el=document.querySelector(' + JSON.stringify(zoomSel) + ');if(!el)return null;' +
         'const b=el.getBoundingClientRect();return {x:b.x,y:b.y,w:b.width,h:b.height}})()',
@@ -170,6 +194,35 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
         return
       case 'clickSelNamed':
         return clickSel(act.sel)
+      case 'clickText': {
+        const r = (await js(
+          '(()=>{const t=' + JSON.stringify(act.text) + ';' +
+          'const els=[...document.querySelectorAll("button,a,[role=tab]")];' +
+          'const el=els.find((e)=>(e.textContent||"").trim()===t);if(!el)return null;' +
+          'const b=el.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2}})()',
+        )) as { x: number; y: number } | null
+        if (!r) throw new Error('no clickable element with text: ' + act.text)
+        wc.sendInputEvent({ type: 'mouseDown', x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 })
+        wc.sendInputEvent({ type: 'mouseUp', x: Math.round(r.x), y: Math.round(r.y), button: 'left', clickCount: 1 })
+        await sleep(400)
+        return
+      }
+      case 'waitText': {
+        // innerText reflects CSS text-transform, so an uppercased heading never
+        // matches its source casing — compare case-insensitively.
+        for (let i = 0; i < 120; i++) {
+          if (
+            await js(
+              'document.body.innerText.toLowerCase().includes(' +
+                JSON.stringify(act.text.toLowerCase()) +
+                ')',
+            )
+          )
+            return
+          await sleep(200)
+        }
+        throw new Error('never appeared: ' + act.text)
+      }
       case 'setMark': {
         // dev-only override + a re-render nudge (open/close cycles state)
         await js('window.__edgeMarkOverride = ' + JSON.stringify(act.mark))
@@ -190,7 +243,7 @@ export function installCaptureRun(win: BrowserWindow, app: App): boolean {
         manifest.push('NOTE: stills cannot show motion - every animated moment is captured at its END state; timings ride the captions (open 150ms out-soft, chip land 150ms + 180ms shine, digits 150ms, pills 120ms staggered 40ms, commit pulse 280ms, breathe 3200ms)')
         for (const step of CAPTURE_SEQUENCE) {
           for (const a of step.act) await run(a)
-          await shot(step.frame, step.caption, step.zoomSel)
+          await shot(step.frame, step.caption, step.zoomSel, step.zoomText)
         }
       } catch (e) {
         manifest.push('CAPTURE ERROR: ' + (e instanceof Error ? e.message : String(e)))

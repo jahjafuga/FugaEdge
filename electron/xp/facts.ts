@@ -38,6 +38,7 @@ export interface TradeFactDbRow {
   has_note: number // EXISTS(...) → 0/1
   tt_trade_id: number | null
   tf_1m_macd_positive: number | null // INTEGER 0/1/NULL
+  tf_1m_macd_open: number | null     // INTEGER 0/1/NULL
   tf_1m_vwap_dist_pct: number | null
   tf_1m_ema9_dist_pct: number | null
 }
@@ -87,6 +88,7 @@ export function mapTradeRow(r: TradeFactDbRow): TradeFact {
         ? null
         : {
             macdPositive: toBoolOrNull(r.tf_1m_macd_positive),
+            macdOpen: toBoolOrNull(r.tf_1m_macd_open),
             vwapDistPct: r.tf_1m_vwap_dist_pct,
             ema9DistPct: r.tf_1m_ema9_dist_pct,
           },
@@ -176,6 +178,7 @@ export function assembleTradeFacts(
          )               AS has_note,
          tt.trade_id     AS tt_trade_id,
          tt.tf_1m_macd_positive AS tf_1m_macd_positive,
+         tt.tf_1m_macd_open     AS tf_1m_macd_open,
          tt.tf_1m_vwap_dist_pct AS tf_1m_vwap_dist_pct,
          tt.tf_1m_ema9_dist_pct AS tf_1m_ema9_dist_pct
        FROM trades t

@@ -108,7 +108,9 @@ function annotatedTrade(id: number, date: string) {
     hasPlaybook: true,
     hasCatalyst: true,
     hasNote: true,
-    technicals1m: { macdPositive: true, vwapDistPct: 0.4, ema9DistPct: 0.2 },
+    // v0.2.7 — D7 tightened to positive + open through the shared predicate;
+    // a disciplined-entry fixture must satisfy both legs.
+    technicals1m: { macdPositive: true, macdOpen: true, vwapDistPct: 0.4, ema9DistPct: 0.2 },
   }
 }
 

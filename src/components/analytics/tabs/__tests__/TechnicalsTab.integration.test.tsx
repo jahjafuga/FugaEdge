@@ -28,7 +28,7 @@ const AT_VWAP_ROW: TradeWithTechnicalsRow = makeRow({
   net_pnl: 100,
   technicals: makeCompleteSnapshot({
     macd_positive: true,
-    macd_rising: true,
+    macd_open: true,
     vwap_dist_pct: 0.1,
   }),
 })
@@ -158,7 +158,7 @@ describe('TechnicalsTab — Section 6 (Time-of-Day) integration', () => {
     // The seeded row's default open_time is 09:45 ET (the 9:30-10:00 bucket) and
     // it is MACD positive + rising, so it cross-classifies into that cell. Open it.
     fireEvent.click(
-      screen.getByRole('button', { name: '9:30-10:00 Positive + Rising' }),
+      screen.getByRole('button', { name: '9:30-10:00 Positive + Open' }),
     )
     // The matrix is itself a table, so target the drill table's role="button" row
     // (the matrix's own rows carry no role).

@@ -24,19 +24,30 @@ import { utcToEasternParts } from '@/lib/format'
 
 /**
  * Full alignment at entry. Strict, null-safe:
- *   - regular hours: macd_positive AND vwap_dist_pct > 0 AND ema9_dist_pct > 0
- *   - pre-market   : macd_positive AND ema9_dist_pct > 0  (VWAP is N/A → dropped)
- * A null distance reads as "not above"; a null/false macd_positive as "not
- * positive". `isPreMarket` is supplied by the caller (the analytics rows derive
- * it from open_time via isPreMarketEntry; the XP TradeFact carries it).
+ *   - regular hours: macd_positive AND macd_open AND vwap_dist_pct > 0 AND
+ *                    ema9_dist_pct > 0
+ *   - pre-market   : macd_positive AND macd_open AND ema9_dist_pct > 0
+ *                    (VWAP is N/A → dropped)
+ * A null distance reads as "not above"; a null/false macd_positive or
+ * macd_open as "not aligned". `isPreMarket` is supplied by the caller (the
+ * analytics rows derive it from open_time via isPreMarketEntry; the XP
+ * TradeFact carries it).
+ *
+ * v0.2.7 — THE OPEN CONJUNCT (founder-ruled). A MACD line above zero but
+ * BELOW its signal is a fading positive, not a disciplined entry; the read
+ * now demands both. Because this predicate is the single source of truth, the
+ * Edge Score discipline axis, the Technicals header card and the XP
+ * disciplined-entry award all tighten together — by construction, not by
+ * three parallel edits.
  */
 export function isFullyAligned(
   macdPositive: boolean | null,
+  macdOpen: boolean | null,
   vwapDistPct: number | null,
   ema9DistPct: number | null,
   isPreMarket: boolean,
 ): boolean {
-  const macd = macdPositive === true
+  const macd = macdPositive === true && macdOpen === true
   const aboveEma9 = ema9DistPct !== null && ema9DistPct > 0
   if (isPreMarket) {
     // Session VWAP doesn't exist yet — judge on MACD + 9EMA only.

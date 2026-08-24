@@ -47,10 +47,10 @@ const MACD_COLUMNS: readonly {
   short: string
   full: string
 }[] = [
-  { key: 'posRising', short: 'Pos ▲', full: 'Positive + Rising' },
-  { key: 'posFalling', short: 'Pos ▼', full: 'Positive + Falling' },
-  { key: 'negRising', short: 'Neg ▲', full: 'Negative + Rising' },
-  { key: 'negFalling', short: 'Neg ▼', full: 'Negative + Falling' },
+  { key: 'posOpen', short: 'Pos O', full: 'Positive + Open' },
+  { key: 'posClosed', short: 'Pos C', full: 'Positive + Closed' },
+  { key: 'negOpen', short: 'Neg O', full: 'Negative + Open' },
+  { key: 'negClosed', short: 'Neg C', full: 'Negative + Closed' },
 ]
 
 interface TimeOfDayMatrixProps {

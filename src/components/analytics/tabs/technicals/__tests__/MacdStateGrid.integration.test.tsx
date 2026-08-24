@@ -18,13 +18,13 @@ import MacdStateGrid from '../MacdStateGrid'
 const { getTradeSpy } = vi.hoisted(() => ({ getTradeSpy: vi.fn() }))
 vi.mock('@/lib/ipc', () => ({ ipc: { getTrade: getTradeSpy } }))
 
-// One classifiable trade in the posRising bucket (macd_positive && macd_rising on
+// One classifiable trade in the posOpen bucket (macd_positive && macd_open on
 // the 1m snapshot), carrying a distinctive macd_line for the data-flow assertion.
 const POS_RISING_ROW = makeRow({
   id: 1,
   technicals: makeCompleteSnapshot({
     macd_positive: true,
-    macd_rising: true,
+    macd_open: true,
     macd_line: 0.789,
   }),
 })
@@ -37,8 +37,8 @@ function renderGrid() {
   )
 }
 
-const posRisingCard = () =>
-  screen.getByRole('button', { name: /Positive \+ Rising/ })
+const posOpenCard = () =>
+  screen.getByRole('button', { name: /Positive \+ Open/ })
 
 beforeEach(() => {
   getTradeSpy.mockReset()
@@ -48,8 +48,8 @@ beforeEach(() => {
 describe('MacdStateGrid — full cross-layer flow (integration)', () => {
   it('opens a bucket, drills into a row, shows the sheet, and closes it', async () => {
     const { container } = renderGrid()
-    // Open posRising → its accordion + the grid-resolved table mount synchronously.
-    fireEvent.click(posRisingCard())
+    // Open posOpen → its accordion + the grid-resolved table mount synchronously.
+    fireEvent.click(posOpenCard())
     const row = container.querySelector('tbody tr')
     expect(row).not.toBeNull()
 
@@ -65,7 +65,7 @@ describe('MacdStateGrid — full cross-layer flow (integration)', () => {
 
   it('forwards the grid-resolved row technicals to the sheet (rowsForBucket → table → sheet)', async () => {
     const { container } = renderGrid()
-    fireEvent.click(posRisingCard())
+    fireEvent.click(posOpenCard())
     fireEvent.click(container.querySelector('tbody tr')!)
     // The sheet's Indicators MACD line is the clicked row's macd_line (0.789, no
     // leading + — distinct from the table cell's +0.789), so it can only be there

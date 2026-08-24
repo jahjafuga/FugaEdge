@@ -21,7 +21,7 @@ function snap(over: Partial<TechnicalSnapshot> = {}): TechnicalSnapshot {
   }
 }
 // D7 full-alignment on tf_1m: macd_positive AND vwap_dist_pct>0 AND ema9_dist_pct>0.
-const ALIGNED = snap({ macd_positive: true, vwap_dist_pct: 1, ema9_dist_pct: 1 })
+const ALIGNED = snap({ macd_positive: true, macd_open: true, vwap_dist_pct: 1, ema9_dist_pct: 1 })
 const MISALIGNED = snap({ macd_positive: false, vwap_dist_pct: -1, ema9_dist_pct: -1 })
 
 function tech(tf1m: TechnicalSnapshot, complete = true): TradeTechnicalsRow {

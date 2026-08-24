@@ -11,7 +11,10 @@ import CombinedReadsBand from '../CombinedReadsBand'
 // AccordionPanel + BucketTradeTable with macdLineColumn). No DivergingBar / no
 // chartColors here, so unlike the distance bands this needs no theme mock.
 
-const ALIGNED = { macd_positive: true, vwap_dist_pct: 1.0, ema9_dist_pct: 1.0 }
+// v0.2.7 — alignment tightened to POSITIVE + OPEN, so an aligned fixture row
+// must now carry macd_open too. The misaligned row still diverges on
+// macd_positive alone, keeping this band's aligned/misaligned split intact.
+const ALIGNED = { macd_positive: true, macd_open: true, vwap_dist_pct: 1.0, ema9_dist_pct: 1.0 }
 
 function alignedRow(id: number, net_pnl: number): TradeWithTechnicalsRow {
   return makeRow({ id, net_pnl, technicals: makeCompleteSnapshot(ALIGNED) })

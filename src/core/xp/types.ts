@@ -45,7 +45,8 @@ export interface TradeFact {
   hasNote: boolean
   /** True when the entry was placed pre-market (before 09:30 ET) — derived from
    *  open_time in facts.ts. Session VWAP is N/A pre-market, so the D7 predicate
-   *  drops the VWAP condition (see isFullyAligned). */
+   *  drops the VWAP condition (see isFullyAligned). The open conjunct is
+   *  NOT dropped pre-market — a signal line exists whenever the line does. */
   isPreMarket: boolean
   /**
    * D7 inputs from the trade's tf_1m technicals snapshot; null when the
@@ -53,6 +54,11 @@ export interface TradeFact {
    */
   technicals1m: {
     macdPositive: boolean | null
+    /** v0.2.7 — macd_line > signal_line at entry. Joined the D7 conjunction
+     *  when the founder tightened alignment to positive + open; threaded here
+     *  because isFullyAligned is the single source of truth across XP and
+     *  analytics, so the award moves with the card by construction. */
+    macdOpen: boolean | null
     vwapDistPct: number | null
     ema9DistPct: number | null
   } | null

@@ -22,7 +22,7 @@ function trade(overrides: Partial<TradeFact> = {}): TradeFact {
     hasCatalyst: true,
     hasNote: true,
     isPreMarket: false,
-    technicals1m: { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: 0.4 },
+    technicals1m: { macdPositive: true, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: 0.4 },
     ...overrides,
   }
 }
@@ -106,14 +106,14 @@ describe('isDisciplinedEntry (D7 — strict triple on the tf_1m snapshot)', () =
   })
 
   it.each([
-    ['macdPositive null', { macdPositive: null, vwapDistPct: 0.8, ema9DistPct: 0.4 }],
-    ['vwapDistPct null', { macdPositive: true, vwapDistPct: null, ema9DistPct: 0.4 }],
-    ['ema9DistPct null', { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: null }],
-    ['macdPositive false', { macdPositive: false, vwapDistPct: 0.8, ema9DistPct: 0.4 }],
-    ['vwapDistPct zero (strict >0)', { macdPositive: true, vwapDistPct: 0, ema9DistPct: 0.4 }],
-    ['vwapDistPct negative', { macdPositive: true, vwapDistPct: -0.1, ema9DistPct: 0.4 }],
-    ['ema9DistPct zero (strict >0)', { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: 0 }],
-    ['ema9DistPct negative', { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: -2 }],
+    ['macdPositive null', { macdPositive: null, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: 0.4 }],
+    ['vwapDistPct null', { macdPositive: true, macdOpen: true, vwapDistPct: null, ema9DistPct: 0.4 }],
+    ['ema9DistPct null', { macdPositive: true, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: null }],
+    ['macdPositive false', { macdPositive: false, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: 0.4 }],
+    ['vwapDistPct zero (strict >0)', { macdPositive: true, macdOpen: true, vwapDistPct: 0, ema9DistPct: 0.4 }],
+    ['vwapDistPct negative', { macdPositive: true, macdOpen: true, vwapDistPct: -0.1, ema9DistPct: 0.4 }],
+    ['ema9DistPct zero (strict >0)', { macdPositive: true, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: 0 }],
+    ['ema9DistPct negative', { macdPositive: true, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: -2 }],
   ] as const)('%s → false', (_label, snapshot) => {
     expect(isDisciplinedEntry(trade({ technicals1m: { ...snapshot } }))).toBe(false)
   })
@@ -123,23 +123,23 @@ describe('isDisciplinedEntry — pre-market amendment (session VWAP N/A before 0
   it('pre-market, macd + 9EMA aligned, VWAP null → disciplined (the fix)', () => {
     expect(
       isDisciplinedEntry(
-        trade({ isPreMarket: true, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
+        trade({ isPreMarket: true, technicals1m: { macdPositive: true, macdOpen: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
       ),
     ).toBe(true)
   })
   it('regular hours with the SAME null-VWAP snapshot → NOT disciplined (VWAP still required)', () => {
     expect(
       isDisciplinedEntry(
-        trade({ isPreMarket: false, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
+        trade({ isPreMarket: false, technicals1m: { macdPositive: true, macdOpen: true, vwapDistPct: null, ema9DistPct: 0.4 } }),
       ),
     ).toBe(false)
   })
   it('pre-market still requires MACD-positive AND above the 9EMA', () => {
     expect(
-      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: false, vwapDistPct: null, ema9DistPct: 0.4 } })),
+      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: false, macdOpen: true, vwapDistPct: null, ema9DistPct: 0.4 } })),
     ).toBe(false)
     expect(
-      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: true, vwapDistPct: null, ema9DistPct: -0.1 } })),
+      isDisciplinedEntry(trade({ isPreMarket: true, technicals1m: { macdPositive: true, macdOpen: true, vwapDistPct: null, ema9DistPct: -0.1 } })),
     ).toBe(false)
   })
 })

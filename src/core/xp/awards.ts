@@ -35,14 +35,20 @@ export function isFullyAnnotated(t: TradeFact): boolean {
 /**
  * D7, evaluated on the tf_1m snapshot only, via the shared isFullyAligned
  * predicate (single source of truth across XP + analytics). Regular-hours
- * entry: macd_positive AND vwap_dist_pct > 0 AND ema9_dist_pct > 0. Pre-market
- * entry (t.isPreMarket): macd_positive AND ema9_dist_pct > 0 — session VWAP is
- * N/A before the 09:30 open and is dropped. A missing snapshot is never an award.
+ * entry: macd_positive AND macd_open AND vwap_dist_pct > 0 AND
+ * ema9_dist_pct > 0. Pre-market entry (t.isPreMarket): the same minus VWAP —
+ * session VWAP is N/A before the 09:30 open and is dropped. A missing snapshot
+ * is never an award.
+ *
+ * v0.2.7 — the open conjunct arrived through the shared predicate, not through
+ * an edit here: tightening discipline in one place tightens it everywhere it
+ * is claimed. Awards already in the ledger are historical rows and are not
+ * revoked; the stricter rule governs awards from here on.
  */
 export function isDisciplinedEntry(t: TradeFact): boolean {
   const s = t.technicals1m
   if (s === null) return false
-  return isFullyAligned(s.macdPositive, s.vwapDistPct, s.ema9DistPct, t.isPreMarket)
+  return isFullyAligned(s.macdPositive, s.macdOpen, s.vwapDistPct, s.ema9DistPct, t.isPreMarket)
 }
 
 /**

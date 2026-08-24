@@ -38,10 +38,10 @@ export interface TimeOfDayBucketMeta {
 // The four MACD-state columns, in §G reading order (best → worst). The matrix
 // iterates these for the column dimension; classifyMacdBucket resolves each cell.
 const MACD_KEYS: readonly BucketKey[] = [
-  'posRising',
-  'posFalling',
-  'negRising',
-  'negFalling',
+  'posOpen',
+  'posClosed',
+  'negOpen',
+  'negClosed',
 ]
 
 // Edge minutes — 9:30 / 10:00 / 11:00 / 12:00 ET as minutes-since-midnight. Edges

@@ -7,39 +7,39 @@ import { isFullyAligned, isPreMarketEntry } from '../alignment'
 
 describe('isFullyAligned — regular-hours entry (the full triple)', () => {
   it('macd + above-VWAP + above-9EMA → aligned', () => {
-    expect(isFullyAligned(true, 1.0, 1.0, false)).toBe(true)
+    expect(isFullyAligned(true, true, 1.0, 1.0, false)).toBe(true)
   })
   it('VWAP null → NOT aligned (session VWAP required in regular hours)', () => {
-    expect(isFullyAligned(true, null, 1.0, false)).toBe(false)
+    expect(isFullyAligned(true, true, null, 1.0, false)).toBe(false)
   })
   it('VWAP ≤ 0 → not aligned', () => {
-    expect(isFullyAligned(true, -0.5, 1.0, false)).toBe(false)
+    expect(isFullyAligned(true, true, -0.5, 1.0, false)).toBe(false)
   })
   it('macd not positive → not aligned', () => {
-    expect(isFullyAligned(false, 1.0, 1.0, false)).toBe(false)
-    expect(isFullyAligned(null, 1.0, 1.0, false)).toBe(false)
+    expect(isFullyAligned(false, true, 1.0, 1.0, false)).toBe(false)
+    expect(isFullyAligned(null, true, 1.0, 1.0, false)).toBe(false)
   })
   it('below the 9EMA (null or ≤ 0) → not aligned', () => {
-    expect(isFullyAligned(true, 1.0, null, false)).toBe(false)
-    expect(isFullyAligned(true, 1.0, -0.3, false)).toBe(false)
+    expect(isFullyAligned(true, true, 1.0, null, false)).toBe(false)
+    expect(isFullyAligned(true, true, 1.0, -0.3, false)).toBe(false)
   })
 })
 
 describe('isFullyAligned — pre-market entry (VWAP is N/A, dropped)', () => {
   it('macd + above-9EMA with VWAP null → ALIGNED (the fix)', () => {
-    expect(isFullyAligned(true, null, 1.0, true)).toBe(true)
+    expect(isFullyAligned(true, true, null, 1.0, true)).toBe(true)
   })
   it('macd + above-9EMA regardless of VWAP value → aligned', () => {
-    expect(isFullyAligned(true, 5.0, 1.0, true)).toBe(true)
-    expect(isFullyAligned(true, -2.0, 1.0, true)).toBe(true) // VWAP ignored pre-market
+    expect(isFullyAligned(true, true, 5.0, 1.0, true)).toBe(true)
+    expect(isFullyAligned(true, true, -2.0, 1.0, true)).toBe(true) // VWAP ignored pre-market
   })
   it('macd not positive → not aligned (MACD still required)', () => {
-    expect(isFullyAligned(false, null, 1.0, true)).toBe(false)
-    expect(isFullyAligned(null, null, 1.0, true)).toBe(false)
+    expect(isFullyAligned(false, true, null, 1.0, true)).toBe(false)
+    expect(isFullyAligned(null, true, null, 1.0, true)).toBe(false)
   })
   it('below the 9EMA → not aligned (9EMA still required)', () => {
-    expect(isFullyAligned(true, null, null, true)).toBe(false)
-    expect(isFullyAligned(true, null, -0.1, true)).toBe(false)
+    expect(isFullyAligned(true, true, null, null, true)).toBe(false)
+    expect(isFullyAligned(true, true, null, -0.1, true)).toBe(false)
   })
 })
 

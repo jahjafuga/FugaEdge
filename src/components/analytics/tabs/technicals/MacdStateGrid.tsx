@@ -34,9 +34,9 @@ interface MacdStateGridProps {
 }
 
 const isRow0 = (k: BucketKey | null): boolean =>
-  k === 'posRising' || k === 'posFalling'
+  k === 'posOpen' || k === 'posClosed'
 const isRow1 = (k: BucketKey | null): boolean =>
-  k === 'negRising' || k === 'negFalling'
+  k === 'negOpen' || k === 'negClosed'
 
 export default function MacdStateGrid({
   stats,
@@ -60,18 +60,18 @@ export default function MacdStateGrid({
       {/* Row 0 — best → caution */}
       <div className="grid grid-cols-2 gap-3">
         <MacdBucketCard
-          title="Positive + Rising ▲"
+          title="Positive + Open"
           tint="pos-rising"
-          stats={stats.posRising}
-          isOpen={openBucket === 'posRising'}
-          onClick={() => onToggle('posRising')}
+          stats={stats.posOpen}
+          isOpen={openBucket === 'posOpen'}
+          onClick={() => onToggle('posOpen')}
         />
         <MacdBucketCard
-          title="Positive + Falling ▼"
+          title="Positive + Closed"
           tint="pos-falling"
-          stats={stats.posFalling}
-          isOpen={openBucket === 'posFalling'}
-          onClick={() => onToggle('posFalling')}
+          stats={stats.posClosed}
+          isOpen={openBucket === 'posClosed'}
+          onClick={() => onToggle('posClosed')}
         />
       </div>
       <AccordionPanel open={isRow0(openBucket)}>
@@ -87,18 +87,18 @@ export default function MacdStateGrid({
       {/* Row 1 — recovering → worst */}
       <div className="mt-3 grid grid-cols-2 gap-3">
         <MacdBucketCard
-          title="Negative + Rising ▲"
+          title="Negative + Open"
           tint="neg-rising"
-          stats={stats.negRising}
-          isOpen={openBucket === 'negRising'}
-          onClick={() => onToggle('negRising')}
+          stats={stats.negOpen}
+          isOpen={openBucket === 'negOpen'}
+          onClick={() => onToggle('negOpen')}
         />
         <MacdBucketCard
-          title="Negative + Falling ▼"
+          title="Negative + Closed"
           tint="neg-falling"
-          stats={stats.negFalling}
-          isOpen={openBucket === 'negFalling'}
-          onClick={() => onToggle('negFalling')}
+          stats={stats.negClosed}
+          isOpen={openBucket === 'negClosed'}
+          onClick={() => onToggle('negClosed')}
         />
       </div>
       <AccordionPanel open={isRow1(openBucket)}>

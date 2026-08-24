@@ -16,7 +16,7 @@ interface HeaderStripCardsProps {
 // honestly reads "of N trades with VWAP data".
 export default function HeaderStripCards({ stats }: HeaderStripCardsProps) {
   const cards = [
-    { label: 'MACD positive at entry', stat: stats.macdPositive, coverage: stats.denominator, coverageLabel: 'trades with data' },
+    { label: 'MACD positive + open at entry', stat: stats.macdPositive, coverage: stats.denominator, coverageLabel: 'trades with data' },
     { label: 'Above VWAP at entry', stat: stats.aboveVwap, coverage: stats.vwapDenominator, coverageLabel: 'trades with VWAP data' },
     { label: 'Above 9 EMA at entry', stat: stats.aboveEma9, coverage: stats.denominator, coverageLabel: 'trades with data' },
     { label: 'Discipline score (full alignment)', stat: stats.fullAlignment, coverage: stats.denominator, coverageLabel: 'trades with data' },

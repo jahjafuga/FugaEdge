@@ -1,7 +1,7 @@
 // Section-scoped exclusion chip for the distance / state bands — the count of
 // data-complete trades that couldn't be placed on the toggled timeframe, with a
-// per-section `reason` naming the axis that was null: MACD's §A3 first-bar "no
-// prior bar", VWAP's "no vwap data", EMA's "no 9 ema data". Distinct from the
+// per-section `reason` naming the axis that was null: MACD's "signal not
+// settled", VWAP's "no vwap data", EMA's "no 9 ema data". Distinct from the
 // tab-global excluded-data chip in the filter bar: that one counts data-gate
 // failures; this one is section + timeframe specific. Rides each band's
 // SectionHeader `right` slot. Self-gating (null at 0) as a defensive layer;
@@ -13,13 +13,17 @@
 interface UnclassifiedChipProps {
   count: number
   /** The parenthetical reason, section-specific. The CSS uppercases it, so pass
-   *  lowercase. Defaults to MACD's §A3 first-bar wording (its call is unchanged). */
+   *  lowercase. Defaults to MACD's wording (its call is unchanged): with the
+   *  second axis now open/closed, what keeps a trade out of the split is a
+   *  9-period signal EMA that has not settled yet — typically an entry within
+   *  the first minutes of the session, where the line exists but the signal
+   *  does not. */
   reason?: string
 }
 
 export default function UnclassifiedChip({
   count,
-  reason = 'no prior bar',
+  reason = 'signal not settled',
 }: UnclassifiedChipProps) {
   if (count === 0) return null
   return (

@@ -47,7 +47,7 @@ const LOW: BucketStats = {
 }
 
 const base = {
-  title: 'Positive + Rising ▲',
+  title: 'Positive + Open',
   tint: 'pos-rising' as const,
   stats: FULL,
   isOpen: false,
@@ -57,7 +57,7 @@ const base = {
 describe('MacdBucketCard — presentational card (characterization)', () => {
   it('renders the title and all six stat rows with percent/signed formatting', () => {
     render(<MacdBucketCard {...base} stats={FULL} />)
-    expect(screen.getByText(/Positive \+ Rising/)).toBeTruthy() // title
+    expect(screen.getByText(/Positive \+ Open/)).toBeTruthy() // title
     expect(screen.getByText('12')).toBeTruthy() // Trades
     expect(screen.getByText('50%')).toBeTruthy() // Win rate — percent(0.5, 0)
     expect(screen.getByText('+$170.00')).toBeTruthy() // Net P&L — signed(170)

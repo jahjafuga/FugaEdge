@@ -23,13 +23,13 @@ import MacdStateGrid from '../MacdStateGrid'
 // it gone before it actually unmounts. The raw DOM query sees the truth.
 
 // One classifiable row per bucket, each with a distinct macd_line so a mounted
-// table is identifiable by its (table-only) MACD value: '+1.111' = posRising,
-// '+4.444' = negFalling. macd_positive / macd_rising drive classifyMacdBucket.
+// table is identifiable by its (table-only) MACD value: '+1.111' = posOpen,
+// '+4.444' = negClosed. macd_positive / macd_open drive classifyMacdBucket.
 const ROWS = [
-  makeRow({ id: 1, technicals: makeCompleteSnapshot({ macd_positive: true, macd_rising: true, macd_line: 1.111 }) }),
-  makeRow({ id: 2, technicals: makeCompleteSnapshot({ macd_positive: true, macd_rising: false, macd_line: 2.222 }) }),
-  makeRow({ id: 3, technicals: makeCompleteSnapshot({ macd_positive: false, macd_rising: true, macd_line: 3.333 }) }),
-  makeRow({ id: 4, technicals: makeCompleteSnapshot({ macd_positive: false, macd_rising: false, macd_line: 4.444 }) }),
+  makeRow({ id: 1, technicals: makeCompleteSnapshot({ macd_positive: true, macd_open: true, macd_line: 1.111 }) }),
+  makeRow({ id: 2, technicals: makeCompleteSnapshot({ macd_positive: true, macd_open: false, macd_line: 2.222 }) }),
+  makeRow({ id: 3, technicals: makeCompleteSnapshot({ macd_positive: false, macd_open: true, macd_line: 3.333 }) }),
+  makeRow({ id: 4, technicals: makeCompleteSnapshot({ macd_positive: false, macd_open: false, macd_line: 4.444 }) }),
 ]
 const STATS = computeMacdBuckets(ROWS, '1m')
 
@@ -52,10 +52,10 @@ function renderGrid() {
 // substring regex on the title uniquely selects each.
 function cards() {
   return {
-    posRising: screen.getByRole('button', { name: /Positive \+ Rising/ }),
-    posFalling: screen.getByRole('button', { name: /Positive \+ Falling/ }),
-    negRising: screen.getByRole('button', { name: /Negative \+ Rising/ }),
-    negFalling: screen.getByRole('button', { name: /Negative \+ Falling/ }),
+    posOpen: screen.getByRole('button', { name: /Positive \+ Open/ }),
+    posClosed: screen.getByRole('button', { name: /Positive \+ Closed/ }),
+    negOpen: screen.getByRole('button', { name: /Negative \+ Open/ }),
+    negClosed: screen.getByRole('button', { name: /Negative \+ Closed/ }),
   }
 }
 
@@ -72,33 +72,33 @@ describe('MacdStateGrid — open/close state machine (characterization)', () => 
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(0)
     expect(container.querySelectorAll('table')).toHaveLength(0)
     const c = cards()
-    expect(c.posRising.getAttribute('aria-expanded')).toBe('false')
-    expect(c.posFalling.getAttribute('aria-expanded')).toBe('false')
-    expect(c.negRising.getAttribute('aria-expanded')).toBe('false')
-    expect(c.negFalling.getAttribute('aria-expanded')).toBe('false')
+    expect(c.posOpen.getAttribute('aria-expanded')).toBe('false')
+    expect(c.posClosed.getAttribute('aria-expanded')).toBe('false')
+    expect(c.negOpen.getAttribute('aria-expanded')).toBe('false')
+    expect(c.negClosed.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('open from clean: clicking a card opens its row panel and mounts its table', () => {
     const { container } = renderGrid()
-    fireEvent.click(cards().posRising)
+    fireEvent.click(cards().posOpen)
 
     const c = cards()
-    expect(c.posRising.getAttribute('aria-expanded')).toBe('true')
-    expect(c.posFalling.getAttribute('aria-expanded')).toBe('false')
-    expect(c.negRising.getAttribute('aria-expanded')).toBe('false')
-    expect(c.negFalling.getAttribute('aria-expanded')).toBe('false')
+    expect(c.posOpen.getAttribute('aria-expanded')).toBe('true')
+    expect(c.posClosed.getAttribute('aria-expanded')).toBe('false')
+    expect(c.negOpen.getAttribute('aria-expanded')).toBe('false')
+    expect(c.negClosed.getAttribute('aria-expanded')).toBe('false')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(1)
     expect(container.querySelectorAll('table')).toHaveLength(1)
-    expect(screen.getByText('+1.111')).toBeTruthy() // posRising's table content
+    expect(screen.getByText('+1.111')).toBeTruthy() // posOpen's table content
   })
 
   it('close by re-click: panel collapses at once, table unmounts at exactly 210ms', async () => {
     const { container } = renderGrid()
-    fireEvent.click(cards().posRising) // open
-    fireEvent.click(cards().posRising) // re-click → start close
+    fireEvent.click(cards().posOpen) // open
+    fireEvent.click(cards().posOpen) // re-click → start close
 
     // Immediately: card collapsed, no open panel, but the table is still mounted.
-    expect(cards().posRising.getAttribute('aria-expanded')).toBe('false')
+    expect(cards().posOpen.getAttribute('aria-expanded')).toBe('false')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(0)
     expect(container.querySelectorAll('table')).toHaveLength(1)
 
@@ -113,14 +113,14 @@ describe('MacdStateGrid — open/close state machine (characterization)', () => 
 
   it('sequential switch: A collapses, neither panel open during 210ms transit, B opens at 210ms', async () => {
     const { container } = renderGrid()
-    fireEvent.click(cards().posRising) // open A
+    fireEvent.click(cards().posOpen) // open A
     expect(screen.getByText('+1.111')).toBeTruthy()
 
-    fireEvent.click(cards().negFalling) // switch to B (different row)
+    fireEvent.click(cards().negClosed) // switch to B (different row)
 
     // Immediately: A collapsed, B not yet open, NEITHER panel open, A's table persists.
-    expect(cards().posRising.getAttribute('aria-expanded')).toBe('false')
-    expect(cards().negFalling.getAttribute('aria-expanded')).toBe('false')
+    expect(cards().posOpen.getAttribute('aria-expanded')).toBe('false')
+    expect(cards().negClosed.getAttribute('aria-expanded')).toBe('false')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(0)
     expect(screen.queryByText('+1.111')).not.toBeNull()
 
@@ -131,7 +131,7 @@ describe('MacdStateGrid — open/close state machine (characterization)', () => 
 
     // At 210ms: B opens, B's table mounts, A's table is gone.
     await advance(1)
-    expect(cards().negFalling.getAttribute('aria-expanded')).toBe('true')
+    expect(cards().negClosed.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(1)
     expect(screen.getByText('+4.444')).toBeTruthy()
     expect(screen.queryByText('+1.111')).toBeNull()
@@ -139,19 +139,19 @@ describe('MacdStateGrid — open/close state machine (characterization)', () => 
 
   it('mid-transit re-click same bucket: the pending unmount is cancelled, no race', async () => {
     const { container } = renderGrid()
-    fireEvent.click(cards().posRising) // open
-    fireEvent.click(cards().posRising) // start close (210ms pending)
+    fireEvent.click(cards().posOpen) // open
+    fireEvent.click(cards().posOpen) // start close (210ms pending)
     await advance(50) // 50ms into the close
 
-    fireEvent.click(cards().posRising) // re-click before 210ms → cancel + reopen
+    fireEvent.click(cards().posOpen) // re-click before 210ms → cancel + reopen
 
-    expect(cards().posRising.getAttribute('aria-expanded')).toBe('true')
+    expect(cards().posOpen.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(1)
     expect(container.querySelectorAll('table')).toHaveLength(1)
 
     // Well past the original timer's deadline — no stray unmount fires.
     await advance(1000)
-    expect(cards().posRising.getAttribute('aria-expanded')).toBe('true')
+    expect(cards().posOpen.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('[aria-hidden="false"]')).toHaveLength(1)
     expect(container.querySelectorAll('table')).toHaveLength(1)
   })

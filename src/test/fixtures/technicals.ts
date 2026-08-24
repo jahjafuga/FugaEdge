@@ -9,7 +9,7 @@ import type {
   TradeWithTechnicalsRow,
 } from '@shared/technicals-types'
 
-// DEFAULT_TF: a classifiable snapshot that lands in the negFalling bucket
+// DEFAULT_TF: a classifiable snapshot that lands in the negClosed bucket
 // (macd_positive false, macd_rising false). Tests override macd_positive /
 // macd_rising to place a trade in a specific bucket, or set either to null to
 // make the row unclassifiable. All other fields are plausible stubs the

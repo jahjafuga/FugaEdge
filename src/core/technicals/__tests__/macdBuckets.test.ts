@@ -8,7 +8,7 @@ import { makeCompleteSnapshot, makeRow } from '@/test/fixtures/technicals'
 // DEFAULT_TF / makeCompleteSnapshot / makeRow now live in @/test/fixtures/technicals (F2.0).
 
 // A classifiable row placed in one bucket on the 1m timeframe by its
-// (macd_positive, macd_rising) pair. tf_5m is left at DEFAULT (negFalling) —
+// (macd_positive, macd_open) pair. tf_5m is left at DEFAULT (negClosed) —
 // irrelevant to the 1m-timeframe tests, matching the headerStrip convention.
 function bucketRow(
   id: number,
@@ -19,7 +19,7 @@ function bucketRow(
   return makeRow({
     id,
     net_pnl,
-    technicals: makeCompleteSnapshot({ macd_positive: pos, macd_rising: rising }),
+    technicals: makeCompleteSnapshot({ macd_positive: pos, macd_open: rising }),
   })
 }
 
@@ -37,7 +37,7 @@ const EMPTY_BUCKET = {
 // no trade is ever lost or double-counted across the 2×2 split.
 function expectDenominatorInvariant(r: MacdBucketStats): void {
   expect(r.denominator).toBe(
-    r.posRising.n + r.posFalling.n + r.negRising.n + r.negFalling.n,
+    r.posOpen.n + r.posClosed.n + r.negOpen.n + r.negClosed.n,
   )
 }
 
@@ -50,10 +50,10 @@ describe('computeMacdBuckets — exclusion tiers', () => {
       excluded: 0,
       unclassified: 0,
       denominator: 0,
-      posRising: EMPTY_BUCKET,
-      posFalling: EMPTY_BUCKET,
-      negRising: EMPTY_BUCKET,
-      negFalling: EMPTY_BUCKET,
+      posOpen: EMPTY_BUCKET,
+      posClosed: EMPTY_BUCKET,
+      negOpen: EMPTY_BUCKET,
+      negClosed: EMPTY_BUCKET,
     })
     expectDenominatorInvariant(result)
   })
@@ -68,10 +68,10 @@ describe('computeMacdBuckets — exclusion tiers', () => {
     expect(result.excluded).toBe(3)
     expect(result.unclassified).toBe(0)
     expect(result.denominator).toBe(0)
-    expect(result.posRising).toEqual(EMPTY_BUCKET)
-    expect(result.posFalling).toEqual(EMPTY_BUCKET)
-    expect(result.negRising).toEqual(EMPTY_BUCKET)
-    expect(result.negFalling).toEqual(EMPTY_BUCKET)
+    expect(result.posOpen).toEqual(EMPTY_BUCKET)
+    expect(result.posClosed).toEqual(EMPTY_BUCKET)
+    expect(result.negOpen).toEqual(EMPTY_BUCKET)
+    expect(result.negClosed).toEqual(EMPTY_BUCKET)
     expectDenominatorInvariant(result)
   })
 
@@ -87,10 +87,10 @@ describe('computeMacdBuckets — exclusion tiers', () => {
     expectDenominatorInvariant(result)
   })
 
-  it('(T4) data-complete but macd_rising null (§A3 first-bar) → unclassified', () => {
+  it('(T4) data-complete but macd_open null (§A3 first-bar) → unclassified', () => {
     const rows = [
-      makeRow({ id: 1, technicals: makeCompleteSnapshot({ macd_rising: null }) }),
-      makeRow({ id: 2, technicals: makeCompleteSnapshot({ macd_rising: null }) }),
+      makeRow({ id: 1, technicals: makeCompleteSnapshot({ macd_open: null }) }),
+      makeRow({ id: 2, technicals: makeCompleteSnapshot({ macd_open: null }) }),
     ]
     const result = computeMacdBuckets(rows, '1m')
     expect(result.excluded).toBe(0)
@@ -105,19 +105,19 @@ describe('computeMacdBuckets — exclusion tiers', () => {
     const rows = [
       makeRow({ id: 1, technicals: null }), // gate fail (null)
       makeRow({ id: 2, technicals: incomplete }), // gate fail (incomplete)
-      makeRow({ id: 3, technicals: makeCompleteSnapshot({ macd_rising: null }) }), // unclassified
-      bucketRow(4, 100, true, true), // posRising
-      bucketRow(5, 100, true, true), // posRising
-      bucketRow(6, 100, true, true), // posRising
+      makeRow({ id: 3, technicals: makeCompleteSnapshot({ macd_open: null }) }), // unclassified
+      bucketRow(4, 100, true, true), // posOpen
+      bucketRow(5, 100, true, true), // posOpen
+      bucketRow(6, 100, true, true), // posOpen
     ]
     const result = computeMacdBuckets(rows, '1m')
     expect(result.excluded).toBe(2)
     expect(result.unclassified).toBe(1)
     expect(result.denominator).toBe(3)
-    expect(result.posRising.n).toBe(3)
-    expect(result.posFalling).toEqual(EMPTY_BUCKET)
-    expect(result.negRising).toEqual(EMPTY_BUCKET)
-    expect(result.negFalling).toEqual(EMPTY_BUCKET)
+    expect(result.posOpen.n).toBe(3)
+    expect(result.posClosed).toEqual(EMPTY_BUCKET)
+    expect(result.negOpen).toEqual(EMPTY_BUCKET)
+    expect(result.negClosed).toEqual(EMPTY_BUCKET)
     expectDenominatorInvariant(result)
   })
 })
@@ -127,38 +127,38 @@ describe('computeMacdBuckets — exclusion tiers', () => {
 describe('computeMacdBuckets — partition (1m)', () => {
   it('(T6) one trade per bucket → each n=1, denominator 4', () => {
     const rows = [
-      bucketRow(1, 10, true, true), // posRising
-      bucketRow(2, 20, true, false), // posFalling
-      bucketRow(3, 30, false, true), // negRising
-      bucketRow(4, 40, false, false), // negFalling
+      bucketRow(1, 10, true, true), // posOpen
+      bucketRow(2, 20, true, false), // posClosed
+      bucketRow(3, 30, false, true), // negOpen
+      bucketRow(4, 40, false, false), // negClosed
     ]
     const result = computeMacdBuckets(rows, '1m')
     expect(result.denominator).toBe(4)
     expect(result.excluded).toBe(0)
     expect(result.unclassified).toBe(0)
-    expect(result.posRising.n).toBe(1)
-    expect(result.posFalling.n).toBe(1)
-    expect(result.negRising.n).toBe(1)
-    expect(result.negFalling.n).toBe(1)
+    expect(result.posOpen.n).toBe(1)
+    expect(result.posClosed.n).toBe(1)
+    expect(result.negOpen.n).toBe(1)
+    expect(result.negClosed.n).toBe(1)
     // Distinct net_pnl per bucket proves each trade landed in the right cell.
-    expect(result.posRising.netPnl).toBe(10)
-    expect(result.posFalling.netPnl).toBe(20)
-    expect(result.negRising.netPnl).toBe(30)
-    expect(result.negFalling.netPnl).toBe(40)
+    expect(result.posOpen.netPnl).toBe(10)
+    expect(result.posClosed.netPnl).toBe(20)
+    expect(result.negOpen.netPnl).toBe(30)
+    expect(result.negClosed.netPnl).toBe(40)
     expectDenominatorInvariant(result)
   })
 
-  it('(T7) two trades in posRising, others empty', () => {
+  it('(T7) two trades in posOpen, others empty', () => {
     const rows = [
       bucketRow(1, 100, true, true),
       bucketRow(2, 200, true, true),
     ]
     const result = computeMacdBuckets(rows, '1m')
     expect(result.denominator).toBe(2)
-    expect(result.posRising.n).toBe(2)
-    expect(result.posFalling).toEqual(EMPTY_BUCKET)
-    expect(result.negRising).toEqual(EMPTY_BUCKET)
-    expect(result.negFalling).toEqual(EMPTY_BUCKET)
+    expect(result.posOpen.n).toBe(2)
+    expect(result.posClosed).toEqual(EMPTY_BUCKET)
+    expect(result.negOpen).toEqual(EMPTY_BUCKET)
+    expect(result.negClosed).toEqual(EMPTY_BUCKET)
     expectDenominatorInvariant(result)
   })
 })
@@ -167,21 +167,21 @@ describe('computeMacdBuckets — partition (1m)', () => {
 
 describe('computeMacdBuckets — timeframe selection', () => {
   it('(T8) positive axis differs across timeframes → bucket follows the toggle', () => {
-    // tf_1m: positive + rising → posRising. tf_5m: negative + rising → negRising.
+    // tf_1m: positive + rising → posOpen. tf_5m: negative + rising → negOpen.
     const tech = makeCompleteSnapshot(
-      { macd_positive: true, macd_rising: true },
-      { macd_positive: false, macd_rising: true },
+      { macd_positive: true, macd_open: true },
+      { macd_positive: false, macd_open: true },
     )
     const row = makeRow({ technicals: tech })
 
     const on1m = computeMacdBuckets([row], '1m')
-    expect(on1m.posRising.n).toBe(1)
-    expect(on1m.negRising.n).toBe(0)
+    expect(on1m.posOpen.n).toBe(1)
+    expect(on1m.negOpen.n).toBe(0)
     expectDenominatorInvariant(on1m)
 
     const on5m = computeMacdBuckets([row], '5m')
-    expect(on5m.negRising.n).toBe(1)
-    expect(on5m.posRising.n).toBe(0)
+    expect(on5m.negOpen.n).toBe(1)
+    expect(on5m.posOpen.n).toBe(0)
     expectDenominatorInvariant(on5m)
   })
 })
@@ -190,7 +190,7 @@ describe('computeMacdBuckets — timeframe selection', () => {
 
 describe('computeMacdBuckets — per-bucket math', () => {
   it('(T9) winners + losers → winRate, avgs, expectancy = netPnl/n', () => {
-    // 3 winners (100,200,300) + 2 losers (-50,-150) in posRising.
+    // 3 winners (100,200,300) + 2 losers (-50,-150) in posOpen.
     const rows = [
       bucketRow(1, 100, true, true),
       bucketRow(2, 200, true, true),
@@ -199,7 +199,7 @@ describe('computeMacdBuckets — per-bucket math', () => {
       bucketRow(5, -150, true, true),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(5)
     expect(b.winRate).toBe(0.6) // 3 / 5
     expect(b.netPnl).toBe(400) // 600 - 200
@@ -218,7 +218,7 @@ describe('computeMacdBuckets — per-bucket math', () => {
       bucketRow(5, 0, true, false),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posFalling
+    const b = result.posClosed
     expect(b.n).toBe(5)
     expect(b.winRate).toBe(0) // breakeven counts as loss
     expect(b.netPnl).toBe(0)
@@ -234,7 +234,7 @@ describe('computeMacdBuckets — per-bucket math', () => {
       bucketRow(2, -200, false, false),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.negFalling
+    const b = result.negClosed
     expect(b.n).toBe(2)
     expect(b.winRate).toBe(0)
     expect(b.netPnl).toBe(-300)
@@ -253,7 +253,7 @@ describe('computeMacdBuckets — per-bucket math', () => {
       bucketRow(5, 100, true, true),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(5)
     expect(b.winRate).toBe(1)
     expect(b.netPnl).toBe(500)
@@ -270,7 +270,7 @@ describe('computeMacdBuckets — per-bucket math', () => {
       bucketRow(3, 0, true, true),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(3)
     expect(b.winRate).toBe(2 / 3) // 2 winners; the breakeven is a loss
     expect(b.netPnl).toBe(150)
@@ -292,7 +292,7 @@ describe('computeMacdBuckets — expectancy suppression', () => {
       bucketRow(4, 100, true, true),
     ]
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(4)
     expect(b.winRate).toBe(1) // NOT suppressed below 5 (unlike HeaderStrip)
     expect(b.expectancy).toBeNull() // suppressed below 5
@@ -302,7 +302,7 @@ describe('computeMacdBuckets — expectancy suppression', () => {
   it('(T15) n=5 → expectancy computed', () => {
     const rows = Array.from({ length: 5 }, (_, i) => bucketRow(i + 1, 100, true, true))
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(5)
     expect(b.expectancy).toBe(100) // 500 / 5
     expectDenominatorInvariant(result)
@@ -311,7 +311,7 @@ describe('computeMacdBuckets — expectancy suppression', () => {
   it('(T16) n=6 → expectancy computed', () => {
     const rows = Array.from({ length: 6 }, (_, i) => bucketRow(i + 1, 100, true, true))
     const result = computeMacdBuckets(rows, '1m')
-    const b = result.posRising
+    const b = result.posOpen
     expect(b.n).toBe(6)
     expect(b.expectancy).toBe(100) // 600 / 6
     expectDenominatorInvariant(result)
@@ -321,20 +321,20 @@ describe('computeMacdBuckets — expectancy suppression', () => {
 // ── classifyMacdBucket (5b.1.1) ──────────────────────────────────────────────
 
 describe('classifyMacdBucket', () => {
-  it('(C1) positive + rising → posRising', () => {
-    expect(classifyMacdBucket(bucketRow(1, 100, true, true), '1m')).toBe('posRising')
+  it('(C1) positive + rising → posOpen', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, true, true), '1m')).toBe('posOpen')
   })
 
-  it('(C2) positive + falling → posFalling', () => {
-    expect(classifyMacdBucket(bucketRow(1, 100, true, false), '1m')).toBe('posFalling')
+  it('(C2) positive + falling → posClosed', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, true, false), '1m')).toBe('posClosed')
   })
 
-  it('(C3) negative + rising → negRising', () => {
-    expect(classifyMacdBucket(bucketRow(1, 100, false, true), '1m')).toBe('negRising')
+  it('(C3) negative + rising → negOpen', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, false, true), '1m')).toBe('negOpen')
   })
 
-  it('(C4) negative + falling → negFalling', () => {
-    expect(classifyMacdBucket(bucketRow(1, 100, false, false), '1m')).toBe('negFalling')
+  it('(C4) negative + falling → negClosed', () => {
+    expect(classifyMacdBucket(bucketRow(1, 100, false, false), '1m')).toBe('negClosed')
   })
 
   it('(C5) technicals null → null (data gate)', () => {
@@ -342,33 +342,33 @@ describe('classifyMacdBucket', () => {
   })
 
   it('(C6) data_complete false → null (data gate)', () => {
-    const tech = makeCompleteSnapshot({ macd_positive: true, macd_rising: true })
+    const tech = makeCompleteSnapshot({ macd_positive: true, macd_open: true })
     tech.data_complete = false
     expect(classifyMacdBucket(makeRow({ technicals: tech }), '1m')).toBeNull()
   })
 
   it('(C7) macd_positive null → null (unclassifiable)', () => {
     const row = makeRow({
-      technicals: makeCompleteSnapshot({ macd_positive: null, macd_rising: true }),
+      technicals: makeCompleteSnapshot({ macd_positive: null, macd_open: true }),
     })
     expect(classifyMacdBucket(row, '1m')).toBeNull()
   })
 
-  it('(C8) macd_rising null → null (unclassifiable, §A3 first-bar)', () => {
+  it('(C8) macd_open null → null (unclassifiable, §A3 first-bar)', () => {
     const row = makeRow({
-      technicals: makeCompleteSnapshot({ macd_positive: true, macd_rising: null }),
+      technicals: makeCompleteSnapshot({ macd_positive: true, macd_open: null }),
     })
     expect(classifyMacdBucket(row, '1m')).toBeNull()
   })
 
   it('(C9) classification follows the toggled timeframe', () => {
     const tech = makeCompleteSnapshot(
-      { macd_positive: true, macd_rising: true }, // tf_1m → posRising
-      { macd_positive: false, macd_rising: true }, // tf_5m → negRising
+      { macd_positive: true, macd_open: true }, // tf_1m → posOpen
+      { macd_positive: false, macd_open: true }, // tf_5m → negOpen
     )
     const row = makeRow({ technicals: tech })
-    expect(classifyMacdBucket(row, '1m')).toBe('posRising')
-    expect(classifyMacdBucket(row, '5m')).toBe('negRising')
+    expect(classifyMacdBucket(row, '1m')).toBe('posOpen')
+    expect(classifyMacdBucket(row, '5m')).toBe('negOpen')
   })
 })
 
@@ -376,20 +376,20 @@ describe('classifyMacdBucket', () => {
 
 describe('rowsForBucket', () => {
   it('(R1) empty input → [] for every bucket key', () => {
-    const keys = ['posRising', 'posFalling', 'negRising', 'negFalling'] as const
+    const keys = ['posOpen', 'posClosed', 'negOpen', 'negClosed'] as const
     for (const key of keys) {
       expect(rowsForBucket([], '1m', key)).toEqual([])
     }
   })
 
-  it('(R2) single posRising row, asked for posRising → returns it', () => {
+  it('(R2) single posOpen row, asked for posOpen → returns it', () => {
     const row = bucketRow(1, 100, true, true)
-    expect(rowsForBucket([row], '1m', 'posRising')).toEqual([row])
+    expect(rowsForBucket([row], '1m', 'posOpen')).toEqual([row])
   })
 
-  it('(R3) single posRising row, asked for posFalling → []', () => {
+  it('(R3) single posOpen row, asked for posClosed → []', () => {
     const row = bucketRow(1, 100, true, true)
-    expect(rowsForBucket([row], '1m', 'posFalling')).toEqual([])
+    expect(rowsForBucket([row], '1m', 'posClosed')).toEqual([])
   })
 
   it('(R4) mixed input → each key returns only its trade; gate-fail + unclassified never appear', () => {
@@ -399,7 +399,7 @@ describe('rowsForBucket', () => {
     const gateFailIncomplete = makeRow({ id: 2, technicals: incomplete })
     const unclassified = makeRow({
       id: 3,
-      technicals: makeCompleteSnapshot({ macd_rising: null }),
+      technicals: makeCompleteSnapshot({ macd_open: null }),
     })
     const pr = bucketRow(4, 10, true, true)
     const pf = bucketRow(5, 20, true, false)
@@ -407,16 +407,16 @@ describe('rowsForBucket', () => {
     const nf = bucketRow(7, 40, false, false)
     const rows = [gateFailNull, gateFailIncomplete, unclassified, pr, pf, nr, nf]
 
-    expect(rowsForBucket(rows, '1m', 'posRising')).toEqual([pr])
-    expect(rowsForBucket(rows, '1m', 'posFalling')).toEqual([pf])
-    expect(rowsForBucket(rows, '1m', 'negRising')).toEqual([nr])
-    expect(rowsForBucket(rows, '1m', 'negFalling')).toEqual([nf])
+    expect(rowsForBucket(rows, '1m', 'posOpen')).toEqual([pr])
+    expect(rowsForBucket(rows, '1m', 'posClosed')).toEqual([pf])
+    expect(rowsForBucket(rows, '1m', 'negOpen')).toEqual([nr])
+    expect(rowsForBucket(rows, '1m', 'negClosed')).toEqual([nf])
 
     const allBucketed = [
-      ...rowsForBucket(rows, '1m', 'posRising'),
-      ...rowsForBucket(rows, '1m', 'posFalling'),
-      ...rowsForBucket(rows, '1m', 'negRising'),
-      ...rowsForBucket(rows, '1m', 'negFalling'),
+      ...rowsForBucket(rows, '1m', 'posOpen'),
+      ...rowsForBucket(rows, '1m', 'posClosed'),
+      ...rowsForBucket(rows, '1m', 'negOpen'),
+      ...rowsForBucket(rows, '1m', 'negClosed'),
     ]
     expect(allBucketed).not.toContain(gateFailNull)
     expect(allBucketed).not.toContain(gateFailIncomplete)
@@ -425,13 +425,13 @@ describe('rowsForBucket', () => {
 
   it('(R5) timeframe-dependent: same row resolves to different buckets per timeframe', () => {
     const tech = makeCompleteSnapshot(
-      { macd_positive: true, macd_rising: true }, // 1m → posRising
-      { macd_positive: false, macd_rising: true }, // 5m → negRising
+      { macd_positive: true, macd_open: true }, // 1m → posOpen
+      { macd_positive: false, macd_open: true }, // 5m → negOpen
     )
     const row = makeRow({ technicals: tech })
-    expect(rowsForBucket([row], '1m', 'posRising')).toEqual([row])
-    expect(rowsForBucket([row], '1m', 'negRising')).toEqual([])
-    expect(rowsForBucket([row], '5m', 'negRising')).toEqual([row])
-    expect(rowsForBucket([row], '5m', 'posRising')).toEqual([])
+    expect(rowsForBucket([row], '1m', 'posOpen')).toEqual([row])
+    expect(rowsForBucket([row], '1m', 'negOpen')).toEqual([])
+    expect(rowsForBucket([row], '5m', 'negOpen')).toEqual([row])
+    expect(rowsForBucket([row], '5m', 'posOpen')).toEqual([])
   })
 })

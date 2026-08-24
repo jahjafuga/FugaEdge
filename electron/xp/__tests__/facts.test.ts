@@ -65,6 +65,7 @@ function tradeRow(overrides: Record<string, unknown> = {}) {
     has_note: 1,
     tt_trade_id: 7,
     tf_1m_macd_positive: 1,
+    tf_1m_macd_open: 1,
     tf_1m_vwap_dist_pct: 0.5,
     tf_1m_ema9_dist_pct: 0.2,
     ...overrides,
@@ -85,8 +86,11 @@ function sessionRow(overrides: Record<string, unknown> = {}) {
 
 describe('mapTradeRow', () => {
   it('A1: converts the 0/1/NULL macd flag explicitly — 1 → true', () => {
-    expect(mapTradeRow(tradeRow({ tf_1m_macd_positive: 1 })).technicals1m).toEqual({
+    expect(mapTradeRow(tradeRow({ tf_1m_macd_positive: 1, tf_1m_macd_open: 1 })).technicals1m).toEqual({
       macdPositive: true,
+      // v0.2.7 — the open flag joined D7 through the shared alignment
+      // predicate; it takes the same explicit 0/1/NULL conversion.
+      macdOpen: true,
       vwapDistPct: 0.5,
       ema9DistPct: 0.2,
     })
@@ -94,13 +98,13 @@ describe('mapTradeRow', () => {
 
   it('A1: 0 → false (not falsy passthrough)', () => {
     expect(
-      mapTradeRow(tradeRow({ tf_1m_macd_positive: 0 })).technicals1m?.macdPositive,
+      mapTradeRow(tradeRow({ tf_1m_macd_positive: 0, tf_1m_macd_open: 0 })).technicals1m?.macdPositive,
     ).toBe(false)
   })
 
   it('A1: NULL → null (never coerced)', () => {
     expect(
-      mapTradeRow(tradeRow({ tf_1m_macd_positive: null })).technicals1m?.macdPositive,
+      mapTradeRow(tradeRow({ tf_1m_macd_positive: null, tf_1m_macd_open: null })).technicals1m?.macdPositive,
     ).toBeNull()
   })
 
@@ -270,7 +274,8 @@ describe('assemblers', () => {
     // trade_notes
     'trade_id', 'note_text',
     // trade_technicals — D7's tf_1m snapshot only
-    'tf_1m_macd_positive', 'tf_1m_vwap_dist_pct', 'tf_1m_ema9_dist_pct',
+    'tf_1m_macd_positive', 'tf_1m_macd_open', 'tf_1m_vwap_dist_pct',
+    'tf_1m_ema9_dist_pct',
     // xp_events ledger projection
     'event_type', 'idempotency_key', 'source_ref',
     // SELECT output aliases

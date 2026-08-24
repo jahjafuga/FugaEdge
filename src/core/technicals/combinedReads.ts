@@ -2,6 +2,7 @@
 // full-alignment vs any-misalignment comparison, the "are you trading the system
 // or not" read. Partitions data-complete trades into two cells by the §A9
 // discipline conjunction — the shared isFullyAligned predicate (macd_positive
+// AND macd_open as of v0.2.7
 // AND above_9ema, plus above_vwap for regular-hours entries; pre-market entries
 // drop the N/A session VWAP) — and computes a BucketStats for each, with the
 // same expectancy / low-sample treatment as the distance bands.
@@ -59,6 +60,7 @@ export function classifyAlignment(
   const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
   const aligned = isFullyAligned(
     snap.macd_positive,
+    snap.macd_open,
     snap.vwap_dist_pct,
     snap.ema9_dist_pct,
     isPreMarketEntry(row.open_time),

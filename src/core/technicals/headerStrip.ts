@@ -44,7 +44,10 @@ export interface CardStats {
  * degenerate zero-VWAP guard. The honest-count machinery stays — mirrors
  * vwapBuckets.ts, which peels null-VWAP trades into its own coverage tier.
  *
- * - macdPositive: toggled-timeframe macd_positive === true        (÷ denominator)
+ * - macdPositive: toggled-timeframe macd_positive AND macd_open   (÷ denominator)
+ *   (v0.2.7 — the card reads POSITIVE + OPEN; the field name is unchanged so
+ *   every consumer of HeaderStripStats keeps compiling, and the label at the
+ *   render site says what it now means.)
  * - aboveVwap: toggled-timeframe vwap_dist_pct > 0                (÷ vwapDenominator)
  * - aboveEma9: toggled-timeframe ema9_dist_pct > 0                (÷ denominator)
  * - fullAlignment: the shared isFullyAligned predicate (§A9; pre-market entries
@@ -95,7 +98,9 @@ export function computeHeaderStrip(
     denominator += 1
 
     const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
-    const macdPos = snap.macd_positive === true
+    // v0.2.7 — positive AND open, the same conjunction the alignment
+    // predicate uses (read directly; a null either side is not a pass).
+    const macdPos = snap.macd_positive === true && snap.macd_open === true
     const aboveVwap = snap.vwap_dist_pct !== null && snap.vwap_dist_pct > 0
     const aboveEma9 = snap.ema9_dist_pct !== null && snap.ema9_dist_pct > 0
 
@@ -115,7 +120,7 @@ export function computeHeaderStrip(
     if (macdPos) add(macd)
     if (aboveVwap) add(vwap)
     if (aboveEma9) add(ema9)
-    if (isFullyAligned(snap.macd_positive, snap.vwap_dist_pct, snap.ema9_dist_pct, isPreMarketEntry(row.open_time))) {
+    if (isFullyAligned(snap.macd_positive, snap.macd_open, snap.vwap_dist_pct, snap.ema9_dist_pct, isPreMarketEntry(row.open_time))) {
       add(full)
     }
   }

@@ -1,6 +1,6 @@
 // v0.2.4 Session 5a — pure MACD State 4-bucket aggregation (spec §B Section 2,
 // the Technicals tab hero). Partitions data-complete, classifiable trades into
-// the 2×2 grid (positive/negative × rising/falling) for the toggled timeframe,
+// the 2×2 grid (positive/negative × open/closed) for the toggled timeframe,
 // tracks the two non-classifiable tiers separately, and computes per-bucket
 // count / win rate / net P&L / avg winner / avg loser / dollar expectancy.
 //
@@ -21,8 +21,19 @@ import type { Timeframe } from './headerStrip'
 import type { BucketStats } from './types'
 
 /** The four MACD-state cells, in §G reading order (best → worst). Shared with
- *  MacdStateGrid (open-bucket state) and rowsForBucket (accordion rows). */
-export type BucketKey = 'posRising' | 'posFalling' | 'negRising' | 'negFalling'
+ *  MacdStateGrid (open-bucket state) and rowsForBucket (accordion rows).
+ *
+ *  v0.2.7 — the SECOND AXIS IS OPEN/CLOSED (macd_line > signal_line), not
+ *  rising/falling (histogram > histogram_prior). Founder-ruled: "open" is the
+ *  momentum state a trader acts on; "rising" described the histogram's slope,
+ *  which can rise while the line is still under its signal. macd_open has been
+ *  stored per timeframe since schema 26, so this is a consumer-side change —
+ *  no capture, schema, migration or backfill moved.
+ *
+ *  NOT to be confused with the CHART's macdHist colour keys (lib/chartColors),
+ *  which stay rising/falling: colouring a histogram BAR by its slope is the
+ *  correct semantic there and is a different concept entirely. */
+export type BucketKey = 'posOpen' | 'posClosed' | 'negOpen' | 'negClosed'
 
 /**
  * Aggregated stats for the MACD State 4-bucket grid.
@@ -30,26 +41,28 @@ export type BucketKey = 'posRising' | 'posFalling' | 'negRising' | 'negFalling'
  * Three tiers account for every input row exactly once:
  * - excluded: failed the data gate (technicals === null || !data_complete).
  * - unclassified: data-complete but the toggled-timeframe macd_positive OR
- *   macd_rising is null (§A3 first-bar case) — at most one axis is known, so
- *   the trade can't land in a single cell. Surfaced in a neutral chip below
- *   the grid.
+ *   macd_open is null — at most one axis is known, so the trade can't land in
+ *   a single cell. Surfaced in a neutral chip below the grid. The usual cause
+ *   is an entry so near the open that the 9-period signal EMA has not settled
+ *   (the line exists, the signal does not), which is why the chip now reads
+ *   "signal not settled" rather than the old first-bar wording.
  * - denominator: classifiable trades (both axes non-null). Invariant:
  *   denominator === posRising.n + posFalling.n + negRising.n + negFalling.n.
  *
- * Buckets (positive/negative = macd_positive; rising/falling = macd_rising):
- * - posRising:  macd_positive && macd_rising      (spec §G "best")
- * - posFalling: macd_positive && !macd_rising
- * - negRising:  !macd_positive && macd_rising
- * - negFalling: !macd_positive && !macd_rising     (spec §G "worst")
+ * Buckets (positive/negative = macd_positive; open/closed = macd_open):
+ * - posOpen:   macd_positive && macd_open      (spec §G "best")
+ * - posClosed: macd_positive && !macd_open
+ * - negOpen:   !macd_positive && macd_open
+ * - negClosed: !macd_positive && !macd_open     (spec §G "worst")
  */
 export interface MacdBucketStats {
   excluded: number
   unclassified: number
   denominator: number
-  posRising: BucketStats
-  posFalling: BucketStats
-  negRising: BucketStats
-  negFalling: BucketStats
+  posOpen: BucketStats
+  posClosed: BucketStats
+  negOpen: BucketStats
+  negClosed: BucketStats
 }
 
 /**
@@ -59,9 +72,10 @@ export interface MacdBucketStats {
  * for classification: computeMacdBuckets accumulates through it and
  * rowsForBucket resolves accordion rows through it, so the two never drift.
  *
- * macd_positive / macd_rising are read DIRECTLY (never re-derived from a
- * histogram comparison — a null operand silently compares false and would
- * mislabel a first-bar entry as "falling" instead of unclassifiable).
+ * macd_positive / macd_open are read DIRECTLY (never re-derived from a
+ * line-versus-signal comparison — a null operand silently compares false and
+ * would mislabel an unsettled-signal entry as "closed" instead of
+ * unclassifiable).
  */
 export function classifyMacdBucket(
   row: TradeWithTechnicalsRow,
@@ -71,12 +85,12 @@ export function classifyMacdBucket(
   if (t === null || !t.data_complete) return null
   const snap = timeframe === '1m' ? t.tf_1m : t.tf_5m
   const pos = snap.macd_positive
-  const rising = snap.macd_rising
-  if (pos === null || rising === null) return null
-  if (pos && rising) return 'posRising'
-  if (pos) return 'posFalling'
-  if (rising) return 'negRising'
-  return 'negFalling'
+  const open = snap.macd_open
+  if (pos === null || open === null) return null
+  if (pos && open) return 'posOpen'
+  if (pos) return 'posClosed'
+  if (open) return 'negOpen'
+  return 'negClosed'
 }
 
 export function computeMacdBuckets(
@@ -105,10 +119,10 @@ export function computeMacdBuckets(
     loserCount: 0,
     loserSum: 0,
   })
-  const posRising = blank()
-  const posFalling = blank()
-  const negRising = blank()
-  const negFalling = blank()
+  const posOpen = blank()
+  const posClosed = blank()
+  const negOpen = blank()
+  const negClosed = blank()
 
   for (const row of rows) {
     const key = classifyMacdBucket(row, timeframe)
@@ -125,13 +139,13 @@ export function computeMacdBuckets(
     // Classifiable — lands in exactly one bucket.
     denominator += 1
     const bucket =
-      key === 'posRising'
-        ? posRising
-        : key === 'posFalling'
-          ? posFalling
-          : key === 'negRising'
-            ? negRising
-            : negFalling
+      key === 'posOpen'
+        ? posOpen
+        : key === 'posClosed'
+          ? posClosed
+          : key === 'negOpen'
+            ? negOpen
+            : negClosed
 
     // Breakeven (net_pnl === 0) counts as a loss per §A7, so a winner is
     // strictly > 0.
@@ -178,10 +192,10 @@ export function computeMacdBuckets(
     excluded,
     unclassified,
     denominator,
-    posRising: toBucket(posRising),
-    posFalling: toBucket(posFalling),
-    negRising: toBucket(negRising),
-    negFalling: toBucket(negFalling),
+    posOpen: toBucket(posOpen),
+    posClosed: toBucket(posClosed),
+    negOpen: toBucket(negOpen),
+    negClosed: toBucket(negClosed),
   }
 }
 

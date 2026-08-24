@@ -43,7 +43,7 @@ function todRow(
     open_time,
     technicals: makeCompleteSnapshot({
       macd_positive: macd.positive,
-      macd_rising: macd.rising,
+      macd_open: macd.rising,
     }),
   })
 }
@@ -59,10 +59,10 @@ const EMPTY_BUCKET = {
 
 const TIME_KEYS = TIME_OF_DAY_BUCKETS.map((b) => b.key)
 const MACD_KEYS: BucketKey[] = [
-  'posRising',
-  'posFalling',
-  'negRising',
-  'negFalling',
+  'posOpen',
+  'posClosed',
+  'negOpen',
+  'negClosed',
 ]
 
 // Invariant — excluded + every cell's n accounts for each input row once.
@@ -126,14 +126,14 @@ describe('computeTimeOfDay', () => {
 
   it('(T2) cross-tabs each trade into its (time, MACD-state) cell', () => {
     const rows = [
-      todRow(1, 100, T_0945, { positive: true, rising: true }), // t0930 × posRising
-      todRow(2, 100, T_0945, { positive: true, rising: true }), // t0930 × posRising
-      todRow(3, 100, T_1030, { positive: false, rising: false }), // t1000 × negFalling
+      todRow(1, 100, T_0945, { positive: true, rising: true }), // t0930 × posOpen
+      todRow(2, 100, T_0945, { positive: true, rising: true }), // t0930 × posOpen
+      todRow(3, 100, T_1030, { positive: false, rising: false }), // t1000 × negClosed
     ]
     const r = computeTimeOfDay(rows, '1m')
-    expect(r.cells.t0930.posRising.n).toBe(2)
-    expect(r.cells.t1000.negFalling.n).toBe(1)
-    expect(r.cells.t1200.posRising.n).toBe(0)
+    expect(r.cells.t0930.posOpen.n).toBe(2)
+    expect(r.cells.t1000.negClosed.n).toBe(1)
+    expect(r.cells.t1200.posOpen.n).toBe(0)
     expect(r.denominator).toBe(3)
     expectCellInvariant(r, 3)
   })
@@ -147,16 +147,16 @@ describe('computeTimeOfDay', () => {
     const r = computeTimeOfDay(rows, '1m')
     expect(r.excluded).toBe(2)
     expect(r.denominator).toBe(1)
-    expect(r.cells.t0930.posRising.n).toBe(1)
+    expect(r.cells.t0930.posOpen.n).toBe(1)
     expectCellInvariant(r, 3)
   })
 
   it('(T4) BucketStats math in a cell (n=5)', () => {
-    // 3 winners (100,200,300) + 2 losers (-50,-150), all t0930 × posRising.
+    // 3 winners (100,200,300) + 2 losers (-50,-150), all t0930 × posOpen.
     const rows = [100, 200, 300, -50, -150].map((p, i) =>
       todRow(i + 1, p, T_0945),
     )
-    const c = computeTimeOfDay(rows, '1m').cells.t0930.posRising
+    const c = computeTimeOfDay(rows, '1m').cells.t0930.posOpen
     expect(c.n).toBe(5)
     expect(c.winRate).toBe(0.6)
     expect(c.netPnl).toBe(400)
@@ -167,27 +167,27 @@ describe('computeTimeOfDay', () => {
 
   it('(T5) n=4 → expectancy suppressed to null', () => {
     const rows = [1, 2, 3, 4].map((i) => todRow(i, 100, T_0945))
-    const c = computeTimeOfDay(rows, '1m').cells.t0930.posRising
+    const c = computeTimeOfDay(rows, '1m').cells.t0930.posOpen
     expect(c.n).toBe(4)
     expect(c.expectancy).toBeNull()
   })
 
   it('(T6) MACD column follows the timeframe; time row does not', () => {
-    // posRising on 1m, negFalling on 5m, same entry time both ways.
+    // posOpen on 1m, negClosed on 5m, same entry time both ways.
     const tech = makeCompleteSnapshot(
-      { macd_positive: true, macd_rising: true },
-      { macd_positive: false, macd_rising: false },
+      { macd_positive: true, macd_open: true },
+      { macd_positive: false, macd_open: false },
     )
     const row = makeRow({ open_time: T_0945, technicals: tech })
-    expect(computeTimeOfDay([row], '1m').cells.t0930.posRising.n).toBe(1)
-    expect(computeTimeOfDay([row], '5m').cells.t0930.negFalling.n).toBe(1)
+    expect(computeTimeOfDay([row], '1m').cells.t0930.posOpen.n).toBe(1)
+    expect(computeTimeOfDay([row], '5m').cells.t0930.negClosed.n).toBe(1)
   })
 })
 
 // ── rowsForTimeOfDayCell ─────────────────────────────────────────────────────
 describe('rowsForTimeOfDayCell', () => {
   it('(R1) empty input → []', () => {
-    expect(rowsForTimeOfDayCell([], '1m', 't0930', 'posRising')).toEqual([])
+    expect(rowsForTimeOfDayCell([], '1m', 't0930', 'posOpen')).toEqual([])
   })
 
   it('(R2) returns only the trades cross-classified into that cell', () => {
@@ -195,13 +195,13 @@ describe('rowsForTimeOfDayCell', () => {
     const otherTime = todRow(2, 100, T_1030, { positive: true, rising: true })
     const otherMacd = todRow(3, 100, T_0945, { positive: false, rising: false })
     const rows = [hit, otherTime, otherMacd]
-    expect(rowsForTimeOfDayCell(rows, '1m', 't0930', 'posRising')).toEqual([hit])
+    expect(rowsForTimeOfDayCell(rows, '1m', 't0930', 'posOpen')).toEqual([hit])
   })
 
   it('(R3) excluded (null-axis) rows never appear', () => {
     const hit = todRow(1, 100, T_0945)
     const nullMacd = todRow(2, 100, T_0945, { positive: null, rising: true })
     const rows = [hit, nullMacd]
-    expect(rowsForTimeOfDayCell(rows, '1m', 't0930', 'posRising')).toEqual([hit])
+    expect(rowsForTimeOfDayCell(rows, '1m', 't0930', 'posOpen')).toEqual([hit])
   })
 })

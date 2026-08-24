@@ -28,7 +28,7 @@ function trade(overrides: Partial<TradeFact> = {}): TradeFact {
   }
 }
 
-const DISCIPLINED = { macdPositive: true, vwapDistPct: 0.8, ema9DistPct: 0.4 }
+const DISCIPLINED = { macdPositive: true, macdOpen: true, vwapDistPct: 0.8, ema9DistPct: 0.4 }
 
 function session(overrides: Partial<SessionFact> = {}): SessionFact {
   return {
