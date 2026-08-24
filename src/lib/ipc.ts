@@ -60,8 +60,13 @@ export const ipc = {
   importCommit: (input: CommitInput) => window.api.importCommit(input),
   dashboardGet: (range?: TimeRange, scope?: AccountScope) =>
     window.api.dashboardGet(range, scope),
-  tradesList: (opts?: { date?: string; deleted?: boolean; accountScope?: AccountScope }) =>
-    window.api.tradesList(opts),
+  tradesList: (opts?: {
+    date?: string
+    deleted?: boolean
+    accountScope?: AccountScope
+    /** v0.2.7 — one setup's trades, for the Playbook page's trades card. */
+    playbookId?: number
+  }) => window.api.tradesList(opts),
   getTrade: (input: { trade_id: number }) => window.api.getTrade(input),
   listTradesWithTechnicals: (opts?: ListTradesWithTechnicalsOptions) =>
     window.api.listTradesWithTechnicals(opts),

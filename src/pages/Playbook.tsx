@@ -4,6 +4,7 @@ import PageShell from '@/components/layout/PageShell'
 import Card from '@/components/ui/Card'
 import Skeleton from '@/components/ui/Skeleton'
 import PlaybookPerformance from '@/components/playbook/PlaybookPerformance'
+import PlaybookTradesCard from '@/components/playbook/PlaybookTradesCard'
 import { invalidatePlaybookCache } from '@/components/playbook/PlaybookPicker'
 import TierBadge from '@/components/playbook/TierBadge'
 import { tierTone } from '@/components/playbook/tierTone'
@@ -16,6 +17,7 @@ import {
   type PlaybookTier,
   type PlaybookWithStats,
 } from '@shared/playbook-types'
+import type { TradeListRow } from '@shared/trades-types'
 
 export default function Playbook() {
   // Multi-account slice — the switcher's scope: per-playbook STATS follow it
@@ -23,6 +25,11 @@ export default function Playbook() {
   // — the list itself never changes under any scope.
   const { scope } = useAccountScope()
   const [list, setList] = useState<PlaybookWithStats[] | null>(null)
+  // v0.2.7 — the selected setup's own trades. Fetched per selection rather than
+  // ridden along on playbooksList: that call returns EVERY playbook, so folding
+  // trades into it would pull every setup's rows on every page load and on every
+  // save-triggered refresh, to render one setup's worth.
+  const [trades, setTrades] = useState<TradeListRow[]>([])
   const [err, setErr] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -86,6 +93,29 @@ export default function Playbook() {
       setEditor(null)
     }
   }, [selected])
+
+  // The trades behind the selected setup. PRIMARY setups only and no date
+  // range — the same predicate the stats above the card were computed with, so
+  // the row count can never disagree with the "{n}t" on the list row.
+  useEffect(() => {
+    if (selectedId == null) {
+      setTrades([])
+      return
+    }
+    let live = true
+    ipc
+      .tradesList({ playbookId: selectedId, accountScope: scope })
+      .then((rows) => {
+        // Ignore a resolution that lost the race to a newer selection/scope.
+        if (live) setTrades(rows)
+      })
+      .catch(() => {
+        if (live) setTrades([])
+      })
+    return () => {
+      live = false
+    }
+  }, [selectedId, scope])
 
   const startCreate = useCallback(() => {
     setNewName('')
@@ -345,8 +375,14 @@ export default function Playbook() {
           </Card>
         ) : (
           <div className="space-y-5">
-            <PlaybookPerformance stats={selected.stats} />
+            <div data-playbook-performance>
+              <PlaybookPerformance stats={selected.stats} />
+            </div>
 
+            {/* The trades behind the numbers, before the rules. */}
+            <PlaybookTradesCard trades={trades} setupName={selected.name} />
+
+            <div data-playbook-definition>
             <Card padded={false}>
               <div className="flex items-baseline justify-between border-b border-white/[0.05] px-5 py-3">
                 <div className="text-[10px] uppercase tracking-wider text-muted">
@@ -480,6 +516,7 @@ export default function Playbook() {
                 </Field>
               </div>
             </Card>
+            </div>
           </div>
         )}
       </div>

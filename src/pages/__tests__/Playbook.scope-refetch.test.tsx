@@ -10,14 +10,22 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { makeSettingsPayload } from '@/test/fixtures/settings'
 
-vi.mock('@/lib/ipc', () => ({
-  ipc: {
-    playbooksList: vi.fn(),
-    settingsGet: vi.fn(),
-    settingsSave: vi.fn(),
-    accountsList: vi.fn(),
-  },
-}))
+// v0.2.7 — was a four-method LITERAL, which broke the moment this page grew a
+// fifth call (the trades card's tradesList). A Proxy that auto-vivifies a vi.fn
+// for any unlisted method cannot break that way again, and the assertions below
+// still work because what it vivifies is a real spy. The PlaybookPicker.height
+// suite's idiom, with the fallback made a spy rather than a bare thunk.
+vi.mock('@/lib/ipc', () => {
+  const base: Record<string, unknown> = {}
+  return {
+    ipc: new Proxy(base, {
+      get(target, prop: string) {
+        if (!(prop in target)) target[prop] = vi.fn(() => Promise.resolve([]))
+        return target[prop]
+      },
+    }),
+  }
+})
 
 import Playbook from '../Playbook'
 import { AccountScopeProvider, useAccountScope } from '@/lib/accountScope'

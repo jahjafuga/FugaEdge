@@ -171,6 +171,13 @@ describe('read paths filter soft-deleted trades (deleted_at IS NULL)', () => {
     expectAllFiltered(await tradeSqlsFrom(() => exportTradesCsv({} as any)))
   })
 
+  // v0.2.7 — the Playbook page's trades card. A hand-maintained registry does
+  // not catch a new read on its own, so the new site is registered here by hand,
+  // the way every entry above was.
+  it('trades/list.ts — listTrades({ playbookId }) (Playbook trades card)', async () => {
+    expectAllFiltered(await tradeSqlsFrom(() => listTrades({ playbookId: 7 })))
+  })
+
   it('trades/list.ts:131 — listTrades (default)', async () => {
     expectAllFiltered(await tradeSqlsFrom(() => listTrades()))
   })

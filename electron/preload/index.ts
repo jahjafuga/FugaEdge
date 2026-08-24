@@ -151,6 +151,8 @@ const api = {
     date?: string
     deleted?: boolean
     accountScope?: AccountScope
+    /** v0.2.7 — the Playbook page's trades card asks for one setup's trades. */
+    playbookId?: number
   }): Promise<TradeListRow[]> => ipcRenderer.invoke(IPC.TRADES_LIST, opts),
   getTrade: (input: { trade_id: number }): Promise<TradeListRow | null> =>
     ipcRenderer.invoke(IPC.TRADE_GET, input),

@@ -193,6 +193,15 @@ export interface ListTradesOptions {
    *  wall. Callers opt in per surface as their slice lands; the Calendar
    *  compare strip is the first. */
   accountScope?: AccountScope
+  /** v0.2.7 — restrict to the trades whose PRIMARY setup is this playbook
+   *  (trades.playbook_id). Backs the Playbook page's trades card.
+   *
+   *  PRIMARY ONLY, deliberately. The trade_playbooks junction holds SECONDARY
+   *  confluence tags, and including them here would make the card list more
+   *  trades than the "{n}t" printed beside the setup's name — that count comes
+   *  from playbook/repo.ts's stats read, which is primary-only. Same predicate,
+   *  same row set, no contradiction on screen. */
+  playbookId?: number
 }
 
 export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
@@ -202,7 +211,16 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
   const conds: string[] = [
     opts.deleted ? 't.deleted_at IS NOT NULL' : 't.deleted_at IS NULL',
   ]
-  const params: string[] = []
+  // Widened from string[] the day playbookId landed — the setup id binds as a
+  // number, and coercing it to a string would defeat SQLite's integer compare
+  // against an INTEGER column.
+  const params: (string | number)[] = []
+  if (opts.playbookId != null) {
+    // The PRIMARY setup only. Never a join to trade_playbooks: see the option's
+    // doc comment for why the count must match the stats read exactly.
+    conds.push('t.playbook_id = ?')
+    params.push(opts.playbookId)
+  }
   if (opts.date) {
     conds.push('t.date = ?')
     params.push(opts.date)
