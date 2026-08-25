@@ -161,10 +161,43 @@ const MAGNITUDE_WORDS: Record<string, number> = {
   billion: 1_000_000_000,
 }
 
+/** Spelled numbers, up to the point where a trader would reach for digits.
+ *  Composed rather than enumerated: "five hundred thousand" is five, times a
+ *  hundred, times a thousand. */
+const SPELLED_UNITS: Record<string, number> = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90, half: 0.5,
+}
+
+/** Words that name the UNIT rather than the amount. They are consumed with the
+ *  number so they do not fall through and become unresolved litter, and
+ *  "percent" carries the same meaning the glued sign already had. */
+const UNIT_WORDS: Record<string, string | null> = {
+  dollars: null, dollar: null, bucks: null, buck: null,
+  shares: null, share: null,
+  percent: '%',
+}
+
+/** A thousands-separated integer, and ONLY a correctly grouped one:
+ *  1,000,000 yes; 1,5 no; 1,00,000 no. An incorrectly grouped number is
+ *  AMBIGUOUS -- a decimal comma in half the world -- and the resolver does not
+ *  get to pick. Returning null here sends it to `unresolved`, which is the
+ *  honest answer. */
+function stripGroupedCommas(raw: string): string | null {
+  if (!raw.includes(',')) return raw
+  const m = /^(\$?)(\d{1,3}(?:,\d{3})+)$/.exec(raw)
+  return m ? m[1] + m[2].replace(/,/g, '') : null
+}
+
 /** "$1.5m" → 1_500_000; "5x" → {n: 5, unit: 'x'}. Null when it is not a
  *  number at all. */
 function parseValue(raw: string): { n: number; unit: string | null } | null {
-  const m = /^\$?(\d+(?:\.\d+)?)(k|m|b|x|%)?$/i.exec(raw)
+  const cleaned = stripGroupedCommas(raw)
+  if (cleaned === null) return null
+  const m = /^\$?(\d+(?:\.\d+)?)(k|m|b|x|%)?$/i.exec(cleaned)
   if (!m) return null
   let n = Number(m[1])
   const unit = m[2]?.toLowerCase() ?? null
@@ -174,22 +207,82 @@ function parseValue(raw: string): { n: number; unit: string | null } | null {
   return { n, unit }
 }
 
-/** A value at `idx`, which may span TWO tokens when a magnitude word follows
- *  the number ("1 million"). Built ON parseValue so the single-token form and
- *  the spoken form cannot disagree about what a number is. */
+/** A value beginning at `idx`, in ANY of the forms a trader types, spanning
+ *  as many tokens as it needs. ONE parser: the glued suffix, the magnitude
+ *  word, the spelled number and the unit word all compose through here, so
+ *  "1m", "1 million" and "one million" cannot drift apart.
+ *
+ *  Reads, in order: a leading amount (digits or spelled words), then any
+ *  magnitude multipliers, then an optional unit word. Returns null when there
+ *  is no number -- including when there is an AMBIGUOUS one, which is the
+ *  point of stripGroupedCommas above. */
 function parseValueAt(
   tokens: string[],
   idx: number,
-): { n: number; unit: string | null; len: number } | null {
+): { n: number; unit: string | null; len: number; magnitude: number | null } | null {
   if (idx >= tokens.length) return null
-  const first = parseValue(tokens[idx])
-  if (!first) return null
-  const next = tokens[idx + 1]
-  // Only a BARE number takes a magnitude word: "1m million" is not a thing.
-  if (first.unit === null && next && next in MAGNITUDE_WORDS) {
-    return { n: first.n * MAGNITUDE_WORDS[next], unit: null, len: 2 }
+
+  let i = idx
+  let unit: string | null = null
+  let n: number | null = null
+  /** The spoken magnitude this value applied, if any. Reported so a SHARED one
+   *  can be inherited: "between one and five million" means one million to
+   *  five million, not one to five million. */
+  let magnitude: number | null = null
+
+  const digits = parseValue(tokens[i])
+  if (digits) {
+    n = digits.n
+    unit = digits.unit
+    i++
+  } else {
+    // The spelled form, composed: units add, "hundred" scales what is held,
+    // and a magnitude banks it. "five hundred thousand" is 5 x 100 x 1000.
+    let acc = 0
+    let cur = 0
+    let saw = false
+    while (i < tokens.length) {
+      const w = tokens[i]
+      if (w in SPELLED_UNITS) {
+        cur += SPELLED_UNITS[w]
+        saw = true
+        i++
+        continue
+      }
+      if (w === 'hundred' && saw) {
+        cur = (cur === 0 ? 1 : cur) * 100
+        i++
+        continue
+      }
+      break
+    }
+    if (!saw) return null
+    n = acc + cur
   }
-  return { ...first, len: 1 }
+
+  // Magnitudes, spoken. A GLUED suffix already carries its own, so "1m
+  // million" is not a thing and is refused by the unit check.
+  while (i < tokens.length) {
+    // "half a million" -- one stopword may sit between the amount and its
+    // magnitude, the same one-stopword tolerance the comparator window uses.
+    let j = i
+    if (STOPWORDS.has(tokens[j]) && j + 1 < tokens.length && tokens[j + 1] in MAGNITUDE_WORDS) j++
+    if (!(tokens[j] in MAGNITUDE_WORDS)) break
+    if (unit !== null) break
+    magnitude = MAGNITUDE_WORDS[tokens[j]]
+    n = (n as number) * magnitude
+    i = j + 1
+  }
+
+  // The unit word, if the trader said one.
+  if (i < tokens.length && tokens[i] in UNIT_WORDS) {
+    const u = UNIT_WORDS[tokens[i]]
+    if (u !== null) unit = u
+    i++
+  }
+
+  if (n === null || !Number.isFinite(n)) return null
+  return { n, unit, len: i - idx, magnitude }
 }
 
 interface Comparison {
@@ -352,6 +445,50 @@ export function resolveQuery(
     }
     return null
   }
+  /** The first value at or after `from`, skipping stopwords; null if none.
+   *  Refuses a token the user's own vocabulary claims exactly -- a ticker
+   *  named TEN is their ticker, not the number ten. */
+  const valueFrom = (
+    from: number,
+  ): { n: number; unit: string | null; end: number; magnitude: number | null } | null => {
+    let k = from
+    while (k < tokens.length && STOPWORDS.has(tokens[k])) k++
+    if (k >= tokens.length) return null
+    if (vocabKeys.includes(tokens[k])) return null
+    const v = parseValueAt(tokens, k)
+    return v ? { n: v.n, unit: v.unit, end: k + v.len - 1, magnitude: v.magnitude } : null
+  }
+
+  // TWO-SIDED RANGES: "float between 1m and 5m", "float 1m to 5m". Both fill
+  // min AND max on the EXISTING range field -- the ask gains nothing. A
+  // "between" with one operand is left alone here and falls through to
+  // unresolved: half a range shipped as if it were whole is the same class of
+  // lie as a coerced number.
+  for (let i = 0; i < tokens.length; i++) {
+    if (negated[i] || marks[i] !== 'free') continue
+    const col = columnAt(i)
+    if (!col) continue
+    let after = i + col.span
+    if (after < tokens.length && tokens[after] === 'between') after++
+    const sawBetween = after > i + col.span
+    const lo = valueFrom(after)
+    if (!lo) continue
+    const hi = valueFrom(lo.end + 1)
+    if (!hi) {
+      // R5 -- a "between" with ONE operand is UNRESOLVED, never a one-sided
+      // filter. The column is left unclaimable too, so the word cannot fall
+      // through and quietly become a mistake instead.
+      if (sawBetween) for (let k = i; k <= lo.end; k++) negated[k] = true
+      continue
+    }
+    // A SHARED magnitude belongs to both operands: "between one and five
+    // million" is one million to five million.
+    const loN = lo.magnitude === null && hi.magnitude !== null ? lo.n * hi.magnitude : lo.n
+    comparisons.push({ colId: col.colId, bound: 'min', value: loN, text: tokens.slice(i, hi.end + 1).join(' ') })
+    comparisons.push({ colId: col.colId, bound: 'max', value: hi.n, text: '' })
+    for (let k = i; k <= hi.end; k++) marks[k] = 'consumed'
+  }
+
   for (let i = 0; i < tokens.length; i++) {
     if (negated[i] || marks[i] !== 'free') continue
     let op = tokens[i]
@@ -398,7 +535,9 @@ export function resolveQuery(
     // skipping stopwords on the way.
     let vIdx = Math.max(opEnd, colEnd) + 1
     while (vIdx < tokens.length && STOPWORDS.has(tokens[vIdx])) vIdx++
-    const value = parseValueAt(tokens, vIdx)
+    // Same refusal as the two-sided path: the user's own name beats a number
+    // word, and the token is handed BACK rather than consumed.
+    const value = vocabKeys.includes(tokens[vIdx] ?? '') ? null : parseValueAt(tokens, vIdx)
 
     if (!value) {
       // R5 -- a comparator with NO value is UNRESOLVED, never a filter with a
