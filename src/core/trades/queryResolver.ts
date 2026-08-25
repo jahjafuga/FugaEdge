@@ -151,6 +151,16 @@ const COLUMN_PHRASES: [string, string][] = [
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
 
+/** Magnitude words, the spoken form of the glued k / m / b suffixes. Shipped
+ *  WITH the window rather than after it: the window makes "float under 1
+ *  million" reachable from far more phrasings, and without these that sentence
+ *  sets float at most ONE. Widening a lie is worse than leaving it narrow. */
+const MAGNITUDE_WORDS: Record<string, number> = {
+  thousand: 1_000,
+  million: 1_000_000,
+  billion: 1_000_000_000,
+}
+
 /** "$1.5m" → 1_500_000; "5x" → {n: 5, unit: 'x'}. Null when it is not a
  *  number at all. */
 function parseValue(raw: string): { n: number; unit: string | null } | null {
@@ -162,6 +172,24 @@ function parseValue(raw: string): { n: number; unit: string | null } | null {
   else if (unit === 'm') n *= 1_000_000
   else if (unit === 'b') n *= 1_000_000_000
   return { n, unit }
+}
+
+/** A value at `idx`, which may span TWO tokens when a magnitude word follows
+ *  the number ("1 million"). Built ON parseValue so the single-token form and
+ *  the spoken form cannot disagree about what a number is. */
+function parseValueAt(
+  tokens: string[],
+  idx: number,
+): { n: number; unit: string | null; len: number } | null {
+  if (idx >= tokens.length) return null
+  const first = parseValue(tokens[idx])
+  if (!first) return null
+  const next = tokens[idx + 1]
+  // Only a BARE number takes a magnitude word: "1m million" is not a thing.
+  if (first.unit === null && next && next in MAGNITUDE_WORDS) {
+    return { n: first.n * MAGNITUDE_WORDS[next], unit: null, len: 2 }
+  }
+  return { ...first, len: 1 }
 }
 
 interface Comparison {
@@ -301,9 +329,31 @@ export function resolveQuery(
   // ── pass 1: comparisons ────────────────────────────────────────────────────
   // (column?)(op)(value). Found first so "over" cannot fall into a stopword
   // and "10m" cannot be mistaken for vocabulary.
+  //
+  // THE WINDOW RULE, and it is ONE place -- nothing below re-decides it.
+  // MEASURED across every phrasing on record: the column phrase and the
+  // operator are separated by ZERO tokens ("float under 1m", "market cap under
+  // 500m") or by exactly ONE, and that one is always a stopword ("under A
+  // float of 1m", "float OF under 1m"). The column may sit on EITHER side of
+  // the operator. So a comparison forms when at most one stopword separates
+  // them, in either order, and the value is the first value after both.
+  //
+  // PRECEDENCE, NOT SIMILARITY: this is about which PASS gets the word. A
+  // column phrase claims its word only when an operator AND a value are inside
+  // the window; a BARE column phrase is left for the vocabulary pass exactly as
+  // before, because a column with no operator and no value is not a filter.
   const comparisons: Comparison[] = []
+  /** The column phrase at `at`, longest span first, or null. */
+  const columnAt = (at: number): { colId: string; span: number } | null => {
+    for (const span of [2, 1]) {
+      if (at < 0 || at + span > tokens.length) continue
+      const hit = COLUMN_PHRASES.find(([p]) => p === tokens.slice(at, at + span).join(' '))
+      if (hit) return { colId: hit[1], span }
+    }
+    return null
+  }
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i]) continue
+    if (negated[i] || marks[i] !== 'free') continue
     let op = tokens[i]
     let opLen = 1
     if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
@@ -311,34 +361,86 @@ export function resolveQuery(
       opLen = 2
     }
     if (!MIN_OPS.has(op) && !MAX_OPS.has(op)) continue
-    const valueIdx = i + opLen
-    const value = valueIdx < tokens.length ? parseValue(tokens[valueIdx]) : null
-    if (!value) continue
+    const opEnd = i + opLen - 1
 
-    // the column phrase sits just before the operator: two words, then one
+    // THE WINDOW: the column, on either side, across at most one stopword.
     let colId: string | null = null
     let colStart = i
-    for (const span of [2, 1]) {
-      if (i - span < 0) continue
-      const phrase = tokens.slice(i - span, i).join(' ')
-      const hit = COLUMN_PHRASES.find(([p]) => p === phrase)
+    let colEnd = opEnd
+    for (const gap of [0, 1]) {
+      // BEFORE the operator: the column's LAST token sits `gap` back.
+      for (const span of [2, 1]) {
+        const at = i - gap - span
+        if (at < 0) continue
+        if (gap === 1 && !STOPWORDS.has(tokens[i - 1])) continue
+        const hit = columnAt(at)
+        if (hit && hit.span === span) {
+          colId = hit.colId
+          colStart = at
+          colEnd = Math.max(opEnd, at + span - 1)
+          break
+        }
+      }
+      if (colId) break
+      // AFTER the operator: the column starts `gap` tokens past the operator.
+      const at = opEnd + 1 + gap
+      if (gap === 1 && !STOPWORDS.has(tokens[opEnd + 1] ?? '')) continue
+      const hit = columnAt(at)
       if (hit) {
-        colId = hit[1]
-        colStart = i - span
+        colId = hit.colId
+        colStart = Math.min(i, at)
+        colEnd = at + hit.span - 1
         break
       }
     }
+
+    // THE VALUE: the first one after BOTH the operator and the column,
+    // skipping stopwords on the way.
+    let vIdx = Math.max(opEnd, colEnd) + 1
+    while (vIdx < tokens.length && STOPWORDS.has(tokens[vIdx])) vIdx++
+    const value = parseValueAt(tokens, vIdx)
+
+    if (!value) {
+      // R5 -- a comparator with NO value is UNRESOLVED, never a filter with a
+      // missing or coerced number. When a column was in the window it is left
+      // unclaimable too, so the word cannot fall through to the vocabulary
+      // pass and quietly become something else.
+      if (colId) for (let k = colStart; k <= Math.max(colEnd, opEnd); k++) negated[k] = true
+      continue
+    }
+
+    // R3 -- an EXACT or LONGER vocabulary match beats a windowed column claim.
+    // The user's own name for a thing wins, the same way a real ticker beats
+    // the filler list. Checked on the column's own text only.
+    if (colId) {
+      const colText = tokens.slice(colStart, colStart + (colEnd - colStart + 1)).join(' ')
+      const colPhrase = columnAt(colStart)
+      const exactText = colPhrase
+        ? tokens.slice(colStart, colStart + colPhrase.span).join(' ')
+        : colText
+      if (vocabKeys.includes(exactText)) {
+        // Hand the word BACK to the vocabulary pass: dropping the column id
+        // alone would still consume the token below, and the user's own name
+        // would vanish instead of winning.
+        colId = null
+        colStart = i
+        colEnd = opEnd
+      }
+    }
+
     // a bare "5x" is RVOL's — the only label that owns the suffix (G6)
     if (!colId && value.unit === 'x') colId = 'rvol'
 
     const bound: 'min' | 'max' = MIN_OPS.has(op) ? 'min' : 'max'
+    const lo = Math.min(colStart, i)
+    const hi = vIdx + value.len - 1
     comparisons.push({
       colId,
       bound,
       value: value.n,
-      text: tokens.slice(colStart, valueIdx + 1).join(' '),
+      text: tokens.slice(lo, hi + 1).join(' '),
     })
-    for (let k = colStart; k <= valueIdx; k++) marks[k] = 'consumed'
+    for (let k = lo; k <= hi; k++) marks[k] = 'consumed'
   }
 
   // ── pass 2: the state's own words ─────────────────────────────────────────
