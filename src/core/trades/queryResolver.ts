@@ -99,7 +99,7 @@ const MISTAKE_FLAG_WORDS = new Set(['mistake', 'mistakes'])
 
 /** Filler that carries no filter meaning. Deliberately small: an unknown word
  *  should land in `unresolved`, not vanish into a stopword list. */
-const STOPWORDS = new Set([
+export const STOPWORDS = new Set([
   'show', 'me', 'the', 'a', 'an', 'my', 'i', 'have', 'had', 'has', 'that',
   'with', 'of', 'in', 'on', 'all', 'and', 'for', 'to', 'from', 'by',
   'trade', 'trades', 'company', 'companies', 'stock', 'stocks',
@@ -338,12 +338,26 @@ export function resolveQuery(
   }
 
   /** Winning candidates for one normalized phrase: exact, then prefix, then
-   *  substring; within a tier the earliest KIND with any hit takes it. */
+   *  substring; within a tier the earliest KIND with any hit takes it.
+   *
+   *  FILLER IS NOT VOCABULARY. A phrase made entirely of stopwords may match
+   *  on the EXACT tier and nowhere else. The list used to be consulted after
+   *  this function had already run, and only when it found nothing — so "of",
+   *  which is on the list, never reached its own declaration and applied
+   *  CATALYST OFFERING / DILUTION by two-character prefix. Four of the
+   *  twenty-seven declared stopwords behaved that way; three more went
+   *  ambiguous.
+   *
+   *  EXACT still wins, deliberately: ALL is Allstate and ON is a real ticker.
+   *  A whole token equal to a whole vocabulary key is not a resemblance, and
+   *  refusing it would be a second bug wearing the first one's clothes. Only
+   *  the fuzzy tiers are closed, and their floors are untouched. */
   function candidatesFor(phrase: string): PoolEntry[] {
+    const isFiller = phrase.split(' ').every((w) => STOPWORDS.has(w))
     const tiers: ((e: PoolEntry) => boolean)[] = [
       (e) => e.key === phrase,
-      (e) => phrase.length >= 2 && e.key.startsWith(phrase),
-      (e) => phrase.length >= 3 && e.key.includes(phrase),
+      (e) => !isFiller && phrase.length >= 2 && e.key.startsWith(phrase),
+      (e) => !isFiller && phrase.length >= 3 && e.key.includes(phrase),
     ]
     for (const match of tiers) {
       const hits = pool.filter(match)
