@@ -137,9 +137,28 @@ const DEMONYMS: Record<string, string> = {
  *  handful of spoken aliases; every id here exists in NUMERIC_COLUMN_IDS and
  *  rangeValueOf. Two-word phrases are matched before one-word ones. */
 const COLUMN_PHRASES: [string, string][] = [
+  // THREE words first -- the longest phrase wins, and the lookup below tries
+  // spans in descending order so a shorter phrase can never swallow a longer
+  // one. "risk per share" must beat "risk"; "days since catalyst" must beat
+  // "catalyst". That theft is the defect class this campaign exists to kill.
+  ['risk per share', 'risk_per_share'], ['days since catalyst', 'days_since_catalyst'],
+  // TWO words
   ['market cap', 'market_cap'], ['mkt cap', 'market_cap'],
   ['relative volume', 'rvol'], ['hold time', 'hold_time'],
   ['day change', 'daily_change_pct'], ['r multiple', 'r_multiple'],
+  ['entry price', 'avg_buy'], ['buy price', 'avg_buy'],
+  ['exit price', 'avg_sell'], ['sell price', 'avg_sell'], ['sold at', 'avg_sell'],
+  ['price move', 'price_move_pct'], ['price moved', 'price_move_pct'],
+  ['first entry', 'first_entry'], ['catalyst age', 'days_since_catalyst'],
+  ['ema distance', 'ema9_dist_pct'], ['ema9 distance', 'ema9_dist_pct'],
+  // ONE word. A BARE price is the ENTRY price -- the price you paid is the one
+  // a trader means when they do not say which. Exit is reachable by naming it.
+  ['price', 'avg_buy'], ['prices', 'avg_buy'], ['cost', 'avg_buy'],
+  ['paid', 'avg_buy'], ['entry', 'avg_buy'], ['buy', 'avg_buy'],
+  ['bought', 'avg_buy'],
+  ['exit', 'avg_sell'], ['sell', 'avg_sell'], ['sold', 'avg_sell'],
+  ['money', 'net_pnl'],
+  ['ema9', 'ema9_dist_pct'],
   ['float', 'float'], ['rvol', 'rvol'], ['cap', 'market_cap'],
   ['net', 'net_pnl'], ['pnl', 'net_pnl'], ['profit', 'net_pnl'],
   ['fees', 'fees'], ['shares', 'shares'], ['mae', 'mae'], ['mfe', 'mfe'],
@@ -438,7 +457,9 @@ export function resolveQuery(
   const comparisons: Comparison[] = []
   /** The column phrase at `at`, longest span first, or null. */
   const columnAt = (at: number): { colId: string; span: number } | null => {
-    for (const span of [2, 1]) {
+    // Descending span: the LONGEST phrase wins, in ONE place. Three words for
+    // "risk per share" and "days since catalyst".
+    for (const span of [3, 2, 1]) {
       if (at < 0 || at + span > tokens.length) continue
       const hit = COLUMN_PHRASES.find(([p]) => p === tokens.slice(at, at + span).join(' '))
       if (hit) return { colId: hit[1], span }
@@ -506,7 +527,7 @@ export function resolveQuery(
     let colEnd = opEnd
     for (const gap of [0, 1]) {
       // BEFORE the operator: the column's LAST token sits `gap` back.
-      for (const span of [2, 1]) {
+      for (const span of [3, 2, 1]) {
         const at = i - gap - span
         if (at < 0) continue
         if (gap === 1 && !STOPWORDS.has(tokens[i - 1])) continue
