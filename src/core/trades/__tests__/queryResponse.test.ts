@@ -34,7 +34,7 @@ describe('G7 nothing resolved -- no count, and name what was not read', () => {
     // those may contain numbers -- "under 10" is exactly such a case, and a
     // sibling guard below REQUIRES that echo. What must never appear is a
     // COUNT: a number the user did not type, presented as a result.
-    expect(out, `a count leaked into a failure line: ${out}`).not.toMatch(/\d+\s*trades?/i)
+    expect(out, `a count leaked into a failure line: ${out}`).not.toMatch(/\d+\s*trades?\b/i)
   })
 
   it('names the unresolved text verbatim', () => {
@@ -90,6 +90,51 @@ describe('G8 partly resolved -- count, what applied, AND what was ignored', () =
     const one = responseLine({ count: 1, applied: ['losers'], unresolved: ['zzz'] })
     expect(one).toMatch(/\b1 trade\b/)
     expect(one).not.toMatch(/\b1 trades\b/)
+  })
+})
+
+// --- G3 (beat seventy: the limit must not be reported as the count) ---------
+
+describe('G3 with a limit active the response names BOTH numbers', () => {
+  it('names what matched AND what is shown', () => {
+    const out = responseLine({
+      count: 28,
+      applied: ['outcome losers', 'region China'],
+      unresolved: [],
+      limit: 10,
+    })
+    expect(out, `the matched count is missing: ${out}`).toMatch(/\b28\b/)
+    expect(out, `the shown count is missing: ${out}`).toMatch(/\b10\b/)
+  })
+
+  it('and does NOT present the limit as the match count', () => {
+    const out = responseLine({ count: 28, applied: ['outcome losers'], unresolved: [], limit: 10 })
+    // "10 trades" would be the lie -- twenty-eight matched, ten are shown.
+    expect(out, 'the limit is masquerading as the match count').not.toMatch(/\b10 trades\b/)
+    expect(out).toMatch(/\b28 trades\b/)
+  })
+
+  it('a limit larger than the match is not announced -- nothing is hidden', () => {
+    const out = responseLine({ count: 3, applied: ['outcome losers'], unresolved: [], limit: 10 })
+    expect(out).toBe('3 trades - outcome losers')
+  })
+
+  it('no limit means the line is exactly what it was before', () => {
+    expect(
+      responseLine({ count: 140, applied: ['catalyst News / PR'], unresolved: [], limit: null }),
+    ).toBe('140 trades - catalyst News / PR')
+  })
+
+  it('a limit composes with the ignored clause', () => {
+    const out = responseLine({
+      count: 28,
+      applied: ['outcome losers'],
+      unresolved: ['blorp'],
+      limit: 10,
+    })
+    expect(out).toMatch(/28 trades/)
+    expect(out).toMatch(/showing 10/)
+    expect(out).toMatch(/ignored/)
   })
 })
 

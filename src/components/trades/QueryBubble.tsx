@@ -307,6 +307,10 @@ export default function QueryBubble({
               count: liveCount,
               applied: resolution.applied,
               unresolved: resolution.unresolved,
+              // The ask's limit, so the line can name the matched count AND
+              // the shown one. Without it the response would report the
+              // truncated number as the answer.
+              limit: resolution.state.limit,
             }),
           },
         ])

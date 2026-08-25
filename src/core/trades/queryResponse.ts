@@ -20,12 +20,18 @@ export interface ResponseInput {
   applied: string[]
   /** Contiguous runs of text that matched nothing — the model seam. */
   unresolved: string[]
+  /** v0.2.7 -- the row count the ask asked to SHOW, or null. Threaded in
+   *  because the count alone cannot tell the truth once a limit exists: the
+   *  number MATCHED and the number SHOWN are different facts, and reporting
+   *  the limit as the match would be the same lie this file was written to
+   *  stop. */
+  limit?: number | null
 }
 
 const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
-export function responseLine({ count, applied, unresolved }: ResponseInput): string {
+export function responseLine({ count, applied, unresolved, limit }: ResponseInput): string {
   // NOTHING APPLIED. No filter ran, so there is no result set and no number to
   // report — printing the book's own size here is the defect this exists to
   // stop. Say what could not be read instead, so the sentence the user typed
@@ -38,7 +44,14 @@ export function responseLine({ count, applied, unresolved }: ResponseInput): str
         'I could not read that — nothing was filtered.'
   }
 
-  const trades = `${count} trade${count === 1 ? '' : 's'} - ${applied.join(', ')}`
+  // The MATCHED count, always. A limit hides rows that qualified, so the number
+  // found and the number shown are both facts and the line carries both -- but
+  // only when the limit actually hides something.
+  const hiding = limit != null && limit < count
+  const trades =
+    `${count} trade${count === 1 ? '' : 's'}` +
+    (hiding ? ` (showing ${limit})` : '') +
+    ` - ${applied.join(', ')}`
 
   // PARTLY APPLIED. A partial answer is still an answer, and the count is real
   // — but the user must be told which half of their sentence was thrown away,

@@ -319,7 +319,11 @@ describe('G9 every form that works today still works', () => {
     const out = r(CAMPAIGN)
     expect(out.state.outcome).toBe('losers')
     expect(out.state.regions).toEqual(['China'])
-    expect(out.applied).toHaveLength(2)
+    // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
+    // "the 10" in this sentence is a row count. The sentence has said it all
+    // along and it was unresolved until then.
+    expect(out.applied).toHaveLength(3)
+    expect(out.state.limit).toBe(10)
     expect(out.ambiguous).toEqual([])
   })
 

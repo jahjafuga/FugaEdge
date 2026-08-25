@@ -137,6 +137,16 @@ function coerce(raw: unknown): TradesFilterState {
       }
     })(),
     ranges: normaliseRanges(raw.ranges),
+    // v0.2.7 -- the limit and the sort are NEVER read from the blob and never
+    // written into it. A filter narrows which trades QUALIFY and deserves to
+    // survive a reload; a limit HIDES trades that qualified, and a hidden row
+    // surviving a restart is how a user comes to believe their book is smaller
+    // than it is. Always null here means the stored bytes are identical
+    // whether or not a limit is active, and an older blob -- which lacks the
+    // keys entirely -- lands here unchanged. Additive at the same stamp,
+    // exactly like the region/country fields above: NO version bump.
+    limit: null,
+    sort: null,
   }
 }
 

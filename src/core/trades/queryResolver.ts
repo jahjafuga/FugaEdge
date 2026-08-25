@@ -167,6 +167,20 @@ const COLUMN_PHRASES: [string, string][] = [
   ['hold', 'hold_time'],
 ]
 
+/** Recency words: a limit AND the ordering it implies. "last ten" means by
+ *  DATE, descending -- never by whatever the user last clicked, because the
+ *  same sentence has to mean the same thing tomorrow. */
+const RECENCY_WORDS: Record<string, 'asc' | 'desc'> = {
+  last: 'desc', latest: 'desc', newest: 'desc', recent: 'desc',
+  earliest: 'asc', oldest: 'asc', first: 'asc',
+}
+
+/** Superlatives that name a COUNT but no COLUMN. "top ten" of what? These are
+ *  returned as an AMBIGUITY with candidates rather than guessed at, and
+ *  NOTHING is applied -- half an ask is not an ask. */
+const SUPERLATIVE_WORDS = new Set(['top', 'biggest', 'best', 'worst', 'largest', 'smallest'])
+const SUPERLATIVE_CANDIDATES = ['net P&L', 'gain %', 'date']
+
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
 
@@ -438,6 +452,42 @@ export function resolveQuery(
     }
   }
 
+  // ── pass 0: the limit and the sort ────────────────────────────────────────
+  // Before the comparison pass, so "last 10" cannot have its number taken for
+  // a bare money comparison. A recency word carries its own ordering; a
+  // superlative carries a count with no column and is returned as a choice.
+  for (let i = 0; i < tokens.length; i++) {
+    if (negated[i] || marks[i] !== 'free') continue
+    const w = tokens[i]
+    const isRecency = w in RECENCY_WORDS
+    const isSuper = SUPERLATIVE_WORDS.has(w)
+    if (!isRecency && !isSuper) continue
+    // EXACT vocabulary wins and the word is handed BACK -- a playbook named
+    // "Last" is the trader's own name for a setup.
+    if (vocabKeys.includes(w)) continue
+    // The count: the next value, across stopwords ("the last 10 trades").
+    let k = i + 1
+    while (k < tokens.length && STOPWORDS.has(tokens[k])) k++
+    const v = k < tokens.length ? parseValueAt(tokens, k) : null
+    if (!v || !Number.isInteger(v.n) || v.n <= 0) continue
+    if (isSuper) {
+      // NO COLUMN NAMED. Offer the choice, apply nothing.
+      ambiguous.push({ text: tokens.slice(i, k + v.len).join(' '), candidates: [...SUPERLATIVE_CANDIDATES] })
+      for (let q = i; q < k + v.len; q++) marks[q] = 'consumed'
+      continue
+    }
+    state = {
+      ...state,
+      limit: v.n,
+      sort: { colId: 'open_time', dir: RECENCY_WORDS[w] },
+    }
+    log(
+      `showing ${v.n}, ${RECENCY_WORDS[w] === 'desc' ? 'newest' : 'oldest'} first`,
+      tokens.slice(i, k + v.len).join(' '),
+    )
+    for (let q = i; q < k + v.len; q++) marks[q] = 'consumed'
+  }
+
   // ── pass 1: comparisons ────────────────────────────────────────────────────
   // (column?)(op)(value). Found first so "over" cannot fall into a stopword
   // and "10m" cannot be mistaken for vocabulary.
@@ -601,6 +651,29 @@ export function resolveQuery(
       text: tokens.slice(lo, hi + 1).join(' '),
     })
     for (let k = lo; k <= hi; k++) marks[k] = 'consumed'
+  }
+
+  // ── pass 1b: a BARE count ─────────────────────────────────────────────────
+  // "show me the 10 stocks that ..." names a count and no ordering at all.
+  // AFTER the comparison pass, deliberately: run earlier this would take the
+  // hundred out of "net over 100" and call it a limit.
+  //
+  // A bare count is NOT the superlative case. "top ten" implies a ranking and
+  // refuses to guess which; a plain count implies no ranking, so it takes the
+  // date-descending default -- the same order the table already shows, so
+  // nothing visibly reorders, and the same order "last ten" means.
+  if (state.limit === null) {
+    for (let i = 0; i < tokens.length; i++) {
+      if (negated[i] || marks[i] !== 'free') continue
+      const v = parseValueAt(tokens, i)
+      if (!v || v.len !== 1 || v.unit !== null) continue
+      if (!Number.isInteger(v.n) || v.n <= 0) continue
+      if (vocabKeys.includes(tokens[i])) continue
+      state = { ...state, limit: v.n, sort: { colId: 'open_time', dir: 'desc' } }
+      log(`showing ${v.n}, newest first`, tokens[i])
+      marks[i] = 'consumed'
+      break
+    }
   }
 
   // ── pass 2: the state's own words ─────────────────────────────────────────

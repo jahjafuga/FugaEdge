@@ -1,12 +1,13 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertCircle, Upload, FilterX, ListOrdered } from 'lucide-react'
+import { AlertCircle, Upload, FilterX, ListOrdered, X } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
 import Skeleton from '@/components/ui/Skeleton'
 import TradesTable from '@/components/trades/TradesTable'
 import TradesFilters from '@/components/trades/TradesFilters'
 import ColumnsMenu from '@/components/trades/ColumnsMenu'
 import {
+  applyLimitAndSort,
   applyTradesFilters,
   emptyFilters,
   isFiltering,
@@ -328,10 +329,16 @@ export default function Trades() {
   // and the header count render IT; the committed state (and the prefs write,
   // which keys off effectiveFilters alone) is untouched until Enter commits.
   const [draftFilters, setDraftFilters] = useState<TradesFilterState | null>(null)
-  const filtered = useMemo(
-    () => (scored ? applyTradesFilters(scored, draftFilters ?? effectiveFilters) : []),
-    [scored, draftFilters, effectiveFilters],
+  const activeAsk = draftFilters ?? effectiveFilters
+  /** Everything that QUALIFIED. The count the user is told about. */
+  const matched = useMemo(
+    () => (scored ? applyTradesFilters(scored, activeAsk) : []),
+    [scored, activeAsk],
   )
+  /** What is SHOWN: ordered, then truncated, through the one helper that owns
+   *  that decision. Slicing an unsorted list would be a wrong answer wearing a
+   *  right label, so the ordering never happens anywhere else. */
+  const filtered = useMemo(() => applyLimitAndSort(matched, activeAsk), [matched, activeAsk])
 
   // The resolver's vocabulary: book-derived lists straight off the loaded
   // trades; def-table lists fetched once at mount (the catalyst defs were
@@ -412,7 +419,9 @@ export default function Trades() {
   }
 
   const total = trades.length
-  const shown = filtered.length
+  const shown = matched.length
+  /** The ask's limit, only when it actually hides something. */
+  const hiding = activeAsk.limit != null && activeAsk.limit < matched.length
   const winners = filtered.filter((t) => isWin(t.net_pnl)).length
   const losers = filtered.filter((t) => isLoss(t.net_pnl)).length
   const openCount = filtered.filter((t) => t.is_open).length
@@ -439,6 +448,29 @@ export default function Trades() {
           <span className="text-fg-muted"> · </span>
           <span className="font-mono text-gold tnum">{int(openCount)}</span> open
         </>
+      )}
+      {/* v0.2.7 — A LIMIT IS VISIBLE OR IT DOES NOT EXIST. A silent truncation
+          is the worst failure available here: the user reads a short list and
+          believes it is the whole answer. It says how many are hidden and
+          carries its own dismissal, the way an applied filter does. */}
+      {hiding && (
+        <span
+          data-limit-indicator
+          className="ml-2 inline-flex h-6 items-center gap-1 rounded-full border border-gold/40 bg-gold/[0.08] px-2 text-[10px] font-semibold uppercase tracking-wider text-gold"
+        >
+          showing {int(activeAsk.limit!)} of {int(matched.length)}
+          <button
+            type="button"
+            aria-label="Show all matching trades"
+            onClick={() => {
+              setDraftFilters(null)
+              setFilters({ ...filters, limit: null, sort: null })
+            }}
+            className="cursor-pointer text-gold/70 transition-colors hover:text-gold"
+          >
+            <X size={11} strokeWidth={2.5} />
+          </button>
+        </span>
       )}
     </span>
   )
@@ -486,6 +518,15 @@ export default function Trades() {
           <TradesTable
               columnVisibility={columnVisibility}
               onColumnVisibilityChange={onColumnVisibilityChange}
+            // The ask's ordering outranks the table's own -- but ONLY when a
+            // sentence asked for one. Absent, the table keeps its state
+            // exactly as before (the columnVisibility contract).
+            {...(activeAsk.sort
+              ? {
+                  sorting: [{ id: activeAsk.sort.colId, desc: activeAsk.sort.dir === 'desc' }],
+                  onSortingChange: () => {},
+                }
+              : {})}
             trades={filtered}
             accountFor={accountFor}
             onSaveNote={handleSaveNote}
@@ -523,7 +564,11 @@ export default function Trades() {
       <QueryBubble
         committed={filters}
         vocab={vocab}
-        liveCount={filtered.length}
+        // The MATCHED count, not the shown one. A limit hides rows that
+        // qualified, and the response line has to name what was found before
+        // it names what is displayed -- passing the sliced length here would
+        // report the limit as the answer, which is the whole defect.
+        liveCount={matched.length}
         onDraft={setDraftFilters}
         onCommit={(next) => {
           setFilters(next)

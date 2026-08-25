@@ -93,6 +93,17 @@ export interface TradesFilterState {
    *  (core/trades/numericRange.ts) so fifteen columns cannot drift into fifteen
    *  slightly different notions of "between". */
   ranges: Record<string, NumericRange>
+  /** v0.2.7 — how many rows to SHOW. NOT a filter: a filter narrows which
+   *  trades QUALIFY, a limit hides trades that do. That difference is why it
+   *  is never persisted (a hidden row must not survive a reload) and why the
+   *  response line names the matched count as well as the shown one.
+   *  Null = show everything that matched. */
+  limit: number | null
+  /** v0.2.7 — the ordering a SENTENCE asked for, distinct from the ordering
+   *  the user clicked. The table's own sort is user state; this is the ask's,
+   *  and it exists so "the last ten" means the same thing tomorrow as today.
+   *  Null = the table keeps its own sort, untouched. */
+  sort: { colId: string; dir: 'asc' | 'desc' } | null
 }
 
 /** Reads the value a range filters on, per column id. Centralised here so the
@@ -148,7 +159,35 @@ export function emptyFilters(): TradesFilterState {
     industries: [],
     dna: { minScore: null, bucket: 'any' },
     ranges: {},
+    limit: null,
+    sort: null,
   }
+}
+
+/** Order a list by the ask's sort, then truncate to its limit. ONE place --
+ *  SORT THEN SLICE, and duplicating this decision is exactly how the two would
+ *  drift into slicing an unsorted list, which is a wrong answer wearing a
+ *  right label. Returns the input unchanged when the ask carries neither. */
+export function applyLimitAndSort(
+  rows: readonly TradeListRow[],
+  f: Pick<TradesFilterState, 'limit' | 'sort'>,
+): TradeListRow[] {
+  const ordered = f.sort
+    ? [...rows].sort((a, b) => {
+        const av = sortValueOf(a, f.sort!.colId)
+        const bv = sortValueOf(b, f.sort!.colId)
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0
+        return f.sort!.dir === 'desc' ? -cmp : cmp
+      })
+    : [...rows]
+  return f.limit == null ? ordered : ordered.slice(0, f.limit)
+}
+
+/** The value a SORT reads, per column id. Date sorting uses open_time, the
+ *  full timestamp -- the trading day with the intraday order preserved. */
+function sortValueOf(t: TradeListRow, colId: string): string | number {
+  if (colId === 'open_time') return t.open_time
+  return rangeValueOf(t, colId) ?? Number.NEGATIVE_INFINITY
 }
 
 export function isFiltering(f: TradesFilterState): boolean {

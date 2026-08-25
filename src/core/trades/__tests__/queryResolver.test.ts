@@ -53,12 +53,23 @@ describe('the battery, each result hand-written', () => {
     expect(out.ambiguous).toEqual([])
   })
 
-  it('"show me the last 10 trades with chinese companies that i have lost" -> the seam is NAMED', () => {
+  // v0.2.7 — THE SEAM CLOSED. This test shipped asserting that "last 10" had
+  // nowhere to go: the ask had no limit field, so the phrase came back by name
+  // as the model seam. The limit beat gave the ask a limit and a sort, so the
+  // phrase now RESOLVES and the seam it named is gone. The assertion is
+  // inverted in place rather than deleted -- what it guards is still real, it
+  // is just the other way round now: the phrase must be UNDERSTOOD, and must
+  // not quietly go missing either.
+  it('"show me the last 10 trades with chinese companies that i have lost" -> the limit RESOLVES', () => {
     const out = r('show me the last 10 trades with chinese companies that i have lost')
-    expect(out.state).toEqual({ ...emptyFilters(), regions: ['China'], outcome: 'losers' })
-    // No limit field exists. "last 10" is returned by name — the model seam —
-    // never silently dropped.
-    expect(out.unresolved).toEqual(['last 10'])
+    expect(out.state).toEqual({
+      ...emptyFilters(),
+      regions: ['China'],
+      outcome: 'losers',
+      limit: 10,
+      sort: { colId: 'open_time', dir: 'desc' },
+    })
+    expect(out.unresolved, 'the phrase went missing instead of resolving').toEqual([])
   })
 
   it('"float under 10m" -> ranges.float max ten million', () => {

@@ -66,6 +66,12 @@ interface TradesTableProps {
    *  falls back to its own, still persisted. */
   columnVisibility?: Record<string, boolean>
   onColumnVisibilityChange?: (next: Record<string, boolean>) => void
+  /** v0.2.7 — optional controlled SORTING, the same idiom one line above: when
+   *  supplied the page owns it (because a SENTENCE asked for an ordering, and
+   *  that must outrank whatever was last clicked); when absent the table keeps
+   *  its own, exactly as before. Absent is the normal case. */
+  sorting?: SortingState
+  onSortingChange?: (next: SortingState) => void
   trades: TradeListRow[]
   /** Multi-account slice — resolves a row's owning account (name + color)
    *  UNDER SCOPE 'all' only; null hides the indicator (single-account lists
@@ -287,6 +293,8 @@ function Num({ children }: { children: React.ReactNode }) {
 export default function TradesTable({
   columnVisibility: columnVisibilityProp,
   onColumnVisibilityChange,
+  sorting: controlledSorting,
+  onSortingChange,
   trades,
   accountFor,
   onSaveNote,
@@ -307,9 +315,17 @@ export default function TradesTable({
   onBulkSetCatalyst,
   onBulkSetMistakes,
 }: TradesTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([
+  const [ownSorting, setOwnSorting] = useState<SortingState>([
     { id: 'open_time', desc: true },
   ])
+  // Controlled when the page supplies it, its own otherwise — the
+  // columnVisibility contract, applied to the other piece of table state.
+  const sorting = controlledSorting ?? ownSorting
+  const setSorting: typeof setOwnSorting = (next) => {
+    const value = typeof next === 'function' ? (next as (p: SortingState) => SortingState)(sorting) : next
+    if (onSortingChange) onSortingChange(value)
+    else setOwnSorting(value)
+  }
   // v0.2.7 — column visibility. TanStack owns the state; src/lib/prefs/columns.ts
   // owns persistence and pins `symbol` visible. One mechanism, replacing the four
   // localStorage keys + five boolean props this used to be spread across.

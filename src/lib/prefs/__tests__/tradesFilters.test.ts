@@ -65,6 +65,13 @@ const FULL = (): TradesFilterState => ({
   industries: ['Biotechnology'],
   dna: { minScore: 3, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
+  // v0.2.7 -- the ask gained a limit and a sort. They are NULL here because
+  // they are never persisted: F1 asserts every field round-trips, and these
+  // two round-trip to null BY DESIGN. The law that they do not survive a write
+  // is asserted separately, in F1b, so this fixture staying null cannot be
+  // mistaken for the law being untested.
+  limit: null,
+  sort: null,
 })
 
 // ─── F1 ──────────────────────────────────────────────────────────────────────
@@ -79,6 +86,32 @@ describe('F1 what is written comes back', () => {
     expect(back.playbookIds).toContain(null)
     expect(back.catalystTypes).toContain(null)
     expect(back.ranges.net_pnl).toEqual({ min: -500, max: 1200 })
+  })
+})
+
+// ─── F1b ─────────────────────────────────────────────────────────────────────
+
+describe('F1b a LIMIT is never persisted', () => {
+  it('an active limit does not survive a write', () => {
+    writeTradesFilters(ALL, { ...FULL(), limit: 10, sort: { colId: 'open_time', dir: 'desc' } })
+    const back = readTradesFilters(ALL)
+    expect(back.limit, 'a hidden row survived a reload').toBeNull()
+    expect(back.sort).toBeNull()
+  })
+
+  it('and the stored BYTES are identical with and without one', () => {
+    writeTradesFilters(ALL, FULL())
+    const without = localStorage.getItem(filterPrefsKey(ALL))
+    writeTradesFilters(ALL, { ...FULL(), limit: 10, sort: { colId: 'open_time', dir: 'desc' } })
+    const withLimit = localStorage.getItem(filterPrefsKey(ALL))
+    expect(withLimit, 'the limit reached the stored blob').toBe(without)
+  })
+
+  it('the rest of the filter still round-trips alongside it', () => {
+    writeTradesFilters(ALL, { ...FULL(), limit: 10 })
+    const back = readTradesFilters(ALL)
+    expect(back.symbol).toBe('AAPL')
+    expect(back.regions).toEqual(['China', null])
   })
 })
 
