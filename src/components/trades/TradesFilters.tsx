@@ -36,9 +36,10 @@ interface TradesFiltersProps {
   filters: TradesFilterState
   onChange: (next: TradesFilterState) => void
   trades: TradeListRow[]
-  /** Numeric columns currently VISIBLE in the table. Only these get range inputs —
-   *  an invisible column silently narrowing the table is a filter nobody can see to
-   *  clear. Supplied by the page, which owns column visibility. */
+  /** The numeric columns the user has CHOSEN to filter on — not the ones the
+   *  table happens to be showing, which is a separate question and was the
+   *  premise the ungate beat retired. Supplied by the page, which owns the
+   *  chooser. Empty renders no strip at all, which is a fresh profile. */
   numericColumns?: { id: string; label: string }[]
 }
 

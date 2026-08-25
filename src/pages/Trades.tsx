@@ -41,11 +41,19 @@ import type { SetPlaybookOnTradeInput } from '@shared/playbook-types'
 
 import {
   COLUMN_LABELS,
-  NUMERIC_COLUMN_IDS,
   readColumnVisibility,
   writeColumnVisibility,
 } from '@/lib/prefs/columns'
 import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
+import {
+  chooseActiveRanges,
+  chosenRangeIds,
+  pruneUnchosenRanges,
+  readRangeChoices,
+  writeRangeChoices,
+  type RangeChoices,
+} from '@/lib/prefs/rangeChoices'
+import RangesMenu from '@/components/trades/RangesMenu'
 import { withDnaScores } from '@/core/dna/adherence'
 import QueryBubble, { Roll } from '@/components/trades/QueryBubble'
 import type { ResolverVocabulary } from '@/core/trades/queryResolver'
@@ -71,8 +79,9 @@ export default function Trades() {
   // initialiser reads the current scope so a mount restores what this account
   // was last narrowed to; the effect below re-reads when the scope changes.
   const [filters, setFilters] = useState<TradesFilterState>(() => readTradesFilters(scope))
-  // ONE visibility state, owned here because two consumers need it: the table renders
-  // by it, and the filter bar offers range inputs only for columns it can see.
+  // ONE visibility state, owned here because the table renders by it and the
+  // Columns menu edits it. The filter bar no longer consults it at all — which
+  // ranges appear is its own question now, answered by rangeChoices below.
   const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
     () => readColumnVisibility(),
   )
@@ -87,26 +96,50 @@ export default function Trades() {
     setColumnVisibility(next)
     writeColumnVisibility(next)
   }, [])
-  // EVERY numeric column, not just the visible ones. rangeValueOf has always
-  // handled all of them and applyTradesFilters has always applied them; the
-  // only thing missing was somewhere to type the number. Sixteen of the
-  // twenty-one are hidden by default, so gating on visibility made float,
-  // RVOL, MAE, MFE, R-multiple, hold time and ten more unreachable.
-  // Not memo'd on visibility any more — the list is now constant.
+  // WHICH ranges get inputs. Every numeric column is REACHABLE — rangeValueOf
+  // handles all twenty-four and applyTradesFilters applies all twenty-four —
+  // but reachable is not the same as always on screen. The ungate beat put all
+  // twenty-four pairs on the tab permanently, which is the clutter Edge exists
+  // to spare people: switch on the ones you use, and ask for the rest in words.
+  //
+  // Seeded through chooseActiveRanges so a filter blob written before this
+  // build existed comes up with its ranges CHOSEN. Nobody loses a filter they
+  // set, and no range filters from a control that is not on screen.
+  const [rangeChoices, setRangeChoices] = useState<RangeChoices>(() =>
+    chooseActiveRanges(readRangeChoices(), filters.ranges),
+  )
+
+  // The ONE place a range dies of being unchosen. Deleting rather than hiding is
+  // what keeps the filter engine out of this decision entirely: applyRanges
+  // iterates filters.ranges' own keys, so a key left behind would go on
+  // narrowing the book with nothing on screen to clear it.
+  const onRangeChoicesChange = useCallback((next: RangeChoices) => {
+    setRangeChoices(next)
+    writeRangeChoices(next)
+    setFilters((f) => {
+      const pruned = pruneUnchosenRanges(f.ranges, next)
+      return pruned ? { ...f, ranges: pruned } : f
+    })
+  }, [])
+
   const numericColumns = useMemo(
     () =>
-      NUMERIC_COLUMN_IDS.map((id) => ({
+      chosenRangeIds(rangeChoices).map((id) => ({
         id,
         label: COLUMN_LABELS[id] ?? id,
       })),
-    [],
+    [rangeChoices],
   )
 
   // Switching accounts loads THAT account's filters. Keyed off the scope only,
   // so it cannot fire on a filter change and clobber what the user just typed.
+  // The incoming state is reconciled the same way the mount is: another
+  // account's stored ranges arrive already filtering, so they choose themselves.
   const scopeKey = scope === 'all' ? 'all' : scope.accountId
   useEffect(() => {
-    setFilters(readTradesFilters(scope))
+    const loaded = readTradesFilters(scope)
+    setFilters(loaded)
+    setRangeChoices((c) => chooseActiveRanges(c, loaded.ranges))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey])
 
@@ -508,6 +541,11 @@ export default function Trades() {
                   onChange={onColumnVisibilityChange}
                 />
               )}
+              {/* Ranges sits beside Columns, same idiom, but it is NOT gated on
+                  the table view: columns decide what the table shows, ranges
+                  decide what the book contains, and that question is the same
+                  one in charts and grid. */}
+              <RangesMenu choices={rangeChoices} onChange={onRangeChoicesChange} />
             </div>
           </div>
         </div>
@@ -571,6 +609,15 @@ export default function Trades() {
         liveCount={matched.length}
         onDraft={setDraftFilters}
         onCommit={(next) => {
+          // R7 — Edge auto-chooses. "float under five million" sets a range the
+          // chooser may never have switched on, and a range that is filtering
+          // with no input on screen is the trap R1 exists to prevent, arriving
+          // through the words door instead of the storage one.
+          setRangeChoices((c) => {
+            const withEdge = chooseActiveRanges(c, next.ranges)
+            if (withEdge !== c) writeRangeChoices(withEdge)
+            return withEdge
+          })
           setFilters(next)
           setDraftFilters(null)
         }}
