@@ -169,11 +169,20 @@ export function readRangeChoices(): RangeChoices {
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return noRangesChosen()
     const out: RangeChoices = {}
     for (const [id, v] of Object.entries(parsed as Record<string, unknown>)) {
-      // The first version of this key stored booleans. A stored `true` reads as
-      // 'user', deliberately: it may have been a tick, and calling it 'auto'
-      // would silently retire it on the owner's next Clear. Preserving too much
-      // is recoverable by unticking; discarding is not.
-      if (v === true) out[id] = 'user'
+      // The first version of this key stored booleans, so a stored `true` says
+      // that something was chosen and nothing about WHO chose it. It reads as
+      // 'auto', which is the self-cleaning guess: an unstamped choice retires
+      // with its value and costs one re-tick if it mattered.
+      //
+      // This branch used to guess 'user', on the reasoning that preserving too
+      // much is recoverable by unticking while discarding is not. That trade is
+      // real for a shipped key with real users. It is not this key: the chooser
+      // has never been in a release, so the only profiles that can hold a
+      // legacy blob are development ones. Against a population of one, sticky
+      // costs a hunt through the menu and self-cleaning costs a click — and the
+      // sticky version is what left an empty FLOAT row that Clear would not
+      // touch, which is the report this beat came from.
+      if (v === true) out[id] = 'auto'
       else if (v === 'user' || v === 'auto') out[id] = v
     }
     return out
