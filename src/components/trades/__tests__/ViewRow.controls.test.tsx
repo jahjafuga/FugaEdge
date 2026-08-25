@@ -70,7 +70,8 @@ describe('T1 all four share one height, radius and border token', () => {
   it('and they share it by construction, not by coincidence', () => {
     // One string, imported by both components — they cannot drift apart.
     expect(src('src/components/trades/TradesViewToggle.tsx')).toContain('viewControlClasses')
-    expect(src('src/components/trades/ColumnsMenu.tsx')).toContain('viewControlClasses')
+    // Via ui/ToggleMenu, which is where the chooser's trigger now lives.
+    expect(src('src/components/ui/ToggleMenu.tsx')).toContain('viewControlClasses')
     expect(VIEW_CONTROL_BASE).toContain('h-8')
     expect(VIEW_CONTROL_BASE).toContain('rounded-md')
   })

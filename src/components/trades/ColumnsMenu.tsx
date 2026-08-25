@@ -1,11 +1,10 @@
-import { useState } from 'react'
-import { ChevronDown, Columns3 } from 'lucide-react'
-import { viewControlIdle } from '@/components/trades/viewControlClasses'
+import { useMemo } from 'react'
+import { Columns3 } from 'lucide-react'
+import ToggleMenu from '@/components/ui/ToggleMenu'
 import {
   ALL_COLUMN_IDS,
   COLUMN_LABELS,
   isLockedColumn,
-  isVisible,
   resetColumnVisibility,
 } from '@/lib/prefs/columns'
 
@@ -20,79 +19,50 @@ import {
 // A standalone table (tests, and any future embed) keeps its own copy of the state,
 // so it still mounts this itself. One component, two mount points, decided by
 // ownership — not two implementations.
+//
+// THE MARKUP NOW LIVES IN ui/ToggleMenu, because RANGES needs the same chooser
+// over a different list and a copied chooser is how two of them drift until one
+// forgets its locked rule. What stays HERE is everything that is specific to
+// columns and must not leak into a shared component: which ids exist and in what
+// order, what they are called, which may never be hidden, what "default" means,
+// and — the load-bearing one — the prefs key. resetColumnVisibility() writes to
+// localStorage (columns.ts:210), and that write happens in this file's callback
+// rather than inside the generic, so the day ranges are scoped per-account and
+// columns stay global, nothing shared has to be torn apart.
 
 export interface ColumnsMenuProps {
   visibility: Record<string, boolean>
   onChange: (next: Record<string, boolean>) => void
 }
 
+/** Ids and their labels, in render order — the registry's order, not a sort. */
+const ITEMS = ALL_COLUMN_IDS.map((id) => ({ id, label: COLUMN_LABELS[id] ?? id }))
+
+// The testids are passed rather than derived because they never shared a base:
+// the trigger has always been columns-button while its rows are col-toggle-<id>.
+// Nine test files hold these handles, and TradesTable.chrome.test.tsx:236 reads
+// THIS FILE's source for the two literals below, checking one component serves
+// both mount points.
+const TEST_IDS = {
+  button: 'columns-button',
+  menu: 'columns-menu',
+  reset: 'columns-reset',
+  item: (id: string) => `col-toggle-${id}`,
+}
+
 export default function ColumnsMenu({ visibility, onChange }: ColumnsMenuProps) {
-  const [open, setOpen] = useState(false)
+  const locked = useMemo(() => new Set(ALL_COLUMN_IDS.filter(isLockedColumn)), [])
 
   return (
-    <div className="relative">
-      {/* A TRIGGER, at the view switcher's metric. Same height, radius, border
-          token, surface and hover as the segmented control beside it, so the two
-          read as equals — but with the chevron and popover of the app's existing
-          menu triggers (MultiSelectMenu), because this opens a menu rather than
-          selecting a view. Looking identical to a segment would claim it is one. */}
-      <button
-        type="button"
-        data-testid="columns-button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className={viewControlIdle}
-      >
-        <Columns3 size={13} strokeWidth={2} />
-        Columns
-        <ChevronDown
-          size={13}
-          strokeWidth={2}
-          className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && (
-        <>
-          {/* Click-away catcher — the idiom's, and something this menu lacked. */}
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-        <div
-          data-testid="columns-menu"
-          className="absolute right-0 top-full z-40 mt-1 max-h-80 w-56 overflow-auto rounded-md border border-border-strong bg-bg-2 p-1 shadow-lg"
-        >
-          {ALL_COLUMN_IDS.map((id) => {
-            const locked = isLockedColumn(id)
-            return (
-              <label
-                key={id}
-                data-testid={`col-toggle-${id}`}
-                className={`flex items-center gap-2 px-1.5 py-1 text-xs ${
-                  locked ? 'text-fg-muted' : 'cursor-pointer text-fg-secondary hover:text-gold'
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isVisible(visibility, id)}
-                  disabled={locked}
-                  onChange={() =>
-                    onChange({ ...visibility, [id]: !isVisible(visibility, id) })
-                  }
-                />
-                <span>{COLUMN_LABELS[id] ?? id}</span>
-              </label>
-            )
-          })}
-          <button
-            type="button"
-            data-testid="columns-reset"
-            onClick={() => onChange(resetColumnVisibility())}
-            className="mt-1 w-full cursor-pointer rounded-md border border-border-subtle bg-bg-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 ease-out-soft hover:bg-bg-3 hover:text-fg-primary focus-visible:border-gold focus-visible:shadow-glow-gold focus-visible:outline-none"
-          >
-            Reset to defaults
-          </button>
-        </div>
-        </>
-      )}
-    </div>
+    <ToggleMenu
+      items={ITEMS}
+      value={visibility}
+      onChange={onChange}
+      onReset={() => onChange(resetColumnVisibility())}
+      label="Columns"
+      locked={locked}
+      icon={<Columns3 size={13} strokeWidth={2} />}
+      testIds={TEST_IDS}
+    />
   )
 }

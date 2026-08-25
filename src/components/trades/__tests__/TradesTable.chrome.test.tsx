@@ -150,7 +150,12 @@ describe('T4 but it still reads as a TRIGGER, not a fourth view', () => {
   })
 
   it('and it matches the app menu-trigger idiom rather than a third style', () => {
-    const menu = src('src/components/trades/ColumnsMenu.tsx')
+    // ColumnsMenu is a thin wrapper now: the trigger and popover markup this
+    // guard is ABOUT moved to ui/ToggleMenu in the chooser extraction. Same
+    // assertion, same intent, pointed at the file that carries the idiom. The
+    // DOM companion above (two svgs, aria-haspopup) is untouched and still the
+    // thing that would catch an actual regression.
+    const menu = src('src/components/ui/ToggleMenu.tsx')
     const idiom = src('src/components/ui/MultiSelectMenu.tsx')
     for (const shared of ['ChevronDown', 'fixed inset-0 z-30', 'top-full', 'shadow-lg']) {
       expect(menu, `the trigger idiom uses ${shared}`).toContain(shared)
@@ -237,6 +242,9 @@ describe('T5 the COLUMNS band is gone when the page owns the state', () => {
   })
 
   it('and ONE component serves both mount points', () => {
+    // Still THIS file: the wrapper keeps its own testids, because they are its
+    // identity and nine test files hold them. Extraction moved the markup, not
+    // the handles.
     const menu = src('src/components/trades/ColumnsMenu.tsx')
     expect(menu).toContain('columns-button')
     expect(menu).toContain('columns-reset')
