@@ -333,6 +333,11 @@ interface PoolEntry {
   key: string
   display: string
   apply: (s: TradesFilterState, log: (line: string) => void) => void
+  /** v0.2.7 — the EXCLUDE side, present only on the seven array fields. A
+   *  negated term routes here instead of being refused. Absent means the term
+   *  has no exclude side (a symbol, an outcome, a flag), and a negator on one
+   *  of those still REFUSES, exactly as the negation beat left it. */
+  excludeApply?: (s: TradesFilterState, log: (line: string) => void) => void
 }
 
 const pushUnique = <T>(arr: T[], v: T) => {
@@ -413,15 +418,32 @@ export function resolveQuery(
     w in PRESET_WORDS ||
     w in DNA_WORDS ||
     MISTAKE_FLAG_WORDS.has(w)
-  const anyTermAt = (phrase: string): boolean =>
-    isStateWord(phrase) ||
+  const anyTermAt = (rawPhrase: string): boolean => {
+    // NORMALISE FIRST, exactly as the vocabulary pass does. Without this the
+    // detector cannot see a demonym: "not chinese" left its term unmarked and
+    // the word then resolved as an ordinary INCLUDE -- the opposite of the ask.
+    // Never exercised before: every negation on record used a literal key
+    // ("not china", "not from hong kong"), so the gap only surfaced when
+    // exclusion made the term's fate visible.
+    const phrase = DEMONYMS[rawPhrase] ?? rawPhrase
+    return (
+      isStateWord(phrase) ||
     vocabKeys.some(
       (k) =>
         k === phrase ||
         (phrase.length >= 2 && k.startsWith(phrase)) ||
         (phrase.length >= SUBSTRING_FLOOR && k.includes(phrase)),
+      )
     )
+  }
   const negated: boolean[] = tokens.map(() => false)
+  /** UNCLAIMABLE, which is NOT the same as negated and must not share its
+   *  array. The comparator beat marks a column whose operator had no value so
+   *  the word cannot fall through and quietly become vocabulary. That is a
+   *  REFUSAL. Once a negated token began routing to an EXCLUDE side, sharing
+   *  one array turned "float under" into "excluding mistake Float or RVOL" --
+   *  caught by that beat's own guard. Two meanings, two arrays. */
+  const unclaimable: boolean[] = tokens.map(() => false)
   for (let i = 0; i < tokens.length; i++) {
     if (!NEGATORS.has(tokens[i])) continue
     // EXACT WINS, the same law that lets a real ticker beat the filler list:
@@ -436,19 +458,33 @@ export function resolveQuery(
       }
     }
     if (isName) continue
+    // The NEGATOR ITSELF never resolves. It is a grammar word, not a term:
+    // leaving it free let "no china" excludeAPPLY the No Setup playbook off the
+    // word "no". Marked stop -- consumed silently, the way filler is, because
+    // the exclusion it produced is named in the applied line instead.
     negated[i] = true
     let j = i + 1
     while (j < tokens.length && STOPWORDS.has(tokens[j])) {
       negated[j] = true
       j++
     }
-    // The governed span, LONGEST first so "hong kong" is refused as one term
+    // The governed span, LONGEST first so "hong kong" is taken as one term
     // rather than leaving "kong" free to resolve on its own.
+    let governed = false
     for (const span of [3, 2, 1]) {
       if (j + span > tokens.length) continue
       if (!anyTermAt(tokens.slice(j, j + span).join(' '))) continue
       for (let k = j; k < j + span; k++) negated[k] = true
+      governed = true
       break
+    }
+    if (governed) {
+      // The NEGATOR ITSELF never resolves -- it is a grammar word, not a term,
+      // and leaving it free let "no china" excludeApply the No Setup playbook
+      // off the word "no". Silenced only when it actually governs something:
+      // a LONE negator still comes back NAMED, which is the negation beat's
+      // law and is still the right answer when there is nothing to exclude.
+      for (let k = i; k < j; k++) marks[k] = 'stop'
     }
   }
 
@@ -457,7 +493,7 @@ export function resolveQuery(
   // a bare money comparison. A recency word carries its own ordering; a
   // superlative carries a count with no column and is returned as a choice.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
     const w = tokens[i]
     const isRecency = w in RECENCY_WORDS
     const isSuper = SUPERLATIVE_WORDS.has(w)
@@ -536,7 +572,7 @@ export function resolveQuery(
   // unresolved: half a range shipped as if it were whole is the same class of
   // lie as a coerced number.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
     const col = columnAt(i)
     if (!col) continue
     let after = i + col.span
@@ -549,7 +585,7 @@ export function resolveQuery(
       // R5 -- a "between" with ONE operand is UNRESOLVED, never a one-sided
       // filter. The column is left unclaimable too, so the word cannot fall
       // through and quietly become a mistake instead.
-      if (sawBetween) for (let k = i; k <= lo.end; k++) negated[k] = true
+      if (sawBetween) for (let k = i; k <= lo.end; k++) unclaimable[k] = true
       continue
     }
     // A SHARED magnitude belongs to both operands: "between one and five
@@ -561,7 +597,7 @@ export function resolveQuery(
   }
 
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
     let op = tokens[i]
     let opLen = 1
     if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
@@ -615,7 +651,7 @@ export function resolveQuery(
       // missing or coerced number. When a column was in the window it is left
       // unclaimable too, so the word cannot fall through to the vocabulary
       // pass and quietly become something else.
-      if (colId) for (let k = colStart; k <= Math.max(colEnd, opEnd); k++) negated[k] = true
+      if (colId) for (let k = colStart; k <= Math.max(colEnd, opEnd); k++) unclaimable[k] = true
       continue
     }
 
@@ -664,7 +700,7 @@ export function resolveQuery(
   // nothing visibly reorders, and the same order "last ten" means.
   if (state.limit === null) {
     for (let i = 0; i < tokens.length; i++) {
-      if (negated[i] || marks[i] !== 'free') continue
+      if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
       const v = parseValueAt(tokens, i)
       if (!v || v.len !== 1 || v.unit !== null) continue
       if (!Number.isInteger(v.n) || v.n <= 0) continue
@@ -681,7 +717,7 @@ export function resolveQuery(
     log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`, source)
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free' || negated[i]) continue
+    if (marks[i] !== 'free' || negated[i] || unclaimable[i]) continue
     const t = tokens[i]
     if (OUTCOME_WORDS[t]) {
       replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null, t)
@@ -719,14 +755,28 @@ export function resolveQuery(
     field: 'regions' | 'countries' | 'sectors' | 'industries' | 'catalystTypes',
     value: string,
     label: string,
-  ) =>
+  ) => {
+    const excludeField = (
+      {
+        regions: 'excludeRegions',
+        countries: 'excludeCountries',
+        sectors: 'excludeSectors',
+        industries: 'excludeIndustries',
+        catalystTypes: 'excludeCatalystTypes',
+      } as const
+    )[field]
     pool.push({
       kind, key, display,
       apply: (s, log) => {
         pushUnique(s[field], value)
         log(`${label} ${display}`)
       },
+      excludeApply: (s, log) => {
+        pushUnique(s[excludeField], value)
+        log(`excluding ${label} ${display}`)
+      },
     })
+  }
 
   for (const sym of vocab.symbols)
     pool.push({
@@ -751,6 +801,10 @@ export function resolveQuery(
         if (!s.playbookIds.includes(pb.id)) s.playbookIds.push(pb.id)
         log(`playbook ${pb.name}`)
       },
+      excludeApply: (s, log) => {
+        if (!s.excludePlaybookIds.includes(pb.id)) s.excludePlaybookIds.push(pb.id)
+        log(`excluding playbook ${pb.name}`)
+      },
     })
   for (const ct of vocab.catalystTypes) addArrayEntry(6, ct.toLowerCase(), ct, 'catalystTypes', ct, 'catalyst')
   for (const mk of vocab.mistakes)
@@ -760,6 +814,11 @@ export function resolveQuery(
         if (!s.mistakeKeys.some((k) => k.axis === mk.axis && k.name === mk.name))
           s.mistakeKeys.push({ axis: mk.axis, name: mk.name })
         log(`mistake ${mk.name}`)
+      },
+      excludeApply: (s, log) => {
+        if (!s.excludeMistakeKeys.some((k) => k.axis === mk.axis && k.name === mk.name))
+          s.excludeMistakeKeys.push({ axis: mk.axis, name: mk.name })
+        log(`excluding mistake ${mk.name}`)
       },
     })
 
@@ -804,19 +863,31 @@ export function resolveQuery(
   }
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free' || negated[i]) continue
+    if (marks[i] !== 'free' || unclaimable[i]) continue
+    // v0.2.7 — a NEGATED span is no longer skipped: it resolves the same way an
+    // ordinary one does and then routes to the term's EXCLUDE side. The scope
+    // rule that decided WHICH tokens are negated is untouched -- this changes
+    // only what happens to the term it identified.
+    const isNeg = negated[i]
     let matched = false
     for (const span of [3, 2, 1]) {
       // a span that overruns the text just means TRY THE SHORTER ONE — a
       // one-word query must still reach span 1.
       if (i + span > tokens.length) continue
       const slice = tokens.slice(i, i + span)
-      if (slice.some((_, k) => marks[i + k] !== 'free' || negated[i + k])) continue
+      // Every token of the span must share the negation state of its first --
+      // a phrase half-inside a negation is not a phrase.
+      if (slice.some((_, k) => marks[i + k] !== 'free' || negated[i + k] !== isNeg)) continue
       const raw = slice.join(' ')
       const phrase = DEMONYMS[raw] ?? raw
       const hits = candidatesFor(phrase)
       if (hits.length === 1) {
-        hits[0].apply(state, (line) => log(line, raw))
+        const entry = hits[0]
+        // A term with NO exclude side (a symbol, a flag) keeps the negation
+        // beat's behaviour: refused, left unclaimed, reported as unread.
+        if (isNeg && !entry.excludeApply) break
+        if (isNeg) entry.excludeApply!(state, (line) => log(line, raw))
+        else entry.apply(state, (line) => log(line, raw))
         for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
         matched = true
         break
@@ -830,6 +901,78 @@ export function resolveQuery(
     }
     if (matched) continue
     if (STOPWORDS.has(tokens[i])) marks[i] = 'stop'
+  }
+
+  // ── pass 3b: contradictions ───────────────────────────────────────────────
+  // A term asked for on BOTH sides applies NEITHER, and is NAMED. Letting one
+  // side win silently produces either an empty book or an unchanged one, and
+  // the reader cannot tell which they are looking at -- the same class of
+  // quiet wrongness this campaign has been closing all along.
+  {
+    /** Display strings whose BOTH sides cancelled -- their applied lines must
+     *  go too. Removing the value from the state while leaving "region China,
+     *  excluding region China" in the applied line is the same lie one layer
+     *  up: the filter is gone and the sentence still claims it ran. Found by
+     *  typing the contradiction into a running app; the unit guard asserted
+     *  the state and the ambiguity and never looked at the line. */
+    const cancelled: string[] = []
+    const PAIRS = [
+      ['playbookIds', 'excludePlaybookIds'],
+      ['catalystTypes', 'excludeCatalystTypes'],
+      ['regions', 'excludeRegions'],
+      ['countries', 'excludeCountries'],
+      ['sectors', 'excludeSectors'],
+      ['industries', 'excludeIndustries'],
+    ] as const
+    for (const [inc, exc] of PAIRS) {
+      const both = (state[inc] as (string | number | null)[]).filter((v) =>
+        (state[exc] as (string | number | null)[]).includes(v),
+      )
+      if (both.length === 0) continue
+      for (const v of both) {
+        ambiguous.push({
+          text: String(v),
+          candidates: [`include ${String(v)}`, `exclude ${String(v)}`],
+        })
+        const entry = pool.find((e) => e.key === String(v).toLowerCase() || e.display === String(v))
+        cancelled.push(entry ? entry.display : String(v))
+      }
+      state = {
+        ...state,
+        [inc]: (state[inc] as (string | number | null)[]).filter((v) => !both.includes(v)),
+        [exc]: (state[exc] as (string | number | null)[]).filter((v) => !both.includes(v)),
+      }
+    }
+    // mistakeKeys compares by (axis, name), not by identity.
+    const sameKey = (a: { axis: string; name: string }, b: { axis: string; name: string }) =>
+      a.axis === b.axis && a.name === b.name
+    const clash = state.mistakeKeys.filter((k) =>
+      state.excludeMistakeKeys.some((x) => sameKey(k, x)),
+    )
+    if (clash.length > 0) {
+      for (const k of clash) {
+        ambiguous.push({ text: k.name, candidates: [`include ${k.name}`, `exclude ${k.name}`] })
+        cancelled.push(k.name)
+      }
+      state = {
+        ...state,
+        mistakeKeys: state.mistakeKeys.filter((k) => !clash.some((c) => sameKey(k, c))),
+        excludeMistakeKeys: state.excludeMistakeKeys.filter((k) => !clash.some((c) => sameKey(k, c))),
+      }
+    }
+    // Strip the applied lines for anything that cancelled, keeping the sources
+    // index-parallel so the bubble's chips still line up.
+    if (cancelled.length > 0) {
+      const keep = applied
+        .map((line, idx) => ({ line, src: appliedSources[idx]!, idx }))
+        .filter(({ line }) => !cancelled.some((d) => line.includes(d)))
+      applied.length = 0
+      appliedSources.length = 0
+      for (const k of keep) {
+        applied.push(k.line)
+        appliedSources.push(k.src)
+      }
+    }
   }
 
   // ── pass 4: apply the comparisons (the outcome is known now — G4) ─────────

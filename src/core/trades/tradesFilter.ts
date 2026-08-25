@@ -98,6 +98,20 @@ export interface TradesFilterState {
    *  is never persisted (a hidden row must not survive a reload) and why the
    *  response line names the matched count as well as the shown one.
    *  Null = show everything that matched. */
+  /** v0.2.7 — the seven EXCLUDE sides, parallel to the seven include arrays
+   *  above. Added rather than folding a sign into each entry: the recon costed
+   *  a signed shape at a persistence VERSION BUMP (discarding every stored
+   *  filter once) plus four dropdown components rewritten, against nothing at
+   *  all for these. Empty = no exclusion.
+   *
+   *  A row whose value is NULL SURVIVES an exclusion — see MATCHERS. */
+  excludePlaybookIds: (number | null)[]
+  excludeMistakeKeys: { axis: MistakeAxis; name: string }[]
+  excludeCatalystTypes: (string | null)[]
+  excludeRegions: (string | null)[]
+  excludeCountries: (string | null)[]
+  excludeSectors: (string | null)[]
+  excludeIndustries: (string | null)[]
   limit: number | null
   /** v0.2.7 — the ordering a SENTENCE asked for, distinct from the ordering
    *  the user clicked. The table's own sort is user state; this is the ask's,
@@ -109,6 +123,53 @@ export interface TradesFilterState {
 /** Reads the value a range filters on, per column id. Centralised here so the
  *  filter and the table agree on what a column MEANS without the component
  *  re-deriving anything. */
+/** ONE predicate per array field: "does this row POSITIVELY match this value".
+ *  Shared by the include and exclude blocks so the two can never disagree --
+ *  and the reason exclusion leaves null rows alone falls out of it, because a
+ *  row with no value positively matches nothing.
+ *
+ *  `null` is the UNTAGGED bucket in every one of them, matched explicitly so
+ *  it can never collide with a real value. */
+const MATCHERS = {
+  playbookIds: (t: TradeListRow, v: number | null) =>
+    v === null ? t.playbook_id === null : t.playbook_id === v,
+  mistakeKeys: (t: TradeListRow, v: { axis: MistakeAxis; name: string }) =>
+    (t.mistakeTags ?? []).some((tag) => tag.axis === v.axis && tag.name === v.name),
+  catalystTypes: (t: TradeListRow, v: string | null) =>
+    v === null ? t.catalyst_type === null : t.catalyst_type === v,
+  // region is never null ON THE ROW; list.ts coalesces it to the sentinel.
+  regions: (t: TradeListRow, v: string | null) =>
+    v === null ? t.region === 'Unknown' || !t.region : t.region === v,
+  countries: (t: TradeListRow, v: string | null) =>
+    v === null ? t.country == null : t.country === v,
+  sectors: (t: TradeListRow, v: string | null) =>
+    v === null ? t.sector == null : t.sector === v,
+  industries: (t: TradeListRow, v: string | null) =>
+    v === null ? t.industry == null : t.industry === v,
+} as const
+
+type ArrayPair = [readonly unknown[], (t: TradeListRow, v: never) => boolean]
+
+const ARRAY_FIELDS = (f: TradesFilterState): ArrayPair[] => [
+  [f.playbookIds, MATCHERS.playbookIds as never],
+  [f.mistakeKeys, MATCHERS.mistakeKeys as never],
+  [f.catalystTypes, MATCHERS.catalystTypes as never],
+  [f.regions, MATCHERS.regions as never],
+  [f.countries, MATCHERS.countries as never],
+  [f.sectors, MATCHERS.sectors as never],
+  [f.industries, MATCHERS.industries as never],
+]
+
+const EXCLUDED_FIELDS = (f: TradesFilterState): ArrayPair[] => [
+  [f.excludePlaybookIds, MATCHERS.playbookIds as never],
+  [f.excludeMistakeKeys, MATCHERS.mistakeKeys as never],
+  [f.excludeCatalystTypes, MATCHERS.catalystTypes as never],
+  [f.excludeRegions, MATCHERS.regions as never],
+  [f.excludeCountries, MATCHERS.countries as never],
+  [f.excludeSectors, MATCHERS.sectors as never],
+  [f.excludeIndustries, MATCHERS.industries as never],
+]
+
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
   switch (columnId) {
     case 'net_pnl': return t.net_pnl
@@ -159,6 +220,13 @@ export function emptyFilters(): TradesFilterState {
     industries: [],
     dna: { minScore: null, bucket: 'any' },
     ranges: {},
+    excludePlaybookIds: [],
+    excludeMistakeKeys: [],
+    excludeCatalystTypes: [],
+    excludeRegions: [],
+    excludeCountries: [],
+    excludeSectors: [],
+    excludeIndustries: [],
     limit: null,
     sort: null,
   }
@@ -247,66 +315,23 @@ export function applyTradesFilters(
     // discipline if no setup was tagged.
     if (f.aPlus && t.playbook_tier !== 'A+') return false
     if (f.mistakesOnly && t.mistakes.length === 0) return false
-    // Primary-playbook filter — OR within the selected set. `null` is the
-    // "No playbook" bucket (untagged trades), matched explicitly so it never
-    // collides with a real id (incl. the "No Setup" system playbook's id).
-    if (f.playbookIds.length > 0) {
-      const matches = f.playbookIds.some((id) =>
-        id === null ? t.playbook_id === null : t.playbook_id === id,
-      )
-      if (!matches) return false
+    // THE SEVEN ARRAY FIELDS. Each has ONE predicate, defined once above and
+    // called from BOTH the include block and the exclude block below. Two
+    // copies is how they drift, and a drifted pair means the same row can be
+    // kept by one half and removed by the other depending on which ran.
+    //
+    // INCLUDE: at least one selected value must match (OR within the set, AND
+    // across fields). EXCLUDE: no excluded value may match -- and because the
+    // predicate answers "does this row POSITIVELY match this value", a row
+    // whose field is null matches nothing and therefore SURVIVES. Excluding
+    // China removes China; it does not remove everything unlabelled.
+    for (const [values, pred] of ARRAY_FIELDS(f)) {
+      if (values.length === 0) continue
+      if (!values.some((v) => pred(t, v as never))) return false
     }
-    // Mistakes filter — OR within the selected set, matched by (axis, name)
-    // against the row's axis-aware tags. The row carries no mistake ids, and the
-    // same name can live on both axes, so the match is axis-qualified (never
-    // name-alone). mistakeTags is optional in the type (fixtures) though the real
-    // list read always populates it; guard with ?? [].
-    if (f.mistakeKeys.length > 0) {
-      const tags = t.mistakeTags ?? []
-      const matches = f.mistakeKeys.some((k) =>
-        tags.some((tag) => tag.axis === k.axis && tag.name === k.name),
-      )
-      if (!matches) return false
-    }
-    // Catalyst filter — OR within the selected set, matched by exact name against
-    // the row's catalyst_type string. `null` is the "No catalyst" bucket (untagged
-    // trades), matched strictly so it never collides with a real name.
-    if (f.catalystTypes.length > 0) {
-      const matches = f.catalystTypes.some((c) =>
-        c === null ? t.catalyst_type === null : t.catalyst_type === c,
-      )
-      if (!matches) return false
-    }
-    // Region filter — OR within the set, AND against everything else. `null`
-    // matches the 'Unknown' sentinel the list read writes for an unresolved
-    // row (region is never null ON THE ROW; list.ts coalesces it).
-    if (f.regions.length > 0) {
-      const matches = f.regions.some((r) =>
-        r === null ? t.region === 'Unknown' || !t.region : t.region === r,
-      )
-      if (!matches) return false
-    }
-    // Country filter — OR within the set, matched by ISO alpha-2. `null` is
-    // the truly-unresolved bucket: country IS nullable on the row.
-    if (f.countries.length > 0) {
-      const matches = f.countries.some((c) =>
-        c === null ? t.country == null : t.country === c,
-      )
-      if (!matches) return false
-    }
-    // Sector / industry — the countries idiom on the market-data join: both are
-    // nullable on the row, so `null` is the honest unresolved bucket.
-    if (f.sectors.length > 0) {
-      const matches = f.sectors.some((v) =>
-        v === null ? t.sector == null : t.sector === v,
-      )
-      if (!matches) return false
-    }
-    if (f.industries.length > 0) {
-      const matches = f.industries.some((v) =>
-        v === null ? t.industry == null : t.industry === v,
-      )
-      if (!matches) return false
+    for (const [values, pred] of EXCLUDED_FIELDS(f)) {
+      if (values.length === 0) continue
+      if (values.some((v) => pred(t, v as never))) return false
     }
     // Five-pillar filter — reads the verdict withDnaScores attached upstream.
     // A row without one is INCOMPLETE, not scored: treating it as anything

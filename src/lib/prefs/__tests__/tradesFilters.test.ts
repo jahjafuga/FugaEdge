@@ -65,6 +65,15 @@ const FULL = (): TradesFilterState => ({
   industries: ['Biotechnology'],
   dna: { minScore: 3, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
+  // v0.2.7 -- the seven EXCLUDE sides, with real values: unlike the limit
+  // these ARE filters and MUST round-trip, so F1 asserts exactly that.
+  excludePlaybookIds: [9],
+  excludeMistakeKeys: [{ axis: 'psychological', name: 'Revenge trade (after a loss)' }],
+  excludeCatalystTypes: ['Offering / Dilution'],
+  excludeRegions: ['Hong Kong'],
+  excludeCountries: ['HK'],
+  excludeSectors: ['Energy'],
+  excludeIndustries: ['Marine Shipping'],
   // v0.2.7 -- the ask gained a limit and a sort. They are NULL here because
   // they are never persisted: F1 asserts every field round-trips, and these
   // two round-trip to null BY DESIGN. The law that they do not survive a write

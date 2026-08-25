@@ -32,7 +32,6 @@
 
 import { describe, expect, it } from 'vitest'
 import { resolveQuery, type ResolverVocabulary } from '../queryResolver'
-import { emptyFilters } from '../tradesFilter'
 
 const NOW = new Date('2026-08-22T15:00:00')
 
@@ -302,12 +301,22 @@ describe('G9 every phrase that worked before still works', () => {
     // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
     // "the 10" in this sentence is a row count. The sentence has said it all
     // along and it was unresolved until then.
-    expect(out.applied).toHaveLength(3)
+    // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
+    // from an ignored phrase into an applied EXCLUSION. The sentence has meant
+    // that from the first beat of the campaign; it is the last piece to land.
+    expect(out.applied).toHaveLength(4)
     expect(out.state.limit).toBe(10)
     expect(out.ambiguous).toEqual([])
   })
 
-  it('and negation still refuses', () => {
-    expect(r('not china').state).toEqual(emptyFilters())
+  // v0.2.7 — INVERTED IN PLACE, not deleted. The negation beat made this
+  // REFUSE because the ask had no shape for an exclusion; this beat gave it
+  // one, so the same phrase now EXCLUDES. What the guard protects is unchanged
+  // -- the negated term must never be applied POSITIVELY -- and that half is
+  // asserted explicitly below.
+  it('negation now EXCLUDES rather than refusing', () => {
+    const out = r('not china')
+    expect(out.state.excludeRegions).toEqual(['China'])
+    expect(out.state.regions, 'the negated term was applied positively').toEqual([])
   })
 })

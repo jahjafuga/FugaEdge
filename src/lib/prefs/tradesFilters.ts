@@ -137,6 +137,19 @@ function coerce(raw: unknown): TradesFilterState {
       }
     })(),
     ranges: normaliseRanges(raw.ranges),
+    // v0.2.7 -- the seven EXCLUDE sides. These DO persist, unlike the limit
+    // below: an exclusion narrows which trades QUALIFY, which is what a filter
+    // is, so it earns the same survival across a reload that the include sides
+    // have. ADDITIVE at the same stamp -- an older blob simply lacks the keys
+    // and lands on [] here, exactly the region/country precedent above. NO
+    // version bump.
+    excludePlaybookIds: nums(raw.excludePlaybookIds),
+    excludeMistakeKeys: keys(raw.excludeMistakeKeys),
+    excludeCatalystTypes: strs(raw.excludeCatalystTypes),
+    excludeRegions: strs(raw.excludeRegions),
+    excludeCountries: strs(raw.excludeCountries),
+    excludeSectors: strs(raw.excludeSectors),
+    excludeIndustries: strs(raw.excludeIndustries),
     // v0.2.7 -- the limit and the sort are NEVER read from the blob and never
     // written into it. A filter narrows which trades QUALIFY and deserves to
     // survive a reload; a limit HIDES trades that qualified, and a hidden row

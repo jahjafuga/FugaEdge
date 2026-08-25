@@ -244,8 +244,15 @@ describe('G9 every earlier string still works', () => {
     })
   })
 
-  it('not china still refuses', () => {
-    expect(r('not china').state).toEqual(emptyFilters())
+  // v0.2.7 — INVERTED IN PLACE, not deleted. The negation beat made this
+  // REFUSE because the ask had no shape for an exclusion; this beat gave it
+  // one, so the same phrase now EXCLUDES. What the guard protects is unchanged
+  // -- the negated term must never be applied POSITIVELY -- and that half is
+  // asserted explicitly below.
+  it('negation now EXCLUDES rather than refusing', () => {
+    const out = r('not china')
+    expect(out.state.excludeRegions).toEqual(['China'])
+    expect(out.state.regions, 'the negated term was applied positively').toEqual([])
   })
 
   it('bare float keeps its vocabulary reading', () => {

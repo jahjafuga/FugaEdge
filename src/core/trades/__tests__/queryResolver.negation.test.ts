@@ -62,36 +62,62 @@ const CAMPAIGN =
 
 // --- G1 ---------------------------------------------------------------------
 
-describe('G1 the four recorded phrasings refuse, and say so', () => {
-  const CASES: [string, string][] = [
-    ['not china', 'china'],
-    ['no china', 'china'],
-    ['without mistakes', 'mistakes'],
-    ['excluding losers', 'losers'],
+// v0.2.7 — INVERTED IN PLACE, not deleted. This block shipped asserting that
+// all four phrasings REFUSE: apply nothing, and come back named. That was the
+// honest floor while the ask had no shape for an exclusion -- refusal was
+// never the answer, only the end of the lie. The exclusion beat gave the ask
+// seven exclude sides, so three of the four now EXCLUDE.
+//
+// What the block guards is unchanged and is what still matters: a negated term
+// must NEVER be applied positively. That assertion is now explicit on every
+// case, and it is the one that would have caught the original defect.
+describe('G1 the four recorded phrasings exclude, or refuse when they cannot', () => {
+  /** term, the field it excludes into, the expected value. `null` = no exclude
+   *  side exists for that term, so refusal still stands. */
+  const CASES: [string, keyof typeof FIELDS | null, unknown][] = [
+    ['not china', 'regions', ['China']],
+    ['no china', 'regions', ['China']],
+    ['excluding earnings', 'catalystTypes', ['Earnings']],
+    // mistakesOnly is a FLAG, not one of the seven array fields, so it has no
+    // exclude side and the refusal behaviour is still correct for it.
+    ['without mistakes', null, null],
   ]
+  const FIELDS = {
+    regions: 'excludeRegions',
+    catalystTypes: 'excludeCatalystTypes',
+  } as const
 
-  it.each(CASES)('%s applies NOTHING', (q) => {
-    const out = r(q)
-    expect(out.applied, `"${q}" applied: ${out.applied.join(' | ')}`).toEqual([])
-  })
-
-  it.each(CASES)('%s leaves the state identical to empty filters', (q) => {
-    expect(r(q).state).toEqual(emptyFilters())
-  })
-
-  it.each(CASES)('%s names the negated text in unresolved (G2)', (q, term) => {
-    const out = r(q)
-    const joined = out.unresolved.join(' ').toLowerCase()
+  it.each(CASES)('%s never applies the term POSITIVELY', (q) => {
+    const out = r(q as string)
+    const positives = [
+      ...out.state.regions,
+      ...out.state.catalystTypes,
+      ...out.state.playbookIds,
+      ...out.state.sectors,
+      ...out.state.industries,
+      ...out.state.countries,
+    ]
     expect(
-      joined,
-      `the negation was swallowed silently: unresolved = ${JSON.stringify(out.unresolved)}`,
-    ).toContain(term)
+      positives,
+      `"${q}" applied the negated term as an inclusion: ${JSON.stringify(positives)}`,
+    ).toEqual([])
   })
 
-  it.each(CASES)('%s names the NEGATOR itself too, not just the term', (q) => {
-    const negator = q.split(' ')[0]!
-    const joined = r(q).unresolved.join(' ').toLowerCase()
-    expect(joined).toContain(negator)
+  it.each(CASES)('%s excludes it, or refuses when no exclude side exists', (q, field, value) => {
+    const out = r(q as string)
+    if (field === null) {
+      expect(out.state, `"${q}" applied something it should refuse`).toEqual(emptyFilters())
+      return
+    }
+    expect(out.state[FIELDS[field]]).toEqual(value)
+  })
+
+  it.each(CASES)('%s never silently drops the term', (q, field) => {
+    const out = r(q as string)
+    // Either it was understood (it shows in the applied line) or it was
+    // refused (it comes back named). Silence is the one thing forbidden.
+    const spoke = field === null ? out.unresolved.length > 0 : out.applied.length > 0
+    expect(spoke, `"${q}" said nothing at all`).toBe(true)
   })
 })
 
@@ -132,7 +158,10 @@ describe('G2 the campaign sentence', () => {
     // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
     // "the 10" in this sentence is a row count. The sentence has said it all
     // along and it was unresolved until then.
-    expect(out.applied).toHaveLength(3)
+    // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
+    // from an ignored phrase into an applied EXCLUSION. The sentence has meant
+    // that from the first beat of the campaign; it is the last piece to land.
+    expect(out.applied).toHaveLength(4)
     expect(out.state.limit).toBe(10)
   })
 })
