@@ -1,7 +1,12 @@
 import { SlidersHorizontal } from 'lucide-react'
 import ToggleMenu from '@/components/ui/ToggleMenu'
 import { NUMERIC_COLUMN_IDS, COLUMN_LABELS } from '@/lib/prefs/columns'
-import { resetRangeChoices, type RangeChoices } from '@/lib/prefs/rangeChoices'
+import {
+  choicesFromMenu,
+  menuBooleans,
+  resetRangeChoices,
+  type RangeChoices,
+} from '@/lib/prefs/rangeChoices'
 
 // WHICH ranges get an input pair on the Trades tab. The second caller of
 // ToggleMenu, and the reason it was extracted: same trigger, same popover, same
@@ -15,6 +20,10 @@ import { resetRangeChoices, type RangeChoices } from '@/lib/prefs/rangeChoices'
 // NOTHING IS LOCKED. Columns lock the pinned pair because rows cannot be told
 // apart without them; a range is never load-bearing that way, and R3 makes zero
 // chosen the default, so a locked range would be a contradiction.
+//
+// TOGGLEMENU IS NOT MODIFIED for provenance. It speaks a boolean map and knows
+// nothing about who ticked what; the conversion happens here, at the wrapper,
+// which is the same seam that kept the prefs key out of it.
 //
 // PERSISTENCE IS THE PAGE'S, as it is for ColumnsMenu. This file names the ids,
 // the labels and the reset target; the page owns the key and does the write.
@@ -42,8 +51,8 @@ export default function RangesMenu({ choices, onChange }: RangesMenuProps) {
   return (
     <ToggleMenu
       items={ITEMS}
-      value={choices}
-      onChange={onChange}
+      value={menuBooleans(choices)}
+      onChange={(next) => onChange(choicesFromMenu(choices, next))}
       onReset={() => onChange(resetRangeChoices())}
       label="Ranges"
       icon={<SlidersHorizontal size={13} strokeWidth={2} />}

@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertCircle, Upload, FilterX, ListOrdered, X } from 'lucide-react'
 import PageShell from '@/components/layout/PageShell'
@@ -46,10 +46,10 @@ import {
 } from '@/lib/prefs/columns'
 import { readTradesFilters, writeTradesFilters } from '@/lib/prefs/tradesFilters'
 import {
-  chooseActiveRanges,
+  choicesEqual,
   chosenRangeIds,
-  pruneUnchosenRanges,
   readRangeChoices,
+  reconcileRangeChoices,
   writeRangeChoices,
   type RangeChoices,
 } from '@/lib/prefs/rangeChoices'
@@ -102,24 +102,62 @@ export default function Trades() {
   // twenty-four pairs on the tab permanently, which is the clutter Edge exists
   // to spare people: switch on the ones you use, and ask for the rest in words.
   //
-  // Seeded through chooseActiveRanges so a filter blob written before this
-  // build existed comes up with its ranges CHOSEN. Nobody loses a filter they
-  // set, and no range filters from a control that is not on screen.
-  const [rangeChoices, setRangeChoices] = useState<RangeChoices>(() =>
-    chooseActiveRanges(readRangeChoices(), filters.ranges),
+  // Read raw. The reconcile below is what folds a stored blob's active ranges
+  // into choices, and it runs on mount through the same funnel every other
+  // filter write uses — rather than a second seeding path that could disagree
+  // with it.
+  const [rangeChoices, setRangeChoices] = useState<RangeChoices>(() => readRangeChoices())
+
+  // THE FUNNEL. Every write to either map goes through here, and this is the
+  // only caller of the reconcile. The two rules it enforces are mirrors of each
+  // other — an unchosen id loses its range, an 'auto' choice loses its life when
+  // its range goes dormant — and keeping them in one function is what stops a
+  // range filtering from a control that is not on screen.
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+  const choicesRef = useRef(rangeChoices)
+  choicesRef.current = rangeChoices
+
+  const commit = useCallback((nextFilters: TradesFilterState, nextChoices: RangeChoices) => {
+    const held = choicesRef.current
+    const out = reconcileRangeChoices(nextFilters.ranges, nextChoices, held)
+    // Against what was HELD, not against what reconcile was handed: a menu tick
+    // arrives already correct, so reconcile changes nothing and a comparison
+    // with its own input would decide there was nothing to persist.
+    if (!choicesEqual(held, out.choices)) {
+      choicesRef.current = out.choices
+      setRangeChoices(out.choices)
+      writeRangeChoices(out.choices)
+    }
+    // SETTING STATE TO AN EQUAL VALUE IS NOT FREE. A fresh `filters` object
+    // re-creates doOpen, whose effect owns the global Ctrl+K listener — so a
+    // no-op commit tears that listener down and re-adds it, and a keypress
+    // landing in the gap is swallowed. The mount fold did exactly that and made
+    // the shortcut miss about three times in ten. Measured, not reasoned.
+    const settled = out.rangesChanged ? { ...nextFilters, ranges: out.ranges } : nextFilters
+    if (settled !== filtersRef.current) {
+      filtersRef.current = settled
+      setFilters(settled)
+    }
+  }, [])
+
+  /** Every filter change in the page — Clear, a typed box, a chip, Edge. */
+  const applyFilters = useCallback(
+    (next: TradesFilterState) => commit(next, choicesRef.current),
+    [commit],
+  )
+  /** The menu, and only the menu. A newly ticked id is stamped 'user' there. */
+  const onRangeChoicesChange = useCallback(
+    (next: RangeChoices) => commit(filtersRef.current, next),
+    [commit],
   )
 
-  // The ONE place a range dies of being unchosen. Deleting rather than hiding is
-  // what keeps the filter engine out of this decision entirely: applyRanges
-  // iterates filters.ranges' own keys, so a key left behind would go on
-  // narrowing the book with nothing on screen to clear it.
-  const onRangeChoicesChange = useCallback((next: RangeChoices) => {
-    setRangeChoices(next)
-    writeRangeChoices(next)
-    setFilters((f) => {
-      const pruned = pruneUnchosenRanges(f.ranges, next)
-      return pruned ? { ...f, ranges: pruned } : f
-    })
+  // The mount fold: a blob stored before provenance existed, or before the
+  // chooser existed at all, arrives with ranges already filtering. One pass
+  // through the funnel gives them 'auto' rows and drops nothing the user owns.
+  useEffect(() => {
+    commit(filtersRef.current, choicesRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const numericColumns = useMemo(
@@ -137,9 +175,7 @@ export default function Trades() {
   // account's stored ranges arrive already filtering, so they choose themselves.
   const scopeKey = scope === 'all' ? 'all' : scope.accountId
   useEffect(() => {
-    const loaded = readTradesFilters(scope)
-    setFilters(loaded)
-    setRangeChoices((c) => chooseActiveRanges(c, loaded.ranges))
+    applyFilters(readTradesFilters(scope))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey])
 
@@ -497,7 +533,7 @@ export default function Trades() {
             aria-label="Show all matching trades"
             onClick={() => {
               setDraftFilters(null)
-              setFilters({ ...filters, limit: null, sort: null })
+              applyFilters({ ...filters, limit: null, sort: null })
             }}
             className="cursor-pointer text-gold/70 transition-colors hover:text-gold"
           >
@@ -512,7 +548,7 @@ export default function Trades() {
     <PageShell title="Trades" subtitle={subtitle}>
       <div className="space-y-4">
         <MigrationCollisionsBanner />
-        <QuickFilters filters={filters} onChange={setFilters} />
+        <QuickFilters filters={filters} onChange={applyFilters} />
         {/* Beat B — filter bar + VIEW strip share ONE premium controls surface
             (card-premium, no glow: the table below carries the gold bloom as the
             hero). TradesFilters is now surface-less; this wrapper supplies the
@@ -520,7 +556,7 @@ export default function Trades() {
             so the Table/Charts/Grid toggle persists outside the table card. */}
         <div className="card-premium space-y-4 p-4">
           <TradesFilters
-            numericColumns={numericColumns} filters={filters} onChange={setFilters} trades={trades} />
+            numericColumns={numericColumns} filters={filters} onChange={applyFilters} trades={trades} />
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
@@ -551,7 +587,7 @@ export default function Trades() {
         </div>
 
         {filtered.length === 0 ? (
-          <NoMatch onClear={() => setFilters(emptyFilters())} />
+          <NoMatch onClear={() => applyFilters(emptyFilters())} />
         ) : view === 'table' ? (
           <TradesTable
               columnVisibility={columnVisibility}
@@ -609,16 +645,11 @@ export default function Trades() {
         liveCount={matched.length}
         onDraft={setDraftFilters}
         onCommit={(next) => {
-          // R7 — Edge auto-chooses. "float under five million" sets a range the
-          // chooser may never have switched on, and a range that is filtering
-          // with no input on screen is the trap R1 exists to prevent, arriving
-          // through the words door instead of the storage one.
-          setRangeChoices((c) => {
-            const withEdge = chooseActiveRanges(c, next.ranges)
-            if (withEdge !== c) writeRangeChoices(withEdge)
-            return withEdge
-          })
-          setFilters(next)
+          // Edge goes through the same funnel as every other filter write. It
+          // gets its ranges auto-chosen there, and — the half that was missing —
+          // the ranges its PREVIOUS query installed expire in the same pass,
+          // because they are no longer active in the state it just committed.
+          applyFilters(next)
           setDraftFilters(null)
         }}
       />

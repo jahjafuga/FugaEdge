@@ -25,7 +25,8 @@ import {
 //
 // THE RULINGS, carried over intact and extended:
 //   B1-B4  unchanged from the first home: live candidate, Escape restores /
-//          Enter and click-away commit, ambiguity offered never picked,
+//          Enter commits (click-away now DISCARDS), ambiguity offered never
+//          picked,
 //          unresolved shown verbatim and muted.
 //   H2     CONVERSATION SURFACE. A greeting teaches two grammar shapes on
 //          open. Every COMMITTED ask appends an exchange to a session-only
@@ -342,11 +343,17 @@ export default function QueryBubble({
     return () => window.removeEventListener('keydown', onKey)
   }, [doOpen])
 
-  // Click-away COMMITS — the guarded dropdown idiom, mounted while open.
+  // Click-away DISCARDS. It used to commit, on the guarded-dropdown idiom, and
+  // the bubble's own footer has read "Enter applies · Esc cancels" the whole
+  // time — describing behaviour the code did not have. Committing on the way
+  // out also installed a range chooser row from a query nobody finished, which
+  // is how an empty FLOAT pair ended up living on the strip for good. Enter
+  // applies; everything else backs out. The Edge disc itself sits INSIDE
+  // rootRef, so its own click still commits through the pointer path below.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(true)
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) close(false)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
