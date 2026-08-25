@@ -105,6 +105,24 @@ export const STOPWORDS = new Set([
   'trade', 'trades', 'company', 'companies', 'stock', 'stocks',
 ])
 
+/** Words that REFUSE the term beside them. A NEW named set, deliberately not
+ *  added to STOPWORDS: filler is discarded silently, and a negator must be
+ *  REPORTED. The difference is the whole point — "not china" that quietly
+ *  drops both words is the same lie as "not china" that applies China, just
+ *  harder to notice.
+ *
+ *  What a negator does today is REFUSE, not exclude. The ask has no shape for
+ *  "everything except China", so the honest answer is to apply nothing and say
+ *  which words were not acted on. Real exclusion needs the ask to grow. */
+export const NEGATORS = new Set(['not', 'no', 'without', 'excluding', 'except'])
+
+/** The substring tier's floor. FOUR, raised from three: at three "are" reached
+ *  sector Healthcare and "but" offered a choice between two industries, both
+ *  from ordinary English in the middle of a sentence. Four keeps "pullback"
+ *  reaching a multi-word playbook, which is what the tier is for. The PREFIX
+ *  floor stays at two and the exact tier has no floor at all. */
+const SUBSTRING_FLOOR = 4
+
 /** Demonym → the name it means. A NORMALISATION step, not vocabulary: the
  *  result must still hit the caller's vocab or the token stays unresolved —
  *  "brazilian" maps to "brazil" and dies there on a book with no Brazil. */
@@ -204,11 +222,88 @@ export function resolveQuery(
     .filter((t) => t.length > 0)
   const marks: TokenState[] = tokens.map(() => 'free')
 
+  // ── the negation mask ─────────────────────────────────────────────────────
+  // ONE place for the scope rule; every pass below simply respects it.
+  //
+  // THE SCOPE RULE, chosen by MEASUREMENT: across every phrasing on record the
+  // negator is separated from the term it governs by ZERO stopwords ("not
+  // china", "no china", "without mistakes", "excluding losers") or by exactly
+  // ONE ("not FROM hong kong", three phrasings). So a negator governs the next
+  // token span that is not a stopword, skipping stopwords on the way.
+  //
+  // What that produces is REFUSAL, not exclusion: the negator and the span it
+  // governs are left FREE and unclaimed, so they fall into `unresolved` and
+  // come back named. The ask has no shape for "everything except China", and
+  // inventing one silently would be the same lie in a quieter place.
+  const vocabKeys: string[] = [
+    ...vocab.symbols,
+    ...vocab.regions,
+    ...vocab.countries.flatMap((c) => [c.iso, c.name]),
+    ...vocab.sectors,
+    ...vocab.industries,
+    ...vocab.playbooks.map((p) => p.name),
+    ...vocab.catalystTypes,
+    ...vocab.mistakes.map((m) => m.name),
+  ].map((k) => k.toLowerCase())
+  /** Is there a TERM here at all? Answers only THAT — never which one;
+   *  resolution still goes through the passes below. Shares SUBSTRING_FLOOR
+   *  with candidatesFor so the two cannot disagree about how short is too
+   *  short.
+   *
+   *  Covers the state's OWN words as well as vocabulary: "without mistakes"
+   *  and "excluding losers" govern an enumeration, not a book term, and a
+   *  negator that refused only book terms would still invert those two. */
+  const isStateWord = (w: string): boolean =>
+    w in OUTCOME_WORDS ||
+    w in SIDE_WORDS ||
+    w in PRESET_WORDS ||
+    w in DNA_WORDS ||
+    MISTAKE_FLAG_WORDS.has(w)
+  const anyTermAt = (phrase: string): boolean =>
+    isStateWord(phrase) ||
+    vocabKeys.some(
+      (k) =>
+        k === phrase ||
+        (phrase.length >= 2 && k.startsWith(phrase)) ||
+        (phrase.length >= SUBSTRING_FLOOR && k.includes(phrase)),
+    )
+  const negated: boolean[] = tokens.map(() => false)
+  for (let i = 0; i < tokens.length; i++) {
+    if (!NEGATORS.has(tokens[i])) continue
+    // EXACT WINS, the same law that lets a real ticker beat the filler list:
+    // "no setup" is a playbook NAME, not a refusal of "setup". A whole span
+    // equal to a whole vocabulary key is not a negation.
+    let isName = false
+    for (const span of [3, 2]) {
+      if (i + span > tokens.length) continue
+      if (vocabKeys.includes(tokens.slice(i, i + span).join(' '))) {
+        isName = true
+        break
+      }
+    }
+    if (isName) continue
+    negated[i] = true
+    let j = i + 1
+    while (j < tokens.length && STOPWORDS.has(tokens[j])) {
+      negated[j] = true
+      j++
+    }
+    // The governed span, LONGEST first so "hong kong" is refused as one term
+    // rather than leaving "kong" free to resolve on its own.
+    for (const span of [3, 2, 1]) {
+      if (j + span > tokens.length) continue
+      if (!anyTermAt(tokens.slice(j, j + span).join(' '))) continue
+      for (let k = j; k < j + span; k++) negated[k] = true
+      break
+    }
+  }
+
   // ── pass 1: comparisons ────────────────────────────────────────────────────
   // (column?)(op)(value). Found first so "over" cannot fall into a stopword
   // and "10m" cannot be mistaken for vocabulary.
   const comparisons: Comparison[] = []
   for (let i = 0; i < tokens.length; i++) {
+    if (negated[i]) continue
     let op = tokens[i]
     let opLen = 1
     if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
@@ -251,7 +346,7 @@ export function resolveQuery(
     log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`, source)
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free') continue
+    if (marks[i] !== 'free' || negated[i]) continue
     const t = tokens[i]
     if (OUTCOME_WORDS[t]) {
       replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null, t)
@@ -357,7 +452,7 @@ export function resolveQuery(
     const tiers: ((e: PoolEntry) => boolean)[] = [
       (e) => e.key === phrase,
       (e) => !isFiller && phrase.length >= 2 && e.key.startsWith(phrase),
-      (e) => !isFiller && phrase.length >= 3 && e.key.includes(phrase),
+      (e) => !isFiller && phrase.length >= SUBSTRING_FLOOR && e.key.includes(phrase),
     ]
     for (const match of tiers) {
       const hits = pool.filter(match)
@@ -374,14 +469,14 @@ export function resolveQuery(
   }
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free') continue
+    if (marks[i] !== 'free' || negated[i]) continue
     let matched = false
     for (const span of [3, 2, 1]) {
       // a span that overruns the text just means TRY THE SHORTER ONE — a
       // one-word query must still reach span 1.
       if (i + span > tokens.length) continue
       const slice = tokens.slice(i, i + span)
-      if (slice.some((_, k) => marks[i + k] !== 'free')) continue
+      if (slice.some((_, k) => marks[i + k] !== 'free' || negated[i + k])) continue
       const raw = slice.join(' ')
       const phrase = DEMONYMS[raw] ?? raw
       const hits = candidatesFor(phrase)
