@@ -4,6 +4,7 @@ import {
   resolveQuery,
   type ResolverVocabulary,
 } from '@/core/trades/queryResolver'
+import { responseLine } from '@/core/trades/queryResponse'
 import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 import {
   clampEdgePosition,
@@ -292,10 +293,22 @@ export default function QueryBubble({
       if (commit && text.trim() !== '') {
         onCommit(resolution.state)
         // H2 — the exchange logs ON COMMIT, verbatim ask + response line.
-        const what = resolution.applied.length > 0 ? ' - ' + resolution.applied.join(', ') : ''
+        // The line is built by pure core now. It used to be assembled here from
+        // the count and the applied list alone, which could not tell "no filter
+        // ran" apart from "a filter ran and matched everything" — so a query
+        // that resolved to NOTHING logged the whole book and read as success.
+        // `unresolved` is what makes the difference sayable, so it is threaded
+        // in from the same resolution the state came from.
         setExchanges((xs) => [
           ...xs,
-          { ask: text.trim(), response: `${liveCount} trade${liveCount === 1 ? '' : 's'}${what}` },
+          {
+            ask: text.trim(),
+            response: responseLine({
+              count: liveCount,
+              applied: resolution.applied,
+              unresolved: resolution.unresolved,
+            }),
+          },
         ])
       }
       setText('')
