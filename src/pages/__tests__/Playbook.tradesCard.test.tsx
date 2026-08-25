@@ -151,6 +151,149 @@ describe('G1 the trades Card sits BELOW the definition Card', () => {
   })
 })
 
+// --- G1 / G2 / G3 : the page fills the viewport ------------------------------
+
+// STRUCTURAL ONLY, said plainly: jsdom has no layout engine. Nothing below
+// proves a height, that anything scrolls, or that the columns are independent.
+// What it pins is the class contract the recon's measurements chose -- the
+// bounded grid, min-h-0 at every flex level, and the lg gate. Whether it looks
+// right is answered by a click in the running app, not here.
+describe('G1 the grid bounds itself to the shell region, lg only', () => {
+  const grid = (c: HTMLElement) =>
+    (c.querySelector('[data-playbook-performance]') as HTMLElement).closest(
+      '.grid',
+    ) as HTMLElement
+
+  // A DEFINITE height, not a max-height, and that was settled by measurement
+  // rather than by reading the cascade. Applying only a max-height to this grid
+  // in the running app capped the GRID to 732 while both columns stayed at
+  // 1225 and the shell kept 469 pixels of overflow: grid items have an
+  // automatic minimum size, so they do not shrink inside a merely-capped
+  // container. A definite height makes the row definite and the columns land
+  // on it exactly. (max-height plus grid-template-rows minmax(0,1fr) also
+  // worked; a definite height is one property instead of two.)
+  it('the grid carries a viewport-derived DEFINITE height', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    expect(
+      grid(container).className,
+      'the grid is not bounded -- the shell region keeps scrolling',
+    ).toMatch(/h-\[calc\(100vh-\d+px\)\]/)
+  })
+
+  it('the bound is lg-PREFIXED -- below the breakpoint one column must not be squashed', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    const cls = grid(container).className
+    // Every height bound on this element must be behind the lg gate. min-h-0
+    // is exempt: it is a zero floor, harmless at any width.
+    const bare = cls
+      .split(/\s+/)
+      .filter((c) => /^(max-)?h-/.test(c) && c !== 'min-h-0')
+    expect(
+      bare,
+      `an UNPREFIXED height bound applies at every width: ${bare.join(' ')}`,
+    ).toEqual([])
+    expect(cls, 'the bound is not lg-gated').toMatch(/\blg:h-\[calc\(100vh-\d+px\)\]/)
+  })
+
+  it('it carries a min-height floor so a short window cannot collapse it', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    expect(
+      grid(container).className,
+      'no floor -- on a short window the grid can reach zero',
+    ).toMatch(/\blg:min-h-\[/)
+  })
+
+  it('and min-h-0 so its flex/grid children may shrink below content', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    expect(grid(container).className).toMatch(/\bmin-h-0\b/)
+  })
+})
+
+describe('G2 the left column fills its own height instead of guessing one', () => {
+  const leftCard = (c: HTMLElement) =>
+    ((c.querySelector('[data-playbook-performance]') as HTMLElement).closest(
+      '.grid',
+    ) as HTMLElement).children[0] as HTMLElement
+
+  it('the left Card is a flex column that hides its own overflow', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    const cls = leftCard(container).className
+    expect(cls, 'the left Card is not a flex column').toMatch(/\bflex\b/)
+    expect(cls).toMatch(/\bflex-col\b/)
+    expect(cls, 'without overflow-hidden the Card grows past its column').toMatch(
+      /\boverflow-hidden\b/,
+    )
+  })
+
+  it('the SIX-HUNDRED cap is GONE from the playbook list', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    const ul = container.querySelector('ul') as HTMLElement
+    expect(
+      ul.className,
+      'the guessed six-hundred cap is still there -- it must fill instead',
+    ).not.toMatch(/max-h-\[600px\]/)
+  })
+
+  it('the list fills and scrolls, with min-h-0 (R4 -- the load-bearing one)', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    const ul = container.querySelector('ul') as HTMLElement
+    expect(ul.className, 'the list does not flex to fill').toMatch(/\bflex-1\b/)
+    expect(ul.className, 'min-h-0 is missing -- the inner scroll breaks').toMatch(
+      /\bmin-h-0\b/,
+    )
+    expect(ul.className).toMatch(/\boverflow-y-auto\b/)
+  })
+})
+
+describe('G3 the right stack is its own single scroll region', () => {
+  const stack = (c: HTMLElement) =>
+    (c.querySelector('[data-playbook-performance]') as HTMLElement)
+      .parentElement as HTMLElement
+
+  it('it scrolls vertically', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    expect(
+      stack(container).className,
+      'the right column does not own a scroll region',
+    ).toMatch(/\boverflow-y-auto\b/)
+  })
+
+  it('it carries min-h-0 (R4) -- without it the column never shrinks and the scroll dies', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('[data-playbook-trades]')).toBeTruthy())
+    expect(stack(container).className, 'min-h-0 is missing').toMatch(/\bmin-h-0\b/)
+  })
+
+  it('exactly ONE scroll region in the right column -- never nested', async () => {
+    const { container } = mount()
+    // Wait for ROWS, not merely for the card. The card renders its empty line
+    // before the trades resolve, and the table wrapper only exists once there
+    // are rows -- so waiting on the card alone let this assertion pass
+    // vacuously against an empty panel. Caught by a plant that this guard
+    // failed to catch in a full-file run while catching it in isolation.
+    await waitFor(() =>
+      expect(container.querySelector('[data-playbook-trades] tbody tr')).toBeTruthy(),
+    )
+    const scrollers = [...stack(container).querySelectorAll('*')].filter((el) =>
+      /overflow-y-auto|overflow-y-scroll/.test((el as HTMLElement).className || ''),
+    )
+    expect(
+      scrollers.length,
+      `a nested vertical scroll exists inside the right column: ${scrollers
+        .map((s) => (s as HTMLElement).className)
+        .join(' | ')}`,
+    ).toBe(0)
+  })
+})
+
 // --- G4 (the page half) -----------------------------------------------------
 
 describe('G4 the trade fetch matches the stats fetch', () => {

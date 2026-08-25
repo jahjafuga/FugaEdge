@@ -71,22 +71,15 @@ export default function PlaybookTradesCard({
         </div>
       ) : (
         <div className="px-5 py-4">
-          {/* SELF-CONTAINED. Expanding the list must not move anything else on
-              the page, so the rows scroll inside this box rather than growing
-              it. The height is NOT a new number — it is the same
-              max-h-[600px] the playbook list on this page already uses
-              (src/pages/Playbook.tsx:288), so the two scroll regions in one
-              view cannot disagree.
+          {/* NO VERTICAL CAP HERE. This box briefly carried its own six-hundred
+              pixel scroll; the page now bounds itself to the shell's region and
+              the right column is a single scroll region, so a cap here would be
+              a scroll inside a scroll — you would chase rows in an inner box
+              while the column that holds it scrolls too.
 
-              The classes are UNCONDITIONAL: the same box in both states, never
-              geometry that appears on expand. And they sit here rather than on
-              the Card, because a Card that scrolls takes its own header away
-              with the rows — and the expander below stays outside the box for
-              the same reason, so it is still reachable at row twenty-nine. */}
-          <div
-            data-playbook-trades-scroll
-            className="max-h-[600px] overflow-x-auto overflow-y-auto"
-          >
+              The HORIZONTAL overflow stays: at the narrowest supported window
+              this table still needs to slide sideways. */}
+          <div data-playbook-trades-scroll className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border-subtle text-[10px] uppercase tracking-wider text-fg-tertiary">

@@ -230,9 +230,29 @@ export default function Playbook() {
 
   return (
     <PageShell subtitle={`${int(list.length)} playbook${list.length === 1 ? '' : 's'} · setup library.`}>
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[280px_1fr]">
+      {/* v0.2.7 — THE PAGE FILLS THE SHELL'S REGION, and each column scrolls
+          its own content. Before this the whole region scrolled, so the setup
+          list went off-screen while its trades were being read, and the left
+          column stretched to the right column's height — five hundred and
+          eighty-seven pixels of nothing at rest, eight hundred and eighty-five
+          once the trades were expanded, both measured.
+
+          A DEFINITE height, not a max-height, and that was settled by
+          measurement: capping this grid alone bounded the GRID and left both
+          columns at their content height, because grid items have an automatic
+          minimum size and will not shrink inside a merely-capped container.
+
+          The offset is the grid's own top in the viewport (measured at one
+          hundred and forty-four, identical at the default window and at the
+          minimum) plus the shell's bottom padding. The floor below it never
+          engages at any window this app allows — it is there so a shorter
+          viewport degrades to a scrolling page rather than to no page.
+
+          lg ONLY: below the breakpoint this grid is a single column, and a
+          bounded height there would squash it. */}
+      <div className="grid min-h-0 grid-cols-1 gap-5 lg:h-[calc(100vh-168px)] lg:min-h-[420px] lg:grid-cols-[280px_1fr]">
         {/* Left: playbook list */}
-        <Card padded={false}>
+        <Card padded={false} className="flex min-h-0 flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-white/[0.05] px-4 py-3">
             <div className="text-[10px] uppercase tracking-wider text-muted">
               Playbooks
@@ -285,7 +305,10 @@ export default function Playbook() {
               </button>
             </div>
           )}
-          <ul className="max-h-[600px] overflow-y-auto">
+          {/* Fills the column rather than guessing at six hundred pixels.
+              min-h-0 is the load-bearing part: without it a flex child will not
+              shrink below its content, and the inner scroll never engages. */}
+          <ul className="min-h-0 flex-1 overflow-y-auto">
             {(() => {
               // Beat 4b — system rows (e.g. "No Setup") pin to the TOP, above a
               // thin divider; user playbooks keep their alphabetical order below
@@ -374,7 +397,7 @@ export default function Playbook() {
             </div>
           </Card>
         ) : (
-          <div className="space-y-5">
+          <div className="min-h-0 space-y-5 overflow-y-auto">
             <div data-playbook-performance>
               <PlaybookPerformance stats={selected.stats} />
             </div>

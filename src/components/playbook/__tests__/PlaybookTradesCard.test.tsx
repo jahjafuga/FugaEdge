@@ -82,58 +82,69 @@ describe('G5 the list caps at eight, and the affordance tells the truth', () => 
 
 // --- G2 / G3 ----------------------------------------------------------------
 
-describe('G2 the list is self-contained -- it scrolls inside its own box', () => {
+// CONTAINMENT REVERSED. These guards shipped asserting that this box carried
+// its OWN max-height and vertical overflow. Measuring the running app retired
+// that: the page now bounds itself to the shell's region and the right column
+// is a single scroll region, so a cap here would be a scroll inside a scroll.
+//
+// They are REWRITTEN IN PLACE to assert the ABSENCE, not deleted. The nesting
+// is exactly the kind of thing that gets re-added by someone fixing a symptom,
+// and a deleted guard would let it back in silently. Same tests, same names,
+// opposite claim.
+describe('G4 NO NESTED SCROLL -- the box carries no cap of its own', () => {
   // STRUCTURAL ONLY, and saying so out loud: jsdom has no layout engine, so
-  // nothing here proves a pixel height or that anything actually scrolls. What
-  // it pins is that the containment classes are on the scroll box and stay
-  // there. The real acceptance instrument is a click in the running app.
-  //
-  // The height is NOT a new number: it is the same max-h-[600px] the playbook
-  // list on this page already uses (src/pages/Playbook.tsx:288), reused so the
-  // two scroll regions in the same view cannot disagree.
+  // nothing here proves a pixel height or that anything scrolls or does not.
+  // What it pins is which classes are present. The real acceptance instrument
+  // is a click in the running app.
   const scrollBox = (c: HTMLElement) =>
     c.querySelector('[data-playbook-trades-scroll]') as HTMLElement | null
 
-  it('the scroll box exists', () => {
+  it('the box still exists -- it is the horizontal-overflow wrapper', () => {
     const { container } = mount(trades(29))
-    expect(scrollBox(container), 'there is no dedicated scroll box').toBeTruthy()
+    expect(scrollBox(container), 'the table wrapper went missing').toBeTruthy()
   })
 
-  it('it carries the reused max height and vertical overflow', () => {
+  it('it carries NO max height and NO vertical overflow', () => {
     const { container } = mount(trades(29))
     const cls = scrollBox(container)!.className
-    expect(cls, 'the reused max-height is missing').toMatch(/max-h-\[600px\]/)
-    expect(cls, 'the vertical overflow is missing').toMatch(/overflow-y-auto/)
+    expect(cls, 'a max-height came back -- that is a scroll inside a scroll').not.toMatch(
+      /max-h-/,
+    )
+    expect(cls, 'vertical overflow came back -- that is a nested scroll').not.toMatch(
+      /overflow-y-/,
+    )
   })
 
-  it('the containment is NOT on the Card -- the header must not scroll away', () => {
+  it('horizontal overflow is KEPT -- narrow windows still need it', () => {
+    const { container } = mount(trades(29))
+    expect(scrollBox(container)!.className).toMatch(/overflow-x-auto/)
+  })
+
+  it('the Card carries no cap either -- the column owns the scrolling now', () => {
     const { container } = mount(trades(29))
     const card = container.querySelector('[data-playbook-trades]') as HTMLElement
-    expect(
-      card.className,
-      'the Card itself scrolls, which takes the header with it',
-    ).not.toMatch(/overflow-y-auto/)
-    expect(card.className).not.toMatch(/max-h-\[600px\]/)
+    expect(card.className).not.toMatch(/overflow-y-/)
+    expect(card.className).not.toMatch(/max-h-/)
   })
 
-  it('the affordance sits OUTSIDE the scroll box, so it stays reachable', () => {
+  it('the affordance is still outside the box, where it has always been', () => {
     const { container } = mount(trades(29))
     const btn = screen.getByRole('button', { name: /show all 29/i })
     expect(
       scrollBox(container)!.contains(btn),
-      'the expander scrolled away with the rows',
+      'the expander moved inside the wrapper',
     ).toBe(false)
   })
 })
 
-describe('G3 containment holds in BOTH states, not just when expanded', () => {
+describe('G4 the absence holds in BOTH states, not just one', () => {
   const clsOf = (c: HTMLElement) =>
     (c.querySelector('[data-playbook-trades-scroll]') as HTMLElement).className
 
-  it('collapsed: the classes are already there', () => {
+  it('collapsed: no cap, no vertical overflow', () => {
     const { container } = mount(trades(29))
-    expect(clsOf(container)).toMatch(/max-h-\[600px\]/)
-    expect(clsOf(container)).toMatch(/overflow-y-auto/)
+    expect(clsOf(container)).not.toMatch(/max-h-/)
+    expect(clsOf(container)).not.toMatch(/overflow-y-/)
   })
 
   it('expanded: the SAME classes, unchanged -- no conditional geometry', () => {
@@ -146,10 +157,10 @@ describe('G3 containment holds in BOTH states, not just when expanded', () => {
     ).toBe(before)
   })
 
-  it('a SHORT list is contained too -- containment is unconditional', () => {
+  it('a SHORT list is uncapped too -- the absence is unconditional', () => {
     const { container } = mount(trades(3))
-    expect(clsOf(container)).toMatch(/max-h-\[600px\]/)
-    expect(clsOf(container)).toMatch(/overflow-y-auto/)
+    expect(clsOf(container)).not.toMatch(/max-h-/)
+    expect(clsOf(container)).not.toMatch(/overflow-y-/)
   })
 })
 
