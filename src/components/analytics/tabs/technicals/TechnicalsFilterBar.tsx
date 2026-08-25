@@ -39,7 +39,28 @@ export default function TechnicalsFilterBar({
   scopeLabel,
 }: TechnicalsFilterBarProps) {
   return (
-    <div className="sticky top-0 z-20 -mx-4 mb-4 border-b border-border-subtle bg-bg-1/95 px-4 py-3 font-sans backdrop-blur">
+    // ONE ELEVATED SURFACE, the treatment AnalyticsFilterBar arrived at — card
+    // radius, a full border, bg-bg-2 and a shadow, so the bar reads as sitting
+    // ABOVE the content rather than floating in it. The tokens are taken from
+    // that bar's own container (AnalyticsFilterBar.tsx:228), not restated.
+    //
+    // WHAT LEFT, and why, since the spec asked for every one of them: the strip
+    // was translucent and blurred, bleeding edge to edge under a hairline. At
+    // ninety-five percent opacity the blur was invisible, it cost a compositor
+    // layer on every scroll frame, and backdrop-filter opens a stacking context
+    // that traps anything trying to escape the bar. The reference retired all
+    // of it and is guarded against regressing (OverviewTab.toolbar.test.tsx:150).
+    //
+    // STILL STICKY, and at the reference's depth. Position was never the
+    // problem; the surface was. z-30 rather than z-20 because an opaque card
+    // has to layer the way the reference's does, under TopBar's z-40.
+    //
+    // THE SHADOW IS STATIC. The reference steps from shadow-md to shadow-lg
+    // when it pins, driven by a sentinel and an IntersectionObserver living in
+    // OverviewTab rather than in the bar. That step is deliberately not
+    // replicated here, so shadow-md — the reference's resting state — is the
+    // whole of it, and there is nothing for transition-shadow to animate.
+    <div className="sticky top-0 z-30 mb-4 rounded-[var(--card-radius)] border border-border-subtle bg-bg-2 px-3 py-2.5 font-sans shadow-md">
       <div className="flex flex-wrap items-center gap-2">
         {/* Ticker */}
         <input
