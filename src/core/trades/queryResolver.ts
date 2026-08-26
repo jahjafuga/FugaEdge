@@ -352,7 +352,12 @@ export function resolveQuery(
 ): ResolveResult {
   let state: TradesFilterState = {
     ...(base ?? emptyFilters()),
-    // arrays and ranges are copied so composition never mutates the caller's
+    // arrays and ranges are copied so composition never mutates the caller's.
+    // BOTH SIDES. The exclude half was missed when exclusions landed, so
+    // pushUnique wrote straight through into the caller's array -- and the one
+    // caller is the bubble, resolving on every keystroke against a ref that IS
+    // the committed state. Typing accumulated exclusions the user never
+    // committed, and the discard path had nothing to undo them with.
     playbookIds: [...(base?.playbookIds ?? [])],
     mistakeKeys: [...(base?.mistakeKeys ?? [])],
     catalystTypes: [...(base?.catalystTypes ?? [])],
@@ -360,6 +365,13 @@ export function resolveQuery(
     countries: [...(base?.countries ?? [])],
     sectors: [...(base?.sectors ?? [])],
     industries: [...(base?.industries ?? [])],
+    excludePlaybookIds: [...(base?.excludePlaybookIds ?? [])],
+    excludeMistakeKeys: [...(base?.excludeMistakeKeys ?? [])],
+    excludeCatalystTypes: [...(base?.excludeCatalystTypes ?? [])],
+    excludeRegions: [...(base?.excludeRegions ?? [])],
+    excludeCountries: [...(base?.excludeCountries ?? [])],
+    excludeSectors: [...(base?.excludeSectors ?? [])],
+    excludeIndustries: [...(base?.excludeIndustries ?? [])],
     dna: { ...(base?.dna ?? emptyFilters().dna) },
     ranges: Object.fromEntries(
       Object.entries(base?.ranges ?? {}).map(([k, v]) => [k, { ...v }]),

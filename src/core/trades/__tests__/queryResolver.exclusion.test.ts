@@ -33,7 +33,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { resolveQuery, type ResolverVocabulary } from '../queryResolver'
-import { applyTradesFilters, emptyFilters } from '../tradesFilter'
+import { applyTradesFilters, emptyFilters, type TradesFilterState } from '../tradesFilter'
 import { makeTrade } from '@/test/fixtures/trade'
 
 const NOW = new Date('2026-08-22T15:00:00')
@@ -307,5 +307,170 @@ describe('G8 every campaign string still works', () => {
     const out = r('china losers')
     expect(out.state.regions).toEqual(['China'])
     expect(out.state.excludeRegions).toEqual([])
+  })
+})
+
+// ─── RT : THE RESOLVER STOPS WRITING INTO ITS CALLER ─────────────────────────
+//
+// resolveQuery's state init copies the seven POSITIVE arrays and, until now,
+// not the seven EXCLUDE ones -- so `pushUnique(s[excludeField], value)` wrote
+// straight through into the caller's array. The comment above that init has
+// always said "arrays and ranges are copied so composition never mutates the
+// caller's"; the exclude half simply never got added when exclusions did.
+//
+// WHY A SUITE THIS LARGE NEVER CAUGHT IT. Seven of the eight resolver suites
+// call resolveQuery with NO base at all, so emptyFilters() is built inside and
+// there is no caller array to write into. The one purity guard that does exist
+// (queryResolver.test.ts, "the resolver never mutates its inputs") passes a
+// base -- but its ask is positive-only, so it never reaches an exclude array.
+// The ruling was right and the ask was too narrow.
+//
+// WHY IDENTITY AND NOT DEEP EQUALITY. A base written through BY REFERENCE is
+// deep-EQUAL to the result -- that is what sharing means. Deep equality would
+// pass on the exact defect it was meant to catch. The property is that the two
+// are NOT THE SAME OBJECT.
+//
+// WHY BOTH. Identity alone cannot see a write that happens BEFORE the copy, and
+// deep-unchanged alone cannot see sharing. They assert different things and a
+// plant reddens each without the other.
+//
+// WHAT THIS COST IN PRODUCTION. The bubble re-resolves on every keystroke
+// against a ref that IS the committed state object (QueryBubble.tsx:266, :286,
+// :270-272), so merely TYPING accumulated exclusions into the page's own filter
+// state -- and the discard path (close(false), :292-326) has no restore, so
+// clicking away could not undo them.
+
+/** One ask per exclude array, reusing G5's asks so the two cannot drift about
+ *  which phrasing reaches which field. */
+const EXCLUDE_ASKS: { field: keyof TradesFilterState; ask: string; expected: unknown }[] = [
+  { field: 'excludePlaybookIds', ask: 'not micro pullback', expected: [4] },
+  {
+    field: 'excludeMistakeKeys',
+    ask: 'not chased extended',
+    expected: [{ axis: 'technical', name: 'Chased extended' }],
+  },
+  { field: 'excludeCatalystTypes', ask: 'not earnings', expected: ['Earnings'] },
+  { field: 'excludeRegions', ask: 'not china', expected: ['China'] },
+  { field: 'excludeCountries', ask: 'not united states', expected: ['US'] },
+  { field: 'excludeSectors', ask: 'not healthcare', expected: ['Healthcare'] },
+  { field: 'excludeIndustries', ask: 'not biotechnology', expected: ['Biotechnology'] },
+]
+
+/** Resolve against a caller-owned base, which is the only shape that can expose
+ *  this. The suite's own r() passes no base at all. */
+const rb = (text: string, base: TradesFilterState) => resolveQuery(text, BOOK, NOW, base)
+
+const arrOf = (s: TradesFilterState, f: keyof TradesFilterState) =>
+  s[f] as unknown as unknown[]
+
+// ─── RT1 ─────────────────────────────────────────────────────────────────────
+
+describe('RT1 the result never SHARES an exclude array with its caller', () => {
+  it.each(EXCLUDE_ASKS)('$field comes back as its own array', ({ field, ask, expected }) => {
+    const base = emptyFilters()
+    const before = arrOf(base, field)
+    const out = rb(ask, base)
+
+    // The ask must actually reach this field, or the identity check below is
+    // asserting about an array nothing ever wrote to.
+    expect(arrOf(out.state, field), `"${ask}" did not reach ${field}`).toEqual(expected)
+
+    expect(
+      arrOf(out.state, field) === before,
+      `${field} is the SAME ARRAY the caller handed in -- the resolver wrote ` +
+        'through into its caller, and every preview keystroke does it again',
+    ).toBe(false)
+  })
+})
+
+// ─── RT2 : THE CONTROL ───────────────────────────────────────────────────────
+
+describe('RT2 a POSITIVE array is not shared either', () => {
+  // Already copied today, so this is GREEN before the cure -- deliberately. If
+  // it were RED the premise would be wrong and this would be a design fault
+  // rather than an omission.
+  it('regions comes back as its own array', () => {
+    const base = emptyFilters()
+    const before = base.regions
+    const out = rb('china', base)
+    expect(out.state.regions, 'the ask did not reach regions').toEqual(['China'])
+    expect(
+      out.state.regions === before,
+      'a positive array is shared too -- this is not an omission, it is the design',
+    ).toBe(false)
+  })
+})
+
+// ─── RT3 : DEEP-UNCHANGED ────────────────────────────────────────────────────
+
+describe('RT3 the base comes back deep-unchanged', () => {
+  it.each(EXCLUDE_ASKS)('$field: the caller sees nothing added', ({ field, ask }) => {
+    const base = emptyFilters()
+    const frozen = JSON.stringify(base)
+    const out = rb(ask, base)
+    expect(arrOf(out.state, field).length, 'the ask produced no exclusion to leak').toBeGreaterThan(0)
+    expect(
+      JSON.stringify(base),
+      `resolving "${ask}" changed the caller's own state object`,
+    ).toBe(frozen)
+  })
+})
+
+// ─── RT4 : ACCUMULATION ──────────────────────────────────────────────────────
+
+describe('RT4 two resolves against ONE base accumulate nothing', () => {
+  // The shape the founder actually hit: a single resolve can look clean while
+  // two in a row pile up. The bubble does one per keystroke.
+  it('the base still has empty exclude arrays after both', () => {
+    const base = emptyFilters()
+    const a = rb('not china', base)
+    const b = rb('not healthcare', base)
+
+    expect(a.state.excludeRegions, 'the first ask did not exclude').toEqual(['China'])
+    expect(b.state.excludeSectors, 'the second ask did not exclude').toEqual(['Healthcare'])
+
+    expect(
+      base.excludeRegions,
+      'the caller accumulated an exclusion it never asked to keep',
+    ).toEqual([])
+    expect(base.excludeSectors).toEqual([])
+  })
+
+  it('and the second result does not inherit the first', () => {
+    // Without this, "the base stayed empty" would pass for a resolver that
+    // simply piled both asks into one shared array and handed it back twice.
+    const base = emptyFilters()
+    rb('not china', base)
+    const b = rb('not healthcare', base)
+    expect(b.state.excludeRegions, 'the second resolve saw the first ask').toEqual([])
+  })
+})
+
+// ─── RT5 : SCOPE GUARD ───────────────────────────────────────────────────────
+
+describe('RT5 the resolver still resolves', () => {
+  it('an ask that resolves NOTHING leaves the base untouched', () => {
+    const base = emptyFilters()
+    const frozen = JSON.stringify(base)
+    const out = rb('qwzzk', base)
+    expect(out.applied, 'the ask resolved something, so this proves nothing').toEqual([])
+    expect(JSON.stringify(base)).toBe(frozen)
+  })
+
+  it('and a POSITIVE ask still returns its filters', () => {
+    const base = emptyFilters()
+    const out = rb('china losers', base)
+    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('losers')
+  })
+
+  it('and composition on a non-empty base still ADDS', () => {
+    // The behaviour the copy exists to protect: a second region adds to the
+    // first rather than replacing it, and the caller's array is not the one
+    // being appended to.
+    const base = { ...emptyFilters(), regions: ['USA'] as (string | null)[] }
+    const out = rb('china', base)
+    expect(out.state.regions).toEqual(['USA', 'China'])
+    expect(base.regions, 'composition wrote into the caller').toEqual(['USA'])
   })
 })
