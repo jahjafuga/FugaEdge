@@ -56,7 +56,10 @@ describe('refreshIntraday cancel — coarse, preserves the settle chain', () => 
     hold = new Promise<void>((res) => { release = res })
     requested.length = 0
 
-    const runPromise = refreshIntraday({ force: true })
+    // Instant sleep: the pacing floor is real in prod, and this suite is not
+    // about pacing. Injected so the tier-derived spacing beat does not have to
+    // reach into four test files to land one constant.
+    const runPromise = refreshIntraday({ force: true, sleep: async () => {} })
 
     // Let the workers reach the awaited fetchIntradayMinutes (still held).
     await new Promise((r) => setTimeout(r, 50))

@@ -61,7 +61,10 @@ describe('refreshIntraday incremental selection (Force re-fetch off vs on)', () 
   })
 
   it('force=false fetches MISSING + ERRORED and SKIPS the cleanly-cached pair', async () => {
-    const result = await refreshIntraday({ force: false })
+    // Instant sleep: the pacing floor is real in prod, and this suite is not
+    // about pacing. Injected so the tier-derived spacing beat does not have to
+    // reach into four test files to land one constant.
+    const result = await refreshIntraday({ force: false, sleep: async () => {} })
 
     expect([...requested].sort()).toEqual(['ERRORED|2026-05-01', 'MISSING|2026-05-01'])
     expect(requested).not.toContain('CLEAN|2026-05-01')
@@ -69,7 +72,7 @@ describe('refreshIntraday incremental selection (Force re-fetch off vs on)', () 
   })
 
   it('force=true fetches ALL pairs (full re-download)', async () => {
-    const result = await refreshIntraday({ force: true })
+    const result = await refreshIntraday({ force: true, sleep: async () => {} })
 
     expect([...requested].sort()).toEqual([
       'CLEAN|2026-05-01',

@@ -55,7 +55,10 @@ describe('refreshIntraday batch — a stalled pair never hangs the pool', () => 
   it('resolves, counts the stalled pair as failed, and the other pairs still succeed', async () => {
     // If the pool failed to drain (the original bug), this await would never
     // return and the test would time out.
-    const result = await refreshIntraday({ force: true })
+    // Instant sleep: the pacing floor is real in prod, and this suite is not
+    // about pacing. Injected so the tier-derived spacing beat does not have to
+    // reach into four test files to land one constant.
+    const result = await refreshIntraday({ force: true, sleep: async () => {} })
 
     expect(result.attempted).toBe(3)
     expect(result.fetched).toBe(2) // AAA + BBB

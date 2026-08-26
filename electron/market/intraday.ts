@@ -14,7 +14,11 @@ import {
   upsertIntradayRow,
 } from './repo'
 
-const REQUEST_SPACING_MS = 350
+/** Proactive inter-call spacing for the bars refresh. EXPORTED so its guard can
+ *  assert against the constant rather than a literal — a hardcoded number in a
+ *  test keeps passing after the value changes, which is precisely when it should
+ *  stop. The VALUE is unchanged by the beat that exported it. */
+export const REQUEST_SPACING_MS = 350
 const MAX_CONCURRENT = 2
 
 export interface IntradayRefreshResult {
@@ -38,6 +42,13 @@ interface RefreshOptions {
    *  show a live loading bar. Plain callback — the electron `wc.send` wrapping
    *  lives in the IPC handler, keeping this module web-portable. */
   emitProgress?: (p: MarketRefreshProgress) => void
+  /** Injectable sleep (tests pass an instant one); defaults to setTimeout-based
+   *  real sleep. Mirrors runWarmupBackfill's option (warmup-backfill.ts:46-49) —
+   *  the same shape, for the same reason: a paced run is real in prod and
+   *  instant under test, so the pacing can be ASSERTED instead of merely
+   *  believed. Without it the spacing is unobservable, which is how an ad-hoc
+   *  value survived here while its siblings moved to the tier-derived one. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 let inFlight: Promise<IntradayRefreshResult> | null = null
@@ -117,11 +128,16 @@ async function runRefresh(opts: RefreshOptions): Promise<IntradayRefreshResult> 
   let failed = 0
   const errors: IntradayRefreshResult['errors'] = []
 
+  // Injectable clock (tests pass an instant sleep); real setTimeout in prod.
+  // Same default as warmup-backfill.ts:72-73.
+  const sleep =
+    opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+
   let lastRequestAt = 0
   const respectSpacing = async () => {
     const since = Date.now() - lastRequestAt
     if (since < REQUEST_SPACING_MS) {
-      await new Promise((r) => setTimeout(r, REQUEST_SPACING_MS - since))
+      await sleep(REQUEST_SPACING_MS - since)
     }
     lastRequestAt = Date.now()
   }

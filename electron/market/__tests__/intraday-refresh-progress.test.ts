@@ -44,7 +44,10 @@ describe('refreshIntraday progress emission', () => {
   it('calls emitProgress once per pair with a rising current and the correct total', async () => {
     const events: { current: number; total: number; symbol: string }[] = []
 
-    await refreshIntraday({ force: true, emitProgress: (p) => events.push(p) })
+    // Instant sleep: the pacing floor is real in prod, and this suite is not
+    // about pacing. Injected so the tier-derived spacing beat does not have to
+    // reach into four test files to land one constant.
+    await refreshIntraday({ force: true, emitProgress: (p) => events.push(p), sleep: async () => {} })
 
     expect(events).toHaveLength(3)
     expect(events.map((e) => e.current)).toEqual([1, 2, 3]) // monotonic, one per completed pair
