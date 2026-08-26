@@ -13,6 +13,8 @@
 // IMPORTANT: never log the full request URL — the API key sits in the query
 // string. We log just the path.
 
+import { getCallBudget, type CallKind } from './rate-limit'
+
 const BASE_URL = 'https://api.massive.com'
 
 export class MassiveError extends Error {
@@ -54,7 +56,28 @@ export function parseRetryAfterHeader(raw: string | null): number | null {
 // as failed and the batch moves on.
 const REQUEST_TIMEOUT_MS = 15_000
 
-async function massiveGet<T>(apiKey: string, path: string): Promise<T> {
+async function massiveGet<T>(
+  apiKey: string,
+  path: string,
+  /** Bulk by default, so every fetcher that was never threaded keeps working
+   *  unchanged -- bulk is what all of them already were. */
+  kind: CallKind = 'bulk',
+): Promise<T> {
+  // THE CHOKEPOINT. Every fetcher in this file passes through here, which is
+  // what makes this the one place a shared ceiling can be enforced: a budget
+  // on any single fetcher would govern only that fetcher, and several such
+  // budgets are not a ceiling at all.
+  //
+  // TAKEN BEFORE THE TIMER STARTS, deliberately. REQUEST_TIMEOUT_MS bounds the
+  // REQUEST, and time spent waiting for admission is not time the server is
+  // failing to answer. Starting the clock first would turn a busy budget into
+  // a wave of false timeouts.
+  //
+  // A RETRY SPENDS A TOKEN without anything here arranging it: the retry
+  // helper wraps this from the OUTSIDE, so each attempt re-enters and takes
+  // its own.
+  await getCallBudget().take(kind)
+
   const url = `${BASE_URL}${path}${path.includes('?') ? '&' : '?'}apiKey=${encodeURIComponent(apiKey)}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
@@ -286,9 +309,13 @@ export async function fetchIntradayMinutes(
   symbol: string,
   from: string,   // YYYY-MM-DD inclusive
   to: string,     // YYYY-MM-DD inclusive (== from for a single active day)
+  /** Threaded from the ENTRY POINT, never chosen here. This one fetcher serves
+   *  the chart open, the bulk refresh and the warmup window alike, so it cannot
+   *  know which of them it is; whoever called it does. */
+  kind: CallKind = 'bulk',
 ): Promise<IntradayBar[]> {
   const path = `/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/minute/${from}/${to}?adjusted=true&sort=asc&limit=50000`
-  const data = await massiveGet<MassiveAggsResp>(apiKey, path)
+  const data = await massiveGet<MassiveAggsResp>(apiKey, path, kind)
   const out: IntradayBar[] = []
   for (const bar of data.results ?? []) {
     if (

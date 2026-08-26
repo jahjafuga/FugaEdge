@@ -189,3 +189,41 @@ export function createCallBudget(opts: CallBudgetOptions): CallBudget {
     },
   }
 }
+
+// ── The one instance ─────────────────────────────────────────────────────────
+// A per-caller budget governs nothing: the entire point is that every caller
+// spends from the SAME pool, so there is exactly one instance and every path
+// reaches it through this accessor.
+//
+// BUILT LAZILY, and that is load-bearing rather than stylistic. This module
+// imports MassiveError from ./massive, and ./massive now imports this accessor
+// back, so the two form a cycle. A function declaration is hoisted and survives
+// a partially-initialised module; a module-level
+// `const shared = createCallBudget({ callsPerMin: POLYGON_FREE_TIER_CALLS_PER_MIN })`
+// would NOT, because it reads that const at module-evaluation time and would sit
+// in the temporal dead zone whenever this module happened to be evaluated first.
+// Building on first use moves the read to a point where both modules are fully
+// initialised, whichever order they load in.
+
+let sharedBudget: CallBudget | null = null
+
+/** The process-wide budget. Every call through the shared chokepoint spends
+ *  from this one object — that is what makes it a ceiling rather than a habit. */
+export function getCallBudget(): CallBudget {
+  if (sharedBudget === null) {
+    sharedBudget = createCallBudget({ callsPerMin: POLYGON_FREE_TIER_CALLS_PER_MIN })
+  }
+  return sharedBudget
+}
+
+/** TEST SEAM. Production never calls this.
+ *
+ *  Pass a budget to drive admissions with an injected clock, or to observe what
+ *  kind arrives at the chokepoint; pass null to drop back to a freshly-built
+ *  one. A singleton with no reset makes every test depend on the order of the
+ *  tests before it: the cursor stays parked where the last one left it, so the
+ *  next test's first call waits a full spacing for a token it should already
+ *  have had. */
+export function setCallBudgetForTests(next: CallBudget | null): void {
+  sharedBudget = next
+}

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fetchIntradayMinutes, MassiveError } from '../massive'
-import { withRateLimitRetry } from '../rate-limit'
+import { setCallBudgetForTests, withRateLimitRetry } from '../rate-limit'
 
 // Commit 1 of the 5c fix: a single stalled HTTP request must never hang the
 // whole refresh. These pin the invariant — every massiveGet settles within a
@@ -11,6 +11,15 @@ describe('massiveGet request timeout', () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+    // The shared call budget is a process-wide singleton, and these tests
+    // reach it FOR REAL -- they stub fetch rather than mocking ../massive, so
+    // every call here passes the chokepoint and moves the cursor. Without this
+    // reset the third test waits a full spacing for a token the first one
+    // already spent, and vitest's five-second test timeout kills it first:
+    // measured as 'Test timed out in 5000ms', with the file going from 37ms to
+    // 5.80s. Any future suite that crosses the chokepoint more than once needs
+    // the same line.
+    setCallBudgetForTests(null)
   })
 
   it('rejects with a timeout error when fetch never resolves, instead of hanging forever', async () => {

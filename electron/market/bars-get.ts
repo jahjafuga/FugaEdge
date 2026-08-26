@@ -1,11 +1,16 @@
 import type { IntradayBarsPayload } from '@shared/market-types'
 import { getSettings } from '../settings/repo'
 import { fetchIntradayMinutes, MassiveError, type IntradayBar } from './massive'
+import type { CallKind } from './rate-limit'
 import { getIntradayRow, upsertIntradayRow } from './repo'
 
 interface GetBarsOptions {
   /** Force a fresh fetch even when a cached row exists. */
   force?: boolean
+  /** How this fetch should be admitted by the shared call budget. Defaults to
+   *  INTERACTIVE, because this entry point IS the chart open -- a user is
+   *  waiting on the result. A caller that is really doing bulk work says so. */
+  kind?: CallKind
 }
 
 // Calendar-day arithmetic on a YYYY-MM-DD string (UTC parts, DST-safe). Kept
@@ -29,8 +34,12 @@ export async function fetchWarmupBars(
   apiKey: string,
   symbol: string,
   date: string,
+  /** Bulk by default -- the warmup recovery pass is this function's other
+   *  caller and is genuinely bulk, so it needs no change. The chart-open path
+   *  below passes its own kind down. */
+  kind: CallKind = 'bulk',
 ): Promise<IntradayBar[]> {
-  return fetchIntradayMinutes(apiKey, symbol, addDays(date, -4), addDays(date, -1))
+  return fetchIntradayMinutes(apiKey, symbol, addDays(date, -4), addDays(date, -1), kind)
 }
 
 // Per-trade intraday bars on-demand. Reads the cache first; only hits Massive
@@ -66,6 +75,10 @@ async function getIntradayBarsInner(
     }
   }
 
+  // Resolved once. EVERY leg below is awaited before the payload returns, so a
+  // bulk warmup leg would park a chart open in the queue just as surely as a
+  // bulk active leg would -- there is no such thing as a background leg here.
+  const kind: CallKind = opts.kind ?? 'interactive'
   const { polygon_api_key } = getSettings().values
   if (!polygon_api_key) {
     // No key — return whatever we have (which may be nothing) and signal so
@@ -90,7 +103,7 @@ async function getIntradayBarsInner(
   if (!opts.force && haveActive && !haveWarmup) {
     let warmupBars: IntradayBar[] = []
     try {
-      warmupBars = await fetchWarmupBars(polygon_api_key, symbol, date)
+      warmupBars = await fetchWarmupBars(polygon_api_key, symbol, date, kind)
     } catch {
       warmupBars = []
     }
@@ -119,10 +132,10 @@ async function getIntradayBarsInner(
   // union. The active fetch drives error reporting; the warmup fetch is
   // best-effort (swallowed on failure).
   try {
-    const bars = await fetchIntradayMinutes(polygon_api_key, symbol, date, date)
+    const bars = await fetchIntradayMinutes(polygon_api_key, symbol, date, date, kind)
     let warmupBars: IntradayBar[] = []
     try {
-      warmupBars = await fetchWarmupBars(polygon_api_key, symbol, date)
+      warmupBars = await fetchWarmupBars(polygon_api_key, symbol, date, kind)
     } catch {
       warmupBars = []
     }
