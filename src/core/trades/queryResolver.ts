@@ -470,10 +470,8 @@ export function resolveQuery(
       }
     }
     if (isName) continue
-    // The NEGATOR ITSELF never resolves. It is a grammar word, not a term:
-    // leaving it free let "no china" excludeAPPLY the No Setup playbook off the
-    // word "no". Marked stop -- consumed silently, the way filler is, because
-    // the exclusion it produced is named in the applied line instead.
+    // Provisionally negated. Whether it STAYS negated depends on finding a
+    // term to govern, decided below.
     negated[i] = true
     let j = i + 1
     while (j < tokens.length && STOPWORDS.has(tokens[j])) {
@@ -490,13 +488,27 @@ export function resolveQuery(
       governed = true
       break
     }
+    // THE NEGATOR IS NEVER VOCABULARY, governed or not -- but it leaves by two
+    // different doors, and which door is the whole of this.
     if (governed) {
-      // The NEGATOR ITSELF never resolves -- it is a grammar word, not a term,
-      // and leaving it free let "no china" excludeApply the No Setup playbook
-      // off the word "no". Silenced only when it actually governs something:
-      // a LONE negator still comes back NAMED, which is the negation beat's
-      // law and is still the right answer when there is nothing to exclude.
+      // It did its job. Consumed silently, the way filler is, because the
+      // exclusion it produced is named in the applied line instead.
       for (let k = i; k < j; k++) marks[k] = 'stop'
+    } else {
+      // Nothing to negate. UNCLAIMABLE, not negated: it must not be matched as
+      // a term, and it must still come back NAMED rather than vanishing.
+      //
+      // Leaving it merely `negated` was the defect. A negated token is not
+      // skipped by the vocabulary pass -- being negated is precisely how a term
+      // routes to the EXCLUDE side -- so an ungoverned negator fell through and
+      // the prefix tier, floor two, matched "no" to the seeded playbook "No
+      // Setup". Asking for something a book does not contain excluded a
+      // playbook nobody mentioned. `unclaimable` is the existing seam for
+      // exactly this: not matchable, still refused. Two meanings, two arrays.
+      for (let k = i; k < j; k++) {
+        negated[k] = false
+        unclaimable[k] = true
+      }
     }
   }
 
