@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AlertCircle, ArrowUpRight, Monitor, Moon, RotateCcw, Sun } from 'lucide-react'
 import { useNumberDraft } from '@/lib/useNumberDraft'
 import PageShell from '@/components/layout/PageShell'
@@ -25,7 +25,8 @@ import { invalidateRuleBreakOptionsCache } from '@/components/calendar/RuleBreak
 import { rulesEqual } from '@/core/journal/rules'
 import { ONBOARDING_FLAG_KEY, ONBOARDING_FORCE_KEY } from '@/core/onboarding'
 import { TOUR_FLAG_KEY, TOUR_FORCE_KEY } from '@/core/tour'
-import { money } from '@/lib/format'
+import { duration, money } from '@/lib/format'
+import { estimateRemainingMs } from '@/core/market/refreshEta'
 import { useThemeMode, type ThemeMode } from '@/lib/theme'
 import type {
   ExportResult,
@@ -640,7 +641,7 @@ export default function Settings() {
                 onClick={runIntradayRefresh}
                 disabled={intradayRefreshing || dirty || !editor.polygon_api_key}
                 className="rounded-md border border-border-strong bg-bg-1 px-4 py-2 text-sm text-fg-primary transition-colors duration-150 hover:bg-bg-0 hover:border-gold/60 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
-                title="Fetches 1-minute bars for (symbol, date) pairs missing data. Check Force re-fetch to re-download all pairs. Used for EMA9 distance + MAE/MFE."
+                title="Fetches intraday bars for the (symbol, date) pairs missing them — they power the momentum EMA distance and MAE/MFE. Check Force re-fetch to re-download every pair. A large uncached book can take a long while; the estimate on the progress bar is measured as the run goes, not promised up front."
               >
                 {intradayRefreshing
                   ? 'Fetching intraday…'
@@ -656,7 +657,7 @@ export default function Settings() {
                   <span className="font-mono text-red">{refreshResult.failed}</span>{' '}
                   <span className="text-muted">failed · </span>
                   <span className="font-mono text-text">
-                    {(refreshResult.durationMs / 1000).toFixed(1)}s
+                    {duration(refreshResult.durationMs / 1000)}
                   </span>
                 </span>
               )}
@@ -740,7 +741,7 @@ export default function Settings() {
                   </span>{' '}
                   <span className="text-muted">MAE/MFE updated · </span>
                   <span className="font-mono text-text">
-                    {(intradayResult.durationMs / 1000).toFixed(1)}s
+                    {duration(intradayResult.durationMs / 1000)}
                   </span>
                 </div>
               </div>
@@ -970,7 +971,7 @@ function ExportButton({
 // "Starting…" line. Inline Cancel link sits on the label row; once clicked the
 // label flips to "Cancelling…" (coarse: in-flight pairs finish first; typical
 // lag is seconds, worst case ~42s under sustained 429 backoff).
-function RefreshProgressBar({
+export function RefreshProgressBar({
   progress,
   cancelling,
   onCancel,
@@ -983,6 +984,17 @@ function RefreshProgressBar({
     progress && progress.total > 0
       ? Math.floor((progress.current / progress.total) * 100)
       : 0
+
+  // Run start. This component is mounted only while a run is in flight (the
+  // caller gates it on the running flag), so mounting IS the start and the ref
+  // resets itself between runs without anyone clearing it.
+  const startedAtRef = useRef<number>(Date.now())
+  // Recomputed on each progress event rather than on a timer: an event is
+  // exactly when the estimate has new information, and a ticking clock would
+  // re-render the whole card for no added truth.
+  const remainingMs = progress
+    ? estimateRemainingMs(Date.now() - startedAtRef.current, progress.current, progress.total)
+    : null
   return (
     <div>
       <div className="h-2 w-full overflow-hidden rounded-sm bg-bg-1">
@@ -995,6 +1007,11 @@ function RefreshProgressBar({
             : progress
               ? `Fetching ${progress.symbol} (${progress.current}/${progress.total})`
               : 'Starting…'}
+        </span>
+        {/* An em-dash until there is a measured pace. Never a zero, never a
+            placeholder — the house law for money, applied to time. */}
+        <span className="text-fg-tertiary" data-testid="refresh-eta">
+          {remainingMs == null ? '—' : `~${duration(remainingMs / 1000)} left`}
         </span>
         {!cancelling && (
           <button
