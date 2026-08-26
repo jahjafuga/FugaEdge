@@ -279,7 +279,26 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.dna.bucket !== 'any' ||
     // A range alone must surface the Clear control, or a user can narrow the table
     // and find no way to widen it again.
-    Object.values(f.ranges ?? {}).some(isRangeActive)
+    Object.values(f.ranges ?? {}).some(isRangeActive) ||
+    // THE SAME RULING, EXTENDED. The sentence above was written for ranges and
+    // never reached the exclude arrays, which is how an exclusion became a
+    // filter with no way out: emptyFilters() wipes all seven, but the Clear
+    // button that calls it is gated on THIS predicate, so with an exclusion as
+    // the only filter the control never rendered and re-typing the query was
+    // the only escape. Two further consumers read the same answer -- the header
+    // count and the Edge disc's remembering dot -- so all three were reporting
+    // "nothing is filtering" while the table was visibly narrowed.
+    //
+    // Only Edge can author one today, which is precisely why they must be
+    // clearable: the user never chose the exclusion from a control they could
+    // go back to.
+    f.excludePlaybookIds.length > 0 ||
+    f.excludeMistakeKeys.length > 0 ||
+    f.excludeCatalystTypes.length > 0 ||
+    f.excludeRegions.length > 0 ||
+    f.excludeCountries.length > 0 ||
+    f.excludeSectors.length > 0 ||
+    f.excludeIndustries.length > 0
   )
 }
 
