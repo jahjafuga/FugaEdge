@@ -117,3 +117,75 @@ export async function withRateLimitRetry<T>(
   // type checker.
   throw lastErr
 }
+
+// ── The shared call budget ───────────────────────────────────────────────────
+// A pacer per path is not a budget. Several independent pacers, each correctly
+// spacing its own calls, together offer several times the ceiling because none
+// of them knows the others exist. This is the one object that does.
+//
+// UNWIRED as it lands: nothing imports it yet. Proving the primitive and proving
+// the wiring are separate claims, and a beat that made both at once could not
+// show either cleanly.
+//
+// THE MODEL is a cursor, not a counter. `nextFreeAt` is the earliest moment the
+// next call may be issued; every admission pushes it forward by one spacing.
+// That keeps the arithmetic in one place and makes the two modes differ in
+// exactly one respect — whether the caller waits for the cursor or is let
+// through ahead of it.
+
+export type CallKind = 'bulk' | 'interactive'
+
+export interface CallBudgetOptions {
+  /** The ceiling. The spacing is DERIVED from it, never chosen. */
+  callsPerMin: number
+  /** Injected clock; tests drive it. A budget reading the real clock cannot be
+   *  asserted — its refill would depend on how long the test took to run. */
+  now?: () => number
+  /** Injected sleep; tests pass an instant one. Same idiom as the retry helper
+   *  above and runWarmupBackfill's option. */
+  sleep?: (ms: number) => Promise<void>
+}
+
+export interface CallBudget {
+  /** Wait for (or claim) permission to issue one call. */
+  take(kind: CallKind): Promise<void>
+}
+
+/** One budget shared by every caller that goes through a common chokepoint.
+ *
+ *  BULK waits for the cursor, first come first served: takes are handed their
+ *  slot synchronously, before any await, so arrival order is admission order.
+ *
+ *  INTERACTIVE is admitted at once and never waits, but STILL SPENDS — the
+ *  cursor advances exactly as it would have, so the next bulk caller waits that
+ *  much longer. The reason it does not queue is a product one: the request
+ *  timeout only starts once a request is issued, so time spent waiting for
+ *  admission is time nothing is counting, and a user-facing fetch parked in a
+ *  queue shows a spinner with no end state. Letting it through keeps the
+ *  ceiling honest while keeping the interface answerable. If interactive did
+ *  NOT spend, the ceiling would be a fiction and "interactive" would just be
+ *  another word for unlimited. */
+export function createCallBudget(opts: CallBudgetOptions): CallBudget {
+  const spacingMs = spacingMsForCallsPerMin(opts.callsPerMin)
+  const now = opts.now ?? (() => Date.now())
+  const sleep = opts.sleep ?? realSleep
+
+  // The earliest instant the next call may go out. Zero means "no call yet".
+  let nextFreeAt = 0
+
+  return {
+    async take(kind: CallKind): Promise<void> {
+      const t = now()
+      // Claim the slot BEFORE awaiting anything. Two callers arriving in the
+      // same tick therefore claim distinct, ordered slots — without this they
+      // would both read the same cursor and wake together, which is the exact
+      // read-then-write race a per-path pacer already has.
+      const slotAt = Math.max(t, nextFreeAt)
+      nextFreeAt = slotAt + spacingMs
+
+      if (kind === 'interactive') return // spent, but never waits
+      const wait = slotAt - t
+      if (wait > 0) await sleep(wait)
+    },
+  }
+}
