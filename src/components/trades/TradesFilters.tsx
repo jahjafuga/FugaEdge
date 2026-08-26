@@ -7,6 +7,8 @@ import type { CatalystDef } from '@shared/catalyst-types'
 import { ipc } from '@/lib/ipc'
 import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
+import ExcludeChip from '@/components/trades/ExcludeChip'
+import { excludeChips, removeExcluded } from '@/core/trades/excludeChips'
 import Segmented from '@/components/ui/Segmented'
 import { withManualDate } from '@/core/trades/datePreset'
 import {
@@ -57,9 +59,32 @@ export default function TradesFilters({
     onChange({ ...filters, ranges: next })
   }
   const filtering = isFiltering(filters)
+  // Reads COMMITTED state, never draft text. The Edge bubble's chips are a
+  // useMemo over what is being typed and vanish when it closes (QueryBubble
+  // sets the text to empty on both close and open), which is exactly the gap
+  // this strip fills: an exclusion is authored by ONE sentence across several
+  // facets, so the alternative to a strip is opening seven dropdowns.
+  const chips = excludeChips(filters, trades)
 
   return (
     <div className="space-y-3">
+      {/* Active exclusions, named and individually removable. Rendered only when
+          there ARE some -- no empty container, no heading over nothing. */}
+      {chips.length > 0 && (
+        <div data-testid="exclusion-strip" className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Excluding
+          </span>
+          {chips.map((c) => (
+            <ExcludeChip
+              key={c.key}
+              label={c.label}
+              testId={`exclusion-chip-${c.field}`}
+              onRemove={() => onChange(removeExcluded(filters, c.field, c.value))}
+            />
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex h-8 items-center gap-2 rounded-md border border-border-subtle bg-bg-1 px-2.5 transition-colors duration-150 focus-within:border-gold">
           <Search size={14} strokeWidth={1.75} className="text-fg-tertiary" />

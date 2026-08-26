@@ -34,24 +34,55 @@ import {
   isFiltering,
   type TradesFilterState,
 } from '@/core/trades/tradesFilter'
+import {
+  excludeChips,
+  removeExcluded,
+  EXCLUDE_FIELDS,
+  type ExcludeField,
+} from '@/core/trades/excludeChips'
 import { makeTrade } from '@/test/fixtures/trade'
 
 // ─── RG1 : one per array ─────────────────────────────────────────────────────
 
-/** Every exclude array, with a value shaped the way that field carries it. */
-const EXCLUDE_CASES: [keyof TradesFilterState, unknown[]][] = [
-  ['excludePlaybookIds', [4]],
-  ['excludeMistakeKeys', [{ axis: 'technical', name: 'Chased extended' }]],
-  ['excludeCatalystTypes', ['Earnings']],
-  ['excludeRegions', ['China']],
-  ['excludeCountries', ['CN']],
-  ['excludeSectors', ['Healthcare']],
-  ['excludeIndustries', ['Biotechnology']],
+/** Every exclude array, with a value shaped the way that field carries it.
+ *
+ *  EXTENDED, NOT FORKED. This one table now drives four different questions --
+ *  does the predicate see it, does Clear empty it, what does its chip READ, and
+ *  does its chip's X REMOVE it -- and it still asserts exhaustively against
+ *  emptyFilters below. A second table would let an eighth array be added with a
+ *  guard in one place and none in the other, which is the six-of-seven shape all
+ *  of this exists to stop. */
+const EXCLUDE_CASES: {
+  field: ExcludeField
+  /** A real value, and the label its chip must read. */
+  value: unknown
+  valueLabel: string
+  /** The null bucket, and the EXISTING name the app already gives it. */
+  nullLabel: string
+}[] = [
+  { field: 'excludePlaybookIds',   value: 4,                                            valueLabel: 'Momentum',     nullLabel: 'No playbook' },
+  { field: 'excludeMistakeKeys',   value: { axis: 'technical', name: 'Chased extended' }, valueLabel: 'Chased extended', nullLabel: 'Chased extended' },
+  { field: 'excludeCatalystTypes', value: 'Earnings',                                   valueLabel: 'Earnings',     nullLabel: 'No catalyst' },
+  { field: 'excludeRegions',       value: 'China',                                      valueLabel: 'China',        nullLabel: 'Unknown' },
+  { field: 'excludeCountries',     value: 'CN',                                         valueLabel: 'CN',           nullLabel: 'Unknown' },
+  { field: 'excludeSectors',       value: 'Healthcare',                                 valueLabel: 'Healthcare',   nullLabel: 'Unknown' },
+  { field: 'excludeIndustries',    value: 'Biotechnology',                              valueLabel: 'Biotechnology', nullLabel: 'Unknown' },
 ]
 
+/** The rows the panel is handed. Carries a playbook NAME for id 4 so the chip
+ *  can read one without fetching -- the list read already joins it
+ *  (electron/trades/list.ts:252) and the panel gets the UNFILTERED book. */
+const NAMED_ROWS: TradeListRow[] = [
+  makeTrade({ id: 901, playbook_id: 4, playbook_name: 'Momentum' }),
+]
+
+/** mistakeKeys is the one field whose null bucket is not reachable -- it holds
+ *  objects, never null -- so its null case reuses the value case. */
+const hasNullBucket = (f: ExcludeField) => f !== 'excludeMistakeKeys'
+
 describe('RG1 an exclusion ALONE surfaces the Clear control', () => {
-  it.each(EXCLUDE_CASES)('%s alone counts as filtering', (field, value) => {
-    const state = { ...emptyFilters(), [field]: value } as TradesFilterState
+  it.each(EXCLUDE_CASES)('$field alone counts as filtering', ({ field, value }) => {
+    const state = { ...emptyFilters(), [field]: [value] } as TradesFilterState
     expect(
       isFiltering(state),
       `${String(field)} alone left isFiltering false — the Clear button will not render ` +
@@ -62,7 +93,7 @@ describe('RG1 an exclusion ALONE surfaces the Clear control', () => {
   it('all seven are covered by this suite, none silently missing', () => {
     // The defect being fixed is "six of seven handled". A count assertion here
     // means adding an eighth array without a case fails loudly.
-    const covered = EXCLUDE_CASES.map(([f]) => f).sort()
+    const covered = EXCLUDE_CASES.map((c) => c.field).sort()
     const declared = Object.keys(emptyFilters())
       .filter((k) => k.startsWith('exclude'))
       .sort()
@@ -82,7 +113,7 @@ describe('RG2 empty exclude arrays are NOT filtering', () => {
 
   it('every exclude array present but empty is still not filtering', () => {
     const state = { ...emptyFilters() }
-    for (const [field] of EXCLUDE_CASES) (state as never as Record<string, unknown[]>)[field] = []
+    for (const { field } of EXCLUDE_CASES) (state as never as Record<string, unknown[]>)[field] = []
     expect(isFiltering(state)).toBe(false)
   })
 })
@@ -148,7 +179,7 @@ describe('RG3 Clear renders for an exclusion, and empties it', () => {
     fireEvent.click(screen.getByText('Clear'))
     const next = onChange.mock.calls[0]![0] as TradesFilterState
     // The DOM half would pass for a control that merely disappeared.
-    for (const [field] of EXCLUDE_CASES) {
+    for (const { field } of EXCLUDE_CASES) {
       expect(
         (next as never as Record<string, unknown[]>)[field as string],
         `${String(field)} survived Clear`,
@@ -250,5 +281,201 @@ describe('RG4 and RG5 the other two consumers of the predicate', () => {
     ).toBeTruthy()
     const dot = document.querySelector('span.absolute.-right-0\\.5.-top-0\\.5')
     expect(dot, 'the "Edge remembering" dot stayed dark for an active exclusion').toBeTruthy()
+  })
+})
+
+// ─── RS1 : THE LABEL, two cases per array ────────────────────────────────────
+
+describe('RS1 every exclusion reads as a name', () => {
+  it.each(EXCLUDE_CASES)('$field renders its VALUE as a label', ({ field, value, valueLabel }) => {
+    const state = { ...emptyFilters(), [field]: [value] } as TradesFilterState
+    const chips = excludeChips(state, NAMED_ROWS)
+    expect(chips, `${field} produced no chip at all`).toHaveLength(1)
+    expect(
+      chips[0]!.label,
+      `${field} rendered "${chips[0]!.label}" -- a user cannot act on that`,
+    ).toBe(valueLabel)
+    expect(chips[0]!.label, 'an object leaked into the label').not.toBe('[object Object]')
+    expect(chips[0]!.label, 'a bare id reached the user').not.toMatch(/^\d+$/)
+  })
+
+  it.each(EXCLUDE_CASES)('$field renders its NULL bucket by its existing name', ({ field, nullLabel }) => {
+    const raw = hasNullBucket(field) ? null : { axis: 'technical', name: 'Chased extended' }
+    const state = { ...emptyFilters(), [field]: [raw] } as TradesFilterState
+    const chips = excludeChips(state, NAMED_ROWS)
+    expect(chips).toHaveLength(1)
+    expect(
+      chips[0]!.label,
+      'the null bucket rendered blank, "null", or a second vocabulary for a name ' +
+        'the app already has',
+    ).toBe(nullLabel)
+    expect(chips[0]!.label.trim()).not.toBe('')
+    expect(chips[0]!.label).not.toBe('null')
+  })
+
+  it('the table covers every field the module itself declares', () => {
+    // Ties the guard table to the module's own list, so an eighth array cannot
+    // be added to one and not the other.
+    expect(EXCLUDE_CASES.map((c) => c.field).sort()).toEqual([...EXCLUDE_FIELDS].sort())
+  })
+})
+
+// ─── RS2 : EMPTY IS NOTHING ──────────────────────────────────────────────────
+
+describe('RS2 no exclusions renders nothing at all', () => {
+  it('the derivation is empty', () => {
+    expect(excludeChips(emptyFilters(), NAMED_ROWS)).toEqual([])
+  })
+
+  it('and the panel renders no strip -- not an empty container, not a heading', () => {
+    render(<TradesFilters filters={emptyFilters()} onChange={() => {}} trades={NAMED_ROWS} />)
+    expect(screen.queryByTestId('exclusion-strip'), 'an empty strip rendered').toBeNull()
+    expect(screen.queryByText('Excluding'), 'a heading rendered over nothing').toBeNull()
+  })
+})
+
+// ─── RS3 : IT SURVIVES THE BUBBLE CLOSING ────────────────────────────────────
+
+describe('RS3 the strip reads committed state, not draft text', () => {
+  // THE DEFECT, asserted. The bubble's chips are a useMemo over `text`, and both
+  // close() and doOpen() set it to empty -- so anything derived from text is
+  // gone the moment the bubble is not being typed into. This renders the panel
+  // with NO bubble present at all, which is the same condition.
+  it('an exclusion is still named with no query text anywhere', () => {
+    const state = { ...emptyFilters(), excludeRegions: ['China'] }
+    render(<TradesFilters filters={state} onChange={() => {}} trades={NAMED_ROWS} />)
+    expect(
+      screen.getByTestId('exclusion-strip'),
+      'the strip vanished with the draft text -- this is the original defect',
+    ).toBeTruthy()
+    expect(screen.getByText('China')).toBeTruthy()
+  })
+})
+
+// ─── RS4 : REMOVAL, one case per array ───────────────────────────────────────
+
+describe('RS4 a chip removes ITS value and nothing else', () => {
+  it.each(EXCLUDE_CASES)('$field removes on the STATE, leaving the other six', ({ field, value }) => {
+    // Every array populated, so "left the others alone" is a real claim.
+    const state = { ...emptyFilters() } as TradesFilterState
+    for (const c of EXCLUDE_CASES) (state as never as Record<string, unknown[]>)[c.field] = [c.value]
+
+    const next = removeExcluded(state, field, value)
+
+    expect(
+      (next as never as Record<string, unknown[]>)[field],
+      `${field}'s X did not remove its value -- the chip is decorative`,
+    ).toEqual([])
+    for (const other of EXCLUDE_CASES) {
+      if (other.field === field) continue
+      expect(
+        (next as never as Record<string, unknown[]>)[other.field],
+        `removing from ${field} also emptied ${other.field}`,
+      ).toHaveLength(1)
+    }
+  })
+
+  it('and the panel wires the X to that removal, asserted on the state', () => {
+    // The DOM half alone would pass for a control that merely disappeared --
+    // beat 76 measured exactly that. So the assertion is on what onChange got.
+    const onChange = vi.fn()
+    const state = { ...emptyFilters(), excludeRegions: ['China'], excludeSectors: ['Healthcare'] }
+    render(<TradesFilters filters={state} onChange={onChange} trades={NAMED_ROWS} />)
+
+    fireEvent.click(screen.getByLabelText('remove exclusion China'))
+
+    const next = onChange.mock.calls[0]![0] as TradesFilterState
+    expect(next.excludeRegions, 'the region survived its own X').toEqual([])
+    expect(next.excludeSectors, 'an unrelated exclusion was cleared too').toEqual(['Healthcare'])
+  })
+})
+
+// ─── RS5 : THE TRAP ──────────────────────────────────────────────────────────
+
+describe('RS5 a mistake key removes by identity, not by reference', () => {
+  // The house remover is `filter((x) => x !== value)` -- inline at
+  // TradesFilters.tsx:457 and :910, both on POSITIVE arrays of primitives.
+  // Copied here it would no-op on this field with no visible symptom: the chip
+  // would render, the X would click, and nothing would change. After a round
+  // trip through storage the state's object is NEVER the chip's object, so this
+  // is the everyday case, not an edge one.
+  it('a DIFFERENT object with the same axis and name still removes', () => {
+    const stored = { axis: 'technical' as const, name: 'Chased extended' }
+    const state = { ...emptyFilters(), excludeMistakeKeys: [stored] }
+    const fromChip = { axis: 'technical' as const, name: 'Chased extended' }
+    expect(fromChip, 'the test handed back the same reference, so it proves nothing').not.toBe(stored)
+
+    const next = removeExcluded(state, 'excludeMistakeKeys', fromChip)
+
+    expect(
+      next.excludeMistakeKeys,
+      'reference equality left the mistake in place -- the X does nothing and ' +
+        'says nothing',
+    ).toEqual([])
+  })
+
+  it('and it does NOT remove a same-named key on the other axis', () => {
+    // The companion: without it, "removes by identity" would pass for a
+    // comparator that matched on name alone, and the axes exist because the
+    // same name can live on both.
+    const state = {
+      ...emptyFilters(),
+      excludeMistakeKeys: [
+        { axis: 'technical' as const, name: 'Chased extended' },
+        { axis: 'psychological' as const, name: 'Chased extended' },
+      ],
+    }
+    const next = removeExcluded(state, 'excludeMistakeKeys', {
+      axis: 'technical' as const,
+      name: 'Chased extended',
+    })
+    expect(next.excludeMistakeKeys).toEqual([
+      { axis: 'psychological', name: 'Chased extended' },
+    ])
+  })
+})
+
+// ─── RS6 : NULL REMOVAL ──────────────────────────────────────────────────────
+
+describe('RS6 removing a null chip removes the null', () => {
+  it('not the first element, and not nothing', () => {
+    const state = { ...emptyFilters(), excludeRegions: ['China', null, 'USA'] }
+    const next = removeExcluded(state, 'excludeRegions', null)
+    expect(
+      next.excludeRegions,
+      'a remover that treats null as "nothing to remove", or that removes by ' +
+        'position, fails here and only here',
+    ).toEqual(['China', 'USA'])
+  })
+
+  it('and a value chip does not take the null with it', () => {
+    const state = { ...emptyFilters(), excludeRegions: ['China', null] }
+    expect(removeExcluded(state, 'excludeRegions', 'China').excludeRegions).toEqual([null])
+  })
+})
+
+// ─── RS7 : SCOPE GUARD — GREEN BEFORE THE CURE ───────────────────────────────
+
+describe('RS7 the positive controls are untouched', () => {
+  it('a positive filter still renders its own control, and no exclusion chip', () => {
+    const state = { ...emptyFilters(), regions: ['China'] }
+    render(<TradesFilters filters={state} onChange={() => {}} trades={NAMED_ROWS} />)
+    expect(screen.getByText('Region')).toBeTruthy()
+    expect(
+      screen.queryByTestId('exclusion-strip'),
+      'a POSITIVE filter rendered an EXCLUSION chip -- the two sides are crossed',
+    ).toBeNull()
+  })
+
+  it('and the engine still partitions exactly as before', () => {
+    // R79: removal shortens an array; nothing in the engine learns anything.
+    const rows = [
+      makeTrade({ id: 1, net_pnl: -100, region: 'China' }),
+      makeTrade({ id: 2, net_pnl: -200, region: 'USA' }),
+    ]
+    const withEx = { ...emptyFilters(), excludeRegions: ['China'] }
+    expect(applyTradesFilters(rows, withEx).map((t) => t.id)).toEqual([2])
+    const after = removeExcluded(withEx, 'excludeRegions', 'China')
+    expect(applyTradesFilters(rows, after).map((t) => t.id)).toEqual([1, 2])
   })
 })
