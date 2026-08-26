@@ -5,7 +5,11 @@ import {
   MassiveError,
   type IntradayBar,
 } from './massive'
-import { withRateLimitRetry } from './rate-limit'
+import {
+  POLYGON_FREE_TIER_CALLS_PER_MIN,
+  spacingMsForCallsPerMin,
+  withRateLimitRetry,
+} from './rate-limit'
 import type { MarketRefreshProgress } from '@shared/market-types'
 import {
   getIntradayRow,
@@ -14,11 +18,29 @@ import {
   upsertIntradayRow,
 } from './repo'
 
-/** Proactive inter-call spacing for the bars refresh. EXPORTED so its guard can
- *  assert against the constant rather than a literal — a hardcoded number in a
- *  test keeps passing after the value changes, which is precisely when it should
- *  stop. The VALUE is unchanged by the beat that exported it. */
-export const REQUEST_SPACING_MS = 350
+/** Proactive inter-call spacing for the bars refresh, DERIVED from the rate tier
+ *  rather than chosen. It was an ad-hoc 350ms — about three calls a second
+ *  against a five-a-minute limit — so the bucket emptied in under two seconds
+ *  and every call after that was absorbed by withRateLimitRetry's backoff
+ *  instead of paced under the limit.
+ *
+ *  THE SIBLING ALREADY MADE THIS RULING. electron/market/fetch.ts:22-28 records
+ *  it verbatim: "respectSpacing paces at WARMUP_SPACING_MS (derived from
+ *  Polygon's 5/min free tier) instead of the old ad-hoc 350ms … The old
+ *  REQUEST_SPACING_MS (~3/s, which blasted the 5/min bucket) + single
+ *  aggregate-only RETRY_BACKOFF_MS retry are gone — that ad-hoc throttle was the
+ *  cause of the '145 failed' 429 storm." That fix never reached this file.
+ *
+ *  DERIVED, NOT IMPORTED. It would be shorter to import WARMUP_SPACING_MS, but
+ *  that constant is named for one caller and would then pace two — the shape
+ *  that lets a rename or a caller-specific tweak silently move the other. Both
+ *  read the same tier number through the same pure function, so a tier change
+ *  is one edit in one place.
+ *
+ *  EXPORTED so its guard asserts the DERIVATION rather than a literal: a test
+ *  pinning the number this produces today would pass today and stop guarding the
+ *  moment the tier moved, which is the one occasion it exists for. */
+export const REQUEST_SPACING_MS = spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN)
 const MAX_CONCURRENT = 2
 
 export interface IntradayRefreshResult {

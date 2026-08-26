@@ -60,6 +60,10 @@ vi.mock('../massive', async (importOriginal) => {
 })
 
 import { refreshIntraday, REQUEST_SPACING_MS } from '../intraday'
+import {
+  POLYGON_FREE_TIER_CALLS_PER_MIN,
+  spacingMsForCallsPerMin,
+} from '../rate-limit'
 
 // ─── RJ1 ─────────────────────────────────────────────────────────────────────
 
@@ -156,5 +160,27 @@ describe('RJ4 the worklist is untouched', () => {
     expect(fetched, 'the never-fetched key was skipped').toContain('NEVER')
     expect(fetched, 'a cleanly-cached key was re-fetched').not.toContain('CACHED')
     expect(result.attempted).toBe(1)
+  })
+})
+
+// ─── RK1 ─────────────────────────────────────────────────────────────────────
+
+describe('RK1 the spacing is DERIVED from the rate tier', () => {
+  // COMPUTED, never written down. A test pinning the number the tier happens to
+  // produce today would pass today and stop guarding the moment the tier moved,
+  // which is the one occasion it exists for. The derivation is the assertion.
+  it('it equals the tier derivation, not an ad-hoc number', () => {
+    expect(
+      REQUEST_SPACING_MS,
+      'the bars pacer is not derived from the rate tier — it will burn the ' +
+        'bucket and absorb the limit as retry backoff instead of pacing under it',
+    ).toBe(spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN))
+  })
+
+  it('and it paces at or under the tier, never above it', () => {
+    // The relationship, stated independently of the arithmetic: at this spacing
+    // the calls-per-minute it permits must not exceed what the tier allows.
+    const callsPerMinuteAllowed = 60_000 / REQUEST_SPACING_MS
+    expect(callsPerMinuteAllowed).toBeLessThanOrEqual(POLYGON_FREE_TIER_CALLS_PER_MIN)
   })
 })
