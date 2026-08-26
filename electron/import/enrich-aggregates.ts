@@ -10,7 +10,11 @@
 
 import { getSettings } from '../settings/repo'
 import { fetchAggregatesForSymbol } from '../market/fetch'
-import { withRateLimitRetry } from '../market/rate-limit'
+import {
+  POLYGON_FREE_TIER_CALLS_PER_MIN,
+  spacingMsForCallsPerMin,
+  withRateLimitRetry,
+} from '../market/rate-limit'
 import {
   getMarketRow,
   setTradeDailyChange,
@@ -27,7 +31,17 @@ import {
 import { dailyChangeForTrade } from '@/core/market/dailyChange'
 import { rvolFor } from '@/core/market/rvol'
 
-const REQUEST_SPACING_MS = 350
+/** Proactive inter-call spacing, DERIVED from the rate limit rather than chosen.
+ *  It was an ad-hoc 350ms against a budget of five a minute, so the budget
+ *  emptied almost at once and the ceiling arrived as retry backoff rather than
+ *  as pacing. electron/market/fetch.ts:22-28 records the identical constant
+ *  being removed elsewhere as the cause of the "145 failed" storm and names this
+ *  replacement.
+ *
+ *  The wait itself belongs to the pure orchestrator this hands it to; what lives
+ *  here is the VALUE, which is what was wrong. EXPORTED so its guard asserts the
+ *  derivation rather than a literal. */
+export const REQUEST_SPACING_MS = spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN)
 
 /** Fetch daily-bar aggregates (volume series + 30-day-ish average) for
  *  each newly-imported symbol, upsert the market_data row's daily_volumes

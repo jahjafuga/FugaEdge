@@ -22,7 +22,11 @@ import type {
 import { openDatabase } from '../db/database'
 import { getSettings } from '../settings/repo'
 import { fetchDailyAggregates } from './massive'
-import { withRateLimitRetry } from './rate-limit'
+import {
+  POLYGON_FREE_TIER_CALLS_PER_MIN,
+  spacingMsForCallsPerMin,
+  withRateLimitRetry,
+} from './rate-limit'
 import {
   getMarketRow,
   setTradeDailyChange,
@@ -36,7 +40,21 @@ import { dailyChangeForTrade } from '@/core/market/dailyChange'
 
 // Literal must match the migration's arm in electron/db/database.ts.
 const PENDING_KEY = 'daily_change_backfill_pending'
-const REQUEST_SPACING_MS = 350 // ~3/s floor, matches the import aggregates path
+/** Proactive inter-call spacing, DERIVED from the rate limit rather than chosen.
+ *  It was an ad-hoc 350ms — roughly three calls a second against a budget of
+ *  five a minute — so the budget emptied in under two seconds and everything
+ *  after it was absorbed by withRateLimitRetry's backoff instead of paced under
+ *  the ceiling.
+ *
+ *  THE RULING ALREADY EXISTS. electron/market/fetch.ts:22-28 records it for the
+ *  identical constant: "respectSpacing paces at WARMUP_SPACING_MS (derived from
+ *  … the free tier) instead of the old ad-hoc 350ms … that ad-hoc throttle was
+ *  the cause of the '145 failed' 429 storm." That correction reached one file at
+ *  a time; this is another.
+ *
+ *  EXPORTED so its guard asserts the DERIVATION rather than a literal: a pinned
+ *  number would pass today and stop guarding the moment the limit moved. */
+export const REQUEST_SPACING_MS = spacingMsForCallsPerMin(POLYGON_FREE_TIER_CALLS_PER_MIN)
 
 let inFlight: Promise<DailyChangeBackfillResult> | null = null
 let cancelRequested = false
@@ -51,7 +69,14 @@ export function cancelDailyChangeBackfill(): void {
  *  Singleton-locked (mirrors backfillAllFloat) so a double-click or the auto-arm
  *  racing the button can't run two sweeps at once. */
 export function backfillAllDailyChange(
-  opts: { emitProgress?: (p: DailyChangeBackfillProgress) => void } = {},
+  opts: {
+    emitProgress?: (p: DailyChangeBackfillProgress) => void
+    /** Injectable sleep (tests pass an instant one); defaults to setTimeout-based
+     *  real sleep. Mirrors runWarmupBackfill's option — the same shape for the
+     *  same reason: without it the pacing is unobservable, which is how an
+     *  ad-hoc value survived here unnoticed. */
+    sleep?: (ms: number) => Promise<void>
+  } = {},
 ): Promise<DailyChangeBackfillResult> {
   if (inFlight) return inFlight
   inFlight = run(opts).finally(() => {
@@ -62,9 +87,13 @@ export function backfillAllDailyChange(
 
 async function run(opts: {
   emitProgress?: (p: DailyChangeBackfillProgress) => void
+  sleep?: (ms: number) => Promise<void>
 }): Promise<DailyChangeBackfillResult> {
   const startedAt = Date.now()
   cancelRequested = false
+  // Injectable clock (tests pass an instant sleep); real setTimeout in prod.
+  const sleep =
+    opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
 
   const empty = (over: Partial<DailyChangeBackfillResult>): DailyChangeBackfillResult => ({
     symbolsAttempted: 0,
@@ -97,7 +126,7 @@ async function run(opts: {
     // loop so foreground API needs aren't starved.
     const since = Date.now() - lastRequestAt
     if (since < REQUEST_SPACING_MS) {
-      await new Promise((r) => setTimeout(r, REQUEST_SPACING_MS - since))
+      await sleep(REQUEST_SPACING_MS - since)
     }
     lastRequestAt = Date.now()
 
