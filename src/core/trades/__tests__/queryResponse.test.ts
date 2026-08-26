@@ -156,3 +156,154 @@ describe('G9 fully resolved -- byte-identical to what ships today', () => {
     expect(out).not.toMatch(/ignored/i)
   })
 })
+
+// ─── RW : THE RESPONSE STOPS CONTRADICTING THE STATE ─────────────────────────
+//
+// The line branched on THIS ASK's applied list and nothing else. So a sentence
+// it could not read, typed over a filter already in force, said "nothing was
+// filtered" while the header counted a filtered book and the strip named the
+// exclusion doing the filtering. Three statements on one screen, two of them
+// true. The count was right, the strip was right, and the sentence was wrong.
+//
+// THE FIX IS WORDING, AND THAT IS NOT A DODGE. "Your filters are unchanged" is
+// true whether or not something is in force, so the line needs no knowledge of
+// the state to stop lying about it. The alternative -- teaching it the state --
+// would mean threading one through from the bubble, and the bubble is out of
+// scope this beat. Measured, not preferred: the response has exactly ONE
+// caller, so a new parameter is a caller edit, and that decides it.
+//
+// THE MINIMUM FIXTURE, deliberately. A book rich enough to be realistic can
+// mask the very thing under test -- the previous beat's first draft passed for
+// the reported case because a second playbook name shadowed the first. The
+// contradiction needs exactly two things: a state that IS filtering, and an ask
+// that resolves nothing. One region is enough to build both.
+
+import { resolveQuery, type ResolverVocabulary } from '../queryResolver'
+import { emptyFilters, isFiltering } from '../tradesFilter'
+
+const RW_NOW = new Date('2026-08-22T15:00:00')
+
+/** The smallest book that can produce the contradiction. One negatable term,
+ *  nothing else -- so no second name can shadow anything. */
+const MIN: ResolverVocabulary = {
+  symbols: [],
+  regions: ['USA'],
+  countries: [],
+  sectors: [],
+  industries: [],
+  playbooks: [],
+  catalystTypes: [],
+  mistakes: [],
+}
+
+/** The gibberish ask. Matches nothing in any book, which is the point. */
+const NONSENSE = 'qwzzk'
+
+const lineFor = (r: ReturnType<typeof resolveQuery>, count: number) =>
+  responseLine({ count, applied: r.applied, unresolved: r.unresolved, limit: r.state.limit })
+
+// ─── RW1 : THE DEFECT ────────────────────────────────────────────────────────
+
+describe('RW1 an unreadable ask never claims nothing is filtered', () => {
+  it('driven through the real two-step composition, not a hand-built state', () => {
+    // STEP ONE: an ask that actually filters.
+    const first = resolveQuery('not usa', MIN, RW_NOW, emptyFilters())
+    expect(first.state.excludeRegions, 'step one did not filter, so step two proves nothing').toEqual(['USA'])
+
+    // STEP TWO: an ask it cannot read, composed on top -- exactly what happens
+    // when the user types again without clearing.
+    const second = resolveQuery(NONSENSE, MIN, RW_NOW, first.state)
+    expect(second.applied, 'step two resolved something').toEqual([])
+    expect(
+      isFiltering(second.state),
+      'the composed state is not filtering, so there is no contradiction to catch',
+    ).toBe(true)
+
+    const line = lineFor(second, 131)
+    expect(
+      line,
+      `the response said nothing was filtered while the state still excludes a ` +
+        `region and the header counts a filtered book: ${line}`,
+    ).not.toContain('nothing was filtered')
+  })
+
+  it('and it still names what it could not read', () => {
+    const first = resolveQuery('not usa', MIN, RW_NOW, emptyFilters())
+    const second = resolveQuery(NONSENSE, MIN, RW_NOW, first.state)
+    expect(lineFor(second, 131)).toContain(NONSENSE)
+  })
+
+  it('and it still carries no count', () => {
+    // The original ruling. Nothing resolved means no result set to describe,
+    // and that must survive the rewording.
+    const first = resolveQuery('not usa', MIN, RW_NOW, emptyFilters())
+    const second = resolveQuery(NONSENSE, MIN, RW_NOW, first.state)
+    expect(lineFor(second, 131)).not.toMatch(/\d+\s*trades?\b/i)
+  })
+})
+
+// ─── RW2 : THE DISCRIMINATING COMPANION ──────────────────────────────────────
+
+describe('RW2 an unreadable ask on an EMPTY state still speaks to filters', () => {
+  // Without this, RW1 passes for a line that stopped mentioning filters at all
+  // -- which would be a different regression wearing the same green.
+  it('the state really is empty, and the line still answers', () => {
+    const out = resolveQuery(NONSENSE, MIN, RW_NOW, emptyFilters())
+    expect(isFiltering(out.state), 'the base was not empty').toBe(false)
+    const line = lineFor(out, 140)
+    expect(line, 'the line stopped mentioning filters entirely').toMatch(/filter/i)
+    expect(line, 'the refused text was dropped').toContain(NONSENSE)
+    expect(line, 'a count leaked into a failure line').not.toMatch(/\d+\s*trades?\b/i)
+  })
+})
+
+// ─── RW3 : A RESOLVED ASK IS UNTOUCHED ───────────────────────────────────────
+
+describe('RW3 a fully resolved ask reports exactly what it applied', () => {
+  it('byte-identical to what ships today', () => {
+    expect(
+      responseLine({ count: 12, applied: ['outcome losers'], unresolved: [] }),
+    ).toBe('12 trades - outcome losers')
+  })
+
+  it('and the rewording did not leak into the success path', () => {
+    const line = responseLine({ count: 12, applied: ['outcome losers'], unresolved: [] })
+    expect(line, 'a working query was told its filters were unchanged').not.toMatch(/unchanged/i)
+  })
+})
+
+// ─── RW4 : PARTIAL IS UNCHANGED — THE RULING IS NOT TOUCHED ──────────────────
+
+describe('RW4 a partly resolved ask still names the ignored text', () => {
+  // The partial-application RULING is not this beat's to change: a query that
+  // resolves some tokens still applies them. Only the wording of the
+  // nothing-resolved branch moves.
+  it('the count, the applied list, and the ignored clause', () => {
+    expect(
+      responseLine({ count: 56, applied: ['outcome losers'], unresolved: ['chinese'] }),
+    ).toBe('56 trades - outcome losers (ignored "chinese")')
+  })
+})
+
+// ─── RW5 : SCOPE GUARD — the two messages stay separate ──────────────────────
+
+describe('RW5 the per-token seam is not absorbed into this line', () => {
+  // The bubble has its own message for unmatched text, gated purely on the
+  // unresolved list and independent of what applied. It appeared beside a
+  // WORKING chip in the reported frame, which is correct behaviour, and it is
+  // not this file's to produce.
+  it('the response never emits the bubble seam phrase', () => {
+    const inputs: Parameters<typeof responseLine>[0][] = [
+      { count: 140, applied: [], unresolved: [NONSENSE] },
+      { count: 140, applied: [], unresolved: [] },
+      { count: 56, applied: ['outcome losers'], unresolved: ['chinese'] },
+      { count: 12, applied: ['outcome losers'], unresolved: [] },
+    ]
+    for (const i of inputs) {
+      expect(
+        responseLine(i),
+        'the two messages were merged -- the bubble seam is per-token and correct',
+      ).not.toContain('match anything in this book')
+    }
+  })
+})

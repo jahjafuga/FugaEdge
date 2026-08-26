@@ -32,16 +32,27 @@ const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
 export function responseLine({ count, applied, unresolved, limit }: ResponseInput): string {
-  // NOTHING APPLIED. No filter ran, so there is no result set and no number to
-  // report — printing the book's own size here is the defect this exists to
-  // stop. Say what could not be read instead, so the sentence the user typed
-  // is what comes back at them.
+  // NOTHING APPLIED. This ask ran no filter, so there is no result set and no
+  // number to report — printing the book's own size here is the defect this
+  // file exists to stop. Say what could not be read instead, so the sentence
+  // the user typed is what comes back at them.
+  //
+  // AND IT SPEAKS ONLY FOR THIS ASK. It used to say "nothing was filtered",
+  // which is a claim about the STATE — and the state is whatever the LAST
+  // readable ask left in force. Type a sentence Edge cannot read over a live
+  // filter and the line said nothing was filtered while the header counted a
+  // filtered book and the strip named the exclusion doing it. Three statements,
+  // two of them true.
+  //
+  // "Your filters are unchanged" is true either way, so the line needs no
+  // knowledge of the state to stop lying about it — and what IS in force is
+  // already named on screen by the exclusion strip beside it.
   if (applied.length === 0) {
     return unresolved.length > 0
-      ? `I could not read ${quoteList(unresolved)} — nothing was filtered.`
+      ? `I could not read ${quoteList(unresolved)} — your filters are unchanged.`
       : // Pure filler: nothing applied AND nothing left over to quote. Silence
         // here would read as a hang, so it still answers.
-        'I could not read that — nothing was filtered.'
+        'I could not read that — your filters are unchanged.'
   }
 
   // The MATCHED count, always. A limit hides rows that qualified, so the number
