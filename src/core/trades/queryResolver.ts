@@ -103,6 +103,23 @@ export const STOPWORDS = new Set([
   'show', 'me', 'the', 'a', 'an', 'my', 'i', 'have', 'had', 'has', 'that',
   'with', 'of', 'in', 'on', 'all', 'and', 'for', 'to', 'from', 'by',
   'trade', 'trades', 'company', 'companies', 'stock', 'stocks',
+  // v0.2.7 -- nine more, every one measured before it was added. Twenty
+  // sentences a trader would actually type were driven against a real book and
+  // ten came back with a non-empty ignored clause while being understood
+  // perfectly; these are the words that filled it. Each was driven ALONE
+  // first and applied nothing, so none of them can ever narrow a book by
+  // itself, which is the only test for joining this list.
+  //
+  // "last" was REFUSED entry by that test even though it appeared the same
+  // way: "last week" is a real range, and calling it filler would silently
+  // accept it as "this week". A word that means something is not filler just
+  // because the parser cannot reach it yet.
+  'give', 'where', 'what', 'were', 'are', 'find', 'everything', 'this',
+  // "money" earns its place for a different reason: "lost money" already
+  // resolved to losers off "lost", so the word narrows nothing that is not
+  // already narrowed. It remains a COLUMN name -- "money over one hundred"
+  // still resolves, because comparisons reach columns by a different path.
+  'money',
 ])
 
 /** Words that REFUSE the term beside them. A NEW named set, deliberately not

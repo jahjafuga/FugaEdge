@@ -199,3 +199,199 @@ describe('G6 the shipped two-character ambiguity behaviour is unchanged', () => 
     expect(out.unresolved).toEqual([])
   })
 })
+
+// ─── RY : THE WORDS EDGE WAS MISSING ─────────────────────────────────────────
+//
+// Twenty sentences a trader would actually type were driven against a real
+// book. Ten carried a non-empty unresolved while being understood perfectly --
+// and every one of those leftovers was a phrasing habit, not a filter term.
+// "give me", "where", "what were", "find", "everything", "this month" all
+// landed in the ignored clause, so a rule that refuses on unresolved would
+// have refused half of ordinary use.
+//
+// FILLER IS A JUDGEMENT, NOT A FREE ACTION. A word joins this list only if it
+// can never mean anything filterable ON ITS OWN. Each of the nine below was
+// driven alone against a real book first and applied nothing, ambiguously or
+// otherwise. "last" was REFUSED entry by that test: "last week" is a real
+// range, and making it filler would silently accept it as "this week".
+// Superlatives were refused entry too, for a different reason recorded below.
+//
+// WHAT THE LIST DOES, AND DOES NOT. A stopword is marked only AFTER the match
+// attempt and only when nothing matched -- queryResolver.ts:926-927. So adding
+// a word suppresses the REPORT of a word that found nothing; it never prevents
+// a word from matching. G4 above is the deliberate ruling that an exact
+// vocabulary hit beats the filler list, and it still holds.
+//
+// EXACT VOCABULARY ONLY. No floor moved, no tier added, no did-you-mean. RY6
+// pins that behaviourally rather than by reading the source.
+
+/** A book with the geography and the sector the twenty sentences need, plus
+ *  Malaysia -- deliberately, because "my" exactly matches its code and that
+ *  behaviour is guarded here as it actually is rather than as one might wish. */
+const RY_BOOK: ResolverVocabulary = {
+  symbols: [],
+  regions: ['USA', 'China', 'Hong Kong'],
+  countries: [
+    { iso: 'US', name: 'United States' },
+    { iso: 'MY', name: 'Malaysia' },
+  ],
+  sectors: ['Healthcare'],
+  industries: [],
+  playbooks: [{ id: 1, name: 'Bull Flag', tier: 'A' }],
+  catalystTypes: [],
+  mistakes: [{ axis: 'technical', name: 'Chased extension (too far from 9 EMA)' }],
+}
+const ry = (t: string) => resolveQuery(t, RY_BOOK, NOW, emptyFilters())
+
+/** The nine words this beat adds, each with a sentence that carried it into
+ *  the ignored clause, and the same sentence without it. */
+const FILLER_CASES: { word: string; withIt: string; without: string }[] = [
+  { word: 'give',       withIt: 'give me chinese losers',        without: 'chinese losers' },
+  { word: 'where',      withIt: 'trades where i lost',           without: 'i lost' },
+  { word: 'what',       withIt: 'what were my losers',           without: 'were my losers' },
+  { word: 'were',       withIt: 'were my losers chinese',        without: 'my losers chinese' },
+  { word: 'are',        withIt: 'what are my chinese trades',    without: 'what my chinese trades' },
+  { word: 'find',       withIt: 'find my chinese winners',       without: 'my chinese winners' },
+  { word: 'everything', withIt: 'everything chinese',            without: 'chinese' },
+  { word: 'this',       withIt: 'chinese losers this month',     without: 'chinese losers month' },
+  { word: 'money',      withIt: 'chinese stocks that lost money', without: 'chinese stocks that lost' },
+]
+
+// ─── RY1 and RY2 : ONE CASE PER ADDED WORD ───────────────────────────────────
+
+describe('RY1 each added filler word is ignored, and changes nothing else', () => {
+  it.each(FILLER_CASES)('$word no longer reaches the ignored clause', ({ word, withIt }) => {
+    const out = ry(withIt)
+    expect(
+      out.unresolved.join(' '),
+      `"${word}" still comes back as unread, so a refusal rule would refuse ` +
+        `"${withIt}" -- an ordinary sentence Edge understands`,
+    ).not.toContain(word)
+  })
+
+  it.each(FILLER_CASES)('$word leaves the resolved state identical', ({ word, withIt, without }) => {
+    // The word is IGNORED, not interpreted. If dropping it changed the answer
+    // it was never filler.
+    expect(
+      ry(withIt).state,
+      `"${word}" changed what the sentence means`,
+    ).toEqual(ry(without).state)
+  })
+
+  it.each(FILLER_CASES)('$word alone applies nothing at all', ({ word }) => {
+    // The R103 test, executed rather than asserted in prose: a word joins the
+    // filler list only if it can never mean anything filterable on its own.
+    const out = ry(word)
+    expect(out.applied, `"${word}" applied something alone`).toEqual([])
+    expect(out.ambiguous, `"${word}" was offered as a choice`).toEqual([])
+    expect(out.state).toEqual(emptyFilters())
+  })
+})
+
+// ─── RY4 : THE TWENTY, THE INSTRUMENT ────────────────────────────────────────
+
+/** Beat 116's twenty, verbatim. The count alone would pass if the wrong ones
+ *  were fixed, so the dirty ones are named and the blocking word is named. */
+const TWENTY: string[] = [
+  'show me chinese losers', 'give me the trades where i lost money',
+  'what were my losers last week', 'find trades under 10 dollars',
+  'i want chinese stocks', 'chinese losers', 'show me my winners',
+  'all my chinese trades', 'trades with float under 10 million',
+  'show me the last 10 trades', 'my biggest losers', 'losers from china',
+  'show me trades in healthcare', 'what are my worst trades',
+  'chinese stocks that lost money', 'show me everything under 5 dollars',
+  'trades where i chased extended', 'my hong kong trades',
+  'show me losers this month', 'find my chinese winners',
+]
+
+/** The six that REMAIN dirty after this beat, each with the word that blocks
+ *  it. Every one is a PARSER gap, not a vocabulary gap, and is deliberately
+ *  out of scope here. */
+const STILL_DIRTY: Record<string, string> = {
+  'what were my losers last week': 'last',
+  // MEASURED, and it corrects an assumption. On the real book this sentence
+  // looked CLEAN -- but only because "want" substring-matched the mistake
+  // "High-volume pullback (wanted low volume)" and applied it. On a book
+  // without that mistake the word honestly comes back unread. "want" is
+  // therefore NOT filler by the R103 test: it matches something on a real
+  // book, and adding it to the list would not stop that match anyway.
+  'i want chinese stocks': 'want',
+  'find trades under 10 dollars': 'under 10 dollars',
+  'my biggest losers': 'biggest',
+  'what are my worst trades': 'worst',
+  'show me everything under 5 dollars': 'under 5 dollars',
+  'trades where i chased extended': 'extended',
+}
+
+describe('RY4 the twenty sentences', () => {
+  it('exactly thirteen resolve with nothing left over', () => {
+    const clean = TWENTY.filter((q) => ry(q).unresolved.length === 0)
+    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(13)
+  })
+
+  it('and the seven that do not are these seven, by name', () => {
+    const dirty = TWENTY.filter((q) => ry(q).unresolved.length > 0).sort()
+    expect(dirty).toEqual(Object.keys(STILL_DIRTY).sort())
+  })
+
+  it.each(Object.entries(STILL_DIRTY))('%s is blocked by %s', (q, blocker) => {
+    // Naming the blocker means a later beat that fixes the parser has to
+    // update this table on purpose rather than watch a number drift.
+    expect(ry(q).unresolved.join(' ')).toContain(blocker.split(' ')[0]!)
+  })
+})
+
+// ─── RY5 : SCOPE GUARD — the other seven uses of the list ────────────────────
+
+describe('RY5 adding filler changes no existing resolution', () => {
+  // STOPWORDS is consulted in eight places, not one: the magnitude scan, the
+  // negation span, two limit scans, two comparison-adjacency rules, the value
+  // scan, and the all-filler guard on the fuzzy tiers. Adding words changes
+  // how far each of those scans, so each is pinned here.
+  const PINNED: [string, unknown][] = [
+    ['the last 10 trades', { limit: 10, sort: { colId: 'open_time', dir: 'desc' } }],
+    ['float under 10 million', { ranges: { float: { min: null, max: 10_000_000 } } }],
+    ['winners over 100', { outcome: 'winners', ranges: { net_pnl: { min: 100, max: null } } }],
+    ['money over 100', { ranges: { net_pnl: { min: 100, max: null } } }],
+    ['not from hong kong', { excludeRegions: ['Hong Kong'] }],
+    ['chinese losers', { outcome: 'losers', regions: ['China'] }],
+  ]
+  it.each(PINNED)('%s resolves exactly as before', (ask, expected) => {
+    const out = ry(ask as string)
+    const base = emptyFilters() as unknown as Record<string, unknown>
+    const got: Record<string, unknown> = {}
+    const st = out.state as unknown as Record<string, unknown>
+    for (const k of Object.keys(st)) {
+      if (JSON.stringify(st[k]) !== JSON.stringify(base[k])) got[k] = st[k]
+    }
+    expect(got).toEqual(expected)
+  })
+})
+
+// ─── RY6 : SCOPE GUARD — no floor moved, no tier added ──────────────────────
+
+describe('RY6 the three tiers are untouched', () => {
+  // Asserted BEHAVIOURALLY, not by reading the source: a guard that greps its
+  // own implementation proves only that the text is unchanged.
+  const T: ResolverVocabulary = { ...RY_BOOK, symbols: ['NRVA'], sectors: ['Healthcare'] }
+  const t = (q: string) => resolveQuery(q, T, NOW, emptyFilters())
+
+  it('EXACT still wins with no floor at all', () => {
+    expect(t('usa').state.regions).toEqual(['USA'])
+  })
+
+  it('PREFIX still reaches at two characters', () => {
+    expect(t('nr').state.symbol, 'the prefix floor moved above two').toBe('NRVA')
+  })
+
+  it('and still does NOT reach at one', () => {
+    expect(t('n').state.symbol, 'the prefix floor dropped to one').toBe('')
+  })
+
+  it('SUBSTRING still reaches at four and not at three', () => {
+    // "care" is inside Healthcare at four characters; "are" is three and must
+    // not reach it. Beat sixty-six raised this floor for exactly that case.
+    expect(t('care').state.sectors).toEqual(['Healthcare'])
+    expect(t('are').state.sectors, 'the substring floor dropped below four').toEqual([])
+  })
+})
