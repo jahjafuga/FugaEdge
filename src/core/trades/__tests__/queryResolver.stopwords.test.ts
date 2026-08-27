@@ -354,18 +354,28 @@ const TWENTY: string[] = [
   'show me losers this month', 'find my chinese winners',
 ]
 
-/** The six that REMAIN dirty after this beat, each with the word that blocks
- *  it. Every one is a PARSER gap, not a vocabulary gap, and is deliberately
- *  out of scope here. */
+/** The ones that REMAIN dirty, each with the word that blocks it. Every one is
+ *  a PARSER gap, not a vocabulary gap, and is deliberately out of scope here.
+ *
+ *  ONE ENTRY WAS REMOVED FROM THIS TABLE ON PURPOSE, which is what naming the
+ *  blocker was for. It read:
+ *
+ *      // MEASURED, and it corrects an assumption. On the real book this
+ *      // sentence looked CLEAN -- but only because "want" substring-matched
+ *      // the mistake "High-volume pullback (wanted low volume)" and applied
+ *      // it. On a book without that mistake the word honestly comes back
+ *      // unread. "want" is therefore NOT filler by the R103 test: it matches
+ *      // something on a real book, and adding it to the list would not stop
+ *      // that match anyway.
+ *      'i want chinese stocks': 'want',
+ *
+ *  The last clause is FALSE, and it is the reason this table changed. Adding
+ *  "want" to the list DOES stop the match: `isFiller` gates the substring
+ *  tier, which is the tier the match came through. The measurement behind the
+ *  refusal drove the word BEFORE adding it, so it could only ever report what
+ *  the word did as a non-filler word. See the RB block for the corrected test. */
 const STILL_DIRTY: Record<string, string> = {
   'what were my losers last week': 'last',
-  // MEASURED, and it corrects an assumption. On the real book this sentence
-  // looked CLEAN -- but only because "want" substring-matched the mistake
-  // "High-volume pullback (wanted low volume)" and applied it. On a book
-  // without that mistake the word honestly comes back unread. "want" is
-  // therefore NOT filler by the R103 test: it matches something on a real
-  // book, and adding it to the list would not stop that match anyway.
-  'i want chinese stocks': 'want',
   'find trades under 10 dollars': 'under 10 dollars',
   'my biggest losers': 'biggest',
   'what are my worst trades': 'worst',
@@ -374,12 +384,17 @@ const STILL_DIRTY: Record<string, string> = {
 }
 
 describe('RY4 the twenty sentences', () => {
-  it('exactly thirteen resolve with nothing left over', () => {
+  it('exactly fourteen resolve with nothing left over', () => {
+    // Was THIRTEEN. The fourteenth is "i want chinese stocks", and it did not
+    // become clean by being understood better -- it was ALREADY reported clean
+    // before, while filtering on a mistake nobody named. What changed is that
+    // it is now clean AND correct. RB8 asserts that second half, because this
+    // count alone cannot tell the two apart.
     const clean = TWENTY.filter((q) => ry(q).unresolved.length === 0)
-    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(13)
+    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(14)
   })
 
-  it('and the seven that do not are these seven, by name', () => {
+  it('and the six that do not are these six, by name', () => {
     const dirty = TWENTY.filter((q) => ry(q).unresolved.length > 0).sort()
     expect(dirty).toEqual(Object.keys(STILL_DIRTY).sort())
   })
@@ -439,10 +454,17 @@ describe('RY6 the three tiers are untouched', () => {
   })
 
   it('SUBSTRING still reaches at four and not at three', () => {
-    // "care" is inside Healthcare at four characters; "are" is three and must
-    // not reach it. Beat sixty-six raised this floor for exactly that case.
+    // "care" is inside Healthcare at four characters; three characters must not
+    // reach it. Beat sixty-six raised this floor for exactly that case.
+    //
+    // THE THREE-CHARACTER TOKEN WAS CHANGED, and the old line read:
+    //     expect(t('are').state.sectors, '...').toEqual([])
+    // It could not fail. This beat added "are" to the filler list, and a filler
+    // word is refused by tiers two and three whatever the floor is -- so that
+    // assertion passed with the floor at one. "car" is not filler, so the floor
+    // is what decides it. A guard that can pass vacuously is worse than none.
     expect(t('care').state.sectors).toEqual(['Healthcare'])
-    expect(t('are').state.sectors, 'the substring floor dropped below four').toEqual([])
+    expect(t('car').state.sectors, 'the substring floor dropped below four').toEqual([])
   })
 })
 
@@ -638,7 +660,442 @@ describe('RZ7 the three tiers are still untouched', () => {
   })
 
   it('SUBSTRING still reaches at four and not at three', () => {
+    // "are" replaced by "car" for the three-character half -- see RY6. "are" is
+    // filler, so tiers two and three refuse it at any floor.
     expect(t('care').state.sectors).toEqual(['Healthcare'])
-    expect(t('are').state.sectors).toEqual([])
+    expect(t('car').state.sectors).toEqual([])
+  })
+})
+
+// ─── RB : EVERY GRAMMAR WORD, TESTED THE RIGHT WAY ROUND ─────────────────────
+//
+// TWO EARLIER BEATS REFUSED A WORD ON A TEST THAT ASKED THE WRONG QUESTION.
+// "want" was refused because it matched a mistake name; "even" was refused
+// because it matched another. Both were driven BEFORE being added to the list,
+// and both matched through the SUBSTRING tier -- the tier `isFiller` gates. So
+// the measurement answered "does this word match today", when the question was
+// "does this word match ONCE IT IS FILLER". Driving a word before adding it
+// cannot answer that.
+//
+// THE CORRECTED TEST is ADD-THEN-DRIVE, and it reverses both refusals: with
+// the word in the list, tiers two and three refuse it and it matches nothing.
+// Four words were producing wrong answers on that mistake -- want, even,
+// before, first -- and all four are cured by a list entry alone.
+//
+// WHAT DOES *NOT* JOIN, and this is the harder half. A word is refused when
+// swallowing it would turn a REPORTED gap into a SILENT one. "or" names a
+// disjunction the parser cannot do, and today it lands in the ignored clause,
+// which is the only sign the user's first term was thrown away. Make it filler
+// and a wrong answer starts looking clean. The same reasoning keeps every
+// time-of-day word out: "morning trades" cannot be answered, and saying so is
+// better than quietly returning the book. Refused words are pinned by a guard
+// below so a later beat has to change them on purpose.
+
+/** Built to the collisions this beat is about, and no wider. Each mistake name
+ *  here is one a real book carries and one that a grammar word reaches by
+ *  prefix or substring -- "before" inside a trigger note, "even" inside
+ *  "revenge", "wanted" inside a volume note. A book without them would let
+ *  every assertion below pass while the defect stood. */
+const RB_BOOK: ResolverVocabulary = {
+  symbols: ['NRVA'],
+  regions: ['USA', 'China', 'Hong Kong'],
+  countries: [{ iso: 'US', name: 'United States' }],
+  sectors: ['Healthcare'],
+  industries: [],
+  playbooks: [
+    { id: 4, name: 'Micro Pullback', tier: 'A+' },
+    { id: 5, name: 'First Pullback to VWAP', tier: 'B' },
+  ],
+  catalystTypes: ['Halt Resume'],
+  mistakes: [
+    { axis: 'technical', name: 'Entered too early / before trigger' },
+    { axis: 'technical', name: 'Cut winner too early (fear)' },
+    { axis: 'technical', name: 'High-volume pullback (wanted low volume)' },
+    { axis: 'psychological', name: 'Revenge trade (after a loss)' },
+    { axis: 'psychological', name: 'Overconfidence after a win' },
+  ],
+}
+const rb = (text: string) => resolveQuery(text, RB_BOOK, NOW, emptyFilters())
+
+/** Only the keys that moved. An assertion on the whole state would pass for a
+ *  cure that emptied it, and an assertion on `unresolved` alone would pass for
+ *  a cure that swallowed everything. */
+const rbDelta = (state: unknown): Record<string, unknown> => {
+  const base = emptyFilters() as unknown as Record<string, unknown>
+  const st = state as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const k of Object.keys(st)) {
+    if (JSON.stringify(st[k]) !== JSON.stringify(base[k])) out[k] = st[k]
+  }
+  return out
+}
+
+/** The eleven this beat adds. Seven are pure connectives that were landing in
+ *  the ignored clause; four were APPLYING A FILTER nobody asked for. */
+const RB_ADDED = [
+  'but', 'plus', 'also', 'then', 'only', 'just', 'still',
+  'want', 'even', 'before', 'first',
+] as const
+
+// ─── RB1 : ONE CASE PER ADDED WORD ───────────────────────────────────────────
+
+describe('RB1 each added word applies nothing at all, alone', () => {
+  it.each(RB_ADDED)('%s is in the list', (w) => {
+    expect(STOPWORDS.has(w), `"${w}" was never added`).toBe(true)
+  })
+
+  it.each(RB_ADDED)('%s applies no filter and offers no choice', (w) => {
+    // Judged on the STATE, not on silence: an empty ignored clause is exactly
+    // how four of these words hid for so long.
+    const out = rb(w)
+    expect(rbDelta(out.state), `"${w}" applied a filter on its own`).toEqual({})
+    expect(out.applied, `"${w}" applied something`).toEqual([])
+    expect(out.ambiguous, `"${w}" was offered as a choice`).toEqual([])
+  })
+})
+
+// ─── RB2 : EACH ONE INSIDE A SENTENCE ────────────────────────────────────────
+
+/** word -> a sentence carrying it, and the same sentence without it. The state
+ *  must be identical: the word is IGNORED, never interpreted. */
+const RB_SENTENCES: { word: string; withIt: string; without: string }[] = [
+  { word: 'but',    withIt: 'micro pullback trades but not halt resume', without: 'micro pullback trades not halt resume' },
+  { word: 'plus',   withIt: 'chinese plus healthcare',      without: 'chinese healthcare' },
+  { word: 'also',   withIt: 'chinese and also healthcare',  without: 'chinese and healthcare' },
+  { word: 'then',   withIt: 'losers then winners',          without: 'losers winners' },
+  { word: 'only',   withIt: 'only chinese losers',          without: 'chinese losers' },
+  { word: 'just',   withIt: 'just my losers',               without: 'my losers' },
+  { word: 'still',  withIt: 'chinese losers i still hold',  without: 'chinese losers i hold' },
+  { word: 'want',   withIt: 'i want chinese stocks',        without: 'i chinese stocks' },
+  { word: 'even',   withIt: 'even my winners',              without: 'my winners' },
+  { word: 'before', withIt: 'trades before 10am',           without: 'trades 10am' },
+  { word: 'first',  withIt: 'my first trade',               without: 'my trade' },
+]
+
+describe('RB2 each added word is ignored inside a sentence', () => {
+  it.each(RB_SENTENCES)('$word no longer reaches the ignored clause', ({ word, withIt }) => {
+    expect(
+      rb(withIt).unresolved.join(' '),
+      `"${word}" still comes back as unread from "${withIt}"`,
+    ).not.toContain(word)
+  })
+
+  it.each(RB_SENTENCES)('$word changes nothing about what the sentence means', ({ word, withIt, without }) => {
+    expect(
+      rbDelta(rb(withIt).state),
+      `"${word}" changed the meaning of "${withIt}"`,
+    ).toEqual(rbDelta(rb(without).state))
+  })
+})
+
+// ─── RB3 : THE FOUR THAT WERE PRODUCING WRONG ANSWERS ────────────────────────
+//
+// Each asserted individually and by name, with the filter it used to apply
+// quoted in the message, because these four are the reason this beat exists.
+
+describe('RB3 the four previously refused, each by name', () => {
+  it('"before" no longer applies the mistake "Entered too early / before trigger"', () => {
+    const out = rb('trades before 10am')
+    expect(
+      out.state.mistakeKeys,
+      'a time word applied a MISTAKE filter -- "before" reached "Entered too ' +
+        'early / before trigger" through the substring tier',
+    ).toEqual([])
+    // The companion half: the ask is still refused OUT LOUD. Curing a wrong
+    // filter by swallowing the whole sentence would be the worse bug.
+    expect(
+      out.unresolved,
+      'the time-of-day ask stopped being reported -- a wrong answer now looks clean',
+    ).toContain('10am')
+  })
+
+  it('"first" no longer applies the playbook "First Pullback to VWAP"', () => {
+    expect(
+      rb('my first trade').state.playbookIds,
+      'a recency word applied a PLAYBOOK filter through the prefix tier',
+    ).toEqual([])
+  })
+
+  it('and "first" still means recency when a count is present', () => {
+    // The capability check. `first` is a RECENCY word -- ascending order -- and
+    // that path does not consult the filler list. Adding the word must not
+    // cost the reading that works.
+    const out = rb('the first 10 trades')
+    expect(out.state.limit, 'the count was lost').toBe(10)
+    expect(out.state.sort, 'the ordering "first" implies was lost').toEqual({
+      colId: 'open_time',
+      dir: 'asc',
+    })
+  })
+
+  it('"want" no longer applies the mistake "High-volume pullback (wanted low volume)"', () => {
+    const out = rb('i want chinese stocks')
+    expect(
+      out.state.mistakeKeys,
+      'a verb of desire applied a MISTAKE filter through the substring tier',
+    ).toEqual([])
+    expect(out.state.regions, 'the sentence stopped working altogether').toEqual(['China'])
+  })
+
+  it('"even" no longer applies the mistake "Revenge trade (after a loss)"', () => {
+    const out = rb('even my winners')
+    expect(
+      out.state.mistakeKeys,
+      '"even" reached "revenge" through the substring tier at exactly the floor',
+    ).toEqual([])
+    expect(out.state.outcome, 'the sentence stopped working altogether').toBe('winners')
+  })
+})
+
+// ─── RB4 : THE NEGATION SPAN, WHICH THIS BEAT FIXES BY ACCIDENT ──────────────
+
+describe('RB4 a filler word between a negator and its term', () => {
+  // The negation span skips filler to find the term the negator governs. While
+  // "even" was NOT filler it stopped the scan dead: "not even china" negated
+  // "even" -- the mistake -- and then applied China as an INCLUSION. The user
+  // asked to exclude China and got only China, plus a mistake filter nobody
+  // named. This is the sharpest single case in the beat.
+  it('"not even china" excludes China rather than selecting it', () => {
+    const out = rb('not even china')
+    expect(
+      out.state.regions,
+      'the ask said NOT china and the resolver filtered the book DOWN to China',
+    ).toEqual([])
+    expect(out.state.excludeRegions, 'the exclusion was never applied').toEqual(['China'])
+    expect(
+      out.state.excludeMistakeKeys,
+      'the negator governed the filler word and excluded a mistake nobody named',
+    ).toEqual([])
+  })
+
+  it('and the plain negation is untouched', () => {
+    expect(rb('not china').state.excludeRegions).toEqual(['China'])
+  })
+})
+
+// ─── RB5 : THE DISCRIMINATING COMPANION ──────────────────────────────────────
+
+describe('RB5 a genuine content word still applies outright', () => {
+  // Without this, every assertion above passes for a cure that made the whole
+  // language filler and answered nothing ever again.
+  it('"chinese" still applies the region', () => {
+    const out = rb('chinese')
+    expect(out.state.regions, 'an ordinary word stopped applying').toEqual(['China'])
+    expect(out.ambiguous, 'an ordinary word became a question').toEqual([])
+  })
+
+  it('"losers" still applies the outcome', () => {
+    expect(rb('losers').state.outcome).toBe('losers')
+  })
+
+  it('"micro pullback" still applies the playbook', () => {
+    expect(rb('micro pullback').state.playbookIds).toEqual([4])
+  })
+
+  it('and a full ordinary ask still applies every part of itself', () => {
+    const out = rb('chinese losers in healthcare')
+    expect(rbDelta(out.state)).toEqual({
+      outcome: 'losers',
+      regions: ['China'],
+      sectors: ['Healthcare'],
+    })
+  })
+})
+
+// ─── RB6 : THE WORDS THIS BEAT REFUSED, PINNED ───────────────────────────────
+
+/** Refused, with the reason. A word that NAMES a dimension or an operation is
+ *  not filler just because the parser cannot reach it yet -- swallowing it
+ *  converts a reported gap into a silent wrong answer. This is the same test
+ *  that kept "last" out two beats ago, applied consistently. */
+const RB_REFUSED: [string, string][] = [
+  ['or', 'names a disjunction; today it is the only sign the first term was dropped'],
+  ['vs', 'names a comparison the ask has no shape for'],
+  ['versus', 'names a comparison the ask has no shape for'],
+  ['last', 'a recency word: "my last trade" would go silently empty'],
+  ['morning', 'a time of day the parser cannot reach'],
+  ['afternoon', 'a time of day the parser cannot reach'],
+  ['yesterday', 'a date the parser cannot reach'],
+  ['open', 'names the session open'],
+  ['close', 'names the session close'],
+  ['average', 'names a statistic, not a filter'],
+]
+
+describe('RB6 the refused words are still REPORTED, not swallowed', () => {
+  it.each(RB_REFUSED)('%s stays out of the filler list -- %s', (word) => {
+    expect(
+      STOPWORDS.has(word),
+      `"${word}" was added to the filler list, which silences the only ` +
+        `complaint the user gets about an ask this parser cannot answer`,
+    ).toBe(false)
+  })
+
+  it('"winners or losers" still says it could not read "or"', () => {
+    // The wrong answer is unfixed -- outcome is a scalar and the first term is
+    // gone. What must survive is the COMPLAINT, which is all that tells the
+    // user their sentence was half-read.
+    const out = rb('winners or losers')
+    expect(out.state.outcome, 'the scalar-replacement defect changed shape').toBe('losers')
+    expect(out.unresolved, 'the only warning the user gets disappeared').toContain('or')
+  })
+
+  it('"my last trade" still says it could not read "last"', () => {
+    const out = rb('my last trade')
+    expect(rbDelta(out.state), 'a recency ask silently applied something').toEqual({})
+    expect(out.unresolved, 'a recency ask went silently empty').toContain('last')
+  })
+})
+
+// ─── RB7 : LAO'S FRAMES, DRIVEN VERBATIM ─────────────────────────────────────
+//
+// The ten were never written down in one place; these are every sentence the
+// founder is on record as having typed into the bubble, gathered from the
+// briefs that quoted them. Each is asserted on its STATE.
+
+describe('RB7 the founder frames', () => {
+  it('FIXED: "trades before 10am" applies nothing and still reports "10am"', () => {
+    const out = rb('trades before 10am')
+    expect(rbDelta(out.state)).toEqual({})
+    expect(out.unresolved).toEqual(['10am'])
+  })
+
+  it('FIXED: the micro-pullback frame reads every word of itself', () => {
+    const out = rb('show me the 10 micro pullback trades that i lost money on but not halt resume')
+    expect(out.unresolved, '"but" was the last unread word in this sentence').toEqual([])
+    expect(rbDelta(out.state)).toEqual({
+      outcome: 'losers',
+      playbookIds: [4],
+      excludeCatalystTypes: ['Halt Resume'],
+      limit: 10,
+      sort: { colId: 'open_time', dir: 'desc' },
+    })
+  })
+
+  it('STILL RIGHT: "show me my winners" does not filter on Malaysia', () => {
+    // Beat 118's cure, re-asserted here because this beat edits the same list
+    // it depends on.
+    const out = resolveQuery('show me my winners', {
+      ...RB_BOOK,
+      countries: [{ iso: 'MY', name: 'Malaysia' }],
+    }, NOW, emptyFilters())
+    expect(out.state.countries).toEqual([])
+    expect(out.state.outcome).toBe('winners')
+  })
+
+  it('STILL RIGHT: "not halt resume" excludes the catalyst', () => {
+    expect(rb('not halt resume').state.excludeCatalystTypes).toEqual(['Halt Resume'])
+  })
+
+  it('UNFIXED and named: "my biggest losers" still cannot rank', () => {
+    const out = rb('my biggest losers')
+    expect(out.state.outcome).toBe('losers')
+    expect(out.unresolved, 'a superlative with no count needs the parser').toContain('biggest')
+  })
+
+  it('UNFIXED and named: MACD reaches a mistake with the OPPOSITE sense', () => {
+    // "show me the trades where macd was positive" returns trades tagged MACD
+    // NEGATIVE. Excluded from this beat by ruling -- recorded so the day MACD
+    // becomes a real facet, this assertion has to be changed on purpose.
+    const out = resolveQuery('show me the trades where macd was positive', {
+      ...RB_BOOK,
+      mistakes: [...RB_BOOK.mistakes, { axis: 'technical', name: 'MACD negative at entry' }],
+    }, NOW, emptyFilters())
+    expect(out.state.mistakeKeys).toEqual([
+      { axis: 'technical', name: 'MACD negative at entry' },
+    ])
+    expect(out.unresolved).toContain('was positive')
+  })
+})
+
+// ─── RB8 : THE TWENTY, CLEAN *AND* CORRECT ───────────────────────────────────
+
+/** Beat 116's twenty. The clean count alone is not the measure -- one of them
+ *  was clean and WRONG, applying a mistake off "want" while reporting nothing.
+ *  Correctness is asserted on the state of the ones that changed. */
+const RB_TWENTY: string[] = [
+  'show me chinese losers', 'give me the trades where i lost money',
+  'what were my losers last week', 'find trades under 10 dollars',
+  'i want chinese stocks', 'chinese losers', 'show me my winners',
+  'all my chinese trades', 'trades with float under 10 million',
+  'show me the last 10 trades', 'my biggest losers', 'losers from china',
+  'show me trades in healthcare', 'what are my worst trades',
+  'chinese stocks that lost money', 'show me everything under 5 dollars',
+  'trades where i chased extended', 'my hong kong trades',
+  'show me losers this month', 'find my chinese winners',
+]
+
+/** The six that remain, each with the word that blocks it. Every one is PARSER
+ *  work, and every one is deliberately out of scope for a list edit. */
+const RB_STILL_DIRTY: Record<string, string> = {
+  'what were my losers last week': 'last',
+  'find trades under 10 dollars': 'under 10 dollars',
+  'my biggest losers': 'biggest',
+  'what are my worst trades': 'worst',
+  'show me everything under 5 dollars': 'under 5 dollars',
+  'trades where i chased extended': 'extended',
+}
+
+describe('RB8 the twenty', () => {
+  const T = {
+    ...RB_BOOK,
+    mistakes: [
+      ...RB_BOOK.mistakes,
+      { axis: 'technical' as const, name: 'Chased extension (too far from 9 EMA)' },
+    ],
+  }
+  const t = (q: string) => resolveQuery(q, T, NOW, emptyFilters())
+
+  it('exactly fourteen read every word of themselves', () => {
+    const clean = RB_TWENTY.filter((q) => t(q).unresolved.length === 0)
+    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(14)
+  })
+
+  it('and all fourteen are also CORRECT -- none applies a filter nobody asked for', () => {
+    // The measure that matters. Before this beat thirteen of the fourteen were
+    // correct: "i want chinese stocks" came back clean while filtering on a
+    // mistake named "High-volume pullback (wanted low volume)".
+    const clean = RB_TWENTY.filter((q) => t(q).unresolved.length === 0)
+    const wrong = clean.filter((q) => t(q).state.mistakeKeys.length > 0)
+    expect(wrong, `clean but filtering on an unasked mistake: ${wrong.join(' | ')}`).toEqual([])
+  })
+
+  it('the six that remain are these six, by name', () => {
+    const dirty = RB_TWENTY.filter((q) => t(q).unresolved.length > 0).sort()
+    expect(dirty).toEqual(Object.keys(RB_STILL_DIRTY).sort())
+  })
+
+  it.each(Object.entries(RB_STILL_DIRTY))('%s is blocked by %s', (q, blocker) => {
+    expect(t(q).unresolved.join(' ')).toContain(blocker.split(' ')[0]!)
+  })
+})
+
+// ─── RB9 : SCOPE GUARD — no floor moved, no tier added ───────────────────────
+
+describe('RB9 the three tiers are behaviourally identical', () => {
+  it('EXACT still wins with no floor at all', () => {
+    expect(rb('usa').state.regions).toEqual(['USA'])
+  })
+
+  it('PREFIX still reaches at two characters and not at one', () => {
+    expect(rb('nr').state.symbol, 'the prefix floor moved above two').toBe('NRVA')
+    expect(rb('n').state.symbol, 'the prefix floor dropped to one').toBe('')
+  })
+
+  it('SUBSTRING still reaches at four and not at three', () => {
+    // "car" and not "are". Three characters is the point of the assertion, but
+    // "are" became FILLER a beat ago, and a filler word is refused by tiers two
+    // and three whatever the floor is -- so it would pass this assertion with
+    // the floor at one. "car" is three characters, is inside Healthcare, and is
+    // not in the list, so the floor is what decides it.
+    expect(rb('care').state.sectors).toEqual(['Healthcare'])
+    expect(rb('car').state.sectors, 'the substring floor dropped below four').toEqual([])
+  })
+
+  it('and a NON-filler word of four characters still reaches by substring', () => {
+    // The floor is proven live by a word that is NOT in the list. Every word
+    // this beat added would now pass a floor assertion vacuously.
+    expect(rb('venge').state.mistakeKeys, 'the substring tier stopped working').toEqual([
+      { axis: 'psychological', name: 'Revenge trade (after a loss)' },
+    ])
   })
 })

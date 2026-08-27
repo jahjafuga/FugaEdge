@@ -120,6 +120,32 @@ export const STOPWORDS = new Set([
   // already narrowed. It remains a COLUMN name -- "money over one hundred"
   // still resolves, because comparisons reach columns by a different path.
   'money',
+  // v0.2.7 -- ELEVEN MORE, and the test that admitted them is the point. Two
+  // earlier beats refused a word because driving it ALONE showed it matching a
+  // mistake name. They drove it BEFORE adding it -- and `isFiller` gates
+  // exactly the two tiers those matches came through, so the measurement
+  // answered a different question than the one being asked. Add-then-drive
+  // reverses both refusals: as filler, none of these reaches anything.
+  //
+  // SEVEN were landing in the ignored clause and meant nothing at all:
+  'but', 'plus', 'also', 'then', 'only', 'just', 'still',
+  // FOUR were APPLYING A FILTER NOBODY ASKED FOR, which is why they are worth
+  // more than tidier reporting. "before" reached the mistake "Entered too
+  // early / before trigger" by substring; "first" reached the playbook "First
+  // Pullback to VWAP" by prefix; "want" reached "High-volume pullback (wanted
+  // low volume)"; "even" reached "Revenge trade (after a loss)". "first" stays
+  // a RECENCY word -- "the first ten trades" still sorts ascending, because
+  // that path never consults this list.
+  'want', 'even', 'before', 'first',
+  //
+  // REFUSED, on the same test that kept "last" out: a word that NAMES a
+  // dimension or an operation is not filler just because the parser cannot
+  // reach it yet. "or", "vs" and "versus" name a disjunction the ask has no
+  // shape for, and today the ignored clause is the ONLY sign that half the
+  // sentence was dropped. Every time-of-day word -- morning, open, yesterday --
+  // names a time. Swallowing any of them converts a REPORTED gap into a silent
+  // wrong answer, which is strictly worse than saying so. Each refusal is
+  // pinned by a guard.
 ])
 
 /** Words that REFUSE the term beside them. A NEW named set, deliberately not

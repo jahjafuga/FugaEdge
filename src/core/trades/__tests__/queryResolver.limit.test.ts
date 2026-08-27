@@ -182,8 +182,54 @@ describe('G5 vocabulary is not stolen by the limit reading', () => {
     expect(out.state.limit).toBeNull()
   })
 
-  it('bare "first" still reaches it too', () => {
-    expect(r('first').state.playbookIds).toEqual([5])
+  // INVERTED IN PLACE. The old assertion is kept here verbatim rather than
+  // deleted, because this is a change of ruling and the record should show one:
+  //
+  //     it('bare "first" still reaches it too', () => {
+  //       expect(r('first').state.playbookIds).toEqual([5])
+  //     })
+  //
+  // WHY IT CHANGED. "first" is FILLER now. It was reaching this playbook by
+  // PREFIX, so on a real book anyone who typed "my first trade" had the book
+  // narrowed to First Pullback to VWAP without being asked -- the same disease
+  // as a negator reaching "No Setup" or "before" reaching a mistake. The
+  // playbook did not become less reachable: "first pullback" still applies it,
+  // and the assertion above this one is what proves it.
+  it('bare "first" reaches NO playbook -- it is filler now', () => {
+    expect(
+      r('first').state.playbookIds,
+      'a filler word narrowed the book to a playbook nobody named',
+    ).toEqual([])
+  })
+
+  // G5'S INTENT, RE-EXPRESSED WITH A WORD THAT CAN STILL CARRY IT. The point
+  // was never "first" -- it was that the LIMIT reading does not steal a word
+  // that also names vocabulary. Flipping the assertion above without this one
+  // would leave that concern unguarded and nobody would notice.
+  //
+  // "latest" is the replacement: a RECENCY word like "first", not filler, and
+  // a playbook PREFIX rather than an exact hit, which is the tier the old case
+  // exercised. Constructed rather than depending on a book that happens to
+  // hold one -- neither real book carries a recency-prefixed name except the
+  // very playbook this beat stopped "first" from reaching.
+  const PREFIXED: ResolverVocabulary = {
+    ...BOOK,
+    playbooks: [...BOOK.playbooks, { id: 15, name: 'Latest Push Fade', tier: 'B' }],
+  }
+
+  it('a NON-filler recency word still reaches the playbook it prefixes', () => {
+    const out = r('latest', PREFIXED)
+    expect(
+      out.state.playbookIds,
+      'the limit reading swallowed a playbook name',
+    ).toEqual([15])
+    expect(out.state.limit).toBeNull()
+  })
+
+  it('and a count after it hands the reading back to the limit', () => {
+    const out = r('latest 5', PREFIXED)
+    expect(out.state.limit, 'the vocabulary reading swallowed a limit').toBe(5)
+    expect(out.state.playbookIds).toEqual([])
   })
 
   it('but "first 5" IS a limit -- a number after it changes the reading', () => {
