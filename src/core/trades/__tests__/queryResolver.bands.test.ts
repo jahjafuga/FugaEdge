@@ -309,24 +309,234 @@ describe('RE8 a written negative bound still reads', () => {
   })
 })
 
-// --- RE9 : "above" IS REFUSED, ON PURPOSE -----------------------------------
+// --- RE9 : "above" MEANS ABOVE ZERO -----------------------------------------
 
-describe('RE9 "above" is deliberately NOT a band word', () => {
-  // THE ONE BAND WORD WHOSE APP DEFINITION CONTRADICTS ITS PLAIN MEANING. The
+describe('RE9 "above vwap" is the trader reading, not the band', () => {
+  // INVERTED IN PLACE. This block asserted the OPPOSITE, deliberately, and the
+  // old assertions are kept here verbatim rather than deleted so the reversal
+  // is legible:
+  //
+  //     it('"above vwap" applies no range at all', () => {
+  //       expect(ranges('above vwap'),
+  //         '"above" was quietly given a meaning').toEqual({})
+  //     })
+  //     it('and says so rather than going silent', () => {
+  //       expect(r('above vwap').unresolved.join(' ')).toContain('above')
+  //     })
+  //
+  // WHY IT CHANGED, and the reason is a ruling rather than a measurement. The
   // canonical band "Above VWAP (trending)" is +2.0% to +5.0%; a trader saying
-  // "above VWAP" means simply more than zero. On the demo book that is fourteen
-  // trades against seventy-eight. Shipping either number silently would answer
-  // a question nobody asked, so the word is left out until it is ruled on, and
-  // this guard makes the omission deliberate rather than forgotten.
-  it('"above vwap" applies no range at all', () => {
-    expect(ranges('above vwap'), '"above" was quietly given a meaning').toEqual({})
+  // "above VWAP" means simply more than zero. Both readings are defensible and
+  // only one can ship, so the previous beat shipped neither and said so. The
+  // founder has now ruled for the trader: this is the most common VWAP question
+  // in small-cap momentum, and answering a fifth of it is worse than refusing.
+  //
+  // THE LABEL COLLISION IS RECORDED AND NOT RESOLVED. The Technicals tab still
+  // shows a band called "Above VWAP" meaning +2 to +5, and Edge's "above vwap"
+  // does not mean that. Whether the band gets a word of its own is a separate
+  // ruling and is not made here.
+  it('"above vwap" is greater than zero', () => {
+    expect(ranges('above vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
   })
 
-  it('and says so rather than going silent', () => {
-    expect(r('above vwap').unresolved.join(' ')).toContain('above')
-  })
-
-  it('while the explicit form still works, so the capability is not lost', () => {
+  it('and the explicit form still agrees with it', () => {
     expect(ranges('vwap over 0')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+})
+
+
+// --- RF : AN OPERATOR WITH NO VALUE, ON A SIGNED DISTANCE COLUMN ------------
+//
+// "above vwap" is the most common VWAP question a small-cap momentum trader
+// asks, and until now it resolved to nothing at all: the comparison window
+// forms, finds no value after the operator, and refuses -- correctly, because a
+// filter with a coerced number is worse than no filter.
+//
+// ZERO IS THE ONE VALUE THAT DOES NOT HAVE TO BE GUESSED. On a signed DISTANCE
+// column, zero is the indicator itself: the price sitting exactly at VWAP, or
+// exactly at the nine. "Above VWAP" is not missing a number -- the number is
+// implied by the word, and it is the only number the word can mean.
+//
+// THAT IS TRUE OF ALMOST NOTHING ELSE. On float, shares, hold time or price,
+// zero is the bottom of the scale, so "above float" would match every row in
+// the book while looking like a filter. Those columns still refuse, and RF4
+// pins the refusal. The signed columns that are not DISTANCES -- net P&L, gain
+// per cent, R multiple -- have a meaningful zero too, but "above zero" there is
+// already spelled by the outcome words, and widening this rule to them is not
+// the ruling that was made.
+
+/** The only two columns admitted, and the reason each is admitted: a SIGNED
+ *  distance from an indicator, where zero is the indicator itself. */
+const RF_ZERO_BOUND: [string, string][] = [
+  ['vwap', 'vwap_dist_pct'],
+  ['ema9', 'ema9_dist_pct'],
+]
+
+/** Refused, with the rule that refused each. The first group can never be
+ *  negative, so "above zero" is every row; the second is signed but is not a
+ *  distance, and the ruling was scoped to distances. */
+const RF_REFUSED: [string, string][] = [
+  ['float', 'never negative -- zero is the bottom of the scale'],
+  ['shares', 'never negative'],
+  ['hold time', 'never negative'],
+  ['rvol', 'never negative'],
+  ['price', 'never negative'],
+  ['net', 'signed, but not a distance -- the outcome words already say it'],
+  ['gain', 'signed, but not a distance'],
+]
+
+describe('RF1 an operator with no value binds to zero on a distance column', () => {
+  it.each(RF_ZERO_BOUND)('"above %s" is min zero and no upper bound', (word, col) => {
+    expect(ranges(`above ${word}`)).toEqual({ [col]: { min: 0, max: null } })
+  })
+
+  it.each(RF_ZERO_BOUND)('"over %s" reads the same way', (word, col) => {
+    expect(ranges(`over ${word}`)).toEqual({ [col]: { min: 0, max: null } })
+  })
+
+  it('and the bound is a MINIMUM, not a maximum', () => {
+    // Asserted separately because a max-zero cure would satisfy a looser
+    // "some range was written" assertion while meaning the opposite set.
+    const g = ranges('above vwap').vwap_dist_pct
+    expect(g?.min, 'the lower bound was not zero').toBe(0)
+    expect(g?.max, 'an upper bound was invented').toBeNull()
+  })
+})
+
+describe('RF2 the zero bound narrows the actual rows', () => {
+  const above = DISTANCES.filter((d) => d >= 0).length
+  it('"above vwap" keeps every row at or above zero', () => {
+    expect(applyTradesFilters(rowsAt('tf_1m_vwap_dist_pct'), r('above vwap').state).length)
+      .toBe(above)
+  })
+
+  it('"above the 9 ema" likewise', () => {
+    expect(applyTradesFilters(rowsAt('tf_1m_ema9_dist_pct'), r('above ema9').state).length)
+      .toBe(above)
+  })
+
+  it('and it is NOT the whole book -- the bound really bounds', () => {
+    expect(above).toBeLessThan(DISTANCES.length)
+  })
+})
+
+describe('RF3 the phrasings a trader actually types', () => {
+  // Driven, and the ones that do NOT work are named rather than omitted.
+  it('"above vwap" works', () => {
+    expect(ranges('above vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+
+  it('"over vwap" works', () => {
+    expect(ranges('over vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+
+  it('"trades above vwap" works -- filler before the operator is skipped', () => {
+    expect(ranges('trades above vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+
+  it('"show me the trades above vwap" works', () => {
+    expect(ranges('show me the trades above vwap')).toEqual({
+      vwap_dist_pct: { min: 0, max: null },
+    })
+  })
+
+  it('"above the 9 ema" works', () => {
+    expect(ranges('above the 9 ema')).toEqual({ ema9_dist_pct: { min: 0, max: null } })
+  })
+
+  it('but "above the nine" does NOT, and that is named rather than hidden', () => {
+    // "nine" alone is not a column phrase -- only "9 ema", "ema 9", "ema9" and
+    // the two distance spellings are. Teaching the resolver that a bare "nine"
+    // means the nine EMA is a phrase question, and it is not the ruling made
+    // here. Left failing out loud so a later beat can pick it up on purpose.
+    expect(ranges('above the nine'), 'if this now resolves, delete this guard').toEqual({})
+  })
+})
+
+describe('RF4 a column with no meaningful zero still refuses', () => {
+  it.each(RF_REFUSED)('"above %s" applies nothing -- %s', (word) => {
+    expect(
+      ranges(`above ${word}`),
+      `"above ${word}" was given a zero bound it cannot mean`,
+    ).toEqual({})
+  })
+
+  it('PROOF THE ABOVE CAN FIRE: the same shape DOES resolve on a distance column', () => {
+    // An absence assertion beside the presence that proves it is live. Without
+    // this pair RF4 would pass on a resolver that had stopped binding zero at
+    // all -- which is exactly what the previous beat shipped.
+    expect(ranges('above vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+
+  it('and the refused ones still SAY they were not read', () => {
+    expect(r('above float').unresolved.join(' ')).toContain('above')
+  })
+})
+
+describe('RF5 an operator WITH a value is untouched', () => {
+  // Without this, RF1 passes for a cure that zeroed every bound it saw.
+  it('"vwap above 5" is still five', () => {
+    expect(ranges('vwap above 5')).toEqual({ vwap_dist_pct: { min: 5, max: null } })
+  })
+
+  it('"vwap over 10" and "float under 1m" are unchanged', () => {
+    expect(ranges('vwap over 10')).toEqual({ vwap_dist_pct: { min: 10, max: null } })
+    expect(ranges('float under 1m')).toEqual({ float: { min: null, max: 1_000_000 } })
+  })
+
+  it('and a written zero still means zero', () => {
+    expect(ranges('vwap over 0')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+})
+
+describe('RF6 "below" was NOT changed', () => {
+  // R142, and the reason is measured rather than stylistic. The negative side
+  // of the canonical scheme is ONE band and the positive side is FIVE, so the
+  // band and binary readings of "below" differ by nothing to six trades across
+  // the two books, while "above" differs by sixty-four on one of them. Beat
+  // 125's "below" therefore stays exactly as it shipped.
+  it('"below vwap" is still the BAND, byte for byte', () => {
+    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+  })
+
+  it('"below the 9 ema" likewise', () => {
+    expect(ranges('below the 9 ema')).toEqual({ ema9_dist_pct: ema(0) })
+  })
+
+  it('and that is NOT the binary reading -- the two really are different', () => {
+    // The vacuity check for the assertions above: if the band and the binary
+    // happened to be the same state, RF6 would pass without meaning anything.
+    expect(vwap(0)).not.toEqual({ min: null, max: 0 })
+  })
+
+  it('SO "below vwap" AND "under vwap" DISAGREE, and that is recorded not hidden', () => {
+    // A WART, and it falls out of two rulings that are each correct on their
+    // own. "below" is a BAND WORD and was deliberately left at the canonical
+    // band; "under" is only an operator, so the zero rule governs it and it
+    // gets the binary reading. A trader would call the two words synonyms.
+    //
+    // NOT FIXED HERE. Making them agree means either giving "under" to the
+    // band -- which the zero ruling forbids -- or moving "below" to the binary,
+    // which the below ruling forbids. It needs a ruling, not a repair, so it is
+    // pinned exactly as measured and named in the commit message.
+    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+    expect(ranges('under vwap')).toEqual({ vwap_dist_pct: { min: null, max: 0 } })
+    expect(ranges('below vwap')).not.toEqual(ranges('under vwap'))
+  })
+
+  it('while the UPWARD pair agree, which is what makes the wart one-sided', () => {
+    expect(ranges('above vwap')).toEqual(ranges('over vwap'))
+  })
+})
+
+describe('RF7 the six band words are unchanged', () => {
+  it.each(BANDS)('"$word from vwap" still writes its band', (b) => {
+    expect(ranges(`${b.word} from vwap`)).toEqual({ vwap_dist_pct: expectedFor(b, 'vwap') })
+  })
+})
+
+describe('RF8 a written negative bound still reads', () => {
+  it('"vwap under -0.5" is still minus a half', () => {
+    expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
   })
 })

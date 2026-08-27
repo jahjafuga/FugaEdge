@@ -280,6 +280,22 @@ const RECENCY_WORDS: Record<string, 'asc' | 'desc'> = {
 const SUPERLATIVE_WORDS = new Set(['top', 'biggest', 'best', 'worst', 'largest', 'smallest'])
 const SUPERLATIVE_CANDIDATES = ['net P&L', 'gain %', 'date']
 
+/** Columns where an operator with NO VALUE binds to ZERO.
+ *
+ *  A signed DISTANCE from an indicator is the one place where zero does not
+ *  have to be guessed: it IS the indicator -- the price sitting exactly on
+ *  VWAP, or exactly on the nine. "Above VWAP" is not a comparison missing its
+ *  number; the number is implied by the word and it is the only number the
+ *  word can mean.
+ *
+ *  EVERY OTHER COLUMN REFUSES, and the two reasons are different. Float,
+ *  shares, hold time and price are never negative, so "above float" would
+ *  match the whole book while looking like a filter. Net P&L, gain per cent
+ *  and R multiple ARE signed and their zero IS meaningful -- but they are not
+ *  distances, "above zero" there is already spelled by the outcome words, and
+ *  the ruling was scoped to distances. */
+const ZERO_BOUND_COLUMNS: ReadonlySet<string> = new Set(['vwap_dist_pct', 'ema9_dist_pct'])
+
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
 
@@ -859,6 +875,26 @@ export function resolveQuery(
     const value = vocabKeys.includes(tokens[vIdx] ?? '') ? null : parseValueAt(tokens, vIdx)
 
     if (!value) {
+      // ZERO IS THE ONE VALUE THAT NEED NOT BE GUESSED, and only here. On a
+      // signed distance column the operator alone already names its bound:
+      // "above vwap" means the price was above the level, which is the most
+      // common VWAP question in small-cap momentum and resolved to nothing at
+      // all until now. The bound goes through the SAME comparison record every
+      // other range uses, so the applied line names the column, the bound and
+      // the zero -- a reader who meant the band can see what was applied and
+      // say so.
+      if (colId && ZERO_BOUND_COLUMNS.has(colId)) {
+        const zLo = Math.min(colStart, i)
+        const zHi = Math.max(colEnd, opEnd)
+        comparisons.push({
+          colId,
+          bound: MIN_OPS.has(op) ? 'min' : 'max',
+          value: 0,
+          text: tokens.slice(zLo, zHi + 1).join(' '),
+        })
+        for (let k = zLo; k <= zHi; k++) marks[k] = 'consumed'
+        continue
+      }
       // R5 -- a comparator with NO value is UNRESOLVED, never a filter with a
       // missing or coerced number. When a column was in the window it is left
       // unclaimable too, so the word cannot fall through to the vocabulary
