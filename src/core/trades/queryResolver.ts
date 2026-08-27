@@ -271,7 +271,17 @@ function stripGroupedCommas(raw: string): string | null {
 /** "$1.5m" → 1_500_000; "5x" → {n: 5, unit: 'x'}. Null when it is not a
  *  number at all. */
 function parseValue(raw: string): { n: number; unit: string | null } | null {
-  const cleaned = stripGroupedCommas(raw)
+  // THE SIGN, READ ONCE AND PEELED FIRST. Everything below sees the number
+  // without it, so the comma grouping and the glued-suffix regex are untouched
+  // and the spoken, glued and comma forms cannot disagree about what a minus
+  // means -- there is only one place that decides.
+  //
+  // READING a minus the user wrote is not INFERRING one they did not. G4's
+  // refusal to guess a sign for a bare money comparison is untouched by this,
+  // and so is the magnitude-of-loss law that deliberately flips one under an
+  // outcome. Both are guarded.
+  const negative = raw.startsWith('-')
+  const cleaned = stripGroupedCommas(negative ? raw.slice(1) : raw)
   if (cleaned === null) return null
   const m = /^\$?(\d+(?:\.\d+)?)(k|m|b|x|%)?$/i.exec(cleaned)
   if (!m) return null
@@ -280,7 +290,7 @@ function parseValue(raw: string): { n: number; unit: string | null } | null {
   if (unit === 'k') n *= 1_000
   else if (unit === 'm') n *= 1_000_000
   else if (unit === 'b') n *= 1_000_000_000
-  return { n, unit }
+  return { n: negative ? -n : n, unit }
 }
 
 /** A value beginning at `idx`, in ANY of the forms a trader types, spanning
@@ -432,7 +442,15 @@ export function resolveQuery(
   const tokens = text
     .toLowerCase()
     .split(/\s+/)
-    .map((t) => t.replace(/^[^\w$]+|[.,;:!?]+$/g, ''))
+    // A LEADING MINUS ON A NUMBER SURVIVES. This strip removes punctuation the
+    // trader typed around a word; it was also removing the sign in front of a
+    // number, so "vwap over -5" arrived as "vwap over 5" and asked for the
+    // mirror of the set, with nothing in the ignored clause to say so. The
+    // lookahead is deliberately narrow -- only a minus IMMEDIATELY followed by a
+    // digit is kept, so "-china", "--5" and "2-5" tokenise exactly as before.
+    // This preserves a CHARACTER; what the character MEANS is decided in one
+    // place, parseValue, and nowhere else.
+    .map((t) => t.replace(/^(?!-\d)[^\w$]+|[.,;:!?]+$/g, ''))
     .filter((t) => t.length > 0)
   const marks: TokenState[] = tokens.map(() => 'free')
 

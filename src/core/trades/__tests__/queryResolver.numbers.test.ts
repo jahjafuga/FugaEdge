@@ -30,7 +30,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { resolveQuery, type ResolverVocabulary } from '../queryResolver'
-import { emptyFilters } from '../tradesFilter'
+import { applyTradesFilters, emptyFilters } from '../tradesFilter'
 
 const NOW = new Date('2026-08-22T15:00:00')
 
@@ -339,5 +339,230 @@ describe('G9 every form that works today still works', () => {
     const out = r('not china')
     expect(out.state.excludeRegions).toEqual(['China'])
     expect(out.state.regions, 'the negated term was applied positively').toEqual([])
+  })
+})
+
+// --- RD : THE MINUS SIGN ----------------------------------------------------
+//
+// A SILENT DEFECT ON EVERY NUMERIC COLUMN. "vwap over -5" and "vwap over 5"
+// produced BYTE-IDENTICAL state: min five, both times. Clean applied line,
+// empty ignored clause, the mirror of the set the user asked for. Measured the
+// same way on net_pnl, mae, daily_change_pct and r_multiple -- it was never
+// about one column.
+//
+// WHERE IT DIED, and it is not the value parser. The TOKENISER strips leading
+// characters that are neither word characters nor a dollar sign:
+//
+//     .map((t) => t.replace(/^[^\w$]+|[.,;:!?]+$/g, ''))
+//
+// so "-5" became "5" before any parser saw it. parseValue's own regex would
+// have refused a minus anyway. Two sites, ONE rule: the tokeniser must stop
+// destroying the character, and the value parser must read it. The sign
+// SEMANTICS live in exactly one place -- parseValue -- and nothing else in the
+// file decides what a minus means.
+//
+// THIS READS A SIGN THE USER WROTE. It does NOT infer one. The house rule
+// stands untouched: a bare money comparison with no outcome is ambiguous and
+// lands in unresolved, because the resolver does not guess a sign. Reading a
+// minus somebody typed and inventing one they did not are opposite acts, and
+// RD6 pins the second half so this beat cannot be mistaken for it later.
+//
+// WHY IT BLOCKS MORE THAN ITSELF: three of the app's seven indicator bands are
+// BELOW zero -- "Below 9 EMA / broken trend < -0.5%" and its VWAP twin -- so
+// no band phrase can land until a negative bound can be expressed at all.
+
+/** Every numeric column where a negative value is MEANINGFUL, with the phrase
+ *  that reaches it. Table-driven on purpose: six handled and one missed is
+ *  this codebase's recurring shape, and a sign rule that works for vwap and
+ *  not for mae is the same bug wearing a different column name. */
+const RD_SIGNED: { phrase: string; col: string }[] = [
+  { phrase: 'vwap', col: 'vwap_dist_pct' },
+  { phrase: 'ema9', col: 'ema9_dist_pct' },
+  { phrase: 'net', col: 'net_pnl' },
+  { phrase: 'mae', col: 'mae' },
+  { phrase: 'mfe', col: 'mfe' },
+  { phrase: 'day change', col: 'daily_change_pct' },
+  { phrase: 'price move', col: 'price_move_pct' },
+  { phrase: 'gain', col: 'pnl_gain_pct' },
+  { phrase: 'r multiple', col: 'r_multiple' },
+]
+
+// --- RD1 : A NEGATIVE MIN IS READ -------------------------------------------
+
+describe('RD1 a negative lower bound survives, on every signed column', () => {
+  it.each(RD_SIGNED)('$phrase over -5 is minus five, not five', ({ phrase, col }) => {
+    expect(
+      ranges(`${phrase} over -5`),
+      `"${phrase} over -5" and "${phrase} over 5" produced the same ask`,
+    ).toEqual({ [col]: { min: -5, max: null } })
+  })
+})
+
+// --- RD2 : A NEGATIVE MAX IS READ -------------------------------------------
+
+describe('RD2 a negative upper bound survives, on every signed column', () => {
+  it.each(RD_SIGNED)('$phrase under -5 is minus five, not five', ({ phrase, col }) => {
+    expect(ranges(`${phrase} under -5`)).toEqual({ [col]: { min: null, max: -5 } })
+  })
+
+  it('and a decimal negative survives too -- the band edges are at -0.5', () => {
+    expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
+    expect(ranges('ema9 under -0.5')).toEqual({ ema9_dist_pct: { min: null, max: -0.5 } })
+  })
+})
+
+// --- RD3 : THE BOUND REACHES THE ROWS ---------------------------------------
+
+/** Distances chosen to straddle the -0.5 band edge and zero. A state assertion
+ *  cannot tell a correct bound from a correctly-shaped empty one, so the rows
+ *  are counted through the real engine. */
+const RD_ROWS = [-9, -3, -0.6, -0.5, -0.4, 0, 0.4, 2, 6, 12].map((d, i) => ({
+  id: i + 1,
+  date: '2026-08-20',
+  symbol: 'NRVA',
+  side: 'long',
+  is_open: false,
+  open_time: '2026-08-20T13:30:00Z',
+  close_time: '2026-08-20T13:40:00Z',
+  net_pnl: 10,
+  playbook_id: null,
+  mistakes: [],
+  mistakeTags: [],
+  catalyst_type: null,
+  region: null,
+  country: null,
+  sector: null,
+  industry: null,
+  tf_1m_vwap_dist_pct: d,
+})) as unknown as Parameters<typeof applyTradesFilters>[0]
+
+describe('RD3 the negative bound narrows the actual rows', () => {
+  const countFor = (q: string) => applyTradesFilters(RD_ROWS, r(q).state).length
+
+  it('"vwap under -0.5" keeps only the rows at or below minus a half', () => {
+    // -9, -3, -0.6, -0.5 -> four. The +0.4 and 0 rows must NOT survive, which
+    // is exactly what the sign-dropping bug let through.
+    expect(countFor('vwap under -0.5')).toBe(4)
+  })
+
+  it('"vwap over -0.5" keeps the rest', () => {
+    expect(countFor('vwap over -0.5')).toBe(7)
+  })
+
+  it('and the positive form is unaffected', () => {
+    // 6 and 12 -> two.
+    expect(countFor('vwap over 5')).toBe(2)
+  })
+})
+
+// --- RD4 : THE DISCRIMINATING COMPANION -------------------------------------
+
+describe('RD4 the positive forms are unchanged', () => {
+  // Without this, RD1 and RD2 pass for a cure that negated every number.
+  it.each(RD_SIGNED)('$phrase over 5 is still POSITIVE five', ({ phrase, col }) => {
+    expect(
+      ranges(`${phrase} over 5`),
+      `"${phrase} over 5" came back negative -- the cure negates everything`,
+    ).toEqual({ [col]: { min: 5, max: null } })
+  })
+
+  it('and the other number forms keep their sign', () => {
+    expect(ranges('float under 1m')).toEqual({ float: { min: null, max: 1_000_000 } })
+    expect(ranges('float under 1 million')).toEqual({ float: { min: null, max: 1_000_000 } })
+    expect(ranges('net over 100')).toEqual({ net_pnl: { min: 100, max: null } })
+  })
+})
+
+// --- RD5 : THE MAGNITUDE-OF-LOSS LAW IS UNTOUCHED ---------------------------
+
+describe('RD5 an outcome still flips the sign of a bare money comparison', () => {
+  // The law lives at queryResolver.ts G4 and is asserted in the comparator
+  // suite too -- that assertion is deliberately left exactly as it is:
+  //     expect(r('losers over 100').state.ranges)
+  //       .toEqual({ net_pnl: { min: null, max: -100 } })
+  // This beat must not disturb it: G4 FLIPS a sign the user did not write,
+  // which is a different act from READING one they did.
+  it('"losers over 100" is still net below minus one hundred', () => {
+    expect(r('losers over 100').state.ranges).toEqual({ net_pnl: { min: null, max: -100 } })
+  })
+
+  it('"winners over 100" is still net above one hundred', () => {
+    expect(r('winners over 100').state.ranges).toEqual({ net_pnl: { min: 100, max: null } })
+  })
+
+  // THE INTERACTION, NAMED RATHER THAN RESOLVED. This beat made the minus
+  // readable; G4 still flips a BARE money comparison under an outcome. Compose
+  // them and the two rules multiply: "losers over -100" flips the bound AND
+  // negates the value, so it lands on net P&L BELOW plus one hundred. That is
+  // the literal composition and it is almost certainly not what the sentence
+  // means to a trader.
+  //
+  // IT IS NOT FIXED HERE, deliberately. G4 is a founder-ruled law and changing
+  // what it does to a written sign is a ruling, not a repair. What this beat
+  // owes is to make the behaviour VISIBLE instead of leaving it to be
+  // discovered, so the guard pins it exactly as measured and names the escape
+  // hatch beside it.
+  it('a written minus under an outcome composes with G4 -- measured, not endorsed', () => {
+    expect(r('losers over -100').state.ranges).toEqual({ net_pnl: { min: null, max: 100 } })
+    expect(r('losers under -100').state.ranges).toEqual({ net_pnl: { min: 100, max: null } })
+  })
+
+  it('and NAMING the column escapes the flip entirely', () => {
+    // The moment a column is named, G4's bare-money branch does not run, so
+    // the written sign survives untouched. This is the phrasing that does what
+    // a trader typing a minus almost certainly wants.
+    expect(r('losers net over -100').state.ranges).toEqual({ net_pnl: { min: -100, max: null } })
+    expect(r('net over -100').state.ranges).toEqual({ net_pnl: { min: -100, max: null } })
+  })
+})
+
+// --- RD6 : THE SIGN IS STILL NEVER GUESSED ----------------------------------
+
+describe('RD6 a bare comparison with no column and no outcome still refuses', () => {
+  // AN ABSENCE ASSERTION, so its ability to fire is proven by the presence
+  // beside it: the SAME comparison with a column named DOES resolve. Without
+  // that pair this guard would pass on a resolver that had stopped working.
+  it('"over 100" applies nothing and says so', () => {
+    const out = r('over 100')
+    expect(out.state.ranges, 'the resolver guessed a sign for a bare comparison').toEqual({})
+    expect(out.unresolved.join(' ')).toContain('over 100')
+  })
+
+  it('"under 100" likewise', () => {
+    expect(r('under 100').state.ranges).toEqual({})
+  })
+
+  it('PROOF THE ABOVE CAN FIRE: the same comparison WITH a column resolves', () => {
+    expect(r('net over 100').state.ranges).toEqual({ net_pnl: { min: 100, max: null } })
+  })
+})
+
+// --- RD7 : A NEGATIVE WHERE ONE IS NONSENSE IS REFUSED ----------------------
+
+describe('RD7 a negative never becomes a limit', () => {
+  // Today "last -5" shows FIVE trades, because the minus was stripped before
+  // the count was read. A limit of minus five is nonsense, so the correct
+  // outcome is to refuse the count, not to negate it.
+  it('"last -5" sets no limit at all', () => {
+    expect(r('last -5').state.limit, 'a negative count became a positive limit').toBeNull()
+  })
+
+  it('a bare "-5" sets no limit either', () => {
+    expect(r('-5').state.limit).toBeNull()
+  })
+
+  it('PROOF THE ABOVE CAN FIRE: the positive forms still limit', () => {
+    // Without this pair, RD7 would pass on a resolver that had lost limits
+    // entirely -- the same vacuity an earlier beat found in an absence guard.
+    expect(r('last 5').state.limit).toBe(5)
+    expect(r('5').state.limit).toBe(5)
+  })
+
+  it('and "top -5" still offers rather than limiting', () => {
+    // NOTE, honestly: this one cannot fail today or after. The superlative
+    // path never sets a limit, so the assertion is about the OTHER half --
+    // that a negative does not turn a superlative into a filter. Kept for the
+    // record, with its own vacuity stated rather than hidden.
+    expect(r('top -5').state.limit).toBeNull()
   })
 })
