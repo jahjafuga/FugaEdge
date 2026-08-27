@@ -44,6 +44,12 @@
 import type { MistakeAxis } from '@shared/mistakes-types'
 import { emptyFilters, type TradesFilterState } from './tradesFilter'
 import { withDatePreset, type DatePreset } from './datePreset'
+// THE BANDS ARE THE APP'S, IMPORTED RATHER THAN COPIED. Both tables are pure
+// (type-only imports of their own) and their edges are locked bucket-for-bucket
+// by bucketSchemeParity.test.ts, so there is exactly ONE definition of
+// "extended" in the product and it cannot drift into a second one here.
+import { EMA_BUCKETS } from '@/core/technicals/emaBuckets'
+import { VWAP_BUCKETS } from '@/core/technicals/vwapBuckets'
 
 /** Everything a token may resolve against. All of it book- or def-table-
  *  derived by the CALLER — the resolver holds no vocabulary of its own. */
@@ -194,6 +200,16 @@ const COLUMN_PHRASES: [string, string][] = [
   ['price move', 'price_move_pct'], ['price moved', 'price_move_pct'],
   ['first entry', 'first_entry'], ['catalyst age', 'days_since_catalyst'],
   ['ema distance', 'ema9_dist_pct'], ['ema9 distance', 'ema9_dist_pct'],
+  // v0.2.7 -- the phrasings a trader actually types. "dist" is the column's own
+  // abbreviation on the Technicals tab ("VWAP dist", "EMA 9 dist"). The
+  // number-bearing forms are reachable HERE and only here: the comparison pass
+  // runs BEFORE the bare-count pass, so "9 ema over 5" claims the phrase before
+  // the nine can be taken for a limit. Proven with a scratch entry before it
+  // was added. A BARE "9 ema" is still read as a count -- that is parser work,
+  // not a phrase, and it stays out of this beat.
+  ['vwap dist', 'vwap_dist_pct'], ['vwap distance', 'vwap_dist_pct'],
+  ['ema9 dist', 'ema9_dist_pct'], ['ema dist', 'ema9_dist_pct'],
+  ['9 ema', 'ema9_dist_pct'], ['ema 9', 'ema9_dist_pct'],
   // ONE word. A BARE price is the ENTRY price -- the price you paid is the one
   // a trader means when they do not say which. Exit is reachable by naming it.
   ['price', 'avg_buy'], ['prices', 'avg_buy'], ['cost', 'avg_buy'],
@@ -213,6 +229,46 @@ const COLUMN_PHRASES: [string, string][] = [
 /** Recency words: a limit AND the ordering it implies. "last ten" means by
  *  DATE, descending -- never by whatever the user last clicked, because the
  *  same sentence has to mean the same thing tomorrow. */
+/** The trader's word for each canonical band, as an INDEX into the imported
+ *  tables -- never as a number written down here. Only "extended" merges
+ *  upward, and only because the app's own predicate already says it does.
+ *
+ *  "ABOVE" IS DELIBERATELY ABSENT. It is the one band word whose canonical
+ *  definition contradicts its plain meaning: the band "Above VWAP (trending)"
+ *  is +2.0% to +5.0%, while a trader saying "above VWAP" means more than zero.
+ *  On a real book that is fourteen trades against seventy-eight. Shipping
+ *  either number silently would answer a question nobody asked, so the word
+ *  stays out until it is ruled on, and a guard keeps the omission deliberate. */
+const BAND_WORDS: Record<string, { idx: number; merged: boolean }> = {
+  below: { idx: 0, merged: false },
+  at: { idx: 1, merged: false },
+  near: { idx: 2, merged: false },
+  extended: { idx: 4, merged: true },
+  'very extended': { idx: 5, merged: false },
+  'blow off': { idx: 6, merged: false },
+  blowoff: { idx: 6, merged: false },
+  parabolic: { idx: 6, merged: false },
+}
+
+/** Band words that already mean something else in this file: "below" is a
+ *  comparator (MAX_OPS) and "at" is the tail of the column phrase "sold at".
+ *  Each is read as a band ONLY when an indicator follows it, so "float below 5"
+ *  and "sold at 5" resolve exactly as they always have. */
+const BAND_NEEDS_INDICATOR: ReadonlySet<string> = new Set(['below', 'at'])
+
+/** How a trader names the indicator a band belongs to. A bare "9 ema" is read
+ *  as a count everywhere else in this file; inside a band phrase it is safe,
+ *  because the band word has already claimed the span and the bare-count pass
+ *  runs afterwards. */
+const BAND_INDICATORS: Record<string, string> = {
+  vwap: 'vwap_dist_pct',
+  '9 ema': 'ema9_dist_pct',
+  'ema 9': 'ema9_dist_pct',
+  ema9: 'ema9_dist_pct',
+  'nine ema': 'ema9_dist_pct',
+  ema: 'ema9_dist_pct',
+}
+
 const RECENCY_WORDS: Record<string, 'asc' | 'desc'> = {
   last: 'desc', latest: 'desc', newest: 'desc', recent: 'desc',
   earliest: 'asc', oldest: 'asc', first: 'asc',
@@ -607,6 +663,77 @@ export function resolveQuery(
       tokens.slice(i, k + v.len).join(' '),
     )
     for (let q = i; q < k + v.len; q++) marks[q] = 'consumed'
+  }
+
+  // ── pass 1a: the trader's own band words ────────────────────────
+  // "extended", "near", "below" are how a momentum trader describes an entry,
+  // and this app already defines every one of them numerically. This pass turns
+  // the word into the SAME range a hand-written comparison would produce: it
+  // writes into `ranges` and touches nothing else.
+  //
+  // BEFORE the bare-count pass, deliberately -- "extended from the 9 ema" has
+  // to claim its nine before that pass can read it as a limit.
+  //
+  // THE DEFAULT INDICATOR IS THE NINE EMA, and that is a product ruling rather
+  // than a measurement. The nine is the pullback reference a trader enters off
+  // and names only when asked; VWAP is the level you are above or below. The
+  // app's own extended predicate is nine-EMA-only, which is the same instinct
+  // written down earlier. Naming VWAP still selects VWAP, and the applied line
+  // always says which indicator was used, so the default can be disagreed with.
+  for (let i = 0; i < tokens.length; i++) {
+    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+    let band: { word: string; idx: number; merged: boolean } | null = null
+    let span = 0
+    for (const width of [2, 1]) {
+      if (i + width > tokens.length) continue
+      const phrase = tokens.slice(i, i + width).join(' ')
+      const hit = BAND_WORDS[phrase]
+      if (!hit) continue
+      // EXACT vocabulary wins and the word is handed BACK -- the same rule pass
+      // zero applies to a recency word, for the same reason: a book that names
+      // a setup "Extended" means the setup. A SUBSTRING match is not a claim.
+      if (vocabKeys.includes(phrase)) break
+      band = { word: phrase, idx: hit.idx, merged: hit.merged }
+      span = width
+      break
+    }
+    if (!band) continue
+    // "below" is ALSO a comparator and "at" is ALSO the tail of the column
+    // phrase "sold at". Those two are read as a band only when an indicator
+    // follows, so "float below 5" and "sold at 5" keep the readings they have.
+    // The unambiguous words -- extended, near, blow off -- stand alone.
+    // The indicator, if the trader named one: the first indicator phrase after
+    // the band word, across stopwords -- "extended FROM THE 9 ema".
+    let j = i + span
+    while (j < tokens.length && marks[j] === 'free' && STOPWORDS.has(tokens[j])) j++
+    let colId = 'ema9_dist_pct'
+    let end = i + span - 1
+    for (const width of [2, 1]) {
+      if (j + width > tokens.length) continue
+      const named = BAND_INDICATORS[tokens.slice(j, j + width).join(' ')]
+      if (!named) continue
+      colId = named
+      end = j + width - 1
+      break
+    }
+    if (end === i + span - 1 && BAND_NEEDS_INDICATOR.has(band.word)) continue
+    const table = colId === 'vwap_dist_pct' ? VWAP_BUCKETS : EMA_BUCKETS
+    const meta = table[band.idx]!
+    const min = Number.isFinite(meta.lo) ? meta.lo : null
+    // ONE MERGE, AND IT IS THE APP'S OWN. Bare "extended" means AT OR BEYOND
+    // the extended band's lower edge rather than that band alone --
+    // ema9DistanceBuckets.ts defines the clean-vs-extended split exactly that
+    // way and analytics already ships it. A trader asking for extended entries
+    // means the blow-off ones too.
+    const max = band.merged || !Number.isFinite(meta.hi) ? null : meta.hi
+    const prev = state.ranges[colId] ?? { min: null, max: null }
+    state = { ...state, ranges: { ...state.ranges, [colId]: { ...prev, min, max } } }
+    const label = colId === 'vwap_dist_pct' ? 'VWAP' : '9 EMA'
+    const bounds =
+      max === null ? `at or beyond ${min}` : min === null ? `under ${max}` : `${min} to ${max}`
+    log(`${label} ${band.word} (${bounds})`, tokens.slice(i, end + 1).join(' '))
+    for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    i = end
   }
 
   // ── pass 1: comparisons ────────────────────────────────────────────────────

@@ -380,21 +380,29 @@ const STILL_DIRTY: Record<string, string> = {
   'my biggest losers': 'biggest',
   'what are my worst trades': 'worst',
   'show me everything under 5 dollars': 'under 5 dollars',
-  'trades where i chased extended': 'extended',
+  // v0.2.7 -- ONE ENTRY LEFT THIS TABLE, and it left because the sentence is
+  // now READ rather than half-read. "extended" was not a word this resolver
+  // knew; it is a band word now, with the threshold the Technicals tab already
+  // defines. The blocker is gone, so the row is gone, and the count below moved
+  // with it. The old row read:
+  //     'trades where i chased extended': 'extended',
 }
 
 describe('RY4 the twenty sentences', () => {
-  it('exactly fourteen resolve with nothing left over', () => {
+  it('exactly fifteen resolve with nothing left over', () => {
     // Was THIRTEEN. The fourteenth is "i want chinese stocks", and it did not
     // become clean by being understood better -- it was ALREADY reported clean
     // before, while filtering on a mistake nobody named. What changed is that
     // it is now clean AND correct. RB8 asserts that second half, because this
     // count alone cannot tell the two apart.
+    //
+    // AND NOW FIFTEEN. The fifteenth is "trades where i chased extended",
+    // clean because "extended" became a band word rather than an unknown one.
     const clean = TWENTY.filter((q) => ry(q).unresolved.length === 0)
-    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(14)
+    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(15)
   })
 
-  it('and the six that do not are these six, by name', () => {
+  it('and the five that do not are these five, by name', () => {
     const dirty = TWENTY.filter((q) => ry(q).unresolved.length > 0).sort()
     expect(dirty).toEqual(Object.keys(STILL_DIRTY).sort())
   })
@@ -1032,7 +1040,12 @@ const RB_STILL_DIRTY: Record<string, string> = {
   'my biggest losers': 'biggest',
   'what are my worst trades': 'worst',
   'show me everything under 5 dollars': 'under 5 dollars',
-  'trades where i chased extended': 'extended',
+  // v0.2.7 -- ONE ENTRY LEFT THIS TABLE, and it left because the sentence is
+  // now READ rather than half-read. "extended" was not a word this resolver
+  // knew; it is a band word now, with the threshold the Technicals tab already
+  // defines. The blocker is gone, so the row is gone, and the count below moved
+  // with it. The old row read:
+  //     'trades where i chased extended': 'extended',
 }
 
 describe('RB8 the twenty', () => {
@@ -1045,21 +1058,45 @@ describe('RB8 the twenty', () => {
   }
   const t = (q: string) => resolveQuery(q, T, NOW, emptyFilters())
 
-  it('exactly fourteen read every word of themselves', () => {
+  it('exactly fifteen read every word of themselves', () => {
     const clean = RB_TWENTY.filter((q) => t(q).unresolved.length === 0)
-    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(14)
+    expect(clean.length, `clean: ${clean.join(' | ')}`).toBe(15)
   })
 
-  it('and all fourteen are also CORRECT -- none applies a filter nobody asked for', () => {
-    // The measure that matters. Before this beat thirteen of the fourteen were
-    // correct: "i want chinese stocks" came back clean while filtering on a
-    // mistake named "High-volume pullback (wanted low volume)".
+  it('and every one of them is also CORRECT -- no filter nobody asked for', () => {
+    // The measure that matters. Before the filler beat, thirteen of fourteen
+    // were correct: "i want chinese stocks" came back clean while filtering on
+    // a mistake named "High-volume pullback (wanted low volume)".
+    //
+    // ONE SENTENCE IS NOW EXEMPT, and the exemption is quoted rather than
+    // silent. The assertion read:
+    //     const wrong = clean.filter((q) => t(q).state.mistakeKeys.length > 0)
+    // "trades where i chased extended" DOES ask for a mistake -- "chased" has
+    // prefix-matched "Chased extension (too far from 9 EMA)" since long before
+    // this beat, and that half was never in dispute. What changed is that
+    // "extended" is now read too, so the sentence carries a mistake AND a band
+    // range and stopped being dirty. It is not a filter nobody asked for; it is
+    // two filters both asked for, which is the partial-application question and
+    // is ruled out of scope. The test now names the one sentence that legitimately
+    // carries a mistake instead of pretending none can.
+    const ASKS_FOR_A_MISTAKE = 'trades where i chased extended'
     const clean = RB_TWENTY.filter((q) => t(q).unresolved.length === 0)
-    const wrong = clean.filter((q) => t(q).state.mistakeKeys.length > 0)
+    const wrong = clean
+      .filter((q) => q !== ASKS_FOR_A_MISTAKE)
+      .filter((q) => t(q).state.mistakeKeys.length > 0)
     expect(wrong, `clean but filtering on an unasked mistake: ${wrong.join(' | ')}`).toEqual([])
   })
 
-  it('the six that remain are these six, by name', () => {
+  it('and the exempt one really does name its own mistake', () => {
+    // Without this the exemption above could hide a regression: the sentence
+    // has to still be reading "chased", not merely be excused.
+    expect(t('trades where i chased extended').state.mistakeKeys).toEqual([
+      { axis: 'technical', name: 'Chased extension (too far from 9 EMA)' },
+    ])
+    expect(t('trades where i chased extended').state.ranges.ema9_dist_pct).toBeTruthy()
+  })
+
+  it('the five that remain are these five, by name', () => {
     const dirty = RB_TWENTY.filter((q) => t(q).unresolved.length > 0).sort()
     expect(dirty).toEqual(Object.keys(RB_STILL_DIRTY).sort())
   })
