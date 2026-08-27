@@ -240,7 +240,11 @@ const COLUMN_PHRASES: [string, string][] = [
  *  either number silently would answer a question nobody asked, so the word
  *  stays out until it is ruled on, and a guard keeps the omission deliberate. */
 const BAND_WORDS: Record<string, { idx: number; merged: boolean }> = {
-  below: { idx: 0, merged: false },
+  // "below" WAS HERE and has left, quoted rather than deleted:
+  //     below: { idx: 0, merged: false },
+  // It is a DIRECTION word now, not a band word: "below vwap" means below the
+  // level, max zero, the same rule "above" follows. The lowest band keeps its
+  // meaning and loses its bare word, and stays reachable as "vwap under -0.5".
   at: { idx: 1, merged: false },
   near: { idx: 2, merged: false },
   extended: { idx: 4, merged: true },
@@ -250,11 +254,14 @@ const BAND_WORDS: Record<string, { idx: number; merged: boolean }> = {
   parabolic: { idx: 6, merged: false },
 }
 
-/** Band words that already mean something else in this file: "below" is a
- *  comparator (MAX_OPS) and "at" is the tail of the column phrase "sold at".
- *  Each is read as a band ONLY when an indicator follows it, so "float below 5"
- *  and "sold at 5" resolve exactly as they always have. */
-const BAND_NEEDS_INDICATOR: ReadonlySet<string> = new Set(['below', 'at'])
+/** Band words that already mean something else in this file. "at" is the tail
+ *  of the column phrase "sold at", so it is read as a band ONLY when an
+ *  indicator follows it and "sold at 5" resolves exactly as it always has.
+ *
+ *  "below" used to be in this set too. It is no longer a band word at all --
+ *  it is a comparator, and a comparator with no value on a distance column
+ *  binds to zero, which is the rule that now owns it. */
+const BAND_NEEDS_INDICATOR: ReadonlySet<string> = new Set(['at'])
 
 /** How a trader names the indicator a band belongs to. A bare "9 ema" is read
  *  as a count everywhere else in this file; inside a band phrase it is safe,

@@ -72,7 +72,12 @@ const vwap = (i: number) => ({ min: fin(VWAP_BUCKETS[i]!.lo), max: fin(VWAP_BUCK
 /** word -> band index, and whether the word MERGES upward. Only "extended"
  *  merges, and only because the app already says it does. */
 const BANDS: { word: string; idx: number; merged?: true }[] = [
-  { word: 'below', idx: 0 },
+  // ONE ROW LEFT THIS TABLE, and it is quoted rather than deleted:
+  //     { word: 'below', idx: 0 },
+  // "below" is no longer a band word. It is a direction word now, and a
+  // direction word with no value means the indicator itself -- max zero, the
+  // same rule "above" follows. The lowest band keeps its meaning and loses its
+  // bare word; RG4 proves it is still reachable by number.
   { word: 'at', idx: 1 },
   { word: 'near', idx: 2 },
   { word: 'extended', idx: 4, merged: true },
@@ -167,15 +172,19 @@ describe('RE3 a bare band word defaults to the nine EMA', () => {
     expect(ranges('blow off').ema9_dist_pct).toEqual(ema(6))
   })
 
-  it('but "below" and "at" need the indicator said out loud', () => {
-    // MEASURED, and it is why they are treated apart: "below" is also a
-    // comparator and "at" is also the tail of the column phrase "sold at".
-    // Reading a bare one as a band would take "float below 5" and "sold at 5"
-    // away from the readings they already have, which are asserted in RE7.
-    // Said with an indicator they work exactly like the others.
-    expect(ranges('below'), 'a bare comparator was read as a band').toEqual({})
+  it('but "at" needs the indicator said out loud', () => {
+    // MEASURED. "at" is the tail of the column phrase "sold at", so reading a
+    // bare one as a band would take "sold at 5" away from the reading it
+    // already has, which RE7 asserts. Said with an indicator it works like the
+    // others.
+    //
+    // "below" WAS IN THIS CASE and has left it. The old line read:
+    //     expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+    // It is a direction word now, not a band word, so it goes through the zero
+    // rule instead and RG1 owns it. A BARE "below" is still nothing at all,
+    // for the same reason it always was: no column, no comparison.
     expect(ranges('at'), 'a bare column-phrase tail was read as a band').toEqual({})
-    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+    expect(ranges('below'), 'a bare direction word invented a column').toEqual({})
     expect(ranges('at the 9 ema')).toEqual({ ema9_dist_pct: ema(1) })
   })
 })
@@ -193,7 +202,12 @@ describe('RE4 naming VWAP still means VWAP', () => {
   })
 
   it('"below vwap" too -- the phrasing a trader actually types', () => {
-    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+    // INVERTED IN PLACE. The old line read:
+    //     expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+    // What this case is FOR is unchanged -- naming VWAP must still select VWAP
+    // and not the nine -- so it keeps testing that and only the bound moved.
+    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: { min: null, max: 0 } })
+    expect(ranges('below vwap').ema9_dist_pct, 'the default leaked in').toBeUndefined()
   })
 
   it('and "near the 9 ema" is not the VWAP band', () => {
@@ -299,13 +313,23 @@ describe('RE8 a written negative bound still reads', () => {
     expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
   })
 
-  it('and it still narrows rows the same way the band does', () => {
-    // The band word and the hand-written bound must agree -- they are the same
-    // question asked two ways, and if they disagree one of them is lying.
+  it('and the written bound is now a DIFFERENT question from the word', () => {
+    // INVERTED IN PLACE. The old assertion read:
+    //     const byWord = applyTradesFilters(rows, r('below vwap').state).length
+    //     const byHand = applyTradesFilters(rows, r('vwap under -0.5').state).length
+    //     expect(byWord,
+    //       'the band word and the explicit bound disagree').toBe(byHand)
+    // It was true while "below vwap" WAS the band. The word now means below
+    // zero and the written bound still means below minus a half, so they are
+    // two different questions and must give two different answers. Asserting
+    // they still agree would be asserting the cure did not happen.
+    //
+    // This is the guard a plant caught a beat ago by driving what a block
+    // named for something else happened to read.
     const rows = rowsAt('tf_1m_vwap_dist_pct')
     const byWord = applyTradesFilters(rows, r('below vwap').state).length
     const byHand = applyTradesFilters(rows, r('vwap under -0.5').state).length
-    expect(byWord, 'the band word and the explicit bound disagree').toBe(byHand)
+    expect(byWord, 'the word and the written bound collapsed together').toBeGreaterThan(byHand)
   })
 })
 
@@ -489,43 +513,49 @@ describe('RF5 an operator WITH a value is untouched', () => {
   })
 })
 
-describe('RF6 "below" was NOT changed', () => {
-  // R142, and the reason is measured rather than stylistic. The negative side
-  // of the canonical scheme is ONE band and the positive side is FIVE, so the
-  // band and binary readings of "below" differ by nothing to six trades across
-  // the two books, while "above" differs by sixty-four on one of them. Beat
-  // 125's "below" therefore stays exactly as it shipped.
-  it('"below vwap" is still the BAND, byte for byte', () => {
-    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+describe('RF6 "below" WAS changed, and the wart it caused is gone', () => {
+  // INVERTED IN PLACE, AND THIS BLOCK IS THE CENTRE OF THE REVERSAL. It
+  // asserted the opposite -- that "below vwap" kept the canonical band and that
+  // it therefore DISAGREED with "under vwap". Both old assertions are kept here
+  // verbatim rather than deleted:
+  //
+  //     it('"below vwap" is still the BAND, byte for byte', () => {
+  //       expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+  //     })
+  //     it('"below the 9 ema" likewise', () => {
+  //       expect(ranges('below the 9 ema')).toEqual({ ema9_dist_pct: ema(0) })
+  //     })
+  //     it('SO "below vwap" AND "under vwap" DISAGREE, ...', () => {
+  //       expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
+  //       expect(ranges('under vwap'))
+  //         .toEqual({ vwap_dist_pct: { min: null, max: 0 } })
+  //       expect(ranges('below vwap')).not.toEqual(ranges('under vwap'))
+  //     })
+  //
+  // WHY IT CHANGED, and planning owns this rather than the code. The earlier
+  // ruling rested on a measurement of ONE indicator: on VWAP the band and the
+  // binary are IDENTICAL -- sixty-two trades and sixty-two -- so the choice
+  // looked free. The nine was never checked, and there it is one hundred and
+  // twelve against one hundred and eighteen. The shape of the argument held;
+  // the number offered in support of it did not.
+  //
+  // The wart that ruling produced was guarded rather than hidden, which is why
+  // reversing it is three edits and not an excavation.
+  it('"below vwap" is the binary, not the band', () => {
+    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: { min: null, max: 0 } })
   })
 
   it('"below the 9 ema" likewise', () => {
-    expect(ranges('below the 9 ema')).toEqual({ ema9_dist_pct: ema(0) })
+    expect(ranges('below the 9 ema')).toEqual({ ema9_dist_pct: { min: null, max: 0 } })
   })
 
-  it('and that is NOT the binary reading -- the two really are different', () => {
-    // The vacuity check for the assertions above: if the band and the binary
-    // happened to be the same state, RF6 would pass without meaning anything.
+  it('and it is NOT the band -- the two really are different states', () => {
+    // The vacuity check, kept and pointed the other way: if the band and the
+    // binary happened to be the same state, the assertions above would pass
+    // without meaning anything. On VWAP they select the same ROWS; they are
+    // still different STATES, and that is what is asserted.
     expect(vwap(0)).not.toEqual({ min: null, max: 0 })
-  })
-
-  it('SO "below vwap" AND "under vwap" DISAGREE, and that is recorded not hidden', () => {
-    // A WART, and it falls out of two rulings that are each correct on their
-    // own. "below" is a BAND WORD and was deliberately left at the canonical
-    // band; "under" is only an operator, so the zero rule governs it and it
-    // gets the binary reading. A trader would call the two words synonyms.
-    //
-    // NOT FIXED HERE. Making them agree means either giving "under" to the
-    // band -- which the zero ruling forbids -- or moving "below" to the binary,
-    // which the below ruling forbids. It needs a ruling, not a repair, so it is
-    // pinned exactly as measured and named in the commit message.
-    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: vwap(0) })
-    expect(ranges('under vwap')).toEqual({ vwap_dist_pct: { min: null, max: 0 } })
-    expect(ranges('below vwap')).not.toEqual(ranges('under vwap'))
-  })
-
-  it('while the UPWARD pair agree, which is what makes the wart one-sided', () => {
-    expect(ranges('above vwap')).toEqual(ranges('over vwap'))
+    expect(ranges('below vwap')).not.toEqual({ vwap_dist_pct: vwap(0) })
   })
 })
 
@@ -538,5 +568,158 @@ describe('RF7 the six band words are unchanged', () => {
 describe('RF8 a written negative bound still reads', () => {
   it('"vwap under -0.5" is still minus a half', () => {
     expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
+  })
+})
+
+
+// --- RG : BELOW MEANS BELOW ZERO --------------------------------------------
+//
+// The previous beat made a direction word with no value mean the indicator
+// itself, and applied it upward only. "Above vwap" and "over vwap" agreed;
+// "below vwap" kept the canonical band while "under vwap" took the binary. Two
+// words a trader reads as synonyms, two different answers. That was guarded
+// rather than hidden, and this beat closes it: the downward pair joins the
+// upward one and the wart disappears instead of being explained.
+//
+// THE LOWEST BAND KEEPS ITS MEANING AND LOSES ITS BARE WORD. Nothing became
+// unreachable -- "vwap under -0.5" still selects it -- and RG4 proves that with
+// a number rather than a sentence. Whether the two edge bands get words of
+// their own is a separate ruling and is not made here.
+
+/** The two columns a direction word may bind on, and the phrase that reaches
+ *  each. The same pair the zero rule admitted. */
+const RG_COLUMNS: [string, string][] = [
+  ['vwap', 'vwap_dist_pct'],
+  ['the 9 ema', 'ema9_dist_pct'],
+]
+
+describe('RG1 "below X" is less than zero', () => {
+  it.each(RG_COLUMNS)('"below %s" is max zero and no lower bound', (word, col) => {
+    expect(ranges(`below ${word}`)).toEqual({ [col]: { min: null, max: 0 } })
+  })
+
+  it('and the bound is a MAXIMUM, not a minimum', () => {
+    const g = ranges('below vwap').vwap_dist_pct
+    expect(g?.max, 'the upper bound was not zero').toBe(0)
+    expect(g?.min, 'a lower bound was invented').toBeNull()
+  })
+})
+
+describe('RG2 "below X" and "under X" now AGREE', () => {
+  // The assertion this beat exists to flip. Its predecessor asserted these two
+  // DIFFER and is quoted in RF6 above.
+  it.each(RG_COLUMNS)('"below %s" and "under %s" are the same ask', (word) => {
+    expect(ranges(`below ${word}`)).toEqual(ranges(`under ${word}`))
+  })
+
+  it('and the pair is not agreeing by both being empty', () => {
+    // The vacuity check: two refusals would satisfy the assertions above.
+    expect(ranges('below vwap')).not.toEqual({})
+    expect(ranges('under vwap')).not.toEqual({})
+  })
+
+  it('so the downward pair is now symmetric with the upward one', () => {
+    expect(ranges('above vwap')).toEqual(ranges('over vwap'))
+    expect(ranges('below vwap')).toEqual(ranges('under vwap'))
+  })
+})
+
+describe('RG3 the zero bound narrows the actual rows', () => {
+  const belowZero = DISTANCES.filter((d) => d <= 0).length
+  it('"below vwap" keeps every row at or below zero', () => {
+    expect(applyTradesFilters(rowsAt('tf_1m_vwap_dist_pct'), r('below vwap').state).length)
+      .toBe(belowZero)
+  })
+
+  it('"below the 9 ema" likewise', () => {
+    expect(applyTradesFilters(rowsAt('tf_1m_ema9_dist_pct'), r('below the 9 ema').state).length)
+      .toBe(belowZero)
+  })
+
+  it('and it is NOT the whole book', () => {
+    expect(belowZero).toBeLessThan(DISTANCES.length)
+  })
+})
+
+describe('RG4 both edge bands are still reachable BY NUMBER', () => {
+  // R148 as a measurement rather than a claim. The words are gone; the bands
+  // are not. If either of these ever stops resolving, a capability really was
+  // deleted and this guard says so.
+  it('the lowest band -- "vwap under -0.5" and its nine-EMA twin', () => {
+    expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
+    expect(ranges('ema9 under -0.5')).toEqual({ ema9_dist_pct: { min: null, max: -0.5 } })
+  })
+
+  it('the ABOVE band -- two to five, written as a two-sided range', () => {
+    expect(ranges('vwap between 2 and 5')).toEqual({ vwap_dist_pct: { min: 2, max: 5 } })
+    expect(ranges('vwap 2 to 5')).toEqual({ vwap_dist_pct: { min: 2, max: 5 } })
+  })
+
+  it('and the band bound selects a DIFFERENT set from the word', () => {
+    // Proves the two are not the same question wearing two spellings -- which
+    // is the whole reason losing the word matters at all.
+    const rows = rowsAt('tf_1m_vwap_dist_pct')
+    const band = applyTradesFilters(rows, r('vwap under -0.5').state).length
+    const word = applyTradesFilters(rows, r('below vwap').state).length
+    expect(band).not.toBe(word)
+  })
+})
+
+describe('RG5 the UPWARD pair is unchanged', () => {
+  // Without this, RG1 passes for a cure that flipped the direction of
+  // everything rather than only the downward pair.
+  it.each(RG_COLUMNS)('"above %s" is still min zero', (word, col) => {
+    expect(ranges(`above ${word}`)).toEqual({ [col]: { min: 0, max: null } })
+  })
+
+  it('"over vwap" too', () => {
+    expect(ranges('over vwap')).toEqual({ vwap_dist_pct: { min: 0, max: null } })
+  })
+})
+
+describe('RG6 the five remaining band words are unchanged', () => {
+  it('the table really does hold five now', () => {
+    expect(BANDS.map((b) => b.word)).toEqual([
+      'at', 'near', 'extended', 'very extended', 'blow off',
+    ])
+  })
+
+  it.each(BANDS)('"$word from vwap" still writes its band', (b) => {
+    expect(ranges(`${b.word} from vwap`)).toEqual({ vwap_dist_pct: expectedFor(b, 'vwap') })
+  })
+
+  it.each(BANDS)('"$word from the 9 ema" still writes its band', (b) => {
+    expect(ranges(`${b.word} from the 9 ema`)).toEqual({ ema9_dist_pct: expectedFor(b, 'ema') })
+  })
+})
+
+describe('RG7 an operator WITH a value is untouched', () => {
+  it('"vwap below 5" is five, not zero', () => {
+    expect(ranges('vwap below 5')).toEqual({ vwap_dist_pct: { min: null, max: 5 } })
+  })
+
+  it('"float below 5" and "float under 1m" are unchanged', () => {
+    expect(ranges('float below 5')).toEqual({ float: { min: null, max: 5 } })
+    expect(ranges('float under 1m')).toEqual({ float: { min: null, max: 1_000_000 } })
+  })
+
+  it('and "sold at 5" is still not a band', () => {
+    expect(ranges('sold at 5')).toEqual({})
+  })
+})
+
+describe('RG8 the previous beats still hold', () => {
+  it('a written negative bound still reads', () => {
+    expect(ranges('vwap under -0.5')).toEqual({ vwap_dist_pct: { min: null, max: -0.5 } })
+  })
+
+  it('a column with no meaningful zero still REFUSES a bare direction', () => {
+    expect(ranges('below float'), '"below float" was given a zero it cannot mean').toEqual({})
+    expect(ranges('above float')).toEqual({})
+  })
+
+  it('PROOF THAT REFUSAL CAN FIRE: the same shape resolves on a distance column', () => {
+    // An absence assertion beside the presence that proves it live.
+    expect(ranges('below vwap')).toEqual({ vwap_dist_pct: { min: null, max: 0 } })
   })
 })
