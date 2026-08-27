@@ -312,6 +312,12 @@ export default function QueryBubble({
               // the shown one. Without it the response would report the
               // truncated number as the answer.
               limit: resolution.state.limit,
+              // The state the ask composed ON and the state it produced. The
+              // line makes claims about the state, and without these it made
+              // them from `applied`, which only describes the ask -- so every
+              // wording it wore was true on one path and false on another.
+              before: snapshot.current,
+              after: resolution.state,
             }),
           },
         ])

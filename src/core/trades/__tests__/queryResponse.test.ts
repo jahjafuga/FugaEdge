@@ -244,14 +244,26 @@ describe('RW1 an unreadable ask never claims nothing is filtered', () => {
 
 // ─── RW2 : THE DISCRIMINATING COMPANION ──────────────────────────────────────
 
-describe('RW2 an unreadable ask on an EMPTY state still speaks to filters', () => {
-  // Without this, RW1 passes for a line that stopped mentioning filters at all
-  // -- which would be a different regression wearing the same green.
-  it('the state really is empty, and the line still answers', () => {
+describe('RW2 with NO state supplied the line makes no claim about the state', () => {
+  // INVERTED IN PLACE. The old assertion is kept verbatim here rather than
+  // deleted, because it encoded a design this beat replaced:
+  //
+  //     it('the state really is empty, and the line still answers', ...)
+  //       expect(line, 'the line stopped mentioning filters entirely')
+  //         .toMatch(/filter/i)
+  //
+  // That was right while ONE wording had to serve every path: the line always
+  // spoke of filters because it could not tell the paths apart. It can now,
+  // and the price is a caller who supplies the states. A caller who does NOT
+  // has shown the line nothing, so the line says nothing about it -- the same
+  // discipline as refusing to print a count with no result set behind it.
+  // `lineFor` deliberately omits them, which is what this case now pins, and
+  // RX4 is its companion: WITH the states, the line speaks and speaks truly.
+  it('it answers, names the refused text, and claims nothing it cannot see', () => {
     const out = resolveQuery(NONSENSE, MIN, RW_NOW, emptyFilters())
     expect(isFiltering(out.state), 'the base was not empty').toBe(false)
     const line = lineFor(out, 140)
-    expect(line, 'the line stopped mentioning filters entirely').toMatch(/filter/i)
+    expect(line, 'the line described a state it was never shown').not.toMatch(/filter|unchanged/i)
     expect(line, 'the refused text was dropped').toContain(NONSENSE)
     expect(line, 'a count leaked into a failure line').not.toMatch(/\d+\s*trades?\b/i)
   })
@@ -305,5 +317,201 @@ describe('RW5 the per-token seam is not absorbed into this line', () => {
         'the two messages were merged -- the bubble seam is per-token and correct',
       ).not.toContain('match anything in this book')
     }
+  })
+})
+
+// ─── RX : THE RESPONSE TELLS THE TRUTH ON EVERY PATH ─────────────────────────
+//
+// The previous beat reworded this line to stop it claiming nothing was filtered
+// while something was. That fixed the reported case and was FALSE on a path it
+// did not test. Measured: ask for a region, then ask against the same region.
+// The resolver cancels both sides -- a documented behaviour, not touched here --
+// so the state goes from filtering to empty, the ask records nothing applied,
+// and the line said the filters were unchanged. They had just been wiped.
+//
+// THE OLD WORDING WAS TRUE THERE AND FALSE ELSEWHERE; the new one was the exact
+// reverse. Neither is sufficient, because both are claims about the STATE made
+// from a value that only describes the ASK. The line has to see the state to
+// speak about it, and now it does: the caller hands it the state the ask
+// composed ON and the state the ask produced.
+//
+// AND A WIPE IS REPORTED. A filter the user set disappearing without a word is
+// the mirror of the invisible exclusion an earlier beat cured -- same disease,
+// opposite direction.
+//
+// WITHOUT THE STATES, NO CLAIM. When the caller supplies neither, the line says
+// what it could not read and stops. That is the discipline this file was built
+// on: it refuses to print a number when no result set is behind it, and it now
+// refuses to describe a state it was not shown.
+
+// resolveQuery, ResolverVocabulary, isFiltering and emptyFilters are already
+// imported above by the previous block in this file.
+
+const RX_NOW = new Date('2026-08-22T15:00:00')
+
+/** The minimum book that reaches all three paths: one term to ask for and
+ *  against, and nothing else that could shadow it. */
+const RX_BOOK: ResolverVocabulary = {
+  symbols: [],
+  regions: ['China'],
+  countries: [],
+  sectors: [],
+  industries: [],
+  playbooks: [],
+  catalystTypes: [],
+  mistakes: [],
+}
+const RX_NONSENSE = 'qwzzk'
+
+/** The real two-step composition, not a hand-built state. */
+function compose(first: string, second: string) {
+  const a = resolveQuery(first, RX_BOOK, RX_NOW, emptyFilters())
+  const b = resolveQuery(second, RX_BOOK, RX_NOW, a.state)
+  return { a, b }
+}
+const lineOf = (a: ReturnType<typeof resolveQuery>, b: ReturnType<typeof resolveQuery>) =>
+  responseLine({
+    count: 0,
+    applied: b.applied,
+    unresolved: b.unresolved,
+    limit: b.state.limit,
+    before: a.state,
+    after: b.state,
+  })
+
+// ─── RX1 : THE CLASH PATH ────────────────────────────────────────────────────
+
+describe('RX1 an ask that WIPES a filter does not call it unchanged', () => {
+  it('the premise: the clash really does empty both sides', () => {
+    const { a, b } = compose('china', 'not china')
+    expect(a.state.regions, 'step one did not filter').toEqual(['China'])
+    expect(isFiltering(a.state)).toBe(true)
+    expect(b.state.regions, 'the clash did not cancel the include side').toEqual([])
+    expect(b.state.excludeRegions, 'the clash did not cancel the exclude side').toEqual([])
+    expect(isFiltering(b.state), 'the state is still filtering, so nothing was wiped').toBe(false)
+    expect(b.applied, 'the ask recorded something, so this is not the nothing-applied branch').toEqual([])
+  })
+
+  it('and the line does not claim the filters are unchanged', () => {
+    const { a, b } = compose('china', 'not china')
+    const line = lineOf(a, b)
+    expect(
+      line,
+      `the filters went from filtering to empty and the line called that ` +
+        `unchanged: ${line}`,
+    ).not.toMatch(/unchanged/i)
+  })
+
+  it('and it does not claim nothing is filtered either -- that was the OLD lie', () => {
+    // Here the old wording happens to be true, which is precisely why the pair
+    // of plants below must redden different sets.
+    const { a, b } = compose('china', 'not china')
+    expect(lineOf(a, b)).not.toContain('nothing was filtered')
+  })
+})
+
+// ─── RX2 : THE WIPE IS NAMED ─────────────────────────────────────────────────
+
+describe('RX2 the user is told WHAT was removed', () => {
+  it('the removed value appears in the line', () => {
+    const { a, b } = compose('china', 'not china')
+    expect(
+      lineOf(a, b),
+      'a filter the user set vanished without a word -- the mirror of an ' +
+        'invisible filter, and the same disease',
+    ).toContain('China')
+  })
+
+  it('and the line says it was REMOVED rather than merely mentioning it', () => {
+    const { a, b } = compose('china', 'not china')
+    expect(lineOf(a, b)).toMatch(/dropped|removed/i)
+  })
+})
+
+// ─── RX3 : REFUSAL WITH A LIVE FILTER — the previous beat's case ─────────────
+
+describe('RX3 an unreadable ask over a live filter still says unchanged', () => {
+  it('because there they are', () => {
+    const { a, b } = compose('china', RX_NONSENSE)
+    expect(a.state.regions).toEqual(['China'])
+    expect(b.state.regions, 'the filter did not survive, so this is a different path').toEqual(['China'])
+    expect(isFiltering(b.state)).toBe(true)
+    const line = lineOf(a, b)
+    expect(line, 'the previous beat\'s fix regressed').toMatch(/unchanged/i)
+    expect(line, 'the refused text was dropped').toContain(RX_NONSENSE)
+    expect(line, 'a count leaked into a failure line').not.toMatch(/\d+\s*trades?\b/i)
+  })
+})
+
+// ─── RX4 : REFUSAL WITH NOTHING IN FORCE ─────────────────────────────────────
+
+describe('RX4 an unreadable ask with no filters says something true for that user', () => {
+  it('not that filters are unchanged -- there are none to be unchanged', () => {
+    const before = emptyFilters()
+    const b = resolveQuery(RX_NONSENSE, RX_BOOK, RX_NOW, before)
+    expect(isFiltering(b.state), 'the base was not empty').toBe(false)
+    const line = responseLine({
+      count: 0, applied: b.applied, unresolved: b.unresolved,
+      limit: b.state.limit, before, after: b.state,
+    })
+    expect(line, 'the line still speaks of filters existing').not.toMatch(/unchanged/i)
+    expect(line, 'the line stopped speaking to filtering at all').toMatch(/filter/i)
+    expect(line).toContain(RX_NONSENSE)
+  })
+})
+
+// ─── RX5 : A RESOLVED ASK IS UNTOUCHED ───────────────────────────────────────
+
+describe('RX5 a fully resolved ask reports exactly what it applied', () => {
+  it('byte-identical, with or without the states supplied', () => {
+    const withOut = responseLine({ count: 12, applied: ['outcome losers'], unresolved: [] })
+    expect(withOut).toBe('12 trades - outcome losers')
+    const withStates = responseLine({
+      count: 12, applied: ['outcome losers'], unresolved: [],
+      before: emptyFilters(), after: { ...emptyFilters(), outcome: 'losers' },
+    })
+    expect(withStates, 'the states leaked into the success path').toBe('12 trades - outcome losers')
+  })
+
+  it('and the partial line is unchanged -- the ruling is not touched', () => {
+    expect(
+      responseLine({ count: 56, applied: ['outcome losers'], unresolved: ['chinese'] }),
+    ).toBe('56 trades - outcome losers (ignored "chinese")')
+  })
+})
+
+// ─── RX6 : SCOPE GUARD — the two messages stay separate ──────────────────────
+
+describe('RX6 the per-token seam is not absorbed into this line', () => {
+  it('this file never emits the bubble seam phrase, on any path', () => {
+    const { a, b } = compose('china', 'not china')
+    const lines = [
+      lineOf(a, b),
+      responseLine({ count: 0, applied: [], unresolved: [RX_NONSENSE] }),
+      responseLine({ count: 0, applied: [], unresolved: [] }),
+      responseLine({ count: 56, applied: ['outcome losers'], unresolved: ['chinese'] }),
+      responseLine({ count: 12, applied: ['outcome losers'], unresolved: [] }),
+    ]
+    for (const l of lines) {
+      expect(l, 'the two messages were merged').not.toContain('match anything in this book')
+    }
+  })
+})
+
+// ─── RX7 : SCOPE GUARD — the CLASH LOGIC is unchanged ───────────────────────
+
+describe('RX7 the clash behaviour is made honest, not different', () => {
+  // The wipe may or may not be the right behaviour. That is a separate ruling
+  // and this beat does not make it -- so the STATE the clash produces is pinned
+  // exactly as it is today.
+  it('the same two-step input yields the same state', () => {
+    const { b } = compose('china', 'not china')
+    expect(b.state.regions).toEqual([])
+    expect(b.state.excludeRegions).toEqual([])
+    expect(b.applied).toEqual([])
+    expect(
+      b.ambiguous,
+      'the clash stopped offering the choice it has always offered',
+    ).toEqual([{ text: 'China', candidates: ['include China', 'exclude China'] }])
   })
 })

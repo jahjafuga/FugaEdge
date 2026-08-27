@@ -13,6 +13,8 @@
 // PURE per ARCHITECTURE #1 — a string function over three values, testable
 // without mounting a page. It would run inside a Next.js page unmodified.
 
+import { isFiltering, type TradesFilterState } from './tradesFilter'
+
 export interface ResponseInput {
   /** The live filtered count the page is showing. */
   count: number
@@ -26,12 +28,64 @@ export interface ResponseInput {
    *  the limit as the match would be the same lie this file was written to
    *  stop. */
   limit?: number | null
+  /** The state this ask composed ON, and the state it produced.
+   *
+   *  The line makes claims about the STATE, and until these arrived it made
+   *  them from `applied`, which only describes the ASK. Both wordings it has
+   *  worn were true on one path and false on another for exactly that reason.
+   *  Supplied together or not at all; without them the line makes no claim. */
+  before?: TradesFilterState
+  after?: TradesFilterState
+}
+
+/** Every array field, both sides of every pair. */
+const ARRAYS = [
+  'playbookIds', 'mistakeKeys', 'catalystTypes', 'regions',
+  'countries', 'sectors', 'industries',
+  'excludePlaybookIds', 'excludeMistakeKeys', 'excludeCatalystTypes',
+  'excludeRegions', 'excludeCountries', 'excludeSectors', 'excludeIndustries',
+] as const
+
+/** What a value reads as. A mistake key carries its own name; a playbook is a
+ *  numeric id and resolving it would need a lookup this file has no business
+ *  holding, so it is named by its KIND rather than shown as a bare number. */
+function labelOf(v: unknown): string {
+  if (v === null) return 'the untagged ones'
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return 'a playbook'
+  if (typeof v === 'object' && v !== null && 'name' in v) return String((v as { name: unknown }).name)
+  return String(v)
+}
+
+/** Values the ask REMOVED from the state it composed on.
+ *
+ *  The resolver cancels a value asked for and against at the same time, wiping
+ *  it from both sides. That is deliberate and is not changed here -- but a
+ *  filter the user set vanishing without a word is the mirror of an invisible
+ *  filter, so the line has to say it happened. */
+function removedValues(before: TradesFilterState, after: TradesFilterState): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const key of ARRAYS) {
+    const was = (before[key] ?? []) as unknown[]
+    const now = (after[key] ?? []) as unknown[]
+    for (const v of was) {
+      const label = labelOf(v)
+      const stillThere = now.some((w) => labelOf(w) === label)
+      if (stillThere || seen.has(label)) continue
+      seen.add(label)
+      out.push(label)
+    }
+  }
+  return out
 }
 
 const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
-export function responseLine({ count, applied, unresolved, limit }: ResponseInput): string {
+export function responseLine({
+  count, applied, unresolved, limit, before, after,
+}: ResponseInput): string {
   // NOTHING APPLIED. This ask ran no filter, so there is no result set and no
   // number to report — printing the book's own size here is the defect this
   // file exists to stop. Say what could not be read instead, so the sentence
@@ -44,15 +98,28 @@ export function responseLine({ count, applied, unresolved, limit }: ResponseInpu
   // filtered book and the strip named the exclusion doing it. Three statements,
   // two of them true.
   //
-  // "Your filters are unchanged" is true either way, so the line needs no
-  // knowledge of the state to stop lying about it — and what IS in force is
-  // already named on screen by the exclusion strip beside it.
+  // AND ONE WORDING CANNOT COVER EVERY PATH. "Nothing was filtered" is false
+  // over a live filter. "Your filters are unchanged" is false when the ask
+  // WIPED one -- which happens whenever a value is asked for and against, and
+  // the resolver cancels both sides. Each was true on one path and false on
+  // another because both were claims about the STATE inferred from the ASK.
+  // The line is shown the state now, and says only what it can see.
   if (applied.length === 0) {
-    return unresolved.length > 0
-      ? `I could not read ${quoteList(unresolved)} — your filters are unchanged.`
-      : // Pure filler: nothing applied AND nothing left over to quote. Silence
-        // here would read as a hang, so it still answers.
-        'I could not read that — your filters are unchanged.'
+    // Pure filler still answers: silence would read as a hang.
+    const head =
+      unresolved.length > 0 ? `I could not read ${quoteList(unresolved)}` : 'I could not read that'
+
+    // NOT SHOWN THE STATE, SO NO CLAIM ABOUT IT. The same discipline as
+    // refusing to print a count with no result set behind it.
+    if (!before || !after) return `${head}.`
+
+    const removed = removedValues(before, after)
+    if (removed.length > 0) {
+      return `${head} — and I dropped ${quoteList(removed)}, which you asked for and against.`
+    }
+    return isFiltering(after)
+      ? `${head} — your filters are unchanged.`
+      : `${head} — nothing is filtered.`
   }
 
   // The MATCHED count, always. A limit hides rows that qualified, so the number
