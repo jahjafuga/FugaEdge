@@ -129,7 +129,7 @@ describe('G3 EVERY declared stopword is inert', () => {
 
 // --- G4 ---------------------------------------------------------------------
 
-describe('G4 an EXACT match still wins over the stopword list', () => {
+describe('G4 an EXACT match is OFFERED, not taken, when the word is filler', () => {
   // Constructed, deliberately: the demo book holds no such ticker, and a guard
   // that depends on a particular book having one would rot the moment the book
   // changed. ALL is Allstate; ON is a real listed ticker too.
@@ -138,15 +138,65 @@ describe('G4 an EXACT match still wins over the stopword list', () => {
     symbols: [...BOOK.symbols, 'ALL', 'ON'],
   }
 
-  it('"all" is a stopword AND a ticker -- the ticker wins', () => {
+  // INVERTED IN PLACE. This block asserted the OPPOSITE ruling, deliberately,
+  // and the old assertions are kept here verbatim rather than deleted so the
+  // reversal is legible:
+  //
+  //     it('"all" is a stopword AND a ticker -- the ticker wins', () => {
+  //       const out = r('all', WITH_TICKERS)
+  //       expect(out.state.symbol,
+  //         'an exact ticker was swallowed by the filler list').toBe('ALL')
+  //       expect(out.applied.length).toBe(1)
+  //     })
+  //     it('"on" likewise', () => {
+  //       expect(r('on', WITH_TICKERS).state.symbol).toBe('ON')
+  //     })
+  //
+  // WHY IT CHANGED. The old ruling was written for a ticker -- a word the user
+  // would only type meaning the ticker. It was then measured against a country
+  // CODE: "my" is Malaysia, and seven of twenty ordinary sentences filtered the
+  // whole book down to Malaysia because someone wrote "my winners". The word is
+  // ambiguous by construction, and Edge does not pick. The filler reading wins
+  // by default and the ticker is offered, so nothing that was reachable before
+  // became unreachable -- it just stopped happening without being asked.
+
+  it('"all" is a stopword AND a ticker -- the ticker is OFFERED, not applied', () => {
     const out = r('all', WITH_TICKERS)
-    expect(out.state.symbol, 'an exact ticker was swallowed by the filler list').toBe('ALL')
-    expect(out.applied.length).toBe(1)
+    expect(out.state.symbol, 'the filler word silently applied its ticker').toBe('')
+    expect(out.applied, 'something was applied without being asked').toEqual([])
+    expect(
+      out.ambiguous.map((a) => a.text),
+      'the ticker reading was discarded rather than offered',
+    ).toContain('all')
+    expect(out.ambiguous.find((a) => a.text === 'all')!.candidates).toContain('ALL')
   })
 
   it('"on" likewise', () => {
     const out = r('on', WITH_TICKERS)
-    expect(out.state.symbol).toBe('ON')
+    expect(out.state.symbol).toBe('')
+    expect(out.ambiguous.map((a) => a.text)).toContain('on')
+  })
+
+  it('but THIS offer loops, because the candidate is the same word', () => {
+    // MEASURED, and my first assertion here was wrong: I asserted the offer was
+    // takeable and it is not, for this shape.
+    //
+    // Taking an offer substitutes the candidate back into the sentence and
+    // re-resolves. That works when the candidate is a DIFFERENT word -- "my"
+    // offers "Malaysia", and Malaysia resolves. It cannot work when the
+    // candidate is the same word in another case: "ALL" lowercases to "all",
+    // which is still filler, so the offer comes back instead of applying.
+    //
+    // Left as a measured boundary rather than papered over. It costs nothing
+    // today: the only collision on either real book is "my", whose candidate is
+    // a different word and IS takeable -- asserted in RZ4. A two-letter ticker
+    // that is also filler would need the ask to grow a way of saying "the
+    // ticker", and that is a separate ruling.
+    const out = r('all', WITH_TICKERS)
+    const candidate = out.ambiguous.find((a) => a.text === 'all')!.candidates[0]!
+    const taken = r(candidate, WITH_TICKERS)
+    expect(taken.state.symbol, 'the loop closed unexpectedly -- re-measure').toBe('')
+    expect(taken.ambiguous.map((a) => a.text)).toContain('all')
   })
 
   it('but the same word still applies NOTHING when no entry equals it exactly', () => {
@@ -393,5 +443,202 @@ describe('RY6 the three tiers are untouched', () => {
     // not reach it. Beat sixty-six raised this floor for exactly that case.
     expect(t('care').state.sectors).toEqual(['Healthcare'])
     expect(t('are').state.sectors, 'the substring floor dropped below four').toEqual([])
+  })
+})
+
+// ─── RZ : A WORD THAT IS BOTH FILLER AND VOCABULARY IS A QUESTION ────────────
+//
+// Seven of twenty ordinary sentences applied a country filter for Malaysia
+// because the user typed "my". An eighth applied a mistake off "want". All
+// eight had an EMPTY ignored clause and were counted clean, which is why this
+// went unseen for so long: an empty complaint is not correctness.
+//
+// THE MECHANISM. A filler word is marked only AFTER the match attempt and only
+// when nothing matched. So the filler list suppresses the REPORT of an unmatched
+// word and never prevents a match. Tiers two and three already refuse an
+// all-filler phrase; tier one -- exact -- did not, so a stopword that exactly
+// equals a ticker or a country code applied outright.
+//
+// THIS REVERSES A RULING, DELIBERATELY. G4 above asserted that an exact match
+// WINS over the filler list, and it asserted it on purpose. It is inverted in
+// place below with the old assertion quoted, never deleted, because the change
+// is a decision and the record should show one.
+//
+// THE NEW RULING. A word that is both filler and vocabulary is ambiguous BY
+// CONSTRUCTION, and Edge does not pick. The filler reading wins by default; the
+// vocabulary reading is OFFERED, in the same `ambiguous` shape the bubble
+// already renders, whose candidate is substituted back into the sentence when
+// the user takes it. Capability preserved; only the silent choice removed.
+
+/** A book where EVERY filler word is also a ticker. Constructed, deliberately:
+ *  on the real books only "my" collides, and a guard that depended on that
+ *  would rot the day someone traded a two-letter symbol. This drives the
+ *  MECHANISM across all of them at once. */
+const ALL_FILLER_TICKERS: ResolverVocabulary = {
+  ...BOOK,
+  symbols: [...BOOK.symbols, ...[...STOPWORDS].map((w) => w.toUpperCase())],
+}
+
+/** The one real collision, measured on the beat-72 book: "my" is Malaysia's
+ *  ISO code. Zero collisions on the demo book. */
+const WITH_MALAYSIA: ResolverVocabulary = {
+  ...BOOK,
+  regions: ['USA', 'China'],
+  countries: [
+    { iso: 'US', name: 'United States' },
+    { iso: 'MY', name: 'Malaysia' },
+  ],
+}
+const rz = (t: string) => resolveQuery(t, WITH_MALAYSIA, NOW, emptyFilters())
+
+// ─── RZ1 ─────────────────────────────────────────────────────────────────────
+
+describe('RZ1 a filler word does not apply its vocabulary reading', () => {
+  it('"show me my winners" filters on the outcome and NOT on a country', () => {
+    const out = rz('show me my winners')
+    expect(
+      out.state.countries,
+      'the user said "my" and Edge filtered the book down to Malaysia',
+    ).toEqual([])
+    // The companion half: a cure that broke the sentence would satisfy the
+    // assertion above and be worse than the defect.
+    expect(out.state.outcome, 'the sentence stopped working altogether').toBe('winners')
+  })
+
+  it('and the whole sentence is otherwise untouched', () => {
+    expect(rz('show me my winners').state).toEqual({
+      ...emptyFilters(),
+      outcome: 'winners',
+    })
+  })
+})
+
+// ─── RZ2 : THE TABLE, EVERY FILLER WORD ──────────────────────────────────────
+
+describe('RZ2 every filler word, against a book where it is also a ticker', () => {
+  const words = [...STOPWORDS]
+
+  it('the battery has something to iterate', () => {
+    expect(words.length).toBeGreaterThan(0)
+  })
+
+  it.each(words)('%s applies no symbol filter', (w) => {
+    const out = resolveQuery(w, ALL_FILLER_TICKERS, NOW, emptyFilters())
+    expect(
+      out.state.symbol,
+      `"${w}" is filler AND a ticker, and Edge picked the ticker`,
+    ).toBe('')
+  })
+
+  it.each(words)('%s still OFFERS the ticker reading', (w) => {
+    // R108: capability preserved. The reading is not discarded, it is offered.
+    const out = resolveQuery(w, ALL_FILLER_TICKERS, NOW, emptyFilters())
+    expect(
+      out.ambiguous.map((a) => a.text),
+      `"${w}" collided and the vocabulary reading was thrown away`,
+    ).toContain(w)
+  })
+})
+
+// ─── RZ3 : THE OFFER NAMES THE READING ───────────────────────────────────────
+
+describe('RZ3 the offer names what it would mean', () => {
+  it('"my" offers Malaysia by name', () => {
+    const out = rz('show me my winners')
+    const offer = out.ambiguous.find((a) => a.text === 'my')
+    expect(offer, 'no offer was made -- the reading was discarded').toBeTruthy()
+    expect(
+      offer!.candidates,
+      'the offer does not name what taking it would do',
+    ).toContain('Malaysia')
+  })
+})
+
+// ─── RZ4 : THE OFFER IS TAKEABLE ─────────────────────────────────────────────
+
+describe('RZ4 taking the offer applies the reading', () => {
+  it('substituting the candidate resolves to the country filter', () => {
+    // This is exactly what the bubble does: `pick` replaces the ambiguous text
+    // with the candidate in the input and re-resolves. Driven here without the
+    // component, because the substitution is the whole of the mechanism.
+    const out = rz('show me my winners')
+    const candidate = out.ambiguous.find((a) => a.text === 'my')!.candidates[0]!
+    const taken = rz('show me my winners'.replace(/\bmy\b/, candidate))
+    expect(
+      taken.state.countries,
+      'the offer could not be taken -- capability was removed, not deferred',
+    ).toEqual(['MY'])
+    expect(taken.state.outcome).toBe('winners')
+  })
+})
+
+// ─── RZ5 : THE DISCRIMINATING COMPANION ──────────────────────────────────────
+
+describe('RZ5 a NON-filler word still applies outright', () => {
+  // Without this, RZ1 and RZ2 pass for a cure that made everything ambiguous
+  // and applied nothing ever again.
+  it('"chinese" applies the region and is not offered as a choice', () => {
+    const out = rz('chinese')
+    expect(out.state.regions, 'an ordinary word stopped applying').toEqual(['China'])
+    expect(out.ambiguous, 'an ordinary word became a question').toEqual([])
+  })
+
+  it('and a two-word ordinary ask still applies both halves', () => {
+    const out = rz('chinese losers')
+    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('losers')
+    expect(out.ambiguous).toEqual([])
+  })
+})
+
+// ─── RZ6 : THE TWENTY, CLEAN AND CORRECT ─────────────────────────────────────
+
+const RZ_TWENTY: string[] = [
+  'show me chinese losers', 'give me the trades where i lost money',
+  'what were my losers last week', 'find trades under 10 dollars',
+  'i want chinese stocks', 'chinese losers', 'show me my winners',
+  'all my chinese trades', 'trades with float under 10 million',
+  'show me the last 10 trades', 'my biggest losers', 'losers from china',
+  'show me trades in healthcare', 'what are my worst trades',
+  'chinese stocks that lost money', 'show me everything under 5 dollars',
+  'trades where i chased extended', 'my hong kong trades',
+  'show me losers this month', 'find my chinese winners',
+]
+
+describe('RZ6 the twenty, judged on the STATE rather than on silence', () => {
+  it('not one of them filters on a country nobody named', () => {
+    // The defect in one assertion. Eight of these were "clean" before and
+    // seven of the eight were filtering on Malaysia.
+    const bogus = RZ_TWENTY.filter((q) => rz(q).state.countries.length > 0)
+    expect(bogus, `still filtering on a country: ${bogus.join(' | ')}`).toEqual([])
+  })
+
+  it('and the ones that used to be wrong now resolve correctly', () => {
+    expect(rz('show me my winners').state.outcome).toBe('winners')
+    expect(rz('all my chinese trades').state.regions).toEqual(['China'])
+    expect(rz('my hong kong trades').state.regions).toEqual([])
+    expect(rz('find my chinese winners').state.regions).toEqual(['China'])
+    expect(rz('find my chinese winners').state.outcome).toBe('winners')
+  })
+})
+
+// ─── RZ7 : SCOPE GUARD — no floor moved ─────────────────────────────────────
+
+describe('RZ7 the three tiers are still untouched', () => {
+  const T: ResolverVocabulary = { ...WITH_MALAYSIA, symbols: ['NRVA'], sectors: ['Healthcare'] }
+  const t = (q: string) => resolveQuery(q, T, NOW, emptyFilters())
+
+  it('EXACT still wins for a NON-filler word, with no floor', () => {
+    expect(t('usa').state.regions).toEqual(['USA'])
+  })
+
+  it('PREFIX still reaches at two and not at one', () => {
+    expect(t('nr').state.symbol).toBe('NRVA')
+    expect(t('n').state.symbol).toBe('')
+  })
+
+  it('SUBSTRING still reaches at four and not at three', () => {
+    expect(t('care').state.sectors).toEqual(['Healthcare'])
+    expect(t('are').state.sectors).toEqual([])
   })
 })

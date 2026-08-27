@@ -922,6 +922,26 @@ export function resolveQuery(
       const raw = slice.join(' ')
       const phrase = DEMONYMS[raw] ?? raw
       const hits = candidatesFor(phrase)
+      // A WORD THAT IS BOTH FILLER AND VOCABULARY IS A QUESTION, and Edge does
+      // not answer it silently.
+      //
+      // The filler list marks a word only AFTER the match attempt and only when
+      // nothing matched, so it suppresses the REPORT of an unmatched word and
+      // never prevents a match. Tiers two and three already refuse an
+      // all-filler phrase; tier one did not, so a stopword that EXACTLY equals
+      // a ticker or a country code applied outright. Measured: seven of twenty
+      // ordinary sentences filtered the book down to Malaysia because the user
+      // typed "my", every one of them with an empty ignored clause.
+      //
+      // The filler reading wins by DEFAULT -- it is what the user almost
+      // certainly meant -- and the vocabulary reading is OFFERED rather than
+      // discarded, in the same shape the bubble already renders and takes.
+      // Nothing is consumed here, so the filler mark below still claims the
+      // word and it stays out of the ignored clause.
+      if (hits.length > 0 && slice.every((w) => STOPWORDS.has(w))) {
+        ambiguous.push({ text: raw, candidates: hits.map((h) => h.display) })
+        break
+      }
       if (hits.length === 1) {
         const entry = hits[0]
         // A term with NO exclude side (a symbol, a flag) keeps the negation
