@@ -781,7 +781,26 @@ export function resolveQuery(
         break
       }
     }
-    if (refused) continue
+    if (refused) {
+      // A REFUSED WORD IS NOT A FREE WORD. A bare `continue` here left every
+      // token of the phrase claimable, and the vocabulary pool took it: on the
+      // two books measured, "extended" and "very extended" became the mistake
+      // "Chased extended", "blow off" became the catalyst "Offering /
+      // Dilution", and "parabolic" became the playbook "Parabolic Short" --
+      // four of the seven band words on one book, two on the other, each with a
+      // confident applied line and an empty ignored clause.
+      //
+      // `unclaimable` is beat 109's seam and this is exactly what it is for:
+      // not matchable, still reported. `marks` stays 'free', so the unresolved
+      // builder still NAMES the word and the trader learns it went unread
+      // instead of silently receiving a different filter.
+      //
+      // THE BAND WORD ONLY. The indicator tokens keep the reading they already
+      // had -- a bare "20 ema" is still a count -- because no ruling asked for
+      // that to change and marking them would change it.
+      for (let q = i; q < i + span; q++) unclaimable[q] = true
+      continue
+    }
     let colId = 'ema9_dist_pct'
     let end = i + span - 1
     for (const width of [2, 1]) {
