@@ -75,6 +75,7 @@ export const DEFAULT_COLUMN_VISIBILITY: ColumnVisibility = {
   market_cap: false,
   vwap_dist_pct: false,
   ema9_dist_pct: false,
+  ema20_dist_pct: false,
   mfe: false,
   stop_source: false,
 }
@@ -99,6 +100,9 @@ export const COLUMN_LABELS: Record<string, string> = {
   market_cap: 'Mkt cap (latest)',
   vwap_dist_pct: 'VWAP dist %',
   ema9_dist_pct: 'EMA9 dist %',
+  // REQUIRED, not decorative: the ranges menu maps over NUMERIC_COLUMN_IDS
+  // and renders this label, so a column without one shows a blank row.
+  ema20_dist_pct: 'EMA20 dist %',
 }
 
 /** Rendered width in px, one entry per column id. The table is `tableLayout:
@@ -129,6 +133,7 @@ export const COLUMN_WIDTHS: Record<string, number> = {
   risk_per_share: 115, total_risk: 100, rvol: 70, daily_change_pct: 115,
   confidence: 100, entry_timeframe: 95, days_since_catalyst: 115,
   mae: 100, mfe: 90, market_cap: 120, vwap_dist_pct: 110, ema9_dist_pct: 110,
+  ema20_dist_pct: 115,
 }
 
 /** Columns a min/max range can filter on. Exactly the ids rangeValueOf resolves —
@@ -139,7 +144,7 @@ export const NUMERIC_COLUMN_IDS = [
   'hold_time', 'price_move_pct', 'pnl_gain_pct', 'exec_count', 'first_entry',
   'stop_price', 'r_multiple', 'risk_per_share', 'total_risk', 'rvol',
   'daily_change_pct', 'confidence', 'days_since_catalyst', 'mae', 'mfe',
-  'market_cap', 'vwap_dist_pct', 'ema9_dist_pct',
+  'market_cap', 'vwap_dist_pct', 'ema9_dist_pct', 'ema20_dist_pct',
 ] as const
 
 /** True when the column is currently shown (absent means visible, TanStack's rule). */

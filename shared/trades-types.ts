@@ -60,6 +60,11 @@ export interface TradeListRow {
    *  on a real book. Optional, so the hundred and fifty-odd files that read
    *  TradeListRow are undisturbed; only the trades read path populates it. */
   tf_1m_macd_positive?: boolean | null
+  /** v0.2.7 -- entry distance from the 20 EMA over 1-minute bars, from
+   *  the SAME trade_technicals snapshot as its nine and VWAP siblings.
+   *  SIGNED, so zero is the level itself. Optional, like the other three,
+   *  so nothing that reads TradeListRow is disturbed. */
+  tf_1m_ema20_dist_pct?: number | null
   /** Max adverse / favorable excursion in $/share between entry and exit,
    *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
    *  intraday bars cover the trade's window. */

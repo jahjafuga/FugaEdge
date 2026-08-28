@@ -37,6 +37,7 @@ interface TradeRowDb {
   tf_1m_vwap_dist_pct: number | null
   /** SQLite has no boolean: one, zero, or null for not computed. */
   tf_1m_macd_positive: number | null
+  tf_1m_ema20_dist_pct: number | null
   mae: number | null
   mfe: number | null
   daily_change_pct: number | null
@@ -251,6 +252,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
         t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         tt.tf_1m_ema9_dist_pct, tt.tf_1m_vwap_dist_pct, tt.tf_1m_macd_positive,
+        tt.tf_1m_ema20_dist_pct,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
         t.confidence, t.planned_risk, t.planned_stop_loss_price,
@@ -324,6 +326,7 @@ export function listTrades(opts: ListTradesOptions = {}): TradeListRow[] {
       entry_ema9_distance_pct: r.entry_ema9_distance_pct,
       tf_1m_ema9_dist_pct: r.tf_1m_ema9_dist_pct,
       tf_1m_vwap_dist_pct: r.tf_1m_vwap_dist_pct,
+      tf_1m_ema20_dist_pct: r.tf_1m_ema20_dist_pct,
       // one/zero/null -> true/false/null. NOT `!!`: a real NEGATIVE reading
       // must stay false rather than collapsing into the uncomputed bucket.
       tf_1m_macd_positive: r.tf_1m_macd_positive == null ? null : r.tf_1m_macd_positive === 1,
@@ -386,6 +389,7 @@ export function getTrade(id: number): TradeListRow | null {
         t.source_format,
         t.entry_timeframe, t.entry_ema9_distance_pct, t.mae, t.mfe, t.daily_change_pct, t.rvol,
         tt.tf_1m_ema9_dist_pct, tt.tf_1m_vwap_dist_pct, tt.tf_1m_macd_positive,
+        tt.tf_1m_ema20_dist_pct,
         t.playbook_id, p.name AS playbook_name,
         CASE WHEN p.is_system = 1 THEN NULL ELSE p.tier END AS playbook_tier,
         t.confidence, t.planned_risk, t.planned_stop_loss_price,
@@ -457,6 +461,7 @@ export function getTrade(id: number): TradeListRow | null {
     entry_ema9_distance_pct: row.entry_ema9_distance_pct,
     tf_1m_ema9_dist_pct: row.tf_1m_ema9_dist_pct,
     tf_1m_vwap_dist_pct: row.tf_1m_vwap_dist_pct,
+    tf_1m_ema20_dist_pct: row.tf_1m_ema20_dist_pct,
     tf_1m_macd_positive: row.tf_1m_macd_positive == null ? null : row.tf_1m_macd_positive === 1,
     mae: row.mae,
     mfe: row.mfe,

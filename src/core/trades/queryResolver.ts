@@ -217,6 +217,14 @@ const COLUMN_PHRASES: [string, string][] = [
   ['vwap dist', 'vwap_dist_pct'], ['vwap distance', 'vwap_dist_pct'],
   ['ema9 dist', 'ema9_dist_pct'], ['ema dist', 'ema9_dist_pct'],
   ['9 ema', 'ema9_dist_pct'], ['ema 9', 'ema9_dist_pct'],
+  // v0.2.7 -- the TWENTY. Every spelling here was driven with a scratch
+  // entry BEFORE it was added, and only the survivors are listed: a
+  // number-bearing key resolves solely when an operator and a value are
+  // present, because the comparison pass runs before the bare-count pass.
+  // A bare "20 ema" is still a count, and that is parser work.
+  ['20 ema', 'ema20_dist_pct'], ['ema 20', 'ema20_dist_pct'],
+  ['ema20', 'ema20_dist_pct'], ['ema20 distance', 'ema20_dist_pct'],
+  ['ema20 dist', 'ema20_dist_pct'], ['20 ema distance', 'ema20_dist_pct'],
   // ONE word. A BARE price is the ENTRY price -- the price you paid is the one
   // a trader means when they do not say which. Exit is reachable by naming it.
   ['price', 'avg_buy'], ['prices', 'avg_buy'], ['cost', 'avg_buy'],
@@ -274,6 +282,18 @@ const BAND_NEEDS_INDICATOR: ReadonlySet<string> = new Set(['at'])
  *  as a count everywhere else in this file; inside a band phrase it is safe,
  *  because the band word has already claimed the span and the bare-count pass
  *  runs afterwards. */
+/** Indicators this app names but has NO band scheme for. The seven-band
+ *  scheme was derived for the NINE: its own file calls them "the 7 signed
+ *  9-EMA-distance buckets", two labels read "Below 9 EMA" and "At 9 EMA",
+ *  and it quotes the spec as giving the twenty "binary crossover only".
+ *  Lending those edges to the twenty would invent a threshold.
+ *
+ *  WITHOUT THIS the pass did not refuse -- it fell through to its default
+ *  and answered "extended from the 20 ema" with the NINE's band, reading
+ *  the twenty as a limit. A wrong indicator answering silently is worse
+ *  than no answer, so a named-but-unsupported indicator refuses outright. */
+const BAND_NO_SCHEME: ReadonlySet<string> = new Set(['20 ema', 'ema 20', 'ema20'])
+
 const BAND_INDICATORS: Record<string, string> = {
   vwap: 'vwap_dist_pct',
   '9 ema': 'ema9_dist_pct',
@@ -308,7 +328,15 @@ const SUPERLATIVE_CANDIDATES = ['net P&L', 'gain %', 'date']
  *  and R multiple ARE signed and their zero IS meaningful -- but they are not
  *  distances, "above zero" there is already spelled by the outcome words, and
  *  the ruling was scoped to distances. */
-const ZERO_BOUND_COLUMNS: ReadonlySet<string> = new Set(['vwap_dist_pct', 'ema9_dist_pct'])
+const ZERO_BOUND_COLUMNS: ReadonlySet<string> = new Set([
+  'vwap_dist_pct',
+  'ema9_dist_pct',
+  // The twenty is the same KIND of column -- a signed distance whose zero
+  // is the level itself -- so it joins the day it lands. Shipping it
+  // without this would rebuild the very asymmetry between two indicators
+  // that a whole beat was spent removing.
+  'ema20_dist_pct',
+])
 
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
@@ -745,6 +773,15 @@ export function resolveQuery(
     // the band word, across stopwords -- "extended FROM THE 9 ema".
     let j = i + span
     while (j < tokens.length && marks[j] === 'free' && STOPWORDS.has(tokens[j])) j++
+    let refused = false
+    for (const width of [2, 1]) {
+      if (j + width > tokens.length) continue
+      if (BAND_NO_SCHEME.has(tokens.slice(j, j + width).join(' '))) {
+        refused = true
+        break
+      }
+    }
+    if (refused) continue
     let colId = 'ema9_dist_pct'
     let end = i + span - 1
     for (const width of [2, 1]) {

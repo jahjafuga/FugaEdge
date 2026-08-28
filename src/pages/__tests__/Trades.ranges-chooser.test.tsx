@@ -2,8 +2,8 @@
 //
 // v0.2.7 — THE RANGES CHOOSER. Written RED, before the feature.
 //
-// The ungate beat made all twenty-four ranges reachable, which was right and
-// which put twenty-four input pairs on the Trades tab permanently. Edge exists
+// The ungate beat made EVERY range reachable, which was right and which put an
+// input pair for each one on the Trades tab permanently. Edge exists
 // so that clutter is not the price of reach: the ranges you want are switched
 // on, and everyone else asks in words.
 //
@@ -147,13 +147,18 @@ describe('RC1 a fresh profile renders ZERO range inputs', () => {
     expect(screen.getByTestId('ranges-button')).toBeTruthy()
   })
 
-  it('and it offers all twenty-four, including the three absent from the column registry', async () => {
+  // The LITERAL is deliberate and stays a literal. It is the only guard that
+  // counts the offered ranges without deriving the number from the very list
+  // that would have changed, so it is the one that speaks up when a numeric
+  // column lands. The twenty EMA moved it from twenty-four to twenty-five and
+  // that is precisely the notice it exists to give.
+  it('and it offers all twenty-five, including the four absent from the column registry', async () => {
     await mount()
     fireEvent.click(screen.getByTestId('ranges-button'))
-    for (const id of ['market_cap', 'vwap_dist_pct', 'ema9_dist_pct']) {
+    for (const id of ['market_cap', 'vwap_dist_pct', 'ema9_dist_pct', 'ema20_dist_pct']) {
       expect(screen.getByTestId(`choose-range-${id}`), `${id} is not offered`).toBeTruthy()
     }
-    expect(document.querySelectorAll('[data-testid^="choose-range-"]').length).toBe(24)
+    expect(document.querySelectorAll('[data-testid^="choose-range-"]').length).toBe(25)
   })
 })
 
