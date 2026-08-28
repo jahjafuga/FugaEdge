@@ -175,9 +175,28 @@ export const NEGATORS = new Set(['not', 'no', 'without', 'excluding', 'except'])
 /** The substring tier's floor. FOUR, raised from three: at three "are" reached
  *  sector Healthcare and "but" offered a choice between two industries, both
  *  from ordinary English in the middle of a sentence. Four keeps "pullback"
- *  reaching a multi-word playbook, which is what the tier is for. The PREFIX
- *  floor stays at two and the exact tier has no floor at all. */
+ *  reaching a multi-word playbook, which is what the tier is for. The exact
+ *  tier still has no floor at all; the PREFIX floor is now per-kind, below. */
 const SUBSTRING_FLOOR = 4
+
+/** KIND ZERO is the ticker. Named because the prefix floor carves it out and
+ *  a bare 0 at the predicate would say nothing about why. */
+export const SYMBOL_KIND = 0
+
+/** THE PREFIX FLOOR, PER KIND. Measured rather than chosen.
+ *
+ *  A single floor of THREE for everything eliminates thirty-seven, forty-eight
+ *  and one hundred silent applies across the demo, human and larger books --
+ *  and takes six, ten and SEVENTY ticker prefixes down with it, because a
+ *  trader typing two letters of a ticker means the ticker. Symbols at TWO with
+ *  every other kind at FOUR eliminates sixty-two, eighty-eight and one hundred
+ *  and two -- MORE on every book -- and costs no ticker at all.
+ *
+ *  WHAT IT DOES NOT DO: ordinary sentences are made of four-plus-letter words,
+ *  which no prefix floor reaches. Ten sentences driven across three books moved
+ *  by nothing, two and one. The long-word matches are still live. */
+export const SYMBOL_PREFIX_FLOOR = 2
+export const PREFIX_FLOOR = 4
 
 /** Demonym → the name it means. A NORMALISATION step, not vocabulary: the
  *  result must still hit the caller's vocab or the token stays unresolved —
@@ -1107,7 +1126,7 @@ export function resolveQuery(
 
   for (const sym of vocab.symbols)
     pool.push({
-      kind: 0, key: sym.toLowerCase(), display: sym,
+      kind: SYMBOL_KIND, key: sym.toLowerCase(), display: sym,
       apply: (s, log) => {
         replaceNoteInto(log, 'symbol', sym, s.symbol || null)
         s.symbol = sym
@@ -1203,7 +1222,10 @@ export function resolveQuery(
     const isFiller = phrase.split(' ').every((w) => STOPWORDS.has(w))
     const tiers: ((e: PoolEntry) => boolean)[] = [
       (e) => e.key === phrase,
-      (e) => !isFiller && phrase.length >= 2 && e.key.startsWith(phrase),
+      (e) =>
+        !isFiller &&
+        phrase.length >= (e.kind === SYMBOL_KIND ? SYMBOL_PREFIX_FLOOR : PREFIX_FLOOR) &&
+        e.key.startsWith(phrase),
       (e) => !isFiller && phrase.length >= SUBSTRING_FLOOR && e.key.includes(phrase),
     ]
     for (const match of tiers) {
