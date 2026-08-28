@@ -67,6 +67,11 @@ const EXCLUDE_CASES: {
   { field: 'excludeCountries',     value: 'CN',                                         valueLabel: 'CN',           nullLabel: 'Unknown' },
   { field: 'excludeSectors',       value: 'Healthcare',                                 valueLabel: 'Healthcare',   nullLabel: 'Unknown' },
   { field: 'excludeIndustries',    value: 'Biotechnology',                              valueLabel: 'Biotechnology', nullLabel: 'Unknown' },
+  // v0.2.7 -- THE EIGHTH. This row exists because the assertion below FIRED
+  // when the MACD facet landed: it counted eight declared arrays against seven
+  // covered and failed by name. That is the guard doing exactly what it was
+  // built for, so the table is extended rather than the count relaxed.
+  { field: 'excludeMacdStates',    value: 'positive',                                   valueLabel: 'positive',     nullLabel: 'Unknown' },
 ]
 
 /** The rows the panel is handed. Carries a playbook NAME for id 4 so the chip
@@ -90,9 +95,10 @@ describe('RG1 an exclusion ALONE surfaces the Clear control', () => {
     ).toBe(true)
   })
 
-  it('all seven are covered by this suite, none silently missing', () => {
+  it('all eight are covered by this suite, none silently missing', () => {
     // The defect being fixed is "six of seven handled". A count assertion here
     // means adding an eighth array without a case fails loudly.
+    // IT DID: the eighth arrived and this line named it before anything else.
     const covered = EXCLUDE_CASES.map((c) => c.field).sort()
     const declared = Object.keys(emptyFilters())
       .filter((k) => k.startsWith('exclude'))

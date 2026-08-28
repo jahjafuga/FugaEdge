@@ -9,6 +9,7 @@ import TierBadge from '@/components/playbook/TierBadge'
 import SystemTierChip from '@/components/playbook/SystemTierChip'
 import ExcludeChip from '@/components/trades/ExcludeChip'
 import { excludeChips, removeExcluded } from '@/core/trades/excludeChips'
+import { MACD_STATE_CHOICES } from '@/core/trades/tradesFilter'
 import Segmented from '@/components/ui/Segmented'
 import { withManualDate } from '@/core/trades/datePreset'
 import {
@@ -131,6 +132,11 @@ export default function TradesFilters({
         <CatalystFilterDropdown
           selected={filters.catalystTypes}
           onChange={(next) => onChange({ ...filters, catalystTypes: next })}
+        />
+
+        <MacdFilterDropdown
+          selected={filters.macdStates}
+          onChange={(next) => onChange({ ...filters, macdStates: next })}
         />
 
         <GeoFilterDropdown
@@ -1021,6 +1027,111 @@ function CatalystFilterDropdown({
               </button>
             </>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The 1-minute MACD state. THREE rows, and the third is the point: a trade
+ *  whose MACD was never computed is not positive and not negative, and on a
+ *  real book that is four hundred and thirty-nine of five hundred and
+ *  twenty-eight. A control offering only two would let a user filter to
+ *  eighty-three trades believing they had seen the book.
+ *
+ *  ONE MINUTE, said on the control itself. Both technicals fields on the row
+ *  are one-minute and the two timeframes disagree on nearly half the demo
+ *  book, so the panel names which one it means rather than leaving it to be
+ *  assumed. Five-minute is a later beat.
+ *
+ *  No IPC: unlike the catalyst list these values are a fixed enumeration, so
+ *  the rows come straight from the constant the resolver and the page share. */
+function MacdFilterDropdown({
+  selected,
+  onChange,
+}: {
+  selected: (string | null)[]
+  onChange: (next: (string | null)[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  // The four choices collapse to three ROWS -- two keys share the null value,
+  // because the resolver needs both spellings and the panel needs one control.
+  const rows = MACD_STATE_CHOICES.filter(
+    (c, i) => MACD_STATE_CHOICES.findIndex((o: { value: string | null }) => o.value === c.value) === i,
+  )
+  const count = selected.length
+  const active = count > 0
+
+  const toggle = (value: string | null) => {
+    onChange(
+      selected.includes(value) ? selected.filter((x) => x !== value) : [...selected, value],
+    )
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title="Filter by 1-minute MACD state at entry"
+        className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border bg-bg-1 px-2.5 text-[10px] font-semibold uppercase tracking-wider transition-colors duration-150 ${
+          active
+            ? 'border-gold/40 text-fg-primary'
+            : 'border-border-subtle text-fg-tertiary hover:border-gold/40 hover:text-gold'
+        }`}
+      >
+        MACD
+        {active && (
+          <span className="inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-gold px-1 text-[9px] text-accent-ink">
+            {count}
+          </span>
+        )}
+        <ChevronDown
+          size={12}
+          strokeWidth={2}
+          className={`transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="absolute left-0 z-20 mt-1 w-[220px] rounded-md border border-border-subtle bg-bg-3 p-2 shadow-lg">
+          <div className="px-2 pb-1 text-[9px] uppercase tracking-wider text-fg-muted">
+            1-minute, at entry
+          </div>
+          {rows.map((c) => {
+            const checked = selected.includes(c.value)
+            return (
+              <button
+                key={c.label}
+                type="button"
+                onClick={() => toggle(c.value)}
+                className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors duration-150 ${
+                  checked ? 'bg-white/[0.04] text-fg-primary' : 'text-fg-primary hover:bg-white/[0.04]'
+                }`}
+              >
+                <FilterCheckbox checked={checked} />
+                <span className={c.value === null ? 'italic' : ''}>{c.label}</span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

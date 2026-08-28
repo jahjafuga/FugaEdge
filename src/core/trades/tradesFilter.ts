@@ -79,6 +79,10 @@ export interface TradesFilterState {
   sectors: (string | null)[]
   /** Same idiom on the finer grain (industry). */
   industries: (string | null)[]
+  /** v0.2.7 -- the 1-minute MACD sign. 'positive', 'negative', or NULL for
+   *  the uncomputed bucket, which is the array machinery's own untagged
+   *  member and is why this is a list rather than a flag. */
+  macdStates: (string | null)[]
   /** v0.2.7 — the five-pillar ASK, never the thresholds. minScore matches
    *  scored trades with passed >= minScore; an INCOMPLETE trade (missing any
    *  required input) never matches a score ask and never fails one — it is its
@@ -112,6 +116,7 @@ export interface TradesFilterState {
   excludeCountries: (string | null)[]
   excludeSectors: (string | null)[]
   excludeIndustries: (string | null)[]
+  excludeMacdStates: (string | null)[]
   limit: number | null
   /** v0.2.7 — the ordering a SENTENCE asked for, distinct from the ordering
    *  the user clicked. The table's own sort is user state; this is the ask's,
@@ -146,6 +151,16 @@ const MATCHERS = {
     v === null ? t.sector == null : t.sector === v,
   industries: (t: TradeListRow, v: string | null) =>
     v === null ? t.industry == null : t.industry === v,
+  // THREE-VALUED, and the null member is the point: a trade whose MACD was
+  // never computed is not positive and not negative, and a facet that could
+  // not name it would answer "eighty-three" while hiding four hundred and
+  // thirty-nine trades it never looked at.
+  macdStates: (t: TradeListRow, v: string | null) =>
+    v === null
+      ? t.tf_1m_macd_positive == null
+      : v === 'positive'
+        ? t.tf_1m_macd_positive === true
+        : t.tf_1m_macd_positive === false,
 } as const
 
 type ArrayPair = [readonly unknown[], (t: TradeListRow, v: never) => boolean]
@@ -158,6 +173,7 @@ const ARRAY_FIELDS = (f: TradesFilterState): ArrayPair[] => [
   [f.countries, MATCHERS.countries as never],
   [f.sectors, MATCHERS.sectors as never],
   [f.industries, MATCHERS.industries as never],
+  [f.macdStates, MATCHERS.macdStates as never],
 ]
 
 const EXCLUDED_FIELDS = (f: TradesFilterState): ArrayPair[] => [
@@ -168,6 +184,7 @@ const EXCLUDED_FIELDS = (f: TradesFilterState): ArrayPair[] => [
   [f.excludeCountries, MATCHERS.countries as never],
   [f.excludeSectors, MATCHERS.sectors as never],
   [f.excludeIndustries, MATCHERS.industries as never],
+  [f.excludeMacdStates, MATCHERS.macdStates as never],
 ]
 
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
@@ -200,6 +217,27 @@ export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
   }
 }
 
+/** The MACD states, in ONE place so the resolver's vocabulary, the page and
+ *  the panel control cannot drift apart about what the words are.
+ *
+ *  "MACD NOT COMPUTED" IS NOT A KEY, and that is measured rather than chosen:
+ *  "not" is a NEGATOR, so the phrase makes the negation mask fire, governs
+ *  "computed", and leaves "macd" to be offered on its own. The DISPLAY matters
+ *  as much as the key -- an ambiguity is taken by substituting the candidate
+ *  back into the sentence, so a display the resolver cannot read would loop,
+ *  which is a boundary an earlier beat measured and recorded. */
+export const MACD_STATE_CHOICES: {
+  key: string
+  display: string
+  value: string | null
+  label: string
+}[] = [
+  { key: 'macd positive', display: 'macd positive', value: 'positive', label: 'Positive' },
+  { key: 'macd negative', display: 'macd negative', value: 'negative', label: 'Negative' },
+  { key: 'macd unknown', display: 'macd unknown', value: null, label: 'Not computed' },
+  { key: 'macd uncomputed', display: 'macd unknown', value: null, label: 'Not computed' },
+]
+
 export function emptyFilters(): TradesFilterState {
   return {
     symbol: '',
@@ -218,6 +256,7 @@ export function emptyFilters(): TradesFilterState {
     countries: [],
     sectors: [],
     industries: [],
+    macdStates: [],
     dna: { minScore: null, bucket: 'any' },
     ranges: {},
     excludePlaybookIds: [],
@@ -227,6 +266,7 @@ export function emptyFilters(): TradesFilterState {
     excludeCountries: [],
     excludeSectors: [],
     excludeIndustries: [],
+    excludeMacdStates: [],
     limit: null,
     sort: null,
   }
@@ -275,6 +315,7 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.countries.length > 0 ||
     f.sectors.length > 0 ||
     f.industries.length > 0 ||
+    f.macdStates.length > 0 ||
     f.dna.minScore !== null ||
     f.dna.bucket !== 'any' ||
     // A range alone must surface the Clear control, or a user can narrow the table
@@ -298,7 +339,8 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.excludeRegions.length > 0 ||
     f.excludeCountries.length > 0 ||
     f.excludeSectors.length > 0 ||
-    f.excludeIndustries.length > 0
+    f.excludeIndustries.length > 0 ||
+    f.excludeMacdStates.length > 0
   )
 }
 

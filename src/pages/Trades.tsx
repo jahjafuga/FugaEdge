@@ -11,6 +11,7 @@ import {
   applyTradesFilters,
   emptyFilters,
   isFiltering,
+  MACD_STATE_CHOICES,
   type TradesFilterState,
 } from '@/core/trades/tradesFilter'
 import QuickFilters from '@/components/trades/QuickFilters'
@@ -445,6 +446,14 @@ export default function Trades() {
         .map((p) => ({ id: p.id, name: p.name, tier: p.tier ?? null })),
       catalystTypes: catalystDefs.map((d) => d.name),
       mistakes: mistakeDefs.map((d) => ({ axis: d.axis, name: d.name })),
+      // NOT book-derived: unlike a ticker or a setup name these are the FACET's
+      // own enumeration, so they come from the one constant the panel control
+      // reads too and the two cannot drift.
+      macdStates: MACD_STATE_CHOICES.map((c) => ({
+        key: c.key,
+        display: c.display,
+        value: c.value,
+      })),
     }
   }, [trades, playbooks, mistakeDefs, catalystDefs])
 

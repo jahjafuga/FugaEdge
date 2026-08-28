@@ -124,6 +124,9 @@ function coerce(raw: unknown): TradesFilterState {
     countries: strs(raw.countries),
     sectors: strs(raw.sectors),
     industries: strs(raw.industries),
+    // v0.2.7 -- the MACD facet. Reads like the other categorical arrays;
+    // without it a saved MACD selection would vanish on reload.
+    macdStates: strs(raw.macdStates),
     // v0.2.7 five-pillar ask — additive at the same stamp, like the fields
     // above. Only the ASK is stored (minScore 0..5 integer, bucket) — never a
     // threshold; those live in settings and the ask re-resolves against them.
@@ -150,6 +153,7 @@ function coerce(raw: unknown): TradesFilterState {
     excludeCountries: strs(raw.excludeCountries),
     excludeSectors: strs(raw.excludeSectors),
     excludeIndustries: strs(raw.excludeIndustries),
+    excludeMacdStates: strs(raw.excludeMacdStates),
     // v0.2.7 -- the limit and the sort are NEVER read from the blob and never
     // written into it. A filter narrows which trades QUALIFY and deserves to
     // survive a reload; a limit HIDES trades that qualified, and a hidden row

@@ -62,6 +62,13 @@ export interface ResolverVocabulary {
   playbooks: { id: number; name: string; tier: string | null }[]
   catalystTypes: string[]
   mistakes: { axis: MistakeAxis; name: string }[]
+  /** v0.2.7 -- the MACD states, supplied by the page rather than derived
+   *  from the book: unlike a ticker or a setup name these are the FACET's
+   *  own enumeration. Keyed as TWO WORDS, and that is measured rather than
+   *  chosen -- a single entry keyed "macd" loses "macd negative" to the
+   *  mistake named "MACD negative at entry", whose name that phrase is a
+   *  PREFIX of, because longer spans are tried first. */
+  macdStates?: { key: string; display: string; value: string | null }[]
 }
 
 export interface AmbiguousToken {
@@ -504,6 +511,8 @@ export function resolveQuery(
     excludeCountries: [...(base?.excludeCountries ?? [])],
     excludeSectors: [...(base?.excludeSectors ?? [])],
     excludeIndustries: [...(base?.excludeIndustries ?? [])],
+    macdStates: [...(base?.macdStates ?? [])],
+    excludeMacdStates: [...(base?.excludeMacdStates ?? [])],
     dna: { ...(base?.dna ?? emptyFilters().dna) },
     ranges: Object.fromEntries(
       Object.entries(base?.ranges ?? {}).map(([k, v]) => [k, { ...v }]),
@@ -555,6 +564,13 @@ export function resolveQuery(
     ...vocab.playbooks.map((p) => p.name),
     ...vocab.catalystTypes,
     ...vocab.mistakes.map((m) => m.name),
+    // The MACD states belong here for ONE reason: the negation mask asks
+    // anyTermAt whether a span is a term at all, and without these keys the
+    // two-word span went undetected. "not macd positive" then negated only
+    // "macd", left "positive" free, and the facet applied POSITIVELY -- the
+    // exact opposite of the ask, silently. The other readers of this list
+    // test SINGLE tokens or column phrases and cannot see a two-word key.
+    ...(vocab.macdStates ?? []).map((m) => m.key),
   ].map((k) => k.toLowerCase())
   /** Is there a TERM here at all? Answers only THAT — never which one;
    *  resolution still goes through the passes below. Shares SUBSTRING_FLOOR
@@ -1062,9 +1078,40 @@ export function resolveQuery(
       },
     })
   for (const ct of vocab.catalystTypes) addArrayEntry(6, ct.toLowerCase(), ct, 'catalystTypes', ct, 'catalyst')
+  // A pool entry of its own rather than addArrayEntry, because the untagged
+  // member is a real VALUE here (null means "never computed") and the shared
+  // helper's value is a string.
+  //
+  // KIND SEVEN, AHEAD OF THE MISTAKES, and that is the whole reason a bare
+  // "macd" now asks instead of guessing. Mistakes moved to eight. A
+  // first-class facet must beat a PREFIX hit on a free-text tag name -- but
+  // the tag's FULL name still wins, because tier is checked before kind and
+  // an exact match is tier one. RH7 pins both halves.
+  for (const m of vocab.macdStates ?? [])
+    pool.push({
+      kind: 7,
+      key: m.key.toLowerCase(),
+      display: m.display,
+      apply: (s, log) => {
+        pushUnique(s.macdStates, m.value)
+        // THE COVERAGE AND THE TIMEFRAME, both named. Two-thirds of a real
+        // book has no computed MACD, and the two timeframes disagree on
+        // nearly half the demo book, so a bare count would be the same
+        // silent lie this facet exists to end.
+        log(
+          m.value === null
+            ? `${m.display} (1-minute)`
+            : `${m.display} (1-minute, uncomputed excluded)`,
+        )
+      },
+      excludeApply: (s, log) => {
+        pushUnique(s.excludeMacdStates, m.value)
+        log(`excluding ${m.display} (1-minute)`)
+      },
+    })
   for (const mk of vocab.mistakes)
     pool.push({
-      kind: 7, key: mk.name.toLowerCase(), display: mk.name,
+      kind: 8, key: mk.name.toLowerCase(), display: mk.name,
       apply: (s, log) => {
         if (!s.mistakeKeys.some((k) => k.axis === mk.axis && k.name === mk.name))
           s.mistakeKeys.push({ axis: mk.axis, name: mk.name })

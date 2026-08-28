@@ -42,6 +42,7 @@ function fakeRow(over: Record<string, unknown> = {}): Record<string, unknown> {
     entry_timeframe: null,
     entry_ema9_distance_pct: 10.75, // stale day-only column
     tf_1m_ema9_dist_pct: 3.66, // union snapshot (1m)
+    tf_1m_macd_positive: 1, // 1m MACD line above zero, as SQLite stores it
     mae: null, mfe: null, daily_change_pct: null, rvol: null,
     playbook_id: null, playbook_name: null, playbook_tier: null,
     confidence: null, planned_risk: null, planned_stop_loss_price: null,
@@ -91,5 +92,55 @@ describe('the 1m EMA9 snapshot threads through the trades read path', () => {
     const out = getTrade(1)
     expect(out).not.toBeNull()
     expect(out!.tf_1m_ema9_dist_pct).toBeNull()
+  })
+})
+
+// --- RH8 : THE MACD COLUMN, IN BOTH BUILDERS -------------------------------
+//
+// list.ts holds TWO query builders and they must move together. A single guard
+// reading "the column is present somewhere" would pass with one builder
+// missing it, and the trades table would filter correctly while the detail
+// read returned undefined -- so each builder is asserted SEPARATELY, the way
+// the EMA9 pair above already is.
+
+describe('the 1m MACD state threads through BOTH read paths', () => {
+  it('listTrades SELECTs tf_1m_macd_positive', () => {
+    nextRows = [fakeRow({})]
+    listTrades()
+    const sql = captured.find((s) => /tf_1m_macd_positive/i.test(s))
+    expect(sql, 'listTrades never selected the MACD column').toBeTruthy()
+    expect(sql!).toMatch(/\btf_1m_macd_positive\b/i)
+    expect(sql!).toMatch(/LEFT JOIN trade_technicals/i)
+  })
+
+  it('getTrade SELECTs it too -- the builder that silently half-lands', () => {
+    nextRows = [fakeRow({})]
+    getTrade(1)
+    const sql = captured.find((s) => /tf_1m_macd_positive/i.test(s))
+    expect(sql, 'getTrade never selected the MACD column').toBeTruthy()
+    expect(sql!).toMatch(/\btf_1m_macd_positive\b/i)
+  })
+
+  it('listTrades maps the integer one onto a BOOLEAN true', () => {
+    // SQLite has no boolean. A raw 1 reaching the row would still be truthy and
+    // would still filter, so this asserts the type, not merely the truthiness.
+    nextRows = [fakeRow({ tf_1m_macd_positive: 1 })]
+    const out = listTrades()
+    expect(out[0].tf_1m_macd_positive).toBe(true)
+  })
+
+  it('and the integer zero onto FALSE, not onto null', () => {
+    // The bug this catches: `|| null` or `!!x ? x : null` would turn a real
+    // negative reading into "not computed" and hide six trades on the real book.
+    nextRows = [fakeRow({ tf_1m_macd_positive: 0 })]
+    const out = listTrades()
+    expect(out[0].tf_1m_macd_positive, 'a real NEGATIVE became "not computed"').toBe(false)
+  })
+
+  it('getTrade maps a NULL to null -- the uncomputed bucket, on both builders', () => {
+    nextRows = [fakeRow({ tf_1m_macd_positive: null })]
+    const out = getTrade(1)
+    expect(out).not.toBeNull()
+    expect(out!.tf_1m_macd_positive).toBeNull()
   })
 })

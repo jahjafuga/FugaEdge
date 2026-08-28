@@ -42,6 +42,7 @@ export type ExcludeField =
   | 'excludeCountries'
   | 'excludeSectors'
   | 'excludeIndustries'
+  | 'excludeMacdStates'
 
 /** Every exclude field, in the order the panel should read. Exported so a guard
  *  can assert this list against the state's own keys rather than a copy. */
@@ -53,6 +54,11 @@ export const EXCLUDE_FIELDS: ExcludeField[] = [
   'excludeCountries',
   'excludeSectors',
   'excludeIndustries',
+  // v0.2.7 -- the eighth. PLAIN kind: string values with a null bucket,
+  // so neither special case above applies -- no id to look up and no
+  // object to unwrap. Its null reads as the house UNKNOWN bucket, the
+  // same word region, sector and industry already use.
+  'excludeMacdStates',
 ]
 
 export interface ExcludeChip {

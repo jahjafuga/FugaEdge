@@ -53,6 +53,13 @@ export interface TradeListRow {
    *  after the inventory found it one SELECT away in a join that already
    *  existed. Same optionality and null contract. */
   tf_1m_vwap_dist_pct?: number | null
+  /** v0.2.7 -- the 1-minute MACD line's sign at entry, from the SAME
+   *  trade_technicals snapshot as the two distances above. THREE-VALUED:
+   *  true above zero, false below, NULL when it was never computed -- which
+   *  is four hundred and thirty-nine of five hundred and twenty-eight trades
+   *  on a real book. Optional, so the hundred and fifty-odd files that read
+   *  TradeListRow are undisturbed; only the trades read path populates it. */
+  tf_1m_macd_positive?: boolean | null
   /** Max adverse / favorable excursion in $/share between entry and exit,
    *  backfilled from intraday_bars (computeMaeMfe). Both >= 0; null when no
    *  intraday bars cover the trade's window. */

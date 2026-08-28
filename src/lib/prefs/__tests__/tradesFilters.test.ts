@@ -63,6 +63,9 @@ const FULL = (): TradesFilterState => ({
   countries: ['CN', null],
   sectors: ['Healthcare', null],
   industries: ['Biotechnology'],
+  // v0.2.7 -- the EIGHTH array, with BOTH a real value and the null bucket,
+  // because the uncomputed member is the one this facet exists to name.
+  macdStates: ['positive', null],
   dna: { minScore: 3, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
   // v0.2.7 -- the seven EXCLUDE sides, with real values: unlike the limit
@@ -74,6 +77,7 @@ const FULL = (): TradesFilterState => ({
   excludeCountries: ['HK'],
   excludeSectors: ['Energy'],
   excludeIndustries: ['Marine Shipping'],
+  excludeMacdStates: ['negative'],
   // v0.2.7 -- the ask gained a limit and a sort. They are NULL here because
   // they are never persisted: F1 asserts every field round-trips, and these
   // two round-trip to null BY DESIGN. The law that they do not survive a write
