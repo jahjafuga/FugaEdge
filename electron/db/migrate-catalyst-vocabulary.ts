@@ -40,7 +40,11 @@ import type Database from 'better-sqlite3'
 /** The default catalyst vocabulary: 15 labels, seeded only on an empty table.
  *  sort_position is the display order. ASCII labels (plain slashes/hyphen, no
  *  em-dash) so the stored values stay portable. */
-const SEED: { name: string; sort_position: number }[] = [
+/** EXPORTED so a guard can pin these names. Renaming any of them orphans
+ *  every existing user's trades carrying the old string -- the seed runs
+ *  only on an EMPTY table and nothing propagates a seed rename to trade
+ *  rows. See catalystPins.test.tsx. */
+export const SEED: { name: string; sort_position: number }[] = [
   { sort_position: 0, name: 'Earnings' },
   { sort_position: 1, name: 'FDA / Clinical' },
   { sort_position: 2, name: 'News / PR' },
