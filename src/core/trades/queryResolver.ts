@@ -187,6 +187,28 @@ export const NEGATORS = new Set(['not', 'no', 'without', 'excluding', 'except'])
  *  tier still has no floor at all; the PREFIX floor is now per-kind, below. */
 const SUBSTRING_FLOOR = 4
 
+/** THE VOCABULARY KEY ALPHABET. A key is USER-AUTHORED, so it carries
+ *  whatever punctuation the trader typed -- slashes, dashes, brackets,
+ *  ampersands. The ask does not: the tokenizer strips punctuation before
+ *  any comparison happens. Comparing the two directly is not a test that
+ *  fails, it is a test that CANNOT pass, and it kept eleven measured
+ *  entries unreachable by their own full names.
+ *
+ *  Everything outside this class becomes a single space, whitespace then
+ *  collapses, and both sides are lowercased -- so the two alphabets meet.
+ *
+ *  ASCII BY CONSTRUCTION, written out rather than borrowed from a shorthand
+ *  class. The collision census that cleared this change measured the ASCII
+ *  reading on three books; a pattern that silently widened to unicode would
+ *  not be the thing that was measured. */
+export const VOCAB_KEY_ALPHABET = /[^A-Za-z0-9_$ ]/g
+
+/** WHERE THE RESERVATION STOPS. Two, and it is a floor rather than a size:
+ *  the span sequence descends from the book's own longest key and halts
+ *  here, so a single token can never reserve however long the book's names
+ *  are. RK4 is this constant. */
+export const RESERVATION_FLOOR = 2
+
 /** KIND ZERO is the ticker. Named because the prefix floor carves it out and
  *  a bare 0 at the predicate would say nothing about why. */
 export const SYMBOL_KIND = 0
@@ -692,6 +714,32 @@ export function resolveQuery(
     // test SINGLE tokens or column phrases and cannot see a two-word key.
     ...(vocab.macdStates ?? []).map((m) => m.key),
   ].map((k) => k.toLowerCase())
+  /** THE SAME KEYS, IN THE ASK'S ALPHABET. Built here and only here, from
+   *  vocabKeys itself, so the two lists cannot drift: every key has exactly
+   *  one normalised form at the same index.
+   *
+   *  STRICTLY A SUPERSET. If a raw key equals a probe, its normalised form
+   *  equals the normalised probe too -- so nothing that matches today stops
+   *  matching. The collision census measured ZERO distinct keys merged by
+   *  this on any of the three books, which is the other half of safe: it
+   *  matches more, and it never confuses two names for one.
+   *
+   *  ONE READER ONLY, deliberately. Of the ten places that ask whether text
+   *  is a vocabulary key, only the span reservation below uses this list.
+   *  The other nine were measured and left alone: five compare a SINGLE
+   *  token, and no key on any book normalises to one word while differing
+   *  from its lowercased form; three compare against fixed internal tables
+   *  that no key newly reaches; and the negation mask probes widths this
+   *  cannot help at. Widening a comparison nobody could show a use for is
+   *  how a cure grows a blast radius it was never measured over. */
+  const normaliseKey = (value: string): string =>
+    value
+      .replace(VOCAB_KEY_ALPHABET, ' ')
+      .toLowerCase()
+      .split(' ')
+      .filter((w) => w.length > 0)
+      .join(' ')
+  const vocabKeysNormalised: string[] = vocabKeys.map(normaliseKey)
   /** Is there a TERM here at all? Answers only THAT — never which one;
    *  resolution still goes through the passes below. Shares SUBSTRING_FLOOR
    *  with candidatesFor so the two cannot disagree about how short is too
@@ -863,27 +911,72 @@ export function resolveQuery(
   // `marks` too, so a reserved entry beside an unread token still discards
   // everything -- there is nothing to remember and nothing to keep in step.
   //
-  // SINGLE TOKENS NEVER RESERVE. Spans of three and two only, exactly as the
-  // negation mask's own lookahead does. Letting one token reserve was measured
-  // and rejected: on the largest book "my" is the Malaysia ISO, and a
-  // single-token reservation would apply the country to every sentence
-  // containing the word -- the defect beat 152 removed.
+  // SINGLE TOKENS NEVER RESERVE. That half stands, and stands unchanged.
+  // What has been REVERSED is the second clause, which read:
+  //
+  //     SINGLE TOKENS NEVER RESERVE. Spans of three and two only, exactly
+  //     as the negation mask's own lookahead does. Letting one token
+  //     reserve was measured and rejected: on the largest book "my" is the
+  //     Malaysia ISO, and a single-token reservation would apply the
+  //     country to every sentence containing the word -- the defect beat
+  //     152 removed.
+  //
+  // "SPANS OF THREE AND TWO ONLY" WAS THE DEFECT, not the guard. Beat 165
+  // MEASURED it -- raising the bound alone converted nothing, because the
+  // two sides of the comparison were in different alphabets and the longer
+  // span was compared to a key it could never equal. Beat 166 measured the
+  // other half and found the same result mirrored. This beat REVERSES the
+  // clause, having removed both constraints at once: eleven of twelve
+  // measured captures reach their entry, every one of them CORRECT rather
+  // than refused, and four hundred five ordinary sentences did not move.
+  //
+  // THE MALAYSIA ARGUMENT IS UNTOUCHED AND STILL DECIDES THE FLOOR. "my" is
+  // that ISO on the largest book, and a single-token reservation would
+  // still apply the country to every sentence carrying the word. The span
+  // sequence descends and stops at RESERVATION_FLOOR, so it cannot reach
+  // one by construction rather than by anyone remembering not to.
   //
   // AFTER THE ANSWER PASS, per R254. An entry a trader named "Average Loss"
   // would lose to the metric grammar, which exists on no measured book and is
   // the first named question of the stress campaign. The ordering is the seam;
   // this comment is where to find it.
+  // THE BOUND IS THE BOOK'S. It is the longest key this trader actually has,
+  // tokenised the way their ask will be so the two are comparable, and it is
+  // never a number written here. A book of two-word names leaves it at
+  // RESERVATION_FLOOR and the scan does no more work than it did before; a
+  // trader who names a setup in eight words raises it to eight.
+  //
+  // A LITERAL WOULD BE A NUMBER THAT FITS THE BOOKS THAT WERE MEASURED,
+  // which is a different thing from being right. The seven that the three
+  // measured books happen to need is not a property of trading journals.
+  const maxKeyTokens = vocabKeys.reduce((m, k) => {
+    const n = k.split(/\s+/)
+      .map((t) => t.replace(/^(?!-\d)[^\w$]+|[.,;:!?]+$/g, ''))
+      .filter((t) => t.length > 0).length
+    return n > m ? n : m
+  }, RESERVATION_FLOOR)
   const reserved: boolean[] = tokens.map(() => false)
   for (let i = 0; i < tokens.length; i++) {
     if (marks[i] !== 'free' || unclaimable[i]) continue
-    for (const span of [3, 2]) {
+    // DESCENDING, SO THE LONGEST NAME WINS. The same law the column phrases
+    // follow: a longer key must be tried before a shorter one it contains, or
+    // the short name swallows the long one and the trader is shown a filter
+    // they did not ask for.
+    //
+    // AND IT STOPS AT THE FLOOR. Single tokens never reserve, and the loop
+    // cannot reach one because it terminates above it.
+    for (let span = maxKeyTokens; span >= RESERVATION_FLOOR; span--) {
       if (i + span > tokens.length) continue
       const slice = tokens.slice(i, i + span)
       // Aligned to the negation state of the first token, the same test pass 3
       // makes at its own span gate: a phrase half inside a negation is not a
       // phrase, and a negated reserved span must route to the exclude side.
       if (slice.some((_, k) => marks[i + k] !== 'free' || negated[i + k] !== negated[i])) continue
-      if (!vocabKeys.includes(slice.join(' '))) continue
+      // BOTH SIDES IN ONE ALPHABET. The raw list is not consulted here: a
+      // normalised match is a strict superset of a raw one, so testing both
+      // would be testing the same thing twice and inviting them to disagree
+      // later.
+      if (!vocabKeysNormalised.includes(normaliseKey(slice.join(' ')))) continue
       for (let k = 0; k < span; k++) reserved[i + k] = true
       i += span - 1
       break
