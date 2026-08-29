@@ -23,10 +23,19 @@
 // WHAT IT COSTS, and the price was accepted rather than discovered. Nine runs
 // that were correct became refusals, and eleven partial answers with them. The
 // clearest loss: "entries more than five percent extended from the 9 ema"
-// resolved correctly to the nine's band and now refuses, because the phrasing
-// carries words the resolver cannot read. Recovering those by widening the
-// filler and grammar sets is a separate piece of work and deliberately not
-// here.
+// resolved correctly to the nine's band and now refuses.
+//
+// WHY IT REFUSES -- MEASURED IN BEAT 154, and the sentence that stood here
+// until then was a GUESS. It read "because the phrasing carries words the
+// resolver cannot read", and it offered widening the filler and grammar sets
+// as the cure. Beat 154 re-drove all nine and that cure is not there. The
+// sentence refuses because a comparison with NO COLUMN in its window applies
+// nothing by design, and "over five percent extended from the 9 ema" -- built
+// entirely from operators that have shipped since long before the boundary --
+// refuses in exactly the same way. Recovering it needs the band and the
+// comparator to share a column, which is a feature and not a word list.
+// Nothing in the nine was recovered by widening. See comparatorPhrases.test.ts
+// for what was measured and what shipped instead.
 //
 // AN UNREADABLE ASK APPLIES NOTHING; IT DOES NOT WIPE THE SCREEN. The discard
 // restores the state this ask INHERITED, not an empty filter set. The harness

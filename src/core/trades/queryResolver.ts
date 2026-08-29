@@ -357,6 +357,24 @@ const ZERO_BOUND_COLUMNS: ReadonlySet<string> = new Set([
   'ema20_dist_pct',
 ])
 
+/** TWO-TOKEN COMPARATOR PHRASES, and the reason they are here rather than in
+ *  STOPWORDS. "more" and "than" name an OPERATION, and beat 154 DROVE the
+ *  alternative rather than assuming it. With both words forced into the filler
+ *  list and no operator reading at all, "entries more than five percent
+ *  extended from the 9 ema" STRANDS ITS OWN OPERAND -- the number survives
+ *  with nothing to bind it to and comes back as the unread "five percent" --
+ *  and "price more than five", which the operator reading resolves exactly,
+ *  instead refuses with its column orphaned. Swallowing the operator does not
+ *  simplify the sentence; it breaks the part that was working.
+ *
+ *  The shape is the shipped one. "at least" and "at most" already collapse
+ *  two tokens into a single op immediately below; these four join that path
+ *  and reach MIN_OPS and MAX_OPS through the identical door.
+ */
+const THAN_OPS: Record<string, string> = {
+  more: 'over', greater: 'over', less: 'under', fewer: 'under',
+}
+
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
 
@@ -933,6 +951,9 @@ export function resolveQuery(
     let opLen = 1
     if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
       op = tokens[i + 1]
+      opLen = 2
+    } else if (i + 1 < tokens.length && tokens[i + 1] === 'than' && THAN_OPS[op]) {
+      op = THAN_OPS[op]
       opLen = 2
     }
     if (!MIN_OPS.has(op) && !MAX_OPS.has(op)) continue
