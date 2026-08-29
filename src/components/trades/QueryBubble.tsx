@@ -5,6 +5,7 @@ import {
   type ResolverVocabulary,
 } from '@/core/trades/queryResolver'
 import { responseLine } from '@/core/trades/queryResponse'
+import { answerText, type RowForAnswer } from '@/core/trades/queryAnswer'
 import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 import {
   clampEdgePosition,
@@ -214,6 +215,11 @@ interface QueryBubbleProps {
   vocab: ResolverVocabulary
   /** The page's LIVE filtered count (the draft's while one exists). */
   liveCount: number
+  /** v0.2.7 slice B -- the SAME rows the count was taken from. An answer
+   *  computed over any other set would be a second number claiming to
+   *  describe the first. Optional so every existing mount is unchanged;
+   *  without it an answer ask still filters and simply says nothing. */
+  liveRows?: readonly RowForAnswer[]
   /** Push the candidate up (null = no draft — closed or empty). */
   onDraft: (draft: TradesFilterState | null) => void
   onCommit: (next: TradesFilterState) => void
@@ -223,6 +229,7 @@ export default function QueryBubble({
   committed,
   vocab,
   liveCount,
+  liveRows,
   onDraft,
   onCommit,
 }: QueryBubbleProps) {
@@ -317,6 +324,9 @@ export default function QueryBubble({
               // them from `applied`, which only describes the ask -- so every
               // wording it wore was true on one path and false on another.
               before: snapshot.current,
+              // The number, computed HERE from the rows the page is
+              // showing -- not re-queried, not re-filtered.
+              answer: answerText(resolution.answer, liveRows ?? []),
               after: resolution.state,
             }),
           },

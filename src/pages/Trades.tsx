@@ -652,6 +652,9 @@ export default function Trades() {
         // it names what is displayed -- passing the sliced length here would
         // report the limit as the answer, which is the whole defect.
         liveCount={matched.length}
+        // The SAME array the count came from, so an answer and the count on
+        // screen can never describe two different sets.
+        liveRows={matched}
         onDraft={setDraftFilters}
         onCommit={(next) => {
           // Edge goes through the same funnel as every other filter write. It

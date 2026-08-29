@@ -36,6 +36,11 @@ export interface ResponseInput {
    *  Supplied together or not at all; without them the line makes no claim. */
   before?: TradesFilterState
   after?: TradesFilterState
+  /** v0.2.7 slice B -- the answer sentence, already computed over the same
+   *  rows the count came from, or null. Passed in rather than computed here
+   *  because this module is given a COUNT, not a row set, and inventing a
+   *  second source of rows is how two numbers on one line start to differ. */
+  answer?: string | null
 }
 
 /** Every array field, both sides of every pair. */
@@ -84,8 +89,16 @@ const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
 export function responseLine({
-  count, applied, unresolved, limit, before, after,
+  count, applied, unresolved, limit, before, after, answer,
 }: ResponseInput): string {
+  // AN ANSWER LEADS. It is what was asked for; the filter it was computed
+  // over follows in the same breath so the number can be checked rather
+  // than trusted. There is no path where an answer appears next to an
+  // unread word: the resolver drops the answer at the strict boundary with
+  // everything else, so by the time one arrives here the ask was read whole.
+  if (answer) {
+    return applied.length > 0 ? `${answer} (${applied.join(', ')})` : answer
+  }
   // NOTHING APPLIED. This ask ran no filter, so there is no result set and no
   // number to report — printing the book's own size here is the defect this
   // file exists to stop. Say what could not be read instead, so the sentence

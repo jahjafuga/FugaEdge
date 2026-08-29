@@ -44,6 +44,7 @@
 import type { MistakeAxis } from '@shared/mistakes-types'
 import { emptyFilters, type TradesFilterState } from './tradesFilter'
 import { withDatePreset, type DatePreset } from './datePreset'
+import type { AnswerIntent, AnswerMetric } from './queryAnswer'
 // THE BANDS ARE THE APP'S, IMPORTED RATHER THAN COPIED. Both tables are pure
 // (type-only imports of their own) and their edges are locked bucket-for-bucket
 // by bucketSchemeParity.test.ts, so there is exactly ONE definition of
@@ -88,6 +89,13 @@ export interface ResolveResult {
   unresolved: string[]
   /** Tokens that matched more than one candidate in the same kind. */
   ambiguous: AmbiguousToken[]
+  /** v0.2.7 slice B — the AGGREGATE the ask wants over the filtered rows,
+   *  or absent. OPTIONAL on purpose: the strict boundary's discard returns
+   *  an object literal that does not mention this field, so an unreadable
+   *  ask cannot carry an answer out. The boundary governs answers for the
+   *  same reason and by the same line it governs filters.
+   */
+  answer?: AnswerIntent | null
 }
 
 // ── the built-in language ────────────────────────────────────────────────────
@@ -374,6 +382,48 @@ const ZERO_BOUND_COLUMNS: ReadonlySet<string> = new Set([
 const THAN_OPS: Record<string, string> = {
   more: 'over', greater: 'over', less: 'under', fewer: 'under',
 }
+
+/** METRIC PHRASES — the whole of slice B's answer vocabulary, as a named literal.
+ *
+ *  Matched against the CONTENT SKELETON (see the answer pass), so the stopwords
+ *  a trader puts between the words do not have to be enumerated here: "what
+ *  percent of my trades were winners" reaches "percent winners" across four of
+ *  them.
+ *
+ *  "percent winners" IS the win rate, and it consumes "winners" deliberately.
+ *  Left free, that word applies the winners outcome filter and the rate is then
+ *  computed over winners alone -- one hundred percent, every time, on every
+ *  book. A confident, wrong, non-zero answer: exactly the class this campaign
+ *  removed. */
+export const ANSWER_METRIC_PHRASES: Record<string, AnswerMetric> = {
+  'how many': 'count',
+  'average loss': 'avg_loser',
+  'average losses': 'avg_loser',
+  'avg loss': 'avg_loser',
+  'average gain': 'avg_winner',
+  'average win': 'avg_winner',
+  'avg gain': 'avg_winner',
+  'average hold time': 'avg_hold',
+  'average hold': 'avg_hold',
+  'win rate': 'win_rate',
+  'percent winners': 'win_rate',
+  'profit factor': 'profit_factor',
+  'total pnl': 'net_pnl',
+  'total profit': 'net_pnl',
+}
+
+/** The question words, and R245 is why they are HERE and not in STOPWORDS.
+ *
+ *  Every one of them is consumed CONTEXTUALLY -- only on a sentence that already
+ *  produced an answer intent. Unconditionally they would be filler, and beat 156
+ *  measured what that costs: "is" is the ONLY unread token in "what is my average
+ *  loss" on all three books, so making it filler hands the trader a full table
+ *  with three offer chips and no number. "what was my worst day" is out of slice
+ *  and must keep refusing, which it does because no metric phrase matches it and
+ *  so "was" is never touched. */
+export const ANSWER_FILLER: ReadonlySet<string> = new Set([
+  'is', 'whats', 'was', 'did', 'take', 'took',
+])
 
 const MIN_OPS = new Set(['over', 'above', '>', '>=', 'least'])
 const MAX_OPS = new Set(['under', 'below', '<', '<=', 'most'])
@@ -734,6 +784,54 @@ export function resolveQuery(
       for (let k = i; k < j; k++) {
         negated[k] = false
         unclaimable[k] = true
+      }
+    }
+  }
+
+  // ── the answer pass ───────────────────────────────────────────────────────
+  // FIRST, and the order is the whole of it. "average", "loss" and "rate" all
+  // reach vocabulary on at least one measured book -- "average" ALONE APPLIES a
+  // mistake on the demo book -- so a metric phrase read after the vocabulary
+  // pass would already have lost its words to a filter nobody asked for.
+  // Reading it here takes the phrase as a UNIT and leaves every other word
+  // exactly as it was, which is what keeps "trades where i averaged down"
+  // reaching the mistake it always reached.
+  let answer: AnswerIntent | null = null
+  {
+    // THE CONTENT SKELETON: the indices of tokens that are not stopwords, not
+    // negated, not unclaimable and not already consumed. Phrases match against
+    // CONSECUTIVE skeleton entries, which is how a four-stopword gap closes.
+    const skel: number[] = []
+    for (let i = 0; i < tokens.length; i++) {
+      if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+      if (STOPWORDS.has(tokens[i])) continue
+      skel.push(i)
+    }
+    for (let a = 0; a < skel.length && !answer; a++) {
+      // THREE BEFORE TWO, so "average hold time" is not eaten by "average hold".
+      for (const span of [3, 2]) {
+        // CONTINUE, never break: a three-token span that overruns the end of
+        // the skeleton must not stop the two-token span from being tried. As a
+        // break it silently killed every two-word metric in a three-word
+        // skeleton -- "whats profit factor", "percent winners", "is average
+        // loss" -- which is most of the slice.
+        if (a + span > skel.length) continue
+        const phrase = skel.slice(a, a + span).map((i) => tokens[i]).join(' ')
+        const metric = ANSWER_METRIC_PHRASES[phrase]
+        if (!metric) continue
+        // EXACT vocabulary wins, the rule the recency pass already keeps: a
+        // playbook the trader named "win rate" is the trader's own word.
+        if (vocabKeys.includes(phrase)) continue
+        answer = { metric, source: phrase }
+        for (let k = 0; k < span; k++) marks[skel[a + k]] = 'consumed'
+        break
+      }
+    }
+    // R245 — the question words, and ONLY once an intent exists.
+    if (answer) {
+      for (let i = 0; i < tokens.length; i++) {
+        if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+        if (ANSWER_FILLER.has(tokens[i]) && !vocabKeys.includes(tokens[i])) marks[i] = 'stop'
       }
     }
   }
@@ -1460,5 +1558,16 @@ export function resolveQuery(
   if (unresolved.length > 0) {
     return { state: inherited(), applied: [], appliedSources: [], unresolved, ambiguous }
   }
-  return { state, applied, appliedSources, unresolved, ambiguous }
+  // THE ANSWER DESCRIBES THE STATE THAT WAS APPLIED, and claims nothing
+  // beyond it. An offer standing alongside is a separate and VISIBLE
+  // question about a word the answer did not need.
+  //
+  // Suppressing the number whenever an offer exists was tried first and
+  // measured worse on both counts. On the largest book "my" EXACTLY
+  // matches the Malaysia ISO -- the exact tier is not filler-gated, by
+  // design -- so an ambiguity is present in almost every sentence there,
+  // and suppression deleted the feature on that book entirely. Worse, it
+  // left the FILTER applied with no number beside it: the answered-as-a-
+  // filter bucket, which this slice exists to empty.
+  return { state, applied, appliedSources, unresolved, ambiguous, answer }
 }
