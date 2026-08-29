@@ -75,8 +75,10 @@ describe('G1 a recency word plus a number is a limit AND a sort', () => {
   })
 
   it('"most recent 3" is the same as last three', () => {
-    expect(r('most recent 3').state.limit).toBe(3)
-    expect(r('most recent 3').state.sort).toEqual({ colId: 'open_time', dir: 'desc' })
+    // REVERSED BY BEAT 152. WAS: limit three and a sort. "most" goes unread here, so
+    // the strict boundary discards the limit with everything else.
+    expect(r('most recent 3').state.limit).toBe(null)
+    expect(r('most recent 3').unresolved).toContain('most')
   })
 
   it('"oldest 7" is ascending', () => {
@@ -264,11 +266,12 @@ describe('G6 the new fields exist on the ask and default to null', () => {
 
 describe('G9 every earlier string still works', () => {
   it('the campaign sentence applies losers and China -- and NOW a limit', () => {
+    // REVERSED BY BEAT 152. WAS: losers, China, a limit of ten and a sort.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
-    expect(out.state.limit, 'the sentence has said "the 10" all along').toBe(10)
-    expect(out.state.sort).toEqual({ colId: 'open_time', dir: 'desc' })
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
+    expect(out.state.limit, 'nothing survives a discard').toBe(null)
+    expect(out.state.sort).toEqual(null)
     expect(out.ambiguous).toEqual([])
   })
 

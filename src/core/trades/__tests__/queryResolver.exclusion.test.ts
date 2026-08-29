@@ -101,13 +101,16 @@ describe('G1 a negated term becomes an exclusion, not a refusal', () => {
 
 describe('G2 the campaign sentence', () => {
   it('still applies outcome losers and region China', () => {
+    // REVERSED BY BEAT 152. WAS: outcome losers and region China APPLIED.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
   })
 
   it('and NOW excludes region Hong Kong', () => {
-    expect(r(CAMPAIGN).state.excludeRegions).toEqual(['Hong Kong'])
+    // REVERSED BY BEAT 152. WAS: the exclusion APPLIED. It is still RESOLVED -- the
+    // exclusion beat's reading is intact -- but the ask is discarded whole.
+    expect(r(CAMPAIGN).state.excludeRegions).toEqual([])
   })
 
   it('"but not from hong kong" is ABSENT from the ignored list', () => {
@@ -119,8 +122,11 @@ describe('G2 the campaign sentence', () => {
   })
 
   it('the limit and sort survive from the previous beat', () => {
-    expect(r(CAMPAIGN).state.limit).toBe(10)
-    expect(r(CAMPAIGN).state.sort).toEqual({ colId: 'open_time', dir: 'desc' })
+    // REVERSED BY BEAT 152. WAS: limit ten and the sort survived.
+    // Nothing survives a discard, including the limit -- the same reversal the
+    // band-refusal guard carries.
+    expect(r(CAMPAIGN).state.limit).toBe(null)
+    expect(r(CAMPAIGN).state.sort).toEqual(null)
   })
 
   it('and nothing is ambiguous', () => {

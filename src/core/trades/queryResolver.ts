@@ -195,7 +195,7 @@ export const SYMBOL_KIND = 0
  *  WHAT IT DOES NOT DO: ordinary sentences are made of four-plus-letter words,
  *  which no prefix floor reaches. Ten sentences driven across three books moved
  *  by nothing, two and one. The long-word matches are still live. */
-export const SYMBOL_PREFIX_FLOOR = 2
+export const SYMBOL_PREFIX_FLOOR = 3
 export const PREFIX_FLOOR = 4
 
 /** Demonym → the name it means. A NORMALISATION step, not vocabulary: the
@@ -536,7 +536,11 @@ export function resolveQuery(
   now: Date,
   base?: TradesFilterState,
 ): ResolveResult {
-  let state: TradesFilterState = {
+  /** The state this ask INHERITED, rebuilt fresh each call. The strict
+   *  boundary below returns this rather than an empty filter set: an
+   *  unreadable ask applies nothing, it does not wipe what the trader
+   *  already had on screen. */
+  const inherited = (): TradesFilterState => ({
     ...(base ?? emptyFilters()),
     // arrays and ranges are copied so composition never mutates the caller's.
     // BOTH SIDES. The exclude half was missed when exclusions landed, so
@@ -564,7 +568,8 @@ export function resolveQuery(
     ranges: Object.fromEntries(
       Object.entries(base?.ranges ?? {}).map(([k, v]) => [k, { ...v }]),
     ),
-  }
+  })
+  let state: TradesFilterState = inherited()
   const applied: string[] = []
   const appliedSources: string[] = []
   const unresolved: string[] = []
@@ -1283,6 +1288,17 @@ export function resolveQuery(
       }
       if (hits.length === 1) {
         const entry = hits[0]
+        // A SUBSTRING hit ASKS. Exact and prefix still apply. Measured: a
+        // four-letter ordinary word reaches inside a long vocabulary name --
+        // "rate" inside "United Arab Emi-rate-s" filtered a book to twelve
+        // trades for a question about halt resumes.
+        const hitTier = entry.key === phrase ? 1 : (entry.key.startsWith(phrase) ? 2 : 3)
+        if (hitTier === 3) {
+          ambiguous.push({ text: raw, candidates: [entry.display] })
+          for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
+          matched = true
+          break
+        }
         // A term with NO exclude side (a symbol, a flag) keeps the negation
         // beat's behaviour: refused, left unclaimed, reported as unread.
         if (isNeg && !entry.excludeApply) break
@@ -1414,5 +1430,14 @@ export function resolveQuery(
   }
   flush()
 
+  // STRICT PARTIAL APPLICATION. If ANY content token went unread, the whole
+  // ask applies NOTHING. Stopwords and fillers are already excluded from
+  // `unresolved` (they carry marks 'stop'); a token left UNCLAIMABLE by a
+  // deliberate refusal is still 'free' and so still counts as unread, which
+  // is the point -- refusing to read a word does not license answering the
+  // rest of the sentence. Offers survive: the trader is still asked.
+  if (unresolved.length > 0) {
+    return { state: inherited(), applied: [], appliedSources: [], unresolved, ambiguous }
+  }
   return { state, applied, appliedSources, unresolved, ambiguous }
 }

@@ -125,9 +125,10 @@ describe('G1 the four recorded phrasings exclude, or refuse when they cannot', (
 
 describe('G2 the campaign sentence', () => {
   it('applies outcome losers and region China, and NOTHING else', () => {
+    // REVERSED BY BEAT 152. WAS: outcome losers and region China APPLIED.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
   })
 
   it('no sector is applied -- "are" must not reach Healthcare', () => {
@@ -161,8 +162,10 @@ describe('G2 the campaign sentence', () => {
     // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
     // from an ignored phrase into an applied EXCLUSION. The sentence has meant
     // that from the first beat of the campaign; it is the last piece to land.
-    expect(out.applied).toHaveLength(4)
-    expect(out.state.limit).toBe(10)
+    // REVERSED BY BEAT 152. WAS: four applied lines and a limit of ten.
+    // Nothing survives a discard, the limit included.
+    expect(out.applied).toHaveLength(0)
+    expect(out.state.limit).toBe(null)
   })
 })
 
@@ -195,8 +198,10 @@ describe('G3 the substring floor is FOUR', () => {
     expect(r('eal').applied).toEqual([])
   })
 
-  it('and the PREFIX floor is untouched at two', () => {
-    expect(r('nr').state.symbol).toBe('NRVA')
+  it('and the PREFIX floor is now THREE for symbols', () => {
+    // REVERSED BY BEAT 152. WAS: expect(r('nr').state.symbol).toBe('NRVA').
+    expect(r('nrv').state.symbol).toBe('NRVA')
+    expect(r('nr').state.symbol).toBe('')
   })
 })
 

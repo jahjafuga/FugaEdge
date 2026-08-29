@@ -239,7 +239,10 @@ describe('G8 EXACT vocabulary beats a column phrase', () => {
   }
 
   it('a playbook named Entry keeps the word', () => {
-    expect(r('entry under ten', NAMED).state.playbookIds).toEqual([12])
+    // REVERSED BY BEAT 152. WAS: the playbook APPLIED. It still WINS the word --
+    // the exact-beats-column precedence is untouched -- but the rest of the
+    // sentence goes unread, so the ask is discarded.
+    expect(r('entry under ten', NAMED).state.playbookIds).toEqual([])
   })
 
   it('and no entry-price range is built from it', () => {
@@ -290,22 +293,32 @@ describe('G9 every phrase that worked before still works', () => {
   })
 
   it('bare "risk" keeps its vocabulary reading too -- measured, unchanged', () => {
-    expect(r('risk').state.mistakeKeys).toHaveLength(1)
+    // REVERSED BY BEAT 152. WAS: "risk" APPLIED a mistake. It reaches the same name
+    // by SUBSTRING, and that tier now offers instead of applying.
+    expect(r('risk').state.mistakeKeys).toHaveLength(0)
+    expect(r('risk').ambiguous).toHaveLength(1)
     expect(r('risk').state.ranges).toEqual({})
   })
 
   it('the campaign sentence is unchanged', () => {
+    // REVERSED BY BEAT 152. WAS: outcome losers and region China APPLIED. The
+    // campaign sentence carries words the resolver cannot read, and a half-read
+    // sentence now applies nothing.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
     // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
     // "the 10" in this sentence is a row count. The sentence has said it all
     // along and it was unresolved until then.
     // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
     // from an ignored phrase into an applied EXCLUSION. The sentence has meant
     // that from the first beat of the campaign; it is the last piece to land.
-    expect(out.applied).toHaveLength(4)
-    expect(out.state.limit).toBe(10)
+    // REVERSED BY BEAT 152. WAS: four applied lines. A discarded ask reports
+    // nothing as applied, because nothing was.
+    expect(out.applied).toHaveLength(0)
+    // REVERSED BY BEAT 152. WAS: a limit of ten survived. Nothing survives a
+    // discard, the limit included.
+    expect(out.state.limit).toBe(null)
     expect(out.ambiguous).toEqual([])
   })
 

@@ -30,6 +30,20 @@
 // this file's oldest wart and is explicitly out of scope. Marking them would
 // change a behaviour no ruling asked to change.
 
+// REVERSED IN PART BY BEAT 152, AND DELIBERATELY.
+//
+// This file was right about the question it asked: who may CLAIM a word the
+// band pass refused. That ruling stands and is untouched -- the refused span
+// is still unclaimable and still comes back named.
+//
+// It also encoded an answer to a question it never asked: whether the REST of
+// the sentence still applies when something went unread. It assumed yes, and
+// pinned the bare-count limit surviving beside the refusal. Beat 152 ruled
+// the opposite -- when any content token is unread, the whole ask applies
+// nothing -- after measuring that partial application produced thirty-eight
+// wrong answers in one hundred and five runs. The fourteen assertions below
+// are that reversal, not a correction of an error.
+
 import { describe, expect, it } from 'vitest'
 import { resolveQuery, type ResolverVocabulary } from '../queryResolver'
 import { applyTradesFilters, emptyFilters } from '../tradesFilter'
@@ -79,14 +93,15 @@ const BAND_WORDS: string[] = (() => {
   return out
 })()
 
-/** The out-of-scope reading that survives: "20" is a count to the bare-count
- *  pass, and no ruling here changes that. Every refused phrase must land on
- *  EXACTLY this and nothing else. */
-const COUNT_ONLY = {
-  ...emptyFilters(),
-  limit: 20,
-  sort: { colId: 'open_time', dir: 'desc' },
-}
+/** WAS, until beat 152:
+ *    const COUNT_ONLY = { ...emptyFilters(), limit: 20,
+ *                         sort: { colId: 'open_time', dir: 'desc' } }
+ *  -- the bare-count reading of "20" surviving beside the refusal.
+ *
+ *  NOW: nothing survives. The indicator words go unread, so the strict boundary
+ *  discards the whole ask INCLUDING that limit. A refused sentence applies no
+ *  filter of any kind. */
+const NOTHING_APPLIES = { ...emptyFilters() }
 
 const PHRASINGS = (w: string) => [`${w} the 20 ema`, `${w} from the 20 ema`]
 
@@ -127,8 +142,8 @@ describe('RB0 the words under test come from the shipped module', () => {
 describe('RB1 every band word times the refused indicator resolves NOTHING', () => {
   for (const w of BAND_WORDS) {
     for (const q of PHRASINGS(w)) {
-      it(`"${q}" leaves the whole state at the bare count`, () => {
-        expect(r(q).state).toEqual(COUNT_ONLY)
+      it(`"${q}" applies nothing at all`, () => {
+        expect(r(q).state).toEqual(NOTHING_APPLIES)
       })
     }
   }
@@ -192,12 +207,17 @@ describe('RB4 the entries the freed word was stealing are still reachable', () =
     expect(r('micro pullback').state.playbookIds).toEqual([4])
   })
 
-  it('a NON-band word is still claimed by the pool inside a 20 ema phrase', () => {
-    // "offering" is not a band word, so the refusal must not touch it: the
-    // indicator is still refused and the catalyst still applies.
+  it('a NON-band word is claimed, and then discarded with the rest', () => {
+    // WAS, until beat 152:
+    //   expect(res.state.catalystTypes).toEqual(['Offering / Dilution'])
+    // The catalyst resolved and applied while the indicator was refused.
+    // NOW the refusal leaves "ema" unread, so the whole ask is discarded and the
+    // catalyst goes with it. The word is still CLAIMED by the pool -- that part
+    // of beat 133 is intact -- it simply no longer survives the boundary.
     const res = r('offering from the 20 ema')
-    expect(res.state.catalystTypes).toEqual(['Offering / Dilution'])
+    expect(res.state.catalystTypes).toEqual([])
     expect(res.state.ranges).toEqual({})
+    expect(res.unresolved).toContain('ema')
   })
 })
 
@@ -230,8 +250,12 @@ describe('RB5 the user is told which words went unread', () => {
     expect(r('blow off from the 20 ema').unresolved).toEqual(['blow off', 'ema'])
   })
 
-  it('and nothing is applied beyond the bare count', () => {
-    expect(r('parabolic from the 20 ema').applied).toEqual(['showing 20, newest first'])
+  it('and nothing is applied at all', () => {
+    // WAS, until beat 152:
+    //   expect(...applied).toEqual(['showing 20, newest first'])
+    // The bare count reported itself as an applied filter. Under the strict
+    // boundary an unreadable ask applies nothing, so it reports nothing.
+    expect(r('parabolic from the 20 ema').applied).toEqual([])
   })
 })
 

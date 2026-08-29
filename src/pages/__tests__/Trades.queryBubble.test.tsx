@@ -183,18 +183,22 @@ describe('K4 Enter commits, and the commit survives the prefs write path', () =>
 // ─── K5 — ambiguity offered ──────────────────────────────────────────────────
 
 describe('K5 a colliding prefix lists both candidates and applies neither', () => {
-  it('"as" offers ASTC and ASND; the click applies the pick', async () => {
+  it('"as" no longer collides at all, so no choice is offered', async () => {
+    // REVERSED BY BEAT 152. WAS: 'as' offered ASTC and ASND and the click
+    // applied the pick. At the new symbol floor of three a two-letter token
+    // reaches neither ticker, so there is no collision to render. The PICK
+    // MECHANISM itself is untouched and still exercised by the tests around
+    // this one -- what changed is that this particular input stopped colliding.
     await mount()
     openByShortcut()
     fireEvent.change(bubbleInput()!, { target: { value: 'as' } })
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'ASTC' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'ASND' })).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'ASTC' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'ASND' })).toBeNull()
     })
-    expect(rowCount(), 'an ambiguous token narrowed the table').toBe(4)
-
-    fireEvent.click(screen.getByRole('button', { name: 'ASTC' }))
-    await waitFor(() => expect(rowCount()).toBe(1))
+    // The table is untouched either way: an offer never narrowed it, and now
+    // there is no offer to click. The word comes back unread instead.
+    expect(rowCount(), 'an unread token narrowed the table').toBe(4)
   })
 })
 

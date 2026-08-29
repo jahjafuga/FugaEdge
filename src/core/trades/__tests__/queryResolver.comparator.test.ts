@@ -162,8 +162,15 @@ describe('G3 a BARE column phrase keeps today behaviour', () => {
   })
 
   it('"stop" and "risk" likewise keep their vocabulary reading', () => {
+    // REVERSED BY BEAT 152. WAS: each APPLIED one mistake by substring.
+    // Both still REACH the vocabulary -- that is what this asserts -- but a
+    // substring hit now offers instead of applying.
+    // "stop" is a PREFIX of "Stop too wide / risk undefined" and is UNCHANGED
+    // -- the prefix tier still applies for non-symbol kinds.
     expect(r('stop').state.mistakeKeys).toHaveLength(1)
-    expect(r('risk').state.mistakeKeys).toHaveLength(1)
+    // "risk" reaches the same name by SUBSTRING, and that tier now offers.
+    expect(r('risk').state.mistakeKeys).toHaveLength(0)
+    expect(r('risk').ambiguous).toHaveLength(1)
   })
 })
 
@@ -198,11 +205,14 @@ describe('G5 an EXACT vocabulary match beats a windowed column claim', () => {
   }
 
   it('the playbook named Float wins over the float column', () => {
+    // REVERSED BY BEAT 152. WAS: the playbook APPLIED, beating the column claim.
+    // The playbook still WINS the word -- that precedence is untouched -- but
+    // the rest of the sentence goes unread, so the strict boundary discards.
     const out = r('float under 1m', NAMED)
     expect(
       out.state.playbookIds,
       'the user own playbook name was taken by a column claim',
-    ).toEqual([11])
+    ).toEqual([])
   })
 
   it('and no float range is set in that book', () => {
@@ -230,7 +240,9 @@ describe('G6 operator words', () => {
   })
 
   it('BARE "below" likewise', () => {
-    expect(r('below').state.mistakeKeys).toHaveLength(1)
+    // REVERSED BY BEAT 152. WAS: APPLIED one mistake by substring; now offered.
+    expect(r('below').state.mistakeKeys).toHaveLength(0)
+    expect(r('below').ambiguous).toHaveLength(1)
   })
 
   it('"float at least 1m" -- the two-word operator', () => {
@@ -250,7 +262,11 @@ describe('G6 operator words', () => {
   })
 
   it('but BARE "at" keeps its ambiguity, unchanged', () => {
-    expect(r('at').ambiguous).toEqual([{ text: 'at', candidates: ['ATRA', 'ATPC'] }])
+    // REVERSED BY BEAT 152. WAS: 'at' offered ATRA and ATPC by two-character prefix.
+    // At the new symbol floor of three it reaches neither, so there is no
+    // ambiguity left to report and the word comes back unread.
+    expect(r('at').ambiguous).toEqual([])
+    expect(r('at').unresolved).toContain('at')
   })
 })
 
@@ -310,17 +326,23 @@ describe('G8 every tight form that works today still works', () => {
 
 describe('G9 the previous beat still holds', () => {
   it('the campaign sentence applies exactly outcome losers and region China', () => {
+    // REVERSED BY BEAT 152. WAS: outcome losers and region China APPLIED.
+    // The campaign sentence still carries words the resolver cannot read, and
+    // this beat rules that a half-read sentence applies nothing at all.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
     // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
     // "the 10" in this sentence is a row count. The sentence has said it all
     // along and it was unresolved until then.
     // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
     // from an ignored phrase into an applied EXCLUSION. The sentence has meant
     // that from the first beat of the campaign; it is the last piece to land.
-    expect(out.applied).toHaveLength(4)
-    expect(out.state.limit).toBe(10)
+    // REVERSED BY BEAT 152. WAS: four applied lines. A discarded ask reports
+    // nothing as applied, because nothing was.
+    expect(out.applied).toHaveLength(0)
+    // REVERSED BY BEAT 152. WAS: a limit of ten survived. Nothing does.
+    expect(out.state.limit).toBe(null)
   })
 
   it('with nothing ambiguous', () => {

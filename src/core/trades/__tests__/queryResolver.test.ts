@@ -125,10 +125,13 @@ describe('the battery, each result hand-written', () => {
   })
 
   it('G3: a two-char prefix colliding -> ambiguous, both named, NO pick', () => {
+    // REVERSED BY BEAT 152. WAS: 'as' offered ASTC and ASND at two characters. At the
+    // new symbol floor of three it reaches neither, so there is no collision
+    // left to report and the word comes back unread instead.
     const out = r('as')
     expect(out.state).toEqual(emptyFilters())
-    expect(out.ambiguous).toEqual([{ text: 'as', candidates: ['ASTC', 'ASND'] }])
-    expect(out.unresolved).toEqual([])
+    expect(out.ambiguous).toEqual([])
+    expect(out.unresolved).toContain('as')
   })
 
   it('"incomplete" -> the dna bucket', () => {

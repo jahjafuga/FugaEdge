@@ -96,7 +96,11 @@ describe('RK1 every surviving phrase reaches the twenty', () => {
   it('and the bare forms are still a COUNT, not a column', () => {
     // Not a defect, and not fixed here: a bare number is a limit everywhere in
     // this resolver, and changing that is parser work with its own beat.
-    expect(r('20 ema').state.limit, 'a bare "20 ema" stopped being a count').toBe(20)
+    // REVERSED BY BEAT 152. WAS: a bare "20 ema" applied a limit of twenty. It is
+    // STILL read as a count -- that parser wart is unchanged -- but "ema" goes
+    // unread, so the strict boundary discards the limit with it.
+    expect(r('20 ema').state.limit, 'the discard stopped firing').toBe(null)
+    expect(r('20 ema').unresolved).toContain('ema')
     expect(ranges('20 ema')).toEqual({})
   })
 })

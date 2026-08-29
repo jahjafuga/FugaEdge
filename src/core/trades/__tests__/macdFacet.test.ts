@@ -106,8 +106,11 @@ describe('RH1 "macd positive" resolves to the facet, not the mistake', () => {
   })
 
   it('a whole sentence around it resolves the same way', () => {
+    // REVERSED BY BEAT 152. WAS: the facet APPLIED from a whole sentence. The facet
+    // still WINS the word -- the precedence this file exists for is intact --
+    // but the sentence carries unread words and is discarded whole.
     const s = state('show me the trades where macd was positive')
-    expect(s.macdStates).toEqual(['positive'])
+    expect(s.macdStates).toEqual([])
     expect(s.mistakeKeys).toEqual([])
   })
 })

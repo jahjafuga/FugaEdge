@@ -18,7 +18,10 @@
 // book — and costs no ticker at all.
 //
 // THE CARVE-OUT IS THE LOAD-BEARING PART. The only reason this beats a global
-// floor is that symbols keep the floor of two. If a later change quietly moves
+// floor is that symbols keep a LOWER floor than every other kind. BEAT 152
+// raised that floor from two to three -- ordinary English words of two
+// letters were reaching tickers -- but the carve-out itself is unchanged and
+// is still what this file guards. If a later change quietly moves
 // them onto the general floor, seventy b528 ticker prefixes stop resolving and
 // the census advantage evaporates. RE1 guards that BY KIND rather than by
 // naming a ticker that happens to survive: a symbol and a non-symbol of the
@@ -60,9 +63,13 @@ const SRC = readFileSync(resolve(__dirname, '..', 'queryResolver.ts'), 'utf8')
 
 // --- RE1 : THE SYMBOL CARVE-OUT, GUARDED BY KIND -----------------------------
 
-describe('RE1 symbols keep the floor of two, and it is the KIND that decides', () => {
-  it('a two-letter SYMBOL prefix still applies', () => {
-    expect(r('nr').state.symbol).toBe('NRVA')
+describe('RE1 symbols keep a LOWER floor than everything else, by KIND', () => {
+  it('a THREE-letter SYMBOL prefix applies; two no longer does', () => {
+    // REVERSED BY BEAT 152. WAS: expect(r('nr').state.symbol).toBe('NRVA') at a
+    // symbol floor of two. Beat 152 moved that floor to three after measuring
+    // "am" reaching AMIX and "be" reaching BESS from ordinary English.
+    expect(r('nrv').state.symbol).toBe('NRVA')
+    expect(r('nr').state.symbol).toBe('')
   })
 
   it('a two-letter NON-SYMBOL prefix of the SAME LENGTH does not', () => {

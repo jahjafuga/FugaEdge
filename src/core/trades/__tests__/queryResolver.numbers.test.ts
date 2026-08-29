@@ -239,7 +239,9 @@ describe('G7 an EXACT vocabulary match wins over a number word', () => {
   }
 
   it('the ticker named TEN keeps the word', () => {
-    expect(r('net over ten', NAMED).state.symbol).toBe('TEN')
+    // REVERSED BY BEAT 152. WAS: the ticker APPLIED. It still WINS the word over the
+    // number reading; the ask is discarded because the rest goes unread.
+    expect(r('net over ten', NAMED).state.symbol).toBe('')
   })
 
   it('and no range is built from it', () => {
@@ -316,17 +318,24 @@ describe('G9 every form that works today still works', () => {
   })
 
   it('the campaign sentence is unchanged', () => {
+    // REVERSED BY BEAT 152. WAS: outcome losers and region China APPLIED. The
+    // campaign sentence carries words the resolver cannot read, and a half-read
+    // sentence now applies nothing.
     const out = r(CAMPAIGN)
-    expect(out.state.outcome).toBe('losers')
-    expect(out.state.regions).toEqual(['China'])
+    expect(out.state.outcome).toBe('all')
+    expect(out.state.regions).toEqual([])
     // v0.2.7 — THREE now, not two: the limit beat taught the resolver that
     // "the 10" in this sentence is a row count. The sentence has said it all
     // along and it was unresolved until then.
     // v0.2.7 — FOUR now: the exclusion beat turned "but not from hong kong"
     // from an ignored phrase into an applied EXCLUSION. The sentence has meant
     // that from the first beat of the campaign; it is the last piece to land.
-    expect(out.applied).toHaveLength(4)
-    expect(out.state.limit).toBe(10)
+    // REVERSED BY BEAT 152. WAS: four applied lines. A discarded ask reports
+    // nothing as applied, because nothing was.
+    expect(out.applied).toHaveLength(0)
+    // REVERSED BY BEAT 152. WAS: a limit of ten survived. Nothing survives a
+    // discard, the limit included.
+    expect(out.state.limit).toBe(null)
     expect(out.ambiguous).toEqual([])
   })
 

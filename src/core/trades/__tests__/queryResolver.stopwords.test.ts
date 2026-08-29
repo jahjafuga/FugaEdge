@@ -207,7 +207,10 @@ describe('G4 an EXACT match is OFFERED, not taken, when the word is filler', () 
   it('an exact match is not the fuzzy tier in disguise: a PREFIX of a ticker is still refused for filler', () => {
     // "all" exactly equals ALL, so it resolves; "al" is only a prefix of it
     // and is not a stopword, so it must still reach the prefix tier.
-    expect(r('al', WITH_TICKERS).state.symbol).toBe('ALL')
+    // REVERSED BY BEAT 152. WAS: 'al' -> ALL by two-character prefix. At the
+    // new floor a two-letter prefix reaches nothing, so the strict boundary
+    // discards. The EXACT half of this assertion is untouched, above.
+    expect(r('al', WITH_TICKERS).state.symbol).toBe('')
   })
 })
 
@@ -228,9 +231,9 @@ describe('G5 the substring tier survives untouched', () => {
     expect(out.state.playbookIds).toEqual([4])
   })
 
-  it('the prefix tier at two characters still fires for non-filler', () => {
-    const out = r('nr')
-    expect(out.state.symbol).toBe('NRVA')
+  it('the prefix tier fires at THREE characters for non-filler', () => {
+    // REVERSED BY BEAT 152. WAS: r('nr') -> symbol NRVA.
+    expect(r('nrv').state.symbol).toBe('NRVA')
   })
 })
 
@@ -243,10 +246,13 @@ describe('G6 the shipped two-character ambiguity behaviour is unchanged', () => 
   }
 
   it('a colliding two-char prefix returns BOTH candidates and picks neither', () => {
+    // REVERSED BY BEAT 152. WAS: two candidates offered for 'as'. At the new
+    // symbol floor a two-letter token reaches neither ticker, so there is no
+    // collision to report and the word comes back unread instead.
     const out = r('as', COLLIDE)
     expect(out.state).toEqual(emptyFilters())
-    expect(out.ambiguous).toEqual([{ text: 'as', candidates: ['ASTC', 'ASND'] }])
-    expect(out.unresolved).toEqual([])
+    expect(out.ambiguous).toEqual([])
+    expect(out.unresolved).toContain('as')
   })
 })
 
@@ -453,8 +459,13 @@ describe('RY6 the three tiers are untouched', () => {
     expect(t('usa').state.regions).toEqual(['USA'])
   })
 
-  it('PREFIX still reaches at two characters', () => {
-    expect(t('nr').state.symbol, 'the prefix floor moved above two').toBe('NRVA')
+  it('PREFIX now needs THREE characters for a symbol', () => {
+    // REVERSED BY BEAT 152. WAS:
+    //   expect(t('nr').state.symbol, '...').toBe('NRVA')
+    // The symbol prefix floor moved from two to three, measured: at two, "am"
+    // reached AMIX and "be" reached BESS from ordinary English.
+    expect(t('nrv').state.symbol, 'the prefix floor moved above three').toBe('NRVA')
+    expect(t('nr').state.symbol, 'the symbol floor is not three').toBe('')
   })
 
   it('and still does NOT reach at one', () => {
@@ -471,7 +482,12 @@ describe('RY6 the three tiers are untouched', () => {
     // word is refused by tiers two and three whatever the floor is -- so that
     // assertion passed with the floor at one. "car" is not filler, so the floor
     // is what decides it. A guard that can pass vacuously is worse than none.
-    expect(t('care').state.sectors).toEqual(['Healthcare'])
+    // REVERSED BY BEAT 152. WAS: care APPLIED sector Healthcare. The tier still
+    // REACHES at four and not at three -- which is what this assertion exists to
+    // prove -- but a substring hit now OFFERS instead of applying.
+    expect(t('care').state.sectors).toEqual([])
+    expect(t('care').ambiguous.map((a) => a.text)).toContain('care')
+    expect(t('car').ambiguous, 'the substring floor dropped below four').toEqual([])
     expect(t('car').state.sectors, 'the substring floor dropped below four').toEqual([])
   })
 })
@@ -662,15 +678,20 @@ describe('RZ7 the three tiers are still untouched', () => {
     expect(t('usa').state.regions).toEqual(['USA'])
   })
 
-  it('PREFIX still reaches at two and not at one', () => {
-    expect(t('nr').state.symbol).toBe('NRVA')
-    expect(t('n').state.symbol).toBe('')
+  it('PREFIX reaches at THREE and not at two', () => {
+    // REVERSED BY BEAT 152. WAS: nr -> NRVA, n -> ''.
+    expect(t('nrv').state.symbol).toBe('NRVA')
+    expect(t('nr').state.symbol).toBe('')
   })
 
   it('SUBSTRING still reaches at four and not at three', () => {
     // "are" replaced by "car" for the three-character half -- see RY6. "are" is
     // filler, so tiers two and three refuse it at any floor.
-    expect(t('care').state.sectors).toEqual(['Healthcare'])
+    // REVERSED BY BEAT 152. WAS: care -> ['Healthcare'] APPLIED.
+    // The substring tier now OFFERS instead of applying, so the sector is
+    // named as a choice and nothing is filtered.
+    expect(t('care').state.sectors).toEqual([])
+    expect(t('care').ambiguous.map((a) => a.text)).toContain('care')
     expect(t('car').state.sectors).toEqual([])
   })
 })
@@ -943,7 +964,11 @@ describe('RB6 the refused words are still REPORTED, not swallowed', () => {
     // gone. What must survive is the COMPLAINT, which is all that tells the
     // user their sentence was half-read.
     const out = rb('winners or losers')
-    expect(out.state.outcome, 'the scalar-replacement defect changed shape').toBe('losers')
+    // REVERSED BY BEAT 152. WAS: outcome 'losers' applied while "or" went
+    // unread. That IS partial application, and it is what this beat forbids.
+    // The COMPLAINT -- the thing this assertion was written to protect -- is
+    // untouched and still asserted below.
+    expect(out.state.outcome, 'the scalar-replacement defect changed shape').toBe('all')
     expect(out.unresolved, 'the only warning the user gets disappeared').toContain('or')
   })
 
@@ -996,7 +1021,9 @@ describe('RB7 the founder frames', () => {
 
   it('UNFIXED and named: "my biggest losers" still cannot rank', () => {
     const out = rb('my biggest losers')
-    expect(out.state.outcome).toBe('losers')
+    // REVERSED BY BEAT 152. WAS: outcome 'losers' applied while "biggest" went
+    // unread. Still unfixed, still named -- but it no longer half-answers.
+    expect(out.state.outcome).toBe('all')
     expect(out.unresolved, 'a superlative with no count needs the parser').toContain('biggest')
   })
 
@@ -1008,9 +1035,12 @@ describe('RB7 the founder frames', () => {
       ...RB_BOOK,
       mistakes: [...RB_BOOK.mistakes, { axis: 'technical', name: 'MACD negative at entry' }],
     }, NOW, emptyFilters())
-    expect(out.state.mistakeKeys).toEqual([
-      { axis: 'technical', name: 'MACD negative at entry' },
-    ])
+    // REVERSED BY BEAT 152. WAS: the opposite-sense mistake APPLIED, which is
+    // the defect this assertion recorded. The mistake is still REACHED -- the
+    // wrong-sense match is unfixed and still named below -- but the sentence
+    // carries unread words, so the strict boundary now discards before it can
+    // mislead. The defect is masked here rather than repaired.
+    expect(out.state.mistakeKeys).toEqual([])
     expect(out.unresolved).toContain('was positive')
   })
 })
@@ -1113,9 +1143,10 @@ describe('RB9 the three tiers are behaviourally identical', () => {
     expect(rb('usa').state.regions).toEqual(['USA'])
   })
 
-  it('PREFIX still reaches at two characters and not at one', () => {
-    expect(rb('nr').state.symbol, 'the prefix floor moved above two').toBe('NRVA')
-    expect(rb('n').state.symbol, 'the prefix floor dropped to one').toBe('')
+  it('PREFIX reaches at THREE characters and not at two', () => {
+    // REVERSED BY BEAT 152. WAS: nr -> NRVA, n -> ''.
+    expect(rb('nrv').state.symbol, 'the prefix floor moved above three').toBe('NRVA')
+    expect(rb('nr').state.symbol, 'the symbol floor is not three').toBe('')
   })
 
   it('SUBSTRING still reaches at four and not at three', () => {
@@ -1124,15 +1155,18 @@ describe('RB9 the three tiers are behaviourally identical', () => {
     // and three whatever the floor is -- so it would pass this assertion with
     // the floor at one. "car" is three characters, is inside Healthcare, and is
     // not in the list, so the floor is what decides it.
-    expect(rb('care').state.sectors).toEqual(['Healthcare'])
+    // REVERSED BY BEAT 152. WAS: care -> ['Healthcare'] APPLIED; now OFFERED.
+    expect(rb('care').state.sectors).toEqual([])
+    expect(rb('care').ambiguous.map((a) => a.text)).toContain('care')
     expect(rb('car').state.sectors, 'the substring floor dropped below four').toEqual([])
   })
 
   it('and a NON-filler word of four characters still reaches by substring', () => {
     // The floor is proven live by a word that is NOT in the list. Every word
     // this beat added would now pass a floor assertion vacuously.
-    expect(rb('venge').state.mistakeKeys, 'the substring tier stopped working').toEqual([
-      { axis: 'psychological', name: 'Revenge trade (after a loss)' },
-    ])
+    // REVERSED BY BEAT 152. WAS: venge APPLIED the mistake. The substring tier
+    // still REACHES -- that is what this assertion is for -- but it now offers.
+    expect(rb('venge').state.mistakeKeys, 'the substring tier stopped working').toEqual([])
+    expect(rb('venge').ambiguous.map((a) => a.text)).toContain('venge')
   })
 })
