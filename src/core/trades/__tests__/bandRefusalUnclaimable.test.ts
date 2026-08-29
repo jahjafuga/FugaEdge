@@ -221,22 +221,38 @@ describe('RB4 the entries the freed word was stealing are still reachable', () =
   })
 })
 
-/** RECORDED, NOT REPAIRED. The mistake "Chased extended" is unreachable by its
- *  own full name and always has been: pass 1a runs before the vocabulary pool
- *  and claims "extended" as a band first. That is beat one hundred and
- *  twenty-five's deliberate precedence, it is UNCHANGED by this beat, and it is
- *  asserted here so the next person meets it as a fact rather than a surprise. */
-describe('RB4b a pre-existing shadow, pinned rather than fixed', () => {
-  it('"chased extended" gives its band word to the BAND, not to the tag', () => {
-    expect(r('chased extended').state.ranges).toEqual({ ema9_dist_pct: { min: 5, max: null } })
+/** REPAIRED IN BEAT 160, and this block is the record of the reversal.
+ *
+ *  WAS, until beat 160 -- the header read "RECORDED, NOT REPAIRED", and the
+ *  assertion was:
+ *
+ *    it('"chased extended" gives its band word to the BAND, not to the tag', () => {
+ *      expect(r('chased extended').state.ranges).toEqual({ ema9_dist_pct: { min: 5, max: null } })
+ *    })
+ *
+ *  That was true, and it was one of SIX entries beat 159 measured as unreachable
+ *  by their own full names. The SPAN RESERVATION reverses it: a multi-token
+ *  exact vocabulary match now claims its span before any consuming pass, so
+ *  "chased extended" is the mistake a trader named, and the band never sees the
+ *  word. See spanReservation.test.ts for the law and the other five.
+ *
+ *  BEAT 133'S RULING IS UNTOUCHED. A refused word still may not be claimed by
+ *  another pass and still comes back named -- RB4a above and RB5 below are
+ *  unchanged and still green. What moved is only the ORDER: the reservation runs
+ *  AHEAD of the refusal, so a word inside an entry never reaches the band pass
+ *  to be refused in the first place. Where no entry claims the span, every
+ *  refusal in this file behaves exactly as beat 133 ruled. */
+describe('RB4b the shadow, now lifted', () => {
+  it('"chased extended" is the MISTAKE the trader named, not the band', () => {
+    expect(r('chased extended').state.mistakeKeys)
+      .toEqual([{ axis: 'technical', name: 'Chased extended' }])
+    expect(r('chased extended').state.ranges).toEqual({})
   })
 
-  /** WHAT HAPPENS TO THE LEFTOVER "chased" IS A DIFFERENT RULE and is NOT
-   *  asserted here. In this minimal book it substring-matches exactly one tag
-   *  and applies; on both real books two tags contain it, so the tier returns a
-   *  CHOICE instead. That arity is the substring tier's own behaviour, it is
-   *  identical before and after this beat, and pinning a fixture-specific
-   *  outcome would be pinning the fixture rather than the resolver. */
+  /** WHAT HAPPENS TO THE LEFTOVER "chased" IS NO LONGER A QUESTION. It is not
+   *  leftover: the reservation claims both tokens as one entry, so the substring
+   *  tier is never consulted for it and the fixture-versus-real-book arity that
+   *  the old note carefully declined to pin has stopped existing here. */
 })
 
 // --- RB5 : THE RESPONSE NAMES WHAT IT DID NOT READ ---------------------------

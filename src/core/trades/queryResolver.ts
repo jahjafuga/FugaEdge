@@ -836,12 +836,66 @@ export function resolveQuery(
     }
   }
 
+  // ── the span reservation ───────────────────────────────────
+  // A MULTI-TOKEN EXACT VOCABULARY MATCH RESERVES ITS SPAN BEFORE ANY CONSUMING
+  // PASS. The vocabulary is USER-AUTHORED -- a trader names their own setups,
+  // mistakes and catalysts -- so Edge follows the trader's own words ahead of
+  // its own, and the rule cannot be an enumerated list of which passes to
+  // exempt: a name nobody has typed yet must win just as surely.
+  //
+  // THIS IS NOT A NEW LAW. It is one already written down three times in this
+  // file and scoped, each time, to a single pass:
+  //   the negation mask   "no setup" is a playbook NAME, not a refusal of setup
+  //   pass 0              a book that names a setup "Last" means the setup
+  //   pass 1a             a book that names a setup "Extended" means the setup
+  // Every one of those asks whether the FUNCTIONAL WORD ITSELF is a key. None
+  // asks whether it sits INSIDE one, and that is the whole defect: "short" is
+  // token two of the catalyst "short squeeze", "parabolic" is token one of the
+  // playbook "parabolic short". The functional pass took its word, and pass 3
+  // then abandoned the span at the `marks[i + k] !== 'free'` test below, so the
+  // entry was never even constructed, let alone allowed to win on the exact
+  // tier. Two of the six measured cases showed the trader NOTHING -- no offer,
+  // no mention of the entry at all.
+  //
+  // A SEPARATE MASK, not a fourth mark state. `marks` stays 'free' across a
+  // reserved span, so pass 3's own gates need no exception and the entry
+  // resolves as the tier-one hit it already was. The strict boundary reads
+  // `marks` too, so a reserved entry beside an unread token still discards
+  // everything -- there is nothing to remember and nothing to keep in step.
+  //
+  // SINGLE TOKENS NEVER RESERVE. Spans of three and two only, exactly as the
+  // negation mask's own lookahead does. Letting one token reserve was measured
+  // and rejected: on the largest book "my" is the Malaysia ISO, and a
+  // single-token reservation would apply the country to every sentence
+  // containing the word -- the defect beat 152 removed.
+  //
+  // AFTER THE ANSWER PASS, per R254. An entry a trader named "Average Loss"
+  // would lose to the metric grammar, which exists on no measured book and is
+  // the first named question of the stress campaign. The ordering is the seam;
+  // this comment is where to find it.
+  const reserved: boolean[] = tokens.map(() => false)
+  for (let i = 0; i < tokens.length; i++) {
+    if (marks[i] !== 'free' || unclaimable[i]) continue
+    for (const span of [3, 2]) {
+      if (i + span > tokens.length) continue
+      const slice = tokens.slice(i, i + span)
+      // Aligned to the negation state of the first token, the same test pass 3
+      // makes at its own span gate: a phrase half inside a negation is not a
+      // phrase, and a negated reserved span must route to the exclude side.
+      if (slice.some((_, k) => marks[i + k] !== 'free' || negated[i + k] !== negated[i])) continue
+      if (!vocabKeys.includes(slice.join(' '))) continue
+      for (let k = 0; k < span; k++) reserved[i + k] = true
+      i += span - 1
+      break
+    }
+  }
+
   // ── pass 0: the limit and the sort ────────────────────────────────────────
   // Before the comparison pass, so "last 10" cannot have its number taken for
   // a bare money comparison. A recency word carries its own ordering; a
   // superlative carries a count with no column and is returned as a choice.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     const w = tokens[i]
     const isRecency = w in RECENCY_WORDS
     const isSuper = SUPERLATIVE_WORDS.has(w)
@@ -888,7 +942,7 @@ export function resolveQuery(
   // written down earlier. Naming VWAP still selects VWAP, and the applied line
   // always says which indicator was used, so the default can be disagreed with.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     let band: { word: string; idx: number; merged: boolean } | null = null
     let span = 0
     for (const width of [2, 1]) {
@@ -1019,7 +1073,7 @@ export function resolveQuery(
   // unresolved: half a range shipped as if it were whole is the same class of
   // lie as a coerced number.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     const col = columnAt(i)
     if (!col) continue
     let after = i + col.span
@@ -1044,7 +1098,7 @@ export function resolveQuery(
   }
 
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     let op = tokens[i]
     let opLen = 1
     if (op === 'at' && i + 1 < tokens.length && (tokens[i + 1] === 'least' || tokens[i + 1] === 'most')) {
@@ -1170,7 +1224,7 @@ export function resolveQuery(
   // nothing visibly reorders, and the same order "last ten" means.
   if (state.limit === null) {
     for (let i = 0; i < tokens.length; i++) {
-      if (negated[i] || unclaimable[i] || marks[i] !== 'free') continue
+      if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
       const v = parseValueAt(tokens, i)
       if (!v || v.len !== 1 || v.unit !== null) continue
       if (!Number.isInteger(v.n) || v.n <= 0) continue
@@ -1187,7 +1241,7 @@ export function resolveQuery(
     log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`, source)
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free' || negated[i] || unclaimable[i]) continue
+    if (marks[i] !== 'free' || negated[i] || unclaimable[i] || reserved[i]) continue
     const t = tokens[i]
     if (OUTCOME_WORDS[t]) {
       replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null, t)
