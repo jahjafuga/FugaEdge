@@ -89,6 +89,17 @@ export interface ResolveResult {
   unresolved: string[]
   /** Tokens that matched more than one candidate in the same kind. */
   ambiguous: AmbiguousToken[]
+  /** v0.2.7 -- THE KIND BEHIND EVERY OFFERED DISPLAY, keyed by the ask text
+   *  and the display joined by a NUL.
+   *
+   *  WHY IT EXISTS. The chip list is deduplicated before it is rendered, and a
+   *  display alone is not an identity: beat one hundred eighty-seven measured
+   *  thirteen displays shared across kinds on three books. Identity IS
+   *  available here, at every push site, so it is recorded here and handed on.
+   *  Entries with no kind -- the superlative candidates, the include or
+   *  exclude pair -- are simply absent, and the merge falls back to the
+   *  display for them, which is right because they are not entries. */
+  offerKinds?: ReadonlyMap<string, number>
   /** v0.2.7 slice B — the AGGREGATE the ask wants over the filtered rows,
    *  or absent. OPTIONAL on purpose: the strict boundary's discard returns
    *  an object literal that does not mention this field, so an unreadable
@@ -704,6 +715,13 @@ export function resolveQuery(
     appliedSources.push(source)
   }
   const ambiguous: AmbiguousToken[] = []
+  /** display and kind, recorded where identity still exists. */
+  const offerKinds = new Map<string, number>()
+  const offerKey = (text: string, display: string) =>
+    `${text}${String.fromCharCode(0)}${display}`
+  const noteKinds = (text: string, hits: readonly PoolEntry[]) => {
+    for (const h of hits) offerKinds.set(offerKey(text, h.display), h.kind)
+  }
 
   const tokens = text
     .toLowerCase()
@@ -1625,6 +1643,7 @@ export function resolveQuery(
       // Nothing is consumed here, so the filler mark below still claims the
       // word and it stays out of the ignored clause.
       if (hits.length > 0 && slice.every((w) => STOPWORDS.has(w))) {
+        noteKinds(raw, hits)
         ambiguous.push({ text: raw, candidates: hits.map((h) => h.display) })
         break
       }
@@ -1641,6 +1660,7 @@ export function resolveQuery(
         const phraseN = normaliseKey(phrase)
         const hitTier = entryKeyN === phraseN ? 1 : (entryKeyN.startsWith(phraseN) ? 2 : 3)
         if (hitTier === 3 || (hitTier === 2 && !strongEnoughToApply(phrase, entry.key))) {
+          noteKinds(raw, [entry])
           ambiguous.push({ text: raw, candidates: [entry.display] })
           for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
           matched = true
@@ -1656,6 +1676,7 @@ export function resolveQuery(
         break
       }
       if (hits.length > 1) {
+        noteKinds(raw, hits)
         ambiguous.push({ text: raw, candidates: hits.map((h) => h.display) })
         for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
         matched = true
@@ -1762,7 +1783,15 @@ export function resolveQuery(
       ...state,
       ranges: { ...state.ranges, [colId]: { ...prev, [bound]: value } },
     }
-    log(`${colId} ${bound} ${value}`, c.text)
+    // U4 -- REVERSED BY BEAT ONE HUNDRED EIGHTY-EIGHT, measured by beat one
+    // hundred eighty-six. WAS: `${colId} ${bound} ${value}`, which printed
+    // the internal words min and max. numericRange documents on its own line
+    // thirty-four that BOTH BOUNDS ARE INCLUSIVE, and the predicate on lines
+    // forty-nine and fifty uses a strict comparison to achieve it -- so a
+    // value EQUAL to the bound is inside. At least and at most say that; min
+    // and max leave the trader to guess. THE COMPARISON IS NOT TOUCHED.
+    const boundWord = bound === 'min' ? 'at least' : 'at most'
+    log(`${colId} ${boundWord} ${value}`, c.text)
   }
 
   // ── unresolved runs: contiguous free tokens, stopwords dropped ────────────
@@ -1797,5 +1826,5 @@ export function resolveQuery(
   // and suppression deleted the feature on that book entirely. Worse, it
   // left the FILTER applied with no number beside it: the answered-as-a-
   // filter bucket, which this slice exists to empty.
-  return { state, applied, appliedSources, unresolved, ambiguous, answer }
+  return { state, applied, appliedSources, unresolved, ambiguous, answer, offerKinds }
 }

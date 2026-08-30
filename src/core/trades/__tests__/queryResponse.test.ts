@@ -219,12 +219,27 @@ describe('RW1 an unreadable ask never claims nothing is filtered', () => {
       'the composed state is not filtering, so there is no contradiction to catch',
     ).toBe(true)
 
+    // REWRITTEN BY BEAT ONE HUNDRED EIGHTY-NINE. WAS:
+    //   .not.toContain('nothing was filtered')
+    // which forbade a string this file has not emitted since the wording it
+    // names was retired. It could not fail, so it guarded nothing.
+    //
+    // THE DISTINCTION IT WAS FOR IS REAL AND IS NOW ASSERTED DIRECTLY. When
+    // the composed state IS still filtering, the line must say so; the
+    // whole-book sentence is for the case where nothing is in force.
+    // CORRECTED: this helper does not hand the line the before and after
+    // state, and a line that was not SHOWN the state makes no claim about it
+    // -- that is the discipline written at the top of the file. So the
+    // property to pin is that it makes NO false claim either way, and in
+    // particular does not call a filtered book the whole book.
     const line = lineFor(second, 131)
     expect(
       line,
-      `the response said nothing was filtered while the state still excludes a ` +
-        `region and the header counts a filtered book: ${line}`,
-    ).not.toContain('nothing was filtered')
+      `the line called a filtered book the whole book: ${line}`,
+    ).not.toContain('this is your whole book')
+    expect(line, `the line claimed a state it was never shown: ${line}`).not.toMatch(
+      /unchanged/i,
+    )
   })
 
   it('and it still names what it could not read', () => {
@@ -304,19 +319,27 @@ describe('RW5 the per-token seam is not absorbed into this line', () => {
   // unresolved list and independent of what applied. It appeared beside a
   // WORKING chip in the reported frame, which is correct behaviour, and it is
   // not this file's to produce.
-  it('the response never emits the bubble seam phrase', () => {
-    const inputs: Parameters<typeof responseLine>[0][] = [
-      { count: 140, applied: [], unresolved: [NONSENSE] },
-      { count: 140, applied: [], unresolved: [] },
-      { count: 56, applied: ['outcome losers'], unresolved: ['chinese'] },
-      { count: 12, applied: ['outcome losers'], unresolved: [] },
-    ]
-    for (const i of inputs) {
-      expect(
-        responseLine(i),
-        'the two messages were merged -- the bubble seam is per-token and correct',
-      ).not.toContain('match anything in this book')
-    }
+  it('the response names what it could not read in ITS OWN words', () => {
+    // RETIRED AND REPLACED BY BEAT ONE HUNDRED EIGHTY-NINE. WAS:
+    //   .not.toContain('match anything in this book')
+    // The forbidden phrase belongs to QueryBubble, a component this file
+    // cannot reach, so responseLine could never emit it and the assertion
+    // could never fail. Forbidding a string from a module that does not own
+    // it is not a scope guard, it is a coincidence.
+    //
+    // WHAT THE SCOPE GUARD IS ACTUALLY FOR: the two messages stay separate
+    // because each says the unread text in its own voice. That is asserted
+    // positively -- this line quotes what it could not read, and the bubble
+    // lists the tokens beneath it.
+    const refusal = responseLine({ count: 140, applied: [], unresolved: [NONSENSE] })
+    expect(refusal).toContain('could not read')
+    const partial = responseLine({
+      count: 56,
+      applied: ['outcome losers'],
+      unresolved: ['chinese'],
+    })
+    expect(partial).toContain('ignored')
+    expect(partial).toContain('chinese')
   })
 })
 
@@ -402,11 +425,23 @@ describe('RX1 an ask that WIPES a filter does not call it unchanged', () => {
     ).not.toMatch(/unchanged/i)
   })
 
-  it('and it does not claim nothing is filtered either -- that was the OLD lie', () => {
-    // Here the old wording happens to be true, which is precisely why the pair
-    // of plants below must redden different sets.
+  it('and it says plainly that nothing is in force, which here is true', () => {
+    // REWRITTEN BY BEAT ONE HUNDRED EIGHTY-NINE. WAS:
+    //   .not.toContain('nothing was filtered')
+    // a string this file cannot emit, so the assertion could not fail.
+    //
+    // The state here went from filtering to empty, so the honest sentence is
+    // the whole-book one -- and that IS what the line must now say. The
+    // sibling above already forbids the word unchanged on this path, so the
+    // pair still redden different sets, which was the point.
+    // CORRECTED: this path takes the DROPPED-VALUES branch and returns
+    // before the whole-book sentence is reached, which is right -- the most
+    // specific true thing is that a value was asked for and against. That is
+    // what it must say, and it must still not say unchanged.
     const { a, b } = compose('china', 'not china')
-    expect(lineOf(a, b)).not.toContain('nothing was filtered')
+    const line = lineOf(a, b)
+    expect(line).toContain('which you asked for and against')
+    expect(line, `the line called a wiped filter unchanged: ${line}`).not.toMatch(/unchanged/i)
   })
 })
 
@@ -483,7 +518,13 @@ describe('RX5 a fully resolved ask reports exactly what it applied', () => {
 // ─── RX6 : SCOPE GUARD — the two messages stay separate ──────────────────────
 
 describe('RX6 the per-token seam is not absorbed into this line', () => {
-  it('this file never emits the bubble seam phrase, on any path', () => {
+  it('every path says its own piece and none reaches for the other', () => {
+    // RETIRED AND REPLACED BY BEAT ONE HUNDRED EIGHTY-NINE, same reason as
+    // its sibling above: the forbidden phrase belongs to QueryBubble and this
+    // file cannot emit it on any path, so the assertion could not fail.
+    //
+    // Replaced by the property that actually matters: every path produces a
+    // NON-EMPTY sentence, and a path with unread text names it.
     const { a, b } = compose('china', 'not china')
     const lines = [
       lineOf(a, b),
@@ -493,8 +534,12 @@ describe('RX6 the per-token seam is not absorbed into this line', () => {
       responseLine({ count: 12, applied: ['outcome losers'], unresolved: [] }),
     ]
     for (const l of lines) {
-      expect(l, 'the two messages were merged').not.toContain('match anything in this book')
+      expect(l, 'a path produced no sentence at all').not.toBe('')
     }
+    expect(
+      responseLine({ count: 0, applied: [], unresolved: [RX_NONSENSE] }),
+      'a refusal did not name what it could not read',
+    ).toContain(RX_NONSENSE)
   })
 })
 

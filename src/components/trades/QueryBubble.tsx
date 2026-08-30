@@ -4,7 +4,7 @@ import {
   resolveQuery,
   type ResolverVocabulary,
 } from '@/core/trades/queryResolver'
-import { responseLine } from '@/core/trades/queryResponse'
+import { countOffers, dedupeOffers, responseLine } from '@/core/trades/queryResponse'
 import { answerText, type RowForAnswer } from '@/core/trades/queryAnswer'
 import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
 import {
@@ -296,6 +296,22 @@ export default function QueryBubble({
     if (!reduced) setLensGhost(true)
   }, [committed, reduced])
 
+  // ONE LIST, COMPUTED ONCE. The chips the trader sees and the number the
+  // sentence quotes come from the same call, so they cannot drift apart.
+  const offerKindOf = useCallback(
+    (display: string, text: string) =>
+      resolution.offerKinds?.get(`${text}${String.fromCharCode(0)}${display}`),
+    [resolution.offerKinds],
+  )
+  const shownOffers = useMemo(
+    () => dedupeOffers(resolution.ambiguous, offerKindOf),
+    [resolution.ambiguous, offerKindOf],
+  )
+  const totalOffers = useMemo(
+    () => countOffers(resolution.ambiguous, offerKindOf),
+    [resolution.ambiguous, offerKindOf],
+  )
+
   const close = useCallback(
     (commit: boolean) => {
       if (commit && text.trim() !== '') {
@@ -313,6 +329,11 @@ export default function QueryBubble({
             ask: text.trim(),
             response: responseLine({
               count: liveCount,
+              // W1 -- the words the trader wrote, so the refusal can quote
+              // the sentence instead of the span that failed.
+              typed: text.trim(),
+              // W4 and W5 -- the readings on offer, kept and total.
+              offers: { shown: shownOffers.reduce((n, a) => n + a.candidates.length, 0), total: totalOffers },
               applied: resolution.applied,
               unresolved: resolution.unresolved,
               // The ask's limit, so the line can name the matched count AND
@@ -567,8 +588,12 @@ export default function QueryBubble({
             </div>
           )}
 
-          {/* ambiguity — offered, never picked */}
-          {resolution.ambiguous.map((a) => (
+          {/* ambiguity -- offered, never picked, deduplicated, and capped.
+              THE SAME LIST THE SENTENCE COUNTS. If the bubble rendered one
+              list and the line counted another the two would disagree on
+              screen, which is the class of defect this whole campaign has
+              been removing. */}
+          {shownOffers.map((a) => (
             <div key={a.text} className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
               <span className="text-fg-tertiary">&quot;{a.text}&quot; could mean</span>
               {a.candidates.map((c) => (

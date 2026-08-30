@@ -315,6 +315,27 @@ describe('RJ8 the discard literal cannot carry an answer out', () => {
   })
 
   it('and the success return does', () => {
-    expect(SRC).toContain('return { state, applied, appliedSources, unresolved, ambiguous, answer }')
+    // REWRITTEN BY BEAT ONE HUNDRED EIGHTY-EIGHT, measured by beat one hundred
+    // eighty-six. WAS: a search of the shipped SOURCE TEXT for the literal
+    // "return { state, applied, appliedSources, unresolved, ambiguous, answer }".
+    //
+    // WHY THAT WAS THE WRONG INSTRUMENT, and it is the third time this shape
+    // has cost a beat. Beat one hundred eighty-four already rewrote RE1 and
+    // RE5 for exactly this: a source-text assertion pins how a thing is
+    // SPELLED, so it reddens on any change that keeps the behaviour and adds a
+    // word. Here a ninth field was appended to the same return and the literal
+    // stopped matching, though nothing about the answer moved.
+    //
+    // WHAT THE GUARD IS ACTUALLY FOR: an ask that resolves must carry its
+    // answer OUT, and an ask that is discarded at the strict boundary must
+    // not. That is behaviour, and it is asserted directly.
+    const ok = resolveQuery('total pnl', BOOK, NOW, emptyFilters())
+    expect(ok.answer, 'a resolved ask lost its answer').not.toBeNull()
+    const discarded = resolveQuery('total pnl zzzznotaword', BOOK, NOW, emptyFilters())
+    // ABSENT, not null. The discard return omits the field entirely, which
+    // is the very thing the first test in this describe asserts about the
+    // literal. Asserting null here would have been asserting a shape the
+    // boundary has never produced.
+    expect(discarded.answer, 'a discarded ask carried an answer out').toBeUndefined()
   })
 })

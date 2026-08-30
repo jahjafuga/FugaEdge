@@ -14,6 +14,7 @@
 // without mounting a page. It would run inside a Next.js page unmodified.
 
 import { isFiltering, type TradesFilterState } from './tradesFilter'
+import type { AmbiguousToken } from './queryResolver'
 
 export interface ResponseInput {
   /** The live filtered count the page is showing. */
@@ -36,6 +37,16 @@ export interface ResponseInput {
    *  Supplied together or not at all; without them the line makes no claim. */
   before?: TradesFilterState
   after?: TradesFilterState
+  /** v0.2.7 -- THE SENTENCE THE TRADER ACTUALLY TYPED. The refusal used to
+   *  quote `unresolved`, which holds the SPAN that failed, not the words the
+   *  trader wrote: on the largest book "show me my nrva trdaes" came back
+   *  naming "nrva trdaes", a pair the trader never typed as a unit. Optional,
+   *  so every caller that does not supply it keeps the old head exactly. */
+  typed?: string
+  /** v0.2.7 -- how many readings are on offer, and how many were kept. Two
+   *  different asks were producing byte-identical sentences because the only
+   *  thing separating them was an offer the line never mentioned. */
+  offers?: { shown: number; total: number }
   /** v0.2.7 slice B -- the answer sentence, already computed over the same
    *  rows the count came from, or null. Passed in rather than computed here
    *  because this module is given a COUNT, not a row set, and inventing a
@@ -89,7 +100,7 @@ const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
 export function responseLine({
-  count, applied, unresolved, limit, before, after, answer,
+  count, applied, unresolved, limit, before, after, answer, typed, offers,
 }: ResponseInput): string {
   // AN ANSWER LEADS. It is what was asked for; the filter it was computed
   // over follows in the same breath so the number can be checked rather
@@ -119,8 +130,17 @@ export function responseLine({
   // The line is shown the state now, and says only what it can see.
   if (applied.length === 0) {
     // Pure filler still answers: silence would read as a hang.
-    const head =
-      unresolved.length > 0 ? `I could not read ${quoteList(unresolved)}` : 'I could not read that'
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-EIGHT, measured by beat one hundred
+    // eighty-six. WAS: `I could not read ${quoteList(unresolved)}`, which names
+    // the SPAN that failed. On the largest book that made "show me my nrva
+    // trdaes" come back as "nrva trdaes" -- two words the trader never typed
+    // together. When the caller supplies what was typed, that is what is
+    // quoted; without it the old head is untouched.
+    const head = typed
+      ? `I could not read "${typed}"`
+      : unresolved.length > 0
+        ? `I could not read ${quoteList(unresolved)}`
+        : 'I could not read that'
 
     // NOT SHOWN THE STATE, SO NO CLAIM ABOUT IT. The same discipline as
     // refusing to print a count with no result set behind it.
@@ -128,11 +148,19 @@ export function responseLine({
 
     const removed = removedValues(before, after)
     if (removed.length > 0) {
-      return `${head} — and I dropped ${quoteList(removed)}, which you asked for and against.`
+      return `${head}. I dropped ${quoteList(removed)}, which you asked for and against.`
     }
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-EIGHT, measured by beat one hundred
+    // eighty-six. WAS: `${head} - nothing is filtered.` -- true, and read as a
+    // result, because the header beside it was counting the whole book. The
+    // line now says what the trader is looking AT.
+    //
+    // STILL NO COUNT. This file already rules that a number must not leak into
+    // a failure line, and that ruling is not being reversed: a count here
+    // would read as an answer to a question that was never understood.
     return isFiltering(after)
-      ? `${head} — your filters are unchanged.`
-      : `${head} — nothing is filtered.`
+      ? `${head}. Your filters are unchanged.`
+      : `${head}. Nothing is filtered, so this is your whole book.`
   }
 
   // The MATCHED count, always. A limit hides rows that qualified, so the number
@@ -147,7 +175,78 @@ export function responseLine({
   // PARTLY APPLIED. A partial answer is still an answer, and the count is real
   // — but the user must be told which half of their sentence was thrown away,
   // or they will read the number as covering all of it.
+  // W4 and W5 -- THE OFFERS ARE PART OF THE ANSWER. Two different asks were
+  // producing byte-identical sentences because the only thing between them was
+  // an offer the line never mentioned. And a truncated list that does not say
+  // it was truncated is the same silence this file exists to break.
+  const offered =
+    offers && offers.total > 0
+      ? offers.total > offers.shown
+        ? `. I have ${offers.shown} readings to offer and ${offers.total - offers.shown} more I did not show`
+        : `. I have ${offers.total} reading${offers.total === 1 ? '' : 's'} to offer`
+      : ''
+
   return unresolved.length > 0
-    ? `${trades} (ignored ${quoteList(unresolved)})`
-    : trades
+    ? `${trades} (ignored ${quoteList(unresolved)})${offered}`
+    : `${trades}${offered}`
+}
+
+/** THE MOST OFFERS A TRADER IS SHOWN AT ONCE. Measured before it was chosen:
+ *  on the three books the matrix reaches eight and the frozen corpora reach
+ *  EIGHTY, and eighty chips is not a choice, it is a wall.
+ *
+ *  THE COUNT IS ALWAYS NAMED. A silent truncation is the same dishonesty this
+ *  campaign exists to remove, so the caller is told how many were kept and how
+ *  many exist. */
+export const OFFER_CEILING = 10
+
+/** COLLAPSE OFFERS THAT NAME THE SAME ENTRY, AND CAP THE LIST.
+ *
+ *  WHY NOT BY DISPLAY ALONE. Beat one hundred eighty-seven measured thirteen
+ *  displays shared across kinds on three books -- "China" is a country and a
+ *  region, "UK" is a region and a symbol -- and found ZERO runs in three
+ *  thousand seven hundred and fifty-three where a shared display arrived from
+ *  two texts. That is a fact about THREE BOOKS, and a fourth could break it.
+ *
+ *  SO IDENTITY IS USED WHERE IT EXISTS. The resolver knows the KIND of every
+ *  entry it offers and hands it over through `kindOf`; the merge is keyed on
+ *  display AND kind. Where no kind is known -- the superlative candidates, the
+ *  include-or-exclude pair -- the key falls back to the display, which is
+ *  correct because those are not entries at all. */
+export function dedupeOffers(
+  offers: readonly AmbiguousToken[],
+  kindOf?: (display: string, text: string) => number | undefined,
+): AmbiguousToken[] {
+  const seen = new Set<string>()
+  const out: AmbiguousToken[] = []
+  let kept = 0
+  for (const a of offers) {
+    const candidates: string[] = []
+    for (const c of a.candidates) {
+      const k = kindOf ? kindOf(c, a.text) : undefined
+      const key = k === undefined ? c : `${k}\u0000${c}`
+      if (seen.has(key)) continue
+      if (kept >= OFFER_CEILING) continue
+      seen.add(key)
+      candidates.push(c)
+      kept += 1
+    }
+    if (candidates.length > 0) out.push({ ...a, candidates })
+  }
+  return out
+}
+
+/** How many distinct readings the offers hold, before the ceiling. */
+export function countOffers(
+  offers: readonly AmbiguousToken[],
+  kindOf?: (display: string, text: string) => number | undefined,
+): number {
+  const seen = new Set<string>()
+  for (const a of offers) {
+    for (const c of a.candidates) {
+      const k = kindOf ? kindOf(c, a.text) : undefined
+      seen.add(k === undefined ? c : `${k}\u0000${c}`)
+    }
+  }
+  return seen.size
 }
