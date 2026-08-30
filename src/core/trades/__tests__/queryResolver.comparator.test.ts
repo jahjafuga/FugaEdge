@@ -147,9 +147,15 @@ describe('G3 a BARE column phrase keeps today behaviour', () => {
   // Measured on the 528 book at the current substring floor: "float" applies
   // the mistake. That is the vocabulary reading, and with no operator and no
   // value there is no filter reading to compete with it.
-  it('"float" alone still applies the mistake', () => {
-    expect(r('float').state.mistakeKeys).toEqual([
-      { axis: 'technical', name: 'Float or RVOL criteria not met' },
+  it('"float" alone now OFFERS the mistake instead of applying it', () => {
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: bare "float" APPLIED the mistake
+    // "Float or RVOL criteria not met". It reaches that name as a whole
+    // word at the FRONT, covering a fifth of it, so no boundary rule could
+    // ever have caught it. Below the coverage floor the resolver now ASKS.
+    expect(r('float').state.mistakeKeys).toEqual([])
+    expect(r('float').ambiguous.flatMap((a) => a.candidates)).toEqual([
+      'Float or RVOL criteria not met',
     ])
   })
 
@@ -157,8 +163,12 @@ describe('G3 a BARE column phrase keeps today behaviour', () => {
     expect(rangesOf('float')).toEqual({})
   })
 
-  it('and raises NO ambiguity -- there is nothing to choose between', () => {
-    expect(r('float').ambiguous).toEqual([])
+  it('and raises exactly ONE offer -- the reading it declined to act on', () => {
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: no ambiguity at all, because the
+    // word simply applied. There is still nothing to choose BETWEEN; the
+    // question being asked is whether the trader meant the mistake at all.
+    expect(r('float').ambiguous).toHaveLength(1)
   })
 
   it('"stop" and "risk" likewise keep their vocabulary reading', () => {
@@ -167,8 +177,14 @@ describe('G3 a BARE column phrase keeps today behaviour', () => {
     // substring hit now offers instead of applying.
     // "stop" is a PREFIX of "Stop too wide / risk undefined" and is UNCHANGED
     // -- the prefix tier still applies for non-symbol kinds.
-    expect(r('stop').state.mistakeKeys).toHaveLength(1)
-    // "risk" reaches the same name by SUBSTRING, and that tier now offers.
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: "stop" APPLIED by prefix while
+    // "risk" offered by substring. "stop" is four characters of "Stop too wide
+    // / risk undefined" -- under a sixth of it -- so it now asks as well. The
+    // two words finally behave the same way, which is what a trader expects.
+    expect(r('stop').state.mistakeKeys).toHaveLength(0)
+    expect(r('stop').ambiguous).toHaveLength(1)
+    // "risk" reaches the same name by SUBSTRING, and that tier still offers.
     expect(r('risk').state.mistakeKeys).toHaveLength(0)
     expect(r('risk').ambiguous).toHaveLength(1)
   })
@@ -235,8 +251,13 @@ describe('G6 operator words', () => {
     expect(rangesOf('float below 1m')).toEqual({ float: { min: null, max: 1_000_000 } })
   })
 
-  it('BARE "over" keeps today behaviour -- the vocabulary reading', () => {
-    expect(r('over').state.mistakeKeys).toHaveLength(1)
+  it('BARE "over" now OFFERS the vocabulary reading', () => {
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: "over" APPLIED a mistake by
+    // prefix. An operator word that is a quarter of a mistake name is a
+    // resemblance, not an instruction, and it is now offered.
+    expect(r('over').state.mistakeKeys).toHaveLength(0)
+    expect(r('over').ambiguous).toHaveLength(1)
   })
 
   it('BARE "below" likewise', () => {

@@ -219,15 +219,20 @@ describe('RK-D5 the measured conversions, pinned as literals', () => {
 // notification this file exists to give.
 // ---------------------------------------------------------------------------
 describe('RK-D6 the two defects this cure does NOT reach', () => {
-  it('a name wholly containing another name still applies BOTH', () => {
-    // Measured on the demo book: "Averaged down" is a live entry in its own
-    // right AND a tail of "Added to a loser / averaged down". The reservation
-    // withholds the span from the functional passes, but pass three then
-    // resolves both names, and two mistake filters apply where one was asked.
+  it('a name wholly containing another name now applies the LONGER one alone', () => {
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR. WAS: BOTH names applied --
+    // "Averaged down" is a live entry in its own right AND a tail of "Added to
+    // a loser / averaged down", and two mistake filters landed where one was
+    // asked.
+    //
+    // THIS GUARD DID ITS JOB BY FAILING. Beat one hundred sixty-seven wrote it
+    // to pin a defect that cure could not reach, so that a later beat would
+    // find it red rather than forget it. Once both sides speak one alphabet
+    // the whole six-token name matches on the EXACT tier, the longest span
+    // wins, and the tail never gets its turn.
     const res = r('Added to a loser / averaged down')
     expect(mistakeNames('Added to a loser / averaged down')).toEqual([
       'Added to a loser / averaged down',
-      'Averaged down',
     ])
     expect(res.state.outcome).toBe('all')
   })

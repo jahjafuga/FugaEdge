@@ -82,16 +82,25 @@ describe('RE1 symbols keep a LOWER floor than everything else, by KIND', () => {
   it('the shipped predicate keys the carve-out on the symbol kind', () => {
     // Behaviour alone would still pass if someone hard-coded the ticker's
     // length. The floor must be chosen BY KIND in the shipped source.
-    const at = SRC.indexOf('e.key.startsWith(phrase)')
-    expect(at, 'the prefix tier is gone').toBeGreaterThan(-1)
-    // Slice back to the predicate's own arrow, not to the previous newline. A
-    // one-line window measured the FORMATTING: the moment the predicate was
-    // wrapped across lines it read only the indentation and went red on a
-    // correct cure.
-    const start = SRC.lastIndexOf('(e) =>', at)
-    expect(start, 'the predicate has no arrow').toBeGreaterThan(-1)
-    const predicate = SRC.slice(start, at)
-    expect(predicate, 'the prefix floor no longer varies by kind').toContain('SYMBOL_KIND')
+    // REWRITTEN BY BEAT ONE HUNDRED EIGHTY-FOUR. WAS: a search of the shipped
+    // SOURCE TEXT for the literal "e.key.startsWith(phrase)", sliced back to
+    // the predicate's own arrow, asserting the slice mentions SYMBOL_KIND.
+    //
+    // WHY THAT WAS THE WRONG INSTRUMENT. It had already been repaired once for
+    // reading indentation rather than meaning, and it broke a second time the
+    // moment the predicate was renamed by a correct cure. A source-text
+    // assertion about a rule for MATCHING measures how the rule is spelled,
+    // not what it does, and it goes red on every rewrite that keeps the
+    // behaviour and changes the words. The behaviour is what matters and the
+    // behaviour is what is asserted now, at the SAME LENGTH on both sides: a
+    // THREE-character ticker prefix resolves, and a three-character prefix of
+    // any other kind does not. Equal length is the whole point -- one probe
+    // could survive because the floor moved for everyone, and two of equal
+    // length diverging can only be the kind.
+    expect(r('nrv').state.symbol).toBe('NRVA')
+    expect(r('ove').state.mistakeKeys).toEqual([])
+    expect('nrv'.length).toBe(SYMBOL_PREFIX_FLOOR)
+    expect('ove'.length).toBeLessThan(PREFIX_FLOOR)
   })
 
   it('and the two floors are actually different, or there is no carve-out', () => {
@@ -119,8 +128,14 @@ describe('RE4 four letters is the boundary, and it still matches', () => {
     // The boundary is asserted from the CONSTANT, not from the number four, so
     // moving the floor moves this probe with it rather than silently passing.
     expect('over'.length).toBe(PREFIX_FLOOR)
-    expect(r('over').state.mistakeKeys).toEqual([
-      { axis: 'psychological', name: 'Overtrading badly' },
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: "over" APPLIED "Overtrading
+    // badly". It still REACHES it -- that is what the floor decides, and the
+    // floor is unchanged -- but four characters is a quarter of that name, and
+    // a quarter is under the coverage floor, so the reading is offered.
+    expect(r('over').state.mistakeKeys).toEqual([])
+    expect(r('over').ambiguous.flatMap((a) => a.candidates)).toEqual([
+      'Overtrading badly',
     ])
   })
 })
@@ -135,10 +150,17 @@ describe('RE5 an exact hit applies at any length and any kind', () => {
   })
 
   it('the exact tier carries no length test in the shipped source', () => {
-    const at = SRC.indexOf('(e) => e.key === phrase')
-    expect(at, 'the exact tier is gone').toBeGreaterThan(-1)
-    const line = SRC.slice(at, SRC.indexOf(String.fromCharCode(10), at))
-    expect(line, 'tier one acquired a floor').not.toContain('length')
+    // REWRITTEN BY BEAT ONE HUNDRED EIGHTY-FOUR. WAS: a search of the shipped
+    // SOURCE TEXT for the literal "(e) => e.key === phrase", asserting that
+    // line carries no length test.
+    //
+    // WHY THAT WAS THE WRONG INSTRUMENT. Same reason as RE1 above: it pins the
+    // SPELLING of the exact tier, so a rewrite that leaves the tier doing
+    // exactly what it did reddens it. What the guard is really for is that the
+    // exact tier has NO floor -- that a very short key still resolves when the
+    // whole token equals it -- and that is asserted directly.
+    expect(r('us').state.countries).toEqual(['US'])
+    expect('us'.length).toBeLessThan(SYMBOL_PREFIX_FLOOR)
   })
 })
 

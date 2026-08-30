@@ -1120,10 +1120,19 @@ describe('RB8 the twenty', () => {
   it('and the exempt one really does name its own mistake', () => {
     // Without this the exemption above could hide a regression: the sentence
     // has to still be reading "chased", not merely be excused.
-    expect(t('trades where i chased extended').state.mistakeKeys).toEqual([
-      { axis: 'technical', name: 'Chased extension (too far from 9 EMA)' },
-    ])
-    expect(t('trades where i chased extended').state.ranges.ema9_dist_pct).toBeTruthy()
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: the sentence APPLIED the mistake
+    // "Chased extension (too far from 9 EMA)" alongside the nine EMA band.
+    // "chased" is six characters of a thirty-character name, under the
+    // coverage floor, so the mistake is now OFFERED. The sentence still reads
+    // "chased" -- which is the only thing the exemption above needs -- and the
+    // band it really asked for is untouched.
+    const out = t('trades where i chased extended')
+    expect(out.state.mistakeKeys).toEqual([])
+    expect(out.ambiguous.flatMap((a) => a.candidates)).toContain(
+      'Chased extension (too far from 9 EMA)',
+    )
+    expect(out.state.ranges.ema9_dist_pct).toBeTruthy()
   })
 
   it('the five that remain are these five, by name', () => {

@@ -181,10 +181,21 @@ describe('RH5 filler is not neutral once the boundary is strict', () => {
     const withPronoun = r('show me the ones i held through a halt')
     expect(withPronoun.state).toEqual(emptyFilters())
     expect(withPronoun.unresolved).toContain('ones')
-    // Swap the pronoun for a word that IS filler and the wrong answer appears:
-    // a question about holding THROUGH a halt, answered with the Halt Resume
-    // Long playbook. Nothing on screen contradicts it.
-    expect(r('show me the trades i held through a halt').state.playbookIds).toEqual([7])
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: swapping the pronoun for a word
+    // that IS filler produced the wrong answer -- a question about holding
+    // THROUGH a halt, answered with the Halt Resume Long playbook, with
+    // nothing on screen to contradict it.
+    //
+    // THE WRONG ANSWER IS GONE, and RH5's point survives it. "halt" is four
+    // characters of "Halt Resume Long", under the coverage floor, so the
+    // playbook is now OFFERED rather than applied. The lesson this guard
+    // exists for is unchanged: promoting a word to filler removes the token
+    // that was making the ask refuse. It is now merely cheaper to be wrong
+    // about, because the resolver asks instead of answering.
+    const swapped = r('show me the trades i held through a halt')
+    expect(swapped.state.playbookIds).toEqual([])
+    expect(swapped.ambiguous.flatMap((a) => a.candidates)).toContain('Halt Resume Long')
   })
 })
 

@@ -187,6 +187,42 @@ export const NEGATORS = new Set(['not', 'no', 'without', 'excluding', 'except'])
  *  tier still has no floor at all; the PREFIX floor is now per-kind, below. */
 const SUBSTRING_FLOOR = 4
 
+/** HOW MUCH OF AN ENTRY A SINGLE TOKEN MUST COVER BEFORE THE RESOLVER ACTS
+ *  ON IT RATHER THAN ASKING. Measured, not chosen: across four thousand
+ *  four hundred and eighty-five asks on three books, every ordinary English
+ *  word that reached an entry it did not mean covered less than three
+ *  tenths of that entry, and every word that meant what it reached covered
+ *  more. "traded" is under a quarter of "Traded on tilt - didn't walk
+ *  away"; "clinical" is nearly three quarters of "FDA / Clinical".
+ *
+ *  WHY A PREFIX NEEDED THIS AND A SUBSTRING DID NOT: the substring tier has
+ *  ASKED rather than applied since the "United Arab Emi-rate-s" measurement
+ *  recorded below. The prefix tier kept applying, so a common verb sitting
+ *  at the FRONT of a long mistake name went straight through -- "traded"
+ *  reached "Traded on tilt" and returned zero trades for a sentence whose
+ *  honest answer was seventeen.
+ *
+ *  WHAT THIS IS NOT: it is not a refusal. A phrase below the floor is
+ *  OFFERED, in the same shape the bubble already renders and takes, so the
+ *  trader is asked instead of answered. A rule whose failure mode is a
+ *  question cannot invent a silent wrong. */
+export const COVERAGE_FLOOR = 0.3
+
+/** Alphanumeric length -- the only measure the two alphabets share. A key is
+ *  user-authored and keeps its punctuation; the ask has had its stripped. */
+const coverageWeight = (s: string): number => s.replace(/[^A-Za-z0-9]/g, '').length
+
+/** Strong enough to ACT on, or only strong enough to OFFER? A MULTI-token
+ *  phrase is already specific. A single-word ENTRY has nothing to be a
+ *  fraction of. Everything else is judged by how much of the entry the
+ *  token actually covers. EXACT never reaches here. */
+export function strongEnoughToApply(phrase: string, key: string): boolean {
+  if (phrase.includes(' ')) return true
+  const words = key.split(/[^A-Za-z0-9]+/).filter((w) => w.length > 0)
+  if (words.length <= 1) return true
+  return coverageWeight(phrase) / Math.max(1, coverageWeight(key)) >= COVERAGE_FLOOR
+}
+
 /** THE VOCABULARY KEY ALPHABET. A key is USER-AUTHORED, so it carries
  *  whatever punctuation the trader typed -- slashes, dashes, brackets,
  *  ampersands. The ask does not: the tokenizer strips punctuation before
@@ -732,12 +768,30 @@ export function resolveQuery(
    *  that no key newly reaches; and the negation mask probes widths this
    *  cannot help at. Widening a comparison nobody could show a use for is
    *  how a cure grows a blast radius it was never measured over. */
+  /** ONE ALPHABET, AND THE WORD "and" IS NOT PART OF A NAME.
+   *
+   *  A key is USER-AUTHORED and carries whatever punctuation the trader
+   *  typed. The ask does not: the tokenizer strips punctuation before any
+   *  comparison happens. Everything outside VOCAB_KEY_ALPHABET becomes a
+   *  space and both sides are lowercased, so the two alphabets meet.
+   *
+   *  AND THE AMPERSAND. A book stores "Rental & Leasing Services"; a
+   *  trader types it either way. The strip above already deletes a bare
+   *  ampersand from BOTH sides, so the stored spelling matched -- but the
+   *  SPOKEN one did not, because the word survived on the ask side alone.
+   *  Dropping the standalone word closes that, and it is the reading the
+   *  rest of this file already gives it: "and" is a STOPWORD.
+   *
+   *  MEASURED, NOT ASSUMED. Twenty-six names across three books carry an
+   *  ampersand and exactly one carries the word; the rule merges NO two
+   *  names on any book. A merge would have meant two of the trader own
+   *  names becoming one, and it was a stop condition rather than a risk. */
   const normaliseKey = (value: string): string =>
     value
       .replace(VOCAB_KEY_ALPHABET, ' ')
       .toLowerCase()
       .split(' ')
-      .filter((w) => w.length > 0)
+      .filter((w) => w.length > 0 && w !== 'and')
       .join(' ')
   const vocabKeysNormalised: string[] = vocabKeys.map(normaliseKey)
   /** Is there a TERM here at all? Answers only THAT — never which one;
@@ -1489,18 +1543,29 @@ export function resolveQuery(
    *  A whole token equal to a whole vocabulary key is not a resemblance, and
    *  refusing it would be a second bug wearing the first one's clothes. Only
    *  the fuzzy tiers are closed, and their floors are untouched. */
+  /** POOL KEYS IN THE NORMALISED ALPHABET, computed once. A key is
+   *  user-authored and carries punctuation; the ask has had its stripped by
+   *  the tokenizer. Comparing the two directly is not a test that fails, it
+   *  is a test that CANNOT pass -- the words already at VOCAB_KEY_ALPHABET.
+   *  The span reservation has compared in this alphabet since the E and A
+   *  cure; the TIERS never did, and that is the whole of this half. */
+  const poolNormalised = pool.map((e) => ({ e, nkey: normaliseKey(e.key) }))
+
   function candidatesFor(phrase: string): PoolEntry[] {
     const isFiller = phrase.split(' ').every((w) => STOPWORDS.has(w))
-    const tiers: ((e: PoolEntry) => boolean)[] = [
-      (e) => e.key === phrase,
-      (e) =>
+    // ONE ALPHABET ON BOTH SIDES. The floors still measure the phrase the
+    // trader typed, not the normalised form, so no floor moves.
+    const nphrase = normaliseKey(phrase)
+    const tiers: ((c: { e: PoolEntry; nkey: string }) => boolean)[] = [
+      (c) => c.nkey === nphrase,
+      (c) =>
         !isFiller &&
-        phrase.length >= (e.kind === SYMBOL_KIND ? SYMBOL_PREFIX_FLOOR : PREFIX_FLOOR) &&
-        e.key.startsWith(phrase),
-      (e) => !isFiller && phrase.length >= SUBSTRING_FLOOR && e.key.includes(phrase),
+        phrase.length >= (c.e.kind === SYMBOL_KIND ? SYMBOL_PREFIX_FLOOR : PREFIX_FLOOR) &&
+        c.nkey.startsWith(nphrase),
+      (c) => !isFiller && phrase.length >= SUBSTRING_FLOOR && c.nkey.includes(nphrase),
     ]
     for (const match of tiers) {
-      const hits = pool.filter(match)
+      const hits = poolNormalised.filter(match).map((c) => c.e)
       if (hits.length === 0) continue
       const kind = Math.min(...hits.map((h) => h.kind))
       const inKind = hits.filter((h) => h.kind === kind)
@@ -1513,6 +1578,17 @@ export function resolveQuery(
     return []
   }
 
+  /** HOW FAR THE VOCABULARY PASS REACHES. Three was enough while a name
+   *  could only ever match a fragment of itself; once both sides share one
+   *  alphabet a FOUR word name can match as a whole, and a loop that stops
+   *  at three would still hand it to its first token. The reservation has
+   *  descended from the book's own longest key since the E and A cure --
+   *  this is the same bound, read from the same place, so the two cannot
+   *  disagree about how long a name may be. Descending, so the LONGEST name
+   *  wins: a short name must never swallow the long one containing it. */
+  const spanSequence: number[] = []
+  for (let s = Math.max(3, maxKeyTokens); s >= 1; s--) spanSequence.push(s)
+
   for (let i = 0; i < tokens.length; i++) {
     if (marks[i] !== 'free' || unclaimable[i]) continue
     // v0.2.7 — a NEGATED span is no longer skipped: it resolves the same way an
@@ -1521,7 +1597,7 @@ export function resolveQuery(
     // only what happens to the term it identified.
     const isNeg = negated[i]
     let matched = false
-    for (const span of [3, 2, 1]) {
+    for (const span of spanSequence) {
       // a span that overruns the text just means TRY THE SHORTER ONE — a
       // one-word query must still reach span 1.
       if (i + span > tokens.length) continue
@@ -1558,8 +1634,13 @@ export function resolveQuery(
         // four-letter ordinary word reaches inside a long vocabulary name --
         // "rate" inside "United Arab Emi-rate-s" filtered a book to twelve
         // trades for a question about halt resumes.
-        const hitTier = entry.key === phrase ? 1 : (entry.key.startsWith(phrase) ? 2 : 3)
-        if (hitTier === 3) {
+        // ONE ALPHABET HERE TOO. candidatesFor now matches normalised, so a
+        // tier recomputed against the RAW key would call every newly reached
+        // name a substring and ask about a name the trader typed in full.
+        const entryKeyN = normaliseKey(entry.key)
+        const phraseN = normaliseKey(phrase)
+        const hitTier = entryKeyN === phraseN ? 1 : (entryKeyN.startsWith(phraseN) ? 2 : 3)
+        if (hitTier === 3 || (hitTier === 2 && !strongEnoughToApply(phrase, entry.key))) {
           ambiguous.push({ text: raw, candidates: [entry.display] })
           for (let k = 0; k < span; k++) marks[i + k] = 'consumed'
           matched = true

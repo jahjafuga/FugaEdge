@@ -287,8 +287,14 @@ describe('G9 every phrase that worked before still works', () => {
     expect(ranges('hold over 60')).toEqual({ hold_time: { min: 60, max: null } })
   })
 
-  it('bare "float" keeps its vocabulary reading', () => {
-    expect(r('float').state.mistakeKeys).toHaveLength(1)
+  it('bare "float" now OFFERS its vocabulary reading', () => {
+    // REVERSED BY BEAT ONE HUNDRED EIGHTY-FOUR, measured by beat one
+    // hundred eighty-two. WAS: bare "float" APPLIED the mistake
+    // "Float or RVOL criteria not met". It reaches that name as a whole
+    // word at the FRONT, covering a fifth of it, so no boundary rule could
+    // ever have caught it. Below the coverage floor the resolver now ASKS.
+    expect(r('float').state.mistakeKeys).toHaveLength(0)
+    expect(r('float').ambiguous).toHaveLength(1)
     expect(r('float').state.ranges).toEqual({})
   })
 
