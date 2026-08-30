@@ -51,6 +51,39 @@ export function matchesRange(
   return true
 }
 
+/** How many rows a range DROPPED because the column was never measured.
+ *
+ *  WHY THIS TAKES THE ROWS BEFORE THE FILTER RAN, and it is the whole design.
+ *  The null rule above puts an unmeasured row in NEITHER the over set nor the
+ *  under set, so by the time anything downstream holds a result the dropped
+ *  rows are gone. Counting them among the survivors can only ever return zero,
+ *  which is exactly what a previous attempt measured on every one of five
+ *  thousand one hundred and eighty eight driven asks.
+ *
+ *  An EXCLUSION is the opposite shape and is counted elsewhere, by
+ *  countUnmeasuredKept, from the rows that survived. One function cannot serve
+ *  both without being handed both row sets and told which it is looking at.
+ *
+ *  Returns null when no range is active -- there is nothing to say. Returns a
+ *  zero skip when a range IS active and every row was measured, so the caller
+ *  can tell "fully covered" from "not asked". */
+export function countDroppedUnmeasured<T>(
+  preFilterRows: readonly T[],
+  ranges: Record<string, NumericRange | undefined>,
+  read: (row: T, columnId: string) => number | null,
+): { skipped: number; column: string } | null {
+  for (const [column, r] of Object.entries(ranges)) {
+    if (!isRangeActive(r)) continue
+    let skipped = 0
+    for (const row of preFilterRows) {
+      const v = read(row, column)
+      if (v == null || !Number.isFinite(v)) skipped += 1
+    }
+    return { skipped, column }
+  }
+  return null
+}
+
 /** Apply a map of column-id -> range to a list, using a per-column value reader.
  *  Every range must pass (AND across columns), matching how the existing filters
  *  compose. */

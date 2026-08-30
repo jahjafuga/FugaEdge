@@ -9,6 +9,7 @@ import ColumnsMenu from '@/components/trades/ColumnsMenu'
 import {
   applyLimitAndSort,
   applyTradesFilters,
+  rangeValueOf,
   emptyFilters,
   isFiltering,
   MACD_STATE_CHOICES,
@@ -57,6 +58,7 @@ import {
 import RangesMenu from '@/components/trades/RangesMenu'
 import { withDnaScores } from '@/core/dna/adherence'
 import QueryBubble, { Roll } from '@/components/trades/QueryBubble'
+import { countDroppedUnmeasured } from '@/core/trades/numericRange'
 import type { ResolverVocabulary } from '@/core/trades/queryResolver'
 import type { PlaybookWithStats } from '@shared/playbook-types'
 import type { MistakeDef } from '@shared/mistakes-types'
@@ -409,6 +411,16 @@ export default function Trades() {
    *  that decision. Slicing an unsorted list would be a wrong answer wearing a
    *  right label, so the ordering never happens anywhere else. */
   const filtered = useMemo(() => applyLimitAndSort(matched, activeAsk), [matched, activeAsk])
+  /** v0.2.7 -- how many rows a range DROPPED for never having been measured.
+   *  Taken from `scored`, the row set BEFORE applyTradesFilters runs, which is
+   *  four lines above. Nowhere downstream holds those rows: the range is what
+   *  removed them. The bubble is handed this function rather than the rows, so
+   *  no component ever scans a book. */
+  const coverageOf = useMemo(
+    () => (state: TradesFilterState) =>
+      countDroppedUnmeasured(scored ?? [], state.ranges ?? {}, rangeValueOf),
+    [scored],
+  )
 
   // The resolver's vocabulary: book-derived lists straight off the loaded
   // trades; def-table lists fetched once at mount (the catalyst defs were
@@ -655,6 +667,7 @@ export default function Trades() {
         // The SAME array the count came from, so an answer and the count on
         // screen can never describe two different sets.
         liveRows={matched}
+        coverageOf={coverageOf}
         onDraft={setDraftFilters}
         onCommit={(next) => {
           // Edge goes through the same funnel as every other filter write. It

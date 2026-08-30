@@ -187,6 +187,33 @@ const EXCLUDED_FIELDS = (f: TradesFilterState): ArrayPair[] => [
   [f.excludeMacdStates, MATCHERS.macdStates as never],
 ]
 
+/** Of the rows an EXCLUSION kept, how many were never measured.
+ *
+ *  THE OPPOSITE SHAPE FROM A RANGE, and that is why it is a second function.
+ *  The shared predicate above answers "does this row POSITIVELY match", so a
+ *  row with no value matches nothing and SURVIVES the exclusion. It is still
+ *  in the result, which means the count is taken from the rows the caller
+ *  already holds rather than from the rows before the filter ran.
+ *
+ *  The number this returns is what made the item worth building: on the
+ *  largest book, excluding a positive one-minute MACD returns four hundred and
+ *  forty five trades, of which four hundred and thirty nine were never
+ *  computed at all. Six are genuinely negative. Answering four hundred and
+ *  forty five and stopping there is the dishonesty.
+ *
+ *  Returns null when no exclusion is in force. Returns a zero skip when one IS
+ *  in force and every kept row was measured, so a fully covered book is
+ *  distinguishable from a book nobody asked about. */
+export function countUnmeasuredKept(
+  keptRows: readonly TradeListRow[],
+  f: TradesFilterState,
+): { skipped: number; column: string } | null {
+  if (f.excludeMacdStates.length === 0) return null
+  let skipped = 0
+  for (const t of keptRows) if (t.tf_1m_macd_positive == null) skipped += 1
+  return { skipped, column: 'macd' }
+}
+
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
   switch (columnId) {
     case 'net_pnl': return t.net_pnl

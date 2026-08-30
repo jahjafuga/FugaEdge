@@ -47,6 +47,14 @@ export interface ResponseInput {
    *  different asks were producing byte-identical sentences because the only
    *  thing separating them was an offer the line never mentioned. */
   offers?: { shown: number; total: number }
+  /** v0.2.7 -- rows a RANGE dropped because the column was never measured.
+   *  Counted from the rows BEFORE the filter ran, because a range removes
+   *  exactly the rows this number describes. Null when no range is active. */
+  coverage?: { skipped: number; column: string } | null
+  /** v0.2.7 -- rows an EXCLUSION kept that were never measured. The opposite
+   *  shape: these rows are still in the result, so the count comes from the
+   *  survivors. Null when no exclusion is in force. */
+  excluded?: { skipped: number; column: string } | null
   /** v0.2.7 slice B -- the answer sentence, already computed over the same
    *  rows the count came from, or null. Passed in rather than computed here
    *  because this module is given a COUNT, not a row set, and inventing a
@@ -100,7 +108,8 @@ const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 
 /** The logged response for one committed ask. */
 export function responseLine({
-  count, applied, unresolved, limit, before, after, answer, typed, offers,
+  count, applied, unresolved, limit, before, after, answer, typed, offers, coverage,
+  excluded,
 }: ResponseInput): string {
   // AN ANSWER LEADS. It is what was asked for; the filter it was computed
   // over follows in the same breath so the number can be checked rather
@@ -186,9 +195,18 @@ export function responseLine({
         : `. I have ${offers.total} reading${offers.total === 1 ? '' : 's'} to offer`
       : ''
 
+  // WHAT THE FILTER COULD NOT SEE. A range DROPS the unmeasured row and an
+  // exclusion KEEPS it, so the two say different things and never both apply
+  // to one column. Each clause appears only when there is something to say.
+  const cover =
+    coverage && coverage.skipped > 0
+      ? `, and ${coverage.skipped} never measured`
+      : excluded && excluded.skipped > 0
+        ? `, of which ${excluded.skipped} were never measured`
+        : ''
   return unresolved.length > 0
-    ? `${trades} (ignored ${quoteList(unresolved)})${offered}`
-    : `${trades}${offered}`
+    ? `${trades}${cover} (ignored ${quoteList(unresolved)})${offered}`
+    : `${trades}${cover}${offered}`
 }
 
 /** THE MOST OFFERS A TRADER IS SHOWN AT ONCE. Measured before it was chosen:

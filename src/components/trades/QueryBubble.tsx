@@ -6,7 +6,12 @@ import {
 } from '@/core/trades/queryResolver'
 import { countOffers, dedupeOffers, responseLine } from '@/core/trades/queryResponse'
 import { answerText, type RowForAnswer } from '@/core/trades/queryAnswer'
-import { isFiltering, type TradesFilterState } from '@/core/trades/tradesFilter'
+import {
+  countUnmeasuredKept,
+  isFiltering,
+  type TradesFilterState,
+} from '@/core/trades/tradesFilter'
+import type { TradeListRow } from '@shared/trades-types'
 import {
   clampEdgePosition,
   readEdgePosition,
@@ -220,6 +225,11 @@ interface QueryBubbleProps {
    *  describe the first. Optional so every existing mount is unchanged;
    *  without it an answer ask still filters and simply says nothing. */
   liveRows?: readonly RowForAnswer[]
+  /** v0.2.7 -- how many rows a RANGE dropped as never measured, ALREADY
+   *  COUNTED by the page. It has to be: the count comes from the rows before
+   *  the filter ran, and this component only ever sees the rows that
+   *  survived it. Optional, so every existing mount is unchanged. */
+  coverageOf?: (state: TradesFilterState) => { skipped: number; column: string } | null
   /** Push the candidate up (null = no draft — closed or empty). */
   onDraft: (draft: TradesFilterState | null) => void
   onCommit: (next: TradesFilterState) => void
@@ -230,6 +240,7 @@ export default function QueryBubble({
   vocab,
   liveCount,
   liveRows,
+  coverageOf,
   onDraft,
   onCommit,
 }: QueryBubbleProps) {
@@ -328,6 +339,13 @@ export default function QueryBubble({
           {
             ask: text.trim(),
             response: responseLine({
+              // A RANGE dropped these; only the page can count them.
+              coverage: coverageOf ? coverageOf(resolution.state) : null,
+              // An EXCLUSION kept these, so they are in the rows already here.
+              excluded: countUnmeasuredKept(
+                (liveRows ?? []) as unknown as readonly TradeListRow[],
+                resolution.state,
+              ),
               count: liveCount,
               // W1 -- the words the trader wrote, so the refusal can quote
               // the sentence instead of the span that failed.
