@@ -7,7 +7,7 @@
 // hundred and seventy excluding China through the real filter, and all three
 // matched. What was never true is that a user could get rid of one.
 //
-// emptyFilters() DOES wipe all seven exclude arrays (tradesFilter.ts:223-229).
+// emptyFilters() DOES wipe every exclude field, arrays and the rest alike.
 // The Clear button that calls it is gated on isFiltering (TradesFilters.tsx:59,
 // :175), and isFiltering tested none of the seven — so with an exclusion as the
 // only filter the control never rendered, and the only way out was to re-type a
@@ -52,6 +52,34 @@ import { makeTrade } from '@/test/fixtures/trade'
  *  emptyFilters below. A second table would let an eighth array be added with a
  *  guard in one place and none in the other, which is the six-of-seven shape all
  *  of this exists to stop. */
+/** The exclude fields that are NOT arrays of one value. Kept beside the table
+ *  above rather than folded into it: a boolean and a map do not have a chip
+ *  label, and pretending they do would make the table lie about the panel. */
+const OTHER_SHAPES = [
+  'excludeSymbols',
+  'excludeSides',
+  'excludeOutcomes',
+  'excludeDurations',
+  'excludeDateFrom',
+  'excludeDateTo',
+  'excludeMistakesOnly',
+  'excludeAPlus',
+  'excludeRanges',
+] as const
+
+/** One populated value per non-array shape, so each can be asserted alone. */
+const NON_ARRAY_VALUE: Record<(typeof OTHER_SHAPES)[number], Partial<TradesFilterState>> = {
+  excludeSymbols: { excludeSymbols: ['TSLA'] },
+  excludeSides: { excludeSides: ['short'] },
+  excludeOutcomes: { excludeOutcomes: ['losers'] },
+  excludeDurations: { excludeDurations: ['under1m'] },
+  excludeDateFrom: { excludeDateFrom: '2026-01-01' },
+  excludeDateTo: { excludeDateTo: '2026-01-31' },
+  excludeMistakesOnly: { excludeMistakesOnly: true },
+  excludeAPlus: { excludeAPlus: true },
+  excludeRanges: { excludeRanges: { mae: { min: 1, max: null } } },
+}
+
 const EXCLUDE_CASES: {
   field: ExcludeField
   /** A real value, and the label its chip must read. */
@@ -95,15 +123,29 @@ describe('RG1 an exclusion ALONE surfaces the Clear control', () => {
     ).toBe(true)
   })
 
-  it('all eight are covered by this suite, none silently missing', () => {
-    // The defect being fixed is "six of seven handled". A count assertion here
-    // means adding an eighth array without a case fails loudly.
-    // IT DID: the eighth arrived and this line named it before anything else.
-    const covered = EXCLUDE_CASES.map((c) => c.field).sort()
+  it('every exclude field is covered by this suite, none silently missing', () => {
+    // EXTENDED BY BEAT ONE HUNDRED NINETY FIVE. WAS:
+    //   it('all eight are covered by this suite, none silently missing')
+    //   expect(covered, 'an exclude array exists with no guard').toEqual(declared)
+    // The law is unchanged and it fired exactly as built when ten more
+    // arrived. What changed is that not every exclude field is an ARRAY any
+    // more: two are booleans, two are plain strings and one is a map, so a
+    // single table keyed by "array of one value" can no longer cover them.
+    // The second table below carries the other shapes, and the completeness
+    // check is against the UNION -- which is the assertion that mattered.
+    const covered = [...EXCLUDE_CASES.map((c) => c.field), ...OTHER_SHAPES].sort()
     const declared = Object.keys(emptyFilters())
       .filter((k) => k.startsWith('exclude'))
       .sort()
-    expect(covered, 'an exclude array exists with no guard').toEqual(declared)
+    expect(covered, 'an exclude field exists with no guard').toEqual(declared)
+  })
+
+  it.each(OTHER_SHAPES)('%s alone counts as filtering, in its own shape', (field) => {
+    const state = { ...emptyFilters(), ...NON_ARRAY_VALUE[field] } as TradesFilterState
+    expect(
+      isFiltering(state),
+      `${field} alone left isFiltering false, so the Clear control will not render`,
+    ).toBe(true)
   })
 })
 

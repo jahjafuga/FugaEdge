@@ -66,7 +66,7 @@ const CAMPAIGN =
 // all four phrasings REFUSE: apply nothing, and come back named. That was the
 // honest floor while the ask had no shape for an exclusion -- refusal was
 // never the answer, only the end of the lie. The exclusion beat gave the ask
-// seven exclude sides, so three of the four now EXCLUDE.
+// eight exclude sides, so all four of the four now EXCLUDE.
 //
 // What the block guards is unchanged and is what still matters: a negated term
 // must NEVER be applied positively. That assertion is now explicit on every
@@ -78,13 +78,19 @@ describe('G1 the four recorded phrasings exclude, or refuse when they cannot', (
     ['not china', 'regions', ['China']],
     ['no china', 'regions', ['China']],
     ['excluding earnings', 'catalystTypes', ['Earnings']],
-    // mistakesOnly is a FLAG, not one of the seven array fields, so it has no
-    // exclude side and the refusal behaviour is still correct for it.
-    ['without mistakes', null, null],
+    // REVERSED BY BEAT ONE HUNDRED NINETY FIVE. WAS:
+    //   "mistakesOnly is a FLAG, not one of the seven array fields, so it has
+    //    no exclude side and the refusal behaviour is still correct for it."
+    // Two things in that sentence were wrong. The count was SEVEN where the
+    // code had EIGHT, macdStates being the member it forgot. And a flag DOES
+    // have a set an exclusion can name: every row carrying a mistake. It was
+    // never the shape that stopped it, only that nobody had written the twin.
+    ['without mistakes', 'mistakesOnly', true],
   ]
   const FIELDS = {
     regions: 'excludeRegions',
     catalystTypes: 'excludeCatalystTypes',
+    mistakesOnly: 'excludeMistakesOnly',
   } as const
 
   it.each(CASES)('%s never applies the term POSITIVELY', (q) => {
@@ -105,6 +111,12 @@ describe('G1 the four recorded phrasings exclude, or refuse when they cannot', (
 
   it.each(CASES)('%s excludes it, or refuses when no exclude side exists', (q, field, value) => {
     const out = r(q as string)
+    if (field === 'mistakesOnly') {
+      // A FLAG excludes into a boolean, not an array.
+      expect(out.state.excludeMistakesOnly, `"${q}" did not exclude the flag`).toBe(true)
+      expect(out.state.mistakesOnly, `"${q}" applied the flag POSITIVELY`).toBe(false)
+      return
+    }
     if (field === null) {
       expect(out.state, `"${q}" applied something it should refuse`).toEqual(emptyFilters())
       return
@@ -334,7 +346,7 @@ const bookFor = (pbId: number, pbName: string): ResolverVocabulary => ({
   mistakes: [],
 })
 
-/** Every exclude array, so "nothing was excluded" is a claim about all seven
+/** Every exclude array, so "nothing was excluded" is a claim about all eight
  *  rather than about the one the collision happens to hit. */
 const NOTHING_EXCLUDED = (s: TradesFilterState) => ({
   playbooks: s.excludePlaybookIds,

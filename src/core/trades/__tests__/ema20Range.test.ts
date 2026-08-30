@@ -233,12 +233,30 @@ describe('RK6 nothing else moved', () => {
     expect(ranges('ema20 under -0.5')).toEqual({ ema20_dist_pct: { min: null, max: -0.5 } })
   })
 
-  it('R167: no exclude twin exists, because ranges have no exclude side', () => {
+  it('a range excludes through ONE map, never a per-column array', () => {
+    // REVERSED BY BEAT ONE HUNDRED NINETY FIVE. WAS:
+    //   it('R167: no exclude twin exists, because ranges have no exclude side')
+    //   expect(keys).toHaveLength(8)
+    // Beat one hundred sixty seven ruled that ranges have no exclude side.
+    // They do now: a twin test wrote "every row that does NOT match this
+    // range" from the schema and it reconciled on three books.
+    //
+    // WHAT SURVIVES UNCHANGED, and it is the part that mattered: a range still
+    // excludes through ONE map keyed by column, never a per-column array. The
+    // shape this line was defending is exactly the shape that shipped.
     const keys = Object.keys(emptyFilters()).filter((k) => k.startsWith('exclude'))
     expect(keys, 'a range grew an exclude array, which is the wrong shape').not.toContain(
       'excludeEma20',
     )
-    expect(keys).toHaveLength(8)
+    expect(keys, 'the one map is missing').toContain('excludeRanges')
+    // BY EXACT NAME, not by substring. A substring test here matched
+    // excludeMacdStates, because lowercasing it puts an "ema" inside
+    // "cludemacd" -- my own instrument raising a false positive.
+    for (const col of ['Ema9', 'Ema20', 'Vwap', 'NetPnl', 'Rvol', 'Mae', 'Mfe']) {
+      expect(keys, `a per-column exclude array appeared for ${col}`).not.toContain(
+        `exclude${col}`,
+      )
+    }
   })
 })
 

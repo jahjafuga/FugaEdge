@@ -136,9 +136,38 @@ describe('SW5 the offer ceiling is ten and the suppressed count is NAMED', () =>
 // see the pre-filter rows. Until then the product says nothing about
 // coverage, which is honest, rather than carrying a clause no ask can
 // produce.
-describe('SW6 the coverage clause is NOT claimed', () => {
-  it('a range says nothing about unmeasured rows, because nothing counts them', () => {
-    const line = responseLine({ ...base, applied: ['float at most 1000000'] })
+describe('SW6 a range NAMES what it dropped', () => {
+  // REVERSED BY BEAT ONE HUNDRED NINETY FIVE. THE OLD ASSERTION, VERBATIM:
+  //
+  //   describe('SW6 the coverage clause is NOT claimed', () => {
+  //     it('a range says nothing about unmeasured rows, because nothing counts them', () => {
+  //       const line = responseLine({ ...base, applied: ['float at most 1000000'] })
+  //       expect(line).not.toContain('never measured')
+  //     })
+  //   })
+  //
+  // BEAT ONE HUNDRED NINETY ONE measured why it could not be built then: the
+  // count has to come from the rows BEFORE the filter ran, and no caller held
+  // them. BEAT ONE HUNDRED NINETY TWO landed it once the page supplied them.
+  // The guard stayed GREEN through that whole landing, because it calls the
+  // sentence builder without the field and therefore cannot see the clause --
+  // it was never broken, only WRONG about what the product says. THIS beat is
+  // the reversing one.
+  it('the dropped count is in the sentence', () => {
+    const line = responseLine({
+      ...base,
+      applied: ['float at most 1000000'],
+      coverage: { skipped: 23, column: 'float' },
+    })
+    expect(line).toContain('23')
+    expect(line).toContain('never measured')
+  })
+  it('CONTROL -- a fully covered column still says nothing', () => {
+    const line = responseLine({
+      ...base,
+      applied: ['float at most 1000000'],
+      coverage: { skipped: 0, column: 'float' },
+    })
     expect(line).not.toContain('never measured')
   })
 })
@@ -157,15 +186,45 @@ describe('SW6 the coverage clause is NOT claimed', () => {
 // WHO DELIVERS IT: the same later beat, re-scoped. The control that used to
 // live here -- that a fully covered column says nothing -- is kept below,
 // because it still passes and still means something.
-describe('SW7 the unknown count on a negated ask is NOT claimed', () => {
-  it('an exclusion says nothing about unmeasured rows', () => {
+describe('SW7 an exclusion NAMES what it kept unmeasured', () => {
+  // REVERSED BY BEAT ONE HUNDRED NINETY FIVE. THE OLD ASSERTION, VERBATIM:
+  //
+  //   describe('SW7 the unknown count on a negated ask is NOT claimed', () => {
+  //     it('an exclusion says nothing about unmeasured rows', () => {
+  //       const line = responseLine({
+  //         ...base,
+  //         count: 445,
+  //         applied: ['excluding macd positive (1-minute)'],
+  //       })
+  //       expect(line).not.toContain('never measured')
+  //       expect(line).toContain('445 trades')
+  //     })
+  //   })
+  //
+  // The reproducer this was written around is the largest book answering four
+  // hundred and forty five to a question about a signal it never computed for
+  // four hundred and thirty nine of them. BEAT ONE HUNDRED NINETY TWO landed
+  // the count; this guard could not see it for the same reason SW6 could not.
+  it('the kept-but-unmeasured count is in the sentence, beside the total', () => {
     const line = responseLine({
       ...base,
       count: 445,
       applied: ['excluding macd positive (1-minute)'],
+      excluded: { skipped: 439, column: 'macd' },
+    })
+    expect(line).toContain('445 trades')
+    expect(line).toContain('439')
+    expect(line).toContain('never measured')
+  })
+  it('CONTROL -- a fully covered field still says nothing', () => {
+    const line = responseLine({
+      ...base,
+      count: 94,
+      applied: ['excluding macd positive (1-minute)'],
+      excluded: { skipped: 0, column: 'macd' },
     })
     expect(line).not.toContain('never measured')
-    expect(line).toContain('445 trades')
+    expect(line).toContain('94 trades')
   })
 })
 

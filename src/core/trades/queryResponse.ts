@@ -55,6 +55,10 @@ export interface ResponseInput {
    *  shape: these rows are still in the result, so the count comes from the
    *  survivors. Null when no exclusion is in force. */
   excluded?: { skipped: number; column: string } | null
+  /** v0.2.7 -- asks Edge UNDERSTOOD and cannot honour, one sentence each.
+   *  Kept apart from `unresolved` on purpose: telling a trader we could not
+   *  READ a sentence we understood perfectly is its own small lie. */
+  refusals?: readonly string[]
   /** v0.2.7 slice B -- the answer sentence, already computed over the same
    *  rows the count came from, or null. Passed in rather than computed here
    *  because this module is given a COUNT, not a row set, and inventing a
@@ -109,7 +113,7 @@ const quoteList = (xs: string[]) => xs.map((x) => `"${x}"`).join(', ')
 /** The logged response for one committed ask. */
 export function responseLine({
   count, applied, unresolved, limit, before, after, answer, typed, offers, coverage,
-  excluded,
+  excluded, refusals,
 }: ResponseInput): string {
   // AN ANSWER LEADS. It is what was asked for; the filter it was computed
   // over follows in the same breath so the number can be checked rather
@@ -167,6 +171,15 @@ export function responseLine({
     // STILL NO COUNT. This file already rules that a number must not leak into
     // a failure line, and that ruling is not being reversed: a count here
     // would read as an answer to a question that was never understood.
+    // AN ASK CAN BE UNDERSTOOD AND UNHONOURABLE WITH NOTHING ELSE IN IT.
+    // "except the last ten" reads perfectly and applies nothing, so the
+    // refusal REPLACES the could-not-read head rather than sitting after it.
+    if (refusals && refusals.length > 0) {
+      const tail = isFiltering(after)
+        ? ' Your filters are unchanged.'
+        : ' Nothing is filtered, so this is your whole book.'
+      return `${refusals.join(' ')}.${tail}`
+    }
     return isFiltering(after)
       ? `${head}. Your filters are unchanged.`
       : `${head}. Nothing is filtered, so this is your whole book.`
@@ -198,6 +211,10 @@ export function responseLine({
   // WHAT THE FILTER COULD NOT SEE. A range DROPS the unmeasured row and an
   // exclusion KEEPS it, so the two say different things and never both apply
   // to one column. Each clause appears only when there is something to say.
+  // WHAT WAS UNDERSTOOD AND COULD NOT BE DONE. It rides at the end so the
+  // count and the filter still lead, and it never replaces them: an ask can
+  // narrow the book AND carry a part we cannot honour.
+  const refused = refusals && refusals.length > 0 ? `. ${refusals.join(' ')}` : ''
   const cover =
     coverage && coverage.skipped > 0
       ? `, and ${coverage.skipped} never measured`
@@ -205,8 +222,8 @@ export function responseLine({
         ? `, of which ${excluded.skipped} were never measured`
         : ''
   return unresolved.length > 0
-    ? `${trades}${cover} (ignored ${quoteList(unresolved)})${offered}`
-    : `${trades}${cover}${offered}`
+    ? `${trades}${cover} (ignored ${quoteList(unresolved)})${offered}${refused}`
+    : `${trades}${cover}${offered}${refused}`
 }
 
 /** THE MOST OFFERS A TRADER IS SHOWN AT ONCE. Measured before it was chosen:

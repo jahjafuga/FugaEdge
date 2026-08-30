@@ -342,6 +342,8 @@ export default function QueryBubble({
               // A RANGE dropped these; only the page can count them.
               coverage: coverageOf ? coverageOf(resolution.state) : null,
               // An EXCLUSION kept these, so they are in the rows already here.
+              // An ask we understood and cannot honour, said out loud.
+              refusals: resolution.refusals,
               excluded: countUnmeasuredKept(
                 (liveRows ?? []) as unknown as readonly TradeListRow[],
                 resolution.state,

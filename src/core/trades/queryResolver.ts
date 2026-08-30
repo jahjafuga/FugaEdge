@@ -87,6 +87,11 @@ export interface ResolveResult {
   appliedSources: string[]
   /** Contiguous runs of text that matched nothing. THE MODEL SEAM. */
   unresolved: string[]
+  /** v0.2.7 — an ask Edge UNDERSTOOD and cannot honour, one sentence each.
+   *  Distinct from `unresolved`, which is text it could not read at all: a
+   *  trader told "I could not read that" about a sentence we understood
+   *  perfectly is being told the wrong thing. */
+  refusals?: string[]
   /** Tokens that matched more than one candidate in the same kind. */
   ambiguous: AmbiguousToken[]
   /** v0.2.7 -- THE KIND BEHIND EVERY OFFERED DISPLAY, keyed by the ask text
@@ -186,10 +191,49 @@ export const STOPWORDS = new Set([
  *  drops both words is the same lie as "not china" that applies China, just
  *  harder to notice.
  *
- *  What a negator does today is REFUSE, not exclude. The ask has no shape for
- *  "everything except China", so the honest answer is to apply nothing and say
- *  which words were not acted on. Real exclusion needs the ask to grow. */
+ *  WHAT A NEGATOR DID, AND WHAT IT DOES NOW. The sentence this replaces read:
+ *
+ *    "What a negator does today is REFUSE, not exclude. The ask has no shape
+ *     for everything except China, so the honest answer is to apply nothing
+ *     and say which words were not acted on. Real exclusion needs the ask to
+ *     grow."
+ *
+ *  The ask has grown. A negator now EXCLUDES on any field with a set it can
+ *  name, and REFUSES BY NAME on the three that have none. What has not
+ *  changed is the rule underneath: a negator is never silently dropped. */
 export const NEGATORS = new Set(['not', 'no', 'without', 'excluding', 'except'])
+
+/** THE TEN FIELDS AN EXCLUSION CAN NAME A SET FOR.
+ *
+ *  Membership was DERIVED, not chosen. For each field an SQL twin was written
+ *  from the schema for "every row that does NOT match this filter", run on
+ *  three books, and required to reconcile: matched plus excluded equal to the
+ *  book. Ten reconciled thirty times out of thirty. */
+export const EXCLUDABLE_FIELDS = [
+  'symbol', 'side', 'outcome', 'duration', 'datePreset',
+  'dateFrom', 'dateTo', 'mistakesOnly', 'aPlus', 'ranges',
+] as const
+
+/** THE THREE IT CANNOT, AND THEY FAIL FOR TWO DIFFERENT REASONS.
+ *
+ *  A limit and a sort name a PRESENTATION rather than a set of rows. The five
+ *  pillar verdict has a perfectly good meaning and no way to check it, because
+ *  it is worked out from settings thresholds and never stored. Telling a
+ *  trader the wrong one of those is its own small dishonesty, so each refuses
+ *  in its own words below. */
+export const UNEXCLUDABLE_FIELDS = ['limit', 'sort', 'dna'] as const
+
+/** A limit hides rows that QUALIFY, so its complement is a real set -- the ask
+ *  is an OFFSET, and the honest refusal names the capability we lack rather
+ *  than calling the sentence meaningless. */
+export const LIMIT_REFUSAL =
+  'I can show a set number of trades but I cannot yet skip past them, so I left that part alone'
+/** An ordering is not a set, so there is genuinely nothing to leave out. */
+export const SORT_REFUSAL =
+  'An ordering is not a group of trades, so there is nothing there for me to leave out'
+/** The verdict exists; the means to verify it does not. */
+export const DNA_REFUSAL =
+  'The five pillar verdict is worked out from your settings rather than stored, so I cannot check what leaving it out would give you'
 
 /** The substring tier's floor. FOUR, raised from three: at three "are" reached
  *  sector Healthcare and "but" offered a choice between two industries, both
@@ -336,6 +380,13 @@ const COLUMN_PHRASES: [string, string][] = [
   ['fills', 'exec_count'], ['stop', 'stop_price'], ['vwap', 'vwap_dist_pct'],
   ['hold', 'hold_time'],
 ]
+
+/** Every single word that names a column, for the ONE question of whether a
+ *  negator has something to govern. A phrase like "risk per share" governs on
+ *  its first word, which is enough for the detector. */
+const COLUMN_KEYS: ReadonlySet<string> = new Set(
+  COLUMN_PHRASES.flatMap(([p]) => p.split(' ')),
+)
 
 /** Recency words: a limit AND the ordering it implies. "last ten" means by
  *  DATE, descending -- never by whatever the user last clicked, because the
@@ -646,6 +697,11 @@ interface Comparison {
   bound: 'min' | 'max'
   value: number
   text: string
+  /** v0.2.7 -- the COLUMN word carried a negator, so this comparison names a
+   *  range to LEAVE OUT rather than one to keep. Recorded here because the
+   *  negator attaches to the column while the comparison is driven by the
+   *  operator, and the operator is not negated. */
+  negated?: boolean
 }
 
 type TokenState = 'free' | 'consumed' | 'stop'
@@ -656,10 +712,11 @@ interface PoolEntry {
   key: string
   display: string
   apply: (s: TradesFilterState, log: (line: string) => void) => void
-  /** v0.2.7 — the EXCLUDE side, present only on the seven array fields. A
-   *  negated term routes here instead of being refused. Absent means the term
-   *  has no exclude side (a symbol, an outcome, a flag), and a negator on one
-   *  of those still REFUSES, exactly as the negation beat left it. */
+  /** v0.2.7 — the EXCLUDE side. It was once present only on the array fields,
+   *  and the sentence here said SEVEN when the code had EIGHT: macdStates was
+   *  the member it forgot. Both counts are now wrong for a better reason --
+   *  symbol carries one too, and the state words are handled in pass two.
+   *  Absent still means the term has no exclude side. */
   excludeApply?: (s: TradesFilterState, log: (line: string) => void) => void
 }
 
@@ -736,6 +793,9 @@ export function resolveQuery(
     // place, parseValue, and nowhere else.
     .map((t) => t.replace(/^(?!-\d)[^\w$]+|[.,;:!?]+$/g, ''))
     .filter((t) => t.length > 0)
+  /** Asks Edge understood and cannot honour. Filled by pass one and pass
+   *  two, and handed back so the sentence can say them out loud. */
+  const refusals: string[] = []
   const marks: TokenState[] = tokens.map(() => 'free')
 
   // ── the negation mask ─────────────────────────────────────────────────────
@@ -825,7 +885,19 @@ export function resolveQuery(
     w in SIDE_WORDS ||
     w in PRESET_WORDS ||
     w in DNA_WORDS ||
-    MISTAKE_FLAG_WORDS.has(w)
+    MISTAKE_FLAG_WORDS.has(w) ||
+    // A RECENCY WORD IS A TERM A NEGATOR CAN GOVERN. Without this line the
+    // negator finds nothing to attach to, un-negates itself, and the whole
+    // ask lands in the unread set -- which is how "except the last ten" came
+    // back as "I could not read except". It IS readable; we simply cannot do
+    // it, and that is a refusal to be NAMED rather than a sentence to reject.
+    w in RECENCY_WORDS ||
+    SUPERLATIVE_WORDS.has(w) ||
+    // A COLUMN NAME IS A TERM A NEGATOR CAN GOVERN TOO. Without this,
+    // "not price over two" left the negator ungoverned and the range applied
+    // POSITIVELY -- the ask reversed in silence. "not float over a million"
+    // happened to work only because float is also a vocabulary key.
+    COLUMN_KEYS.has(w)
   const anyTermAt = (rawPhrase: string): boolean => {
     // NORMALISE FIRST, exactly as the vocabulary pass does. Without this the
     // detector cannot see a demonym: "not chinese" left its term unmarked and
@@ -834,8 +906,20 @@ export function resolveQuery(
     // ("not china", "not from hong kong"), so the gap only surfaced when
     // exclusion made the term's fate visible.
     const phrase = DEMONYMS[rawPhrase] ?? rawPhrase
+    // AND IN THE SAME ALPHABET THE RESERVATION PASS USES. Without this a name
+    // carrying punctuation could not be governed WHOLE: "not cut winner too
+    // early (fear)" matched only the first two words, left the rest free, and
+    // the loose word "winner" was then read as an OUTCOME and every winning
+    // trade excluded. Both sides in one alphabet, exactly as pass three does.
+    const phraseN = normaliseKey(phrase)
     return (
       isStateWord(phrase) ||
+      vocabKeysNormalised.some(
+        (k) =>
+          k === phraseN ||
+          (phraseN.length >= 2 && k.startsWith(phraseN)) ||
+          (phraseN.length >= SUBSTRING_FLOOR && k.includes(phraseN)),
+      ) ||
     vocabKeys.some(
       (k) =>
         k === phrase ||
@@ -851,6 +935,13 @@ export function resolveQuery(
    *  REFUSAL. Once a negated token began routing to an EXCLUDE side, sharing
    *  one array turned "float under" into "excluding mistake Float or RVOL" --
    *  caught by that beat's own guard. Two meanings, two arrays. */
+  /** The longest vocabulary key, in tokens, so a negator can govern a whole
+   *  name. Computed here because maxKeyTokens is not declared until the
+   *  vocabulary pass, and three was never the right ceiling. */
+  const negSpanCeiling = Math.max(
+    3,
+    ...vocabKeys.map((k) => k.split(' ').length),
+  )
   const unclaimable: boolean[] = tokens.map(() => false)
   for (let i = 0; i < tokens.length; i++) {
     if (!NEGATORS.has(tokens[i])) continue
@@ -876,8 +967,16 @@ export function resolveQuery(
     }
     // The governed span, LONGEST first so "hong kong" is taken as one term
     // rather than leaving "kong" free to resolve on its own.
+    //
+    // THE CEILING IS THE LONGEST KEY, not three. It was three, and a name
+    // longer than that ended up HALF negated: "not cut winner too early
+    // (fear)" negated only the first two words, the reservation pass then
+    // refused the span because its negation state was not aligned, and the
+    // word "winner" fell through free -- where a negated outcome branch read
+    // it and excluded every WINNING trade instead of the mistake. Measured on
+    // three books before this line changed.
     let governed = false
-    for (const span of [3, 2, 1]) {
+    for (let span = negSpanCeiling; span >= 1; span--) {
       if (j + span > tokens.length) continue
       if (!anyTermAt(tokens.slice(j, j + span).join(' '))) continue
       for (let k = j; k < j + span; k++) negated[k] = true
@@ -1060,7 +1159,9 @@ export function resolveQuery(
   // a bare money comparison. A recency word carries its own ordering; a
   // superlative carries a count with no column and is returned as a choice.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
+    // NEGATED TOKENS ARE LET THROUGH, deliberately. They used to be skipped
+    // here, which is why a refusal placed further down could never run.
+    if (unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     const w = tokens[i]
     const isRecency = w in RECENCY_WORDS
     const isSuper = SUPERLATIVE_WORDS.has(w)
@@ -1072,6 +1173,19 @@ export function resolveQuery(
     let k = i + 1
     while (k < tokens.length && STOPWORDS.has(tokens[k])) k++
     const v = k < tokens.length ? parseValueAt(tokens, k) : null
+    // A NEGATED RECENCY, AND THE TWO CASES ARE DIFFERENT ASKS.
+    // With a count -- "except the last ten" -- the trader named a SET and
+    // asked us to skip it. That is an OFFSET, a real thing we do not have,
+    // so the refusal names the missing capability rather than the sentence.
+    // Without one -- "not newest" -- they named an ORDERING, and the
+    // complement of an order is not a set of rows at all.
+    if (negated[i] && isRecency) {
+      const hasCount = !!v && Number.isInteger(v.n) && v.n > 0
+      refusals.push(hasCount ? LIMIT_REFUSAL : SORT_REFUSAL)
+      for (let q = i; q < (hasCount ? k + v!.len : i + 1); q++) marks[q] = 'consumed'
+      continue
+    }
+    if (negated[i]) continue
     if (!v || !Number.isInteger(v.n) || v.n <= 0) continue
     if (isSuper) {
       // NO COLUMN NAMED. Offer the choice, apply nothing.
@@ -1307,6 +1421,10 @@ export function resolveQuery(
       }
     }
 
+    // WAS THE COLUMN NEGATED? The negator marks the column word, never the
+    // operator, so this is where the fact lives.
+    let colNegated = false
+    for (let k = colStart; k <= colEnd; k++) if (negated[k]) colNegated = true
     // THE VALUE: the first one after BOTH the operator and the column,
     // skipping stopwords on the way.
     let vIdx = Math.max(opEnd, colEnd) + 1
@@ -1332,6 +1450,7 @@ export function resolveQuery(
           bound: MIN_OPS.has(op) ? 'min' : 'max',
           value: 0,
           text: tokens.slice(zLo, zHi + 1).join(' '),
+          negated: colNegated,
         })
         for (let k = zLo; k <= zHi; k++) marks[k] = 'consumed'
         continue
@@ -1374,6 +1493,7 @@ export function resolveQuery(
       bound,
       value: value.n,
       text: tokens.slice(lo, hi + 1).join(' '),
+      negated: colNegated,
     })
     for (let k = lo; k <= hi; k++) marks[k] = 'consumed'
   }
@@ -1389,11 +1509,20 @@ export function resolveQuery(
   // nothing visibly reorders, and the same order "last ten" means.
   if (state.limit === null) {
     for (let i = 0; i < tokens.length; i++) {
-      if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
+      // Negated tokens let through for the same reason as pass zero.
+      if (unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
       const v = parseValueAt(tokens, i)
       if (!v || v.len !== 1 || v.unit !== null) continue
       if (!Number.isInteger(v.n) || v.n <= 0) continue
       if (vocabKeys.includes(tokens[i])) continue
+      // A NEGATED LIMIT. "except the last ten" plausibly means SKIP those ten,
+      // which is a real set of rows -- an OFFSET. We have no offset, so the
+      // refusal names the missing capability and applies nothing.
+      if (negated[i]) {
+        refusals.push(LIMIT_REFUSAL)
+        marks[i] = 'consumed'
+        break
+      }
       state = { ...state, limit: v.n, sort: { colId: 'open_time', dir: 'desc' } }
       log(`showing ${v.n}, newest first`, tokens[i])
       marks[i] = 'consumed'
@@ -1406,8 +1535,37 @@ export function resolveQuery(
     log(prev && prev !== next ? `${label} ${next} (replaced ${prev})` : `${label} ${next}`, source)
 
   for (let i = 0; i < tokens.length; i++) {
-    if (marks[i] !== 'free' || negated[i] || unclaimable[i] || reserved[i]) continue
+    if (marks[i] !== 'free' || unclaimable[i] || reserved[i]) continue
     const t = tokens[i]
+    // A NEGATED STATE WORD. The fields with a set to name EXCLUDE; the three
+    // without REFUSE BY NAME. Nothing here is ever dropped in silence.
+    if (negated[i]) {
+      if (OUTCOME_WORDS[t]) {
+        pushUnique(state.excludeOutcomes, OUTCOME_WORDS[t])
+        log(`excluding outcome ${OUTCOME_WORDS[t]}`, t)
+        marks[i] = 'consumed'
+      } else if (SIDE_WORDS[t]) {
+        pushUnique(state.excludeSides, SIDE_WORDS[t])
+        log(`excluding side ${SIDE_WORDS[t]}`, t)
+        marks[i] = 'consumed'
+      } else if (PRESET_WORDS[t]) {
+        // A preset RESOLVES to a window, so the window is what gets excluded.
+        // Holding the preset name in a second member would light the Clear
+        // control while filtering nothing.
+        const w = withDatePreset(emptyFilters(), PRESET_WORDS[t], now)
+        state = { ...state, excludeDateFrom: w.dateFrom, excludeDateTo: w.dateTo }
+        log(`excluding date ${PRESET_WORDS[t]}`, t)
+        marks[i] = 'consumed'
+      } else if (MISTAKE_FLAG_WORDS.has(t)) {
+        state = { ...state, excludeMistakesOnly: true }
+        log('excluding trades carrying a mistake', t)
+        marks[i] = 'consumed'
+      } else if (DNA_WORDS[t]) {
+        refusals.push(DNA_REFUSAL)
+        marks[i] = 'consumed'
+      }
+      continue
+    }
     if (OUTCOME_WORDS[t]) {
       replaceNote('outcome', OUTCOME_WORDS[t], state.outcome !== 'all' ? state.outcome : null, t)
       state = { ...state, outcome: OUTCOME_WORDS[t] }
@@ -1473,6 +1631,10 @@ export function resolveQuery(
       apply: (s, log) => {
         replaceNoteInto(log, 'symbol', sym, s.symbol || null)
         s.symbol = sym
+      },
+      excludeApply: (s, log) => {
+        pushUnique(s.excludeSymbols, sym)
+        log(`excluding symbol ${sym}`)
       },
     })
   for (const rg of vocab.regions) addArrayEntry(1, rg.toLowerCase(), rg, 'regions', rg, 'region')
@@ -1778,6 +1940,20 @@ export function resolveQuery(
         continue
       }
     }
+    if (c.negated) {
+      // A RANGE TO LEAVE OUT. It writes the exclude map, never `ranges`, and
+      // the predicate reads it as the negation of matchesRange -- which is
+      // what keeps the never-measured row in the result rather than dropping
+      // it, the opposite of what an include range does.
+      const prevX = state.excludeRanges[colId] ?? { min: null, max: null }
+      state = {
+        ...state,
+        excludeRanges: { ...state.excludeRanges, [colId]: { ...prevX, [bound]: value } },
+      }
+      const wordX = bound === 'min' ? 'at least' : 'at most'
+      log(`excluding ${colId} ${wordX} ${value}`, c.text)
+      continue
+    }
     const prev = state.ranges[colId] ?? { min: null, max: null }
     state = {
       ...state,
@@ -1826,5 +2002,5 @@ export function resolveQuery(
   // and suppression deleted the feature on that book entirely. Worse, it
   // left the FILTER applied with no number beside it: the answered-as-a-
   // filter bucket, which this slice exists to empty.
-  return { state, applied, appliedSources, unresolved, ambiguous, answer, offerKinds }
+  return { state, applied, appliedSources, unresolved, ambiguous, answer, offerKinds, refusals }
 }

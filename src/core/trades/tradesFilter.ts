@@ -10,7 +10,12 @@ import type { TradeListRow } from '@shared/trades-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
 import type { DatePreset } from '@/core/trades/datePreset'
 import { isWin, isLoss } from '@/core/classify/outcome'
-import { applyRanges, isRangeActive, type NumericRange } from '@/core/trades/numericRange'
+import {
+  applyRanges,
+  isRangeActive,
+  matchesRange,
+  type NumericRange,
+} from '@/core/trades/numericRange'
 import { holdTimeSeconds, pnlGainPct } from '@/core/trades/tradeMetrics'
 import { computeExecutionStats } from '@/core/trades/executionStats'
 
@@ -102,7 +107,7 @@ export interface TradesFilterState {
    *  is never persisted (a hidden row must not survive a reload) and why the
    *  response line names the matched count as well as the shown one.
    *  Null = show everything that matched. */
-  /** v0.2.7 — the seven EXCLUDE sides, parallel to the seven include arrays
+  /** v0.2.7 — the EIGHT EXCLUDE sides, parallel to the eight include arrays
    *  above. Added rather than folding a sign into each entry: the recon costed
    *  a signed shape at a persistence VERSION BUMP (discarding every stored
    *  filter once) plus four dropdown components rewritten, against nothing at
@@ -117,6 +122,28 @@ export interface TradesFilterState {
   excludeSectors: (string | null)[]
   excludeIndustries: (string | null)[]
   excludeMacdStates: (string | null)[]
+  /** v0.2.7 -- THE EXCLUDE SIDE OF THE TEN FIELDS THAT HAD NONE.
+   *
+   *  A field earned a place here by a TWIN TEST, not by looking excludable: an
+   *  SQL twin for "every row that does NOT match this filter" had to be
+   *  writable from the schema and had to reconcile, matched plus excluded
+   *  equal to the book, on three books. Ten did. Three did not, and they are
+   *  named in queryResolver as UNEXCLUDABLE_FIELDS with a reason each.
+   *
+   *  ADDITIVE AT THE SAME PERSISTENCE STAMP, exactly the idiom the eight
+   *  arrays above established: an older stored blob simply lacks these keys
+   *  and lands on the empty default, keeping everything else it stored. */
+  excludeSymbols: string[]
+  excludeSides: string[]
+  excludeOutcomes: string[]
+  excludeDurations: string[]
+  excludeDateFrom: string
+  excludeDateTo: string
+  excludeMistakesOnly: boolean
+  excludeAPlus: boolean
+  /** A RANGE exclusion. Its unknown row behaves the OPPOSITE way from an
+   *  include range: see the predicate below. */
+  excludeRanges: Record<string, NumericRange>
   limit: number | null
   /** v0.2.7 — the ordering a SENTENCE asked for, distinct from the ordering
    *  the user clicked. The table's own sort is user state; this is the ask's,
@@ -208,10 +235,24 @@ export function countUnmeasuredKept(
   keptRows: readonly TradeListRow[],
   f: TradesFilterState,
 ): { skipped: number; column: string } | null {
-  if (f.excludeMacdStates.length === 0) return null
-  let skipped = 0
-  for (const t of keptRows) if (t.tf_1m_macd_positive == null) skipped += 1
-  return { skipped, column: 'macd' }
+  if (f.excludeMacdStates.length > 0) {
+    let skipped = 0
+    for (const t of keptRows) if (t.tf_1m_macd_positive == null) skipped += 1
+    return { skipped, column: 'macd' }
+  }
+  // WIDENED for the range exclusion, which keeps its unmeasured rows for the
+  // same reason a MACD exclusion does. The counter did not need a sibling: it
+  // needed to learn a second way of being handed the same situation.
+  for (const [column, r] of Object.entries(f.excludeRanges ?? {})) {
+    if (!isRangeActive(r)) continue
+    let skipped = 0
+    for (const t of keptRows) {
+      const v = rangeValueOf(t, column)
+      if (v == null || !Number.isFinite(v)) skipped += 1
+    }
+    return { skipped, column }
+  }
+  return null
 }
 
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {
@@ -295,6 +336,15 @@ export function emptyFilters(): TradesFilterState {
     excludeSectors: [],
     excludeIndustries: [],
     excludeMacdStates: [],
+    excludeSymbols: [],
+    excludeSides: [],
+    excludeOutcomes: [],
+    excludeDurations: [],
+    excludeDateFrom: '',
+    excludeDateTo: '',
+    excludeMistakesOnly: false,
+    excludeAPlus: false,
+    excludeRanges: {},
     limit: null,
     sort: null,
   }
@@ -351,7 +401,7 @@ export function isFiltering(f: TradesFilterState): boolean {
     Object.values(f.ranges ?? {}).some(isRangeActive) ||
     // THE SAME RULING, EXTENDED. The sentence above was written for ranges and
     // never reached the exclude arrays, which is how an exclusion became a
-    // filter with no way out: emptyFilters() wipes all seven, but the Clear
+    // filter with no way out: emptyFilters() wipes every one, but the Clear
     // button that calls it is gated on THIS predicate, so with an exclusion as
     // the only filter the control never rendered and re-typing the query was
     // the only escape. Two further consumers read the same answer -- the header
@@ -368,7 +418,18 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.excludeCountries.length > 0 ||
     f.excludeSectors.length > 0 ||
     f.excludeIndustries.length > 0 ||
-    f.excludeMacdStates.length > 0
+    f.excludeMacdStates.length > 0 ||
+    // The ten. Same ruling as the arrays above: an exclusion alone must
+    // surface the Clear control, or the only way out is to re-type the ask.
+    f.excludeSymbols.length > 0 ||
+    f.excludeSides.length > 0 ||
+    f.excludeOutcomes.length > 0 ||
+    f.excludeDurations.length > 0 ||
+    f.excludeDateFrom !== '' ||
+    f.excludeDateTo !== '' ||
+    f.excludeMistakesOnly ||
+    f.excludeAPlus ||
+    Object.values(f.excludeRanges ?? {}).some(isRangeActive)
   )
 }
 
@@ -404,7 +465,7 @@ export function applyTradesFilters(
     // discipline if no setup was tagged.
     if (f.aPlus && t.playbook_tier !== 'A+') return false
     if (f.mistakesOnly && t.mistakes.length === 0) return false
-    // THE SEVEN ARRAY FIELDS. Each has ONE predicate, defined once above and
+    // THE EIGHT ARRAY FIELDS. Each has ONE predicate, defined once above and
     // called from BOTH the include block and the exclude block below. Two
     // copies is how they drift, and a drifted pair means the same row can be
     // kept by one half and removed by the other depending on which ran.
@@ -421,6 +482,48 @@ export function applyTradesFilters(
     for (const [values, pred] of EXCLUDED_FIELDS(f)) {
       if (values.length === 0) continue
       if (values.some((v) => pred(t, v as never))) return false
+    }
+    // THE TEN. Every one obeys the same law as the arrays above: a row is
+    // removed only when it POSITIVELY matches an excluded value, so a row
+    // with nothing recorded for that field is never swept away by an
+    // exclusion it was never part of.
+    if (f.excludeSymbols.length > 0 && f.excludeSymbols.includes(t.symbol)) return false
+    if (f.excludeSides.length > 0 && f.excludeSides.includes(t.side)) return false
+    for (const o of f.excludeOutcomes) {
+      if (o === 'winners' && isWin(t.net_pnl)) return false
+      if (o === 'losers' && isLoss(t.net_pnl)) return false
+    }
+    if (f.excludeDurations.length > 0 && !t.is_open && t.close_time) {
+      // Mirrors the include block above rather than inventing a bucket helper,
+      // so the two can never disagree about where a boundary sits.
+      const hold = (Date.parse(t.close_time) - Date.parse(t.open_time)) / 1000
+      if (Number.isFinite(hold)) {
+        for (const d of f.excludeDurations) {
+          if (d === 'under1m' && hold < 60) return false
+          if (d === '1to5m' && hold >= 60 && hold < 300) return false
+          if (d === '5to30m' && hold >= 300 && hold < 1800) return false
+          if (d === 'over30m' && hold >= 1800) return false
+        }
+      }
+    }
+    if (f.excludeMistakesOnly && (t.mistakeTags ?? []).length > 0) return false
+    if (f.excludeAPlus && t.playbook_tier === 'A+') return false
+    // ONE test, not two. A row is excluded only when it falls INSIDE the
+    // excluded window; either bound may be open.
+    if (f.excludeDateFrom !== '' || f.excludeDateTo !== '') {
+      const afterFrom = f.excludeDateFrom === '' || t.date >= f.excludeDateFrom
+      const beforeTo = f.excludeDateTo === '' || t.date <= f.excludeDateTo
+      if (afterFrom && beforeTo) return false
+    }
+    // A RANGE EXCLUSION IS THE NEGATION OF matchesRange, AND THAT DECIDES THE
+    // UNKNOWN ROW. matchesRange returns FALSE for a value nobody measured, so
+    // the negation returns TRUE and the row SURVIVES -- the same answer the
+    // array exclusions give, reached by the same reasoning. It is why
+    // countUnmeasuredKept, and never countDroppedUnmeasured, is the honest
+    // counter for this shape: the rows are in the result, not removed from it.
+    for (const [col, r] of Object.entries(f.excludeRanges ?? {})) {
+      if (!isRangeActive(r)) continue
+      if (matchesRange(rangeValueOf(t, col), r)) return false
     }
     // Five-pillar filter — reads the verdict withDnaScores attached upstream.
     // A row without one is INCOMPLETE, not scored: treating it as anything

@@ -90,10 +90,18 @@ describe('G1 a negated term becomes an exclusion, not a refusal', () => {
     ).not.toContain('china')
   })
 
-  it('"without mistakes" is still refused -- mistakesOnly is not an array field', () => {
-    // R1 adds exclusion for the SEVEN array fields only. A flag has no
-    // exclude side, so the earlier refusal behaviour stands.
-    expect(r('without mistakes').state).toEqual(emptyFilters())
+  it('"without mistakes" now EXCLUDES, because a flag names a set too', () => {
+    // REVERSED BY BEAT ONE HUNDRED NINETY FIVE. WAS:
+    //   it('"without mistakes" is still refused -- mistakesOnly is not an array field')
+    //   // R1 adds exclusion for the SEVEN array fields only. A flag has no
+    //   // exclude side, so the earlier refusal behaviour stands.
+    //   expect(r('without mistakes').state).toEqual(emptyFilters())
+    // The count was SEVEN against a code with EIGHT. And the reasoning was
+    // about SHAPE when it should have been about whether a set can be named:
+    // "every row carrying a mistake" is a set, and its twin reconciles.
+    const out = r('without mistakes')
+    expect(out.state.excludeMistakesOnly).toBe(true)
+    expect(out.state.mistakesOnly, 'the flag was applied positively').toBe(false)
   })
 })
 
@@ -214,7 +222,7 @@ describe('G4 a term on BOTH sides applies neither, and says so', () => {
 
 // --- G5 ---------------------------------------------------------------------
 
-describe('G5 all seven array fields exclude', () => {
+describe('G5 all EIGHT array fields exclude', () => {
   it('playbook', () => {
     expect(r('not micro pullback').state.excludePlaybookIds).toEqual([4])
   })

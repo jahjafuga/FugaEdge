@@ -66,9 +66,22 @@ const FULL = (): TradesFilterState => ({
   // v0.2.7 -- the EIGHTH array, with BOTH a real value and the null bucket,
   // because the uncomputed member is the one this facet exists to name.
   macdStates: ['positive', null],
+  // v0.2.7 -- THE TEN. Added rather than the round trip relaxed: this test
+  // fired the moment the state grew, which is exactly what it is for. Every
+  // one carries a real value, because a field defaulted in the fixture proves
+  // nothing about whether it survives a write and a read.
+  excludeSymbols: ['TSLA'],
+  excludeSides: ['short'],
+  excludeOutcomes: ['losers'],
+  excludeDurations: ['under1m'],
+  excludeDateFrom: '2026-01-01',
+  excludeDateTo: '2026-01-31',
+  excludeMistakesOnly: true,
+  excludeAPlus: true,
+  excludeRanges: { mae: { min: 1, max: null } },
   dna: { minScore: 3, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
-  // v0.2.7 -- the seven EXCLUDE sides, with real values: unlike the limit
+  // v0.2.7 -- the EIGHT EXCLUDE arrays, with real values: unlike the limit
   // these ARE filters and MUST round-trip, so F1 asserts exactly that.
   excludePlaybookIds: [9],
   excludeMistakeKeys: [{ axis: 'psychological', name: 'Revenge trade (after a loss)' }],

@@ -140,7 +140,7 @@ function coerce(raw: unknown): TradesFilterState {
       }
     })(),
     ranges: normaliseRanges(raw.ranges),
-    // v0.2.7 -- the seven EXCLUDE sides. These DO persist, unlike the limit
+    // v0.2.7 -- the EIGHT EXCLUDE arrays. These DO persist, unlike the limit
     // below: an exclusion narrows which trades QUALIFY, which is what a filter
     // is, so it earns the same survival across a reload that the include sides
     // have. ADDITIVE at the same stamp -- an older blob simply lacks the keys
@@ -154,6 +154,20 @@ function coerce(raw: unknown): TradesFilterState {
     excludeSectors: strs(raw.excludeSectors),
     excludeIndustries: strs(raw.excludeIndustries),
     excludeMacdStates: strs(raw.excludeMacdStates),
+    // v0.2.7 the TEN -- ADDITIVE, SAME VERSION STAMP, exactly the reasoning
+    // the region and exclude fields above set down: an older blob lacks these
+    // keys and lands on the empty default, keeping everything it did store. A
+    // version bump would discard the lot, which is the cost this idiom exists
+    // to avoid.
+    excludeSymbols: strs(raw.excludeSymbols) as string[],
+    excludeSides: strs(raw.excludeSides) as string[],
+    excludeOutcomes: strs(raw.excludeOutcomes) as string[],
+    excludeDurations: strs(raw.excludeDurations) as string[],
+    excludeDateFrom: str(raw.excludeDateFrom),
+    excludeDateTo: str(raw.excludeDateTo),
+    excludeMistakesOnly: bool(raw.excludeMistakesOnly),
+    excludeAPlus: bool(raw.excludeAPlus),
+    excludeRanges: normaliseRanges(raw.excludeRanges),
     // v0.2.7 -- the limit and the sort are NEVER read from the blob and never
     // written into it. A filter narrows which trades QUALIFY and deserves to
     // survive a reload; a limit HIDES trades that qualified, and a hidden row
