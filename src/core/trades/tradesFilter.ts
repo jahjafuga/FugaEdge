@@ -360,8 +360,21 @@ export function applyLimitAndSort(
 ): TradeListRow[] {
   const ordered = f.sort
     ? [...rows].sort((a, b) => {
+        // A ROW NOBODY MEASURED SORTS LAST, WHICHEVER WAY THE ASK RUNS.
+        // It used to be coerced to negative infinity, which is a real number
+        // and sorts like one: every unmeasured trade sat at the TOP of an
+        // ascending list, where a trader reads it as the answer. Descending
+        // happened to look right for the same wrong reason.
+        //
+        // ORDER ONLY, NEVER MEMBERSHIP. Both rows are still in the list, so a
+        // limit returns the same COUNT in either direction -- which is the
+        // property the guard pins, because a sort that quietly changed how
+        // many trades came back would be a far worse thing than a bad order.
         const av = sortValueOf(a, f.sort!.colId)
         const bv = sortValueOf(b, f.sort!.colId)
+        const aMissing = av === null
+        const bMissing = bv === null
+        if (aMissing || bMissing) return aMissing && bMissing ? 0 : aMissing ? 1 : -1
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
         return f.sort!.dir === 'desc' ? -cmp : cmp
       })
@@ -371,9 +384,12 @@ export function applyLimitAndSort(
 
 /** The value a SORT reads, per column id. Date sorting uses open_time, the
  *  full timestamp -- the trading day with the intraday order preserved. */
-function sortValueOf(t: TradeListRow, colId: string): string | number {
+function sortValueOf(t: TradeListRow, colId: string): string | number | null {
+  // NULL IS RETURNED AS NULL. Coercing it to negative infinity here is what
+  // put the unmeasured rows first; the comparator above needs to SEE that a
+  // value is missing to place it last in both directions.
   if (colId === 'open_time') return t.open_time
-  return rangeValueOf(t, colId) ?? Number.NEGATIVE_INFINITY
+  return rangeValueOf(t, colId)
 }
 
 export function isFiltering(f: TradesFilterState): boolean {

@@ -27,7 +27,8 @@ import type { TradesFilterState } from './tradesFilter'
 // `selected.filter((x) => x !== value)` — inline twice, at TradesFilters.tsx:457
 // and :910, both on positive arrays — and copying it here would SILENTLY no-op
 // on mistake keys, leaving a chip whose X does nothing. Hence one comparator per
-// field rather than one for all seven.
+// field rather than one for all eight. The count said SEVEN while the code
+// carried EIGHT, macdStates being the member the sentence forgot.
 
 /** The bucket names, quoted from their existing render sites. One vocabulary. */
 export const UNKNOWN_BUCKET = 'Unknown'

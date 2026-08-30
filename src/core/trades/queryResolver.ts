@@ -788,10 +788,31 @@ export function resolveQuery(
     // number, so "vwap over -5" arrived as "vwap over 5" and asked for the
     // mirror of the set, with nothing in the ignored clause to say so. The
     // lookahead is deliberately narrow -- only a minus IMMEDIATELY followed by a
-    // digit is kept, so "-china", "--5" and "2-5" tokenise exactly as before.
-    // This preserves a CHARACTER; what the character MEANS is decided in one
-    // place, parseValue, and nowhere else.
+    // digit is kept.
+    //
+    // REVERSED BY BEAT ONE HUNDRED NINETY SEVEN. The sentence here used to end:
+    //
+    //   "... so "-china", "--5" and "2-5" tokenise exactly as before."
+    //
+    // That was true and it was the defect. "price 2-10" is how a trader writes
+    // a range, and tokenising it as before meant ONE token the parser could
+    // not take apart, so the ask read as nothing while "price 2 - 10" worked.
+    // Two spellings of one question disagreed.
+    //
+    // A GLUED RANGE IS NOW SPLIT INTO THE TWO NUMBERS IT NAMES, and nothing
+    // else is. The shape is deliberately narrow: a DIGIT, a hyphen, a DIGIT,
+    // with an optional currency sign on either number. Beat one hundred eighty
+    // six measured that no vocabulary key on any book carries that shape, and
+    // this beat re-derived it across three hundred and eighty five keys on
+    // three books -- forty five carry a hyphen and NOT ONE would newly split.
+    // "1-min Pullback", "Auto - Parts" and "Hold-and-hope" are untouched,
+    // because a hyphen between a digit and a LETTER, or with spaces around it,
+    // is not this shape.
     .map((t) => t.replace(/^(?!-\d)[^\w$]+|[.,;:!?]+$/g, ''))
+    .flatMap((t) => {
+      const glued = /^\$?(\d[\d.]*)-\$?(\d[\d.]*)$/.exec(t)
+      return glued ? [glued[1], glued[2]] : [t]
+    })
     .filter((t) => t.length > 0)
   /** Asks Edge understood and cannot honour. Filled by pass one and pass
    *  two, and handed back so the sentence can say them out loud. */
