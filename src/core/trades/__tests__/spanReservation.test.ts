@@ -257,7 +257,9 @@ describe('RK7 an entry composes with the answer grammar', () => {
     const a = ask('win rate parabolic short')
     expect(a.res.state.playbookIds).toEqual([1])
     expect(a.sub.length).toBe(4)
-    expect(a.answer).toBe('Win rate: 50.0% — 2 winners of 4 decided trades.')
+    // R202 -- REVERSED BY BEAT TWO HUNDRED AND SEVEN, MEASURED BY BEAT TWO
+    // HUNDRED AND SIX. WAS an em dash where the stop now is.
+    expect(a.answer).toBe('Win rate: 50.0%. 2 winners of 4 decided trades.')
   })
 
   it('"how many halt resume long trades did i take" -- two', () => {

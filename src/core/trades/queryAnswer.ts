@@ -150,9 +150,17 @@ export function answerText(
       // R244 in full: the ratio is meaningless without both halves, and a rate
       // over four decided trades is honest only because the four is here.
       const decided = s.winners + s.losers
+      // R202 -- REVERSED BY THIS BEAT, MEASURED BY BEAT TWO HUNDRED AND SIX.
+      // WAS: a headline value joined to its working by an em dash,
+      //   'Win rate: ' + pct(...) + ' EMDASH '
+      // A colon was already separating the label from the value, so the dash
+      // was doing a second and different job in one short sentence. It is a
+      // FULL STOP now, which lets the number land on its own. Every composed
+      // form was driven on three books first and none produces a double stop
+      // or a double space.
       return decided === 0
         ? undefinedOver(n, 'decided trade', LABEL.win_rate)
-        : 'Win rate: ' + pct(s.win_rate as number) + ' — '
+        : 'Win rate: ' + pct(s.win_rate as number) + '. '
           + plural(s.winners, 'winner', 'winners') + ' of '
           + plural(decided, 'decided trade', 'decided trades') + '.'
     }
@@ -166,7 +174,11 @@ export function answerText(
       const lostSum = (s.avg_loser ?? 0) * s.losers
       return s.profit_factor === null
         ? undefinedOver(n, 'losing trade', LABEL.profit_factor)
-        : 'Profit factor: ' + s.profit_factor.toFixed(2) + ' — '
+        // R202 -- SAME RULING AS THE WIN RATE ABOVE. The value carries a
+        // decimal point of its own, so the stop lands just after one. That is a
+        // number-dot then a sentence-dot, not a double stop, and it is the only
+        // place this ruling puts two dots near each other.
+        : 'Profit factor: ' + s.profit_factor.toFixed(2) + '. '
           + money(wonSum) + ' won against ' + money(Math.abs(lostSum)) + ' lost' + over
     }
 
@@ -181,10 +193,16 @@ export function answerText(
 }
 
 /** R244, second empty case: rows matched but the metric has no value in them.
- *  Names the count AND what is missing, so the sentence cannot be read as zero. */
+ *  Names the count AND what is missing, so the sentence cannot be read as zero.
+ *
+ *  R202 -- REVERSED BY THIS BEAT, MEASURED BY BEAT TWO HUNDRED AND SIX.
+ *  WAS: ' EMDASH no ' joining the clause to its consequence. A COLON now,
+ *  because a comma is already in play earlier in the same sentence and a
+ *  second one would make it a splice. The colon introduces the consequence,
+ *  which is the job the dash was doing. */
 function undefinedOver(n: number, missing: string, label: string): string {
   return plural(n, 'trade matches', 'trades match')
-    + ', but none of them is a ' + missing + ' — no ' + label + ' to report.'
+    + ', but none of them is a ' + missing + ': no ' + label + ' to report.'
 }
 
 /** Named so the two empty cases and the metric map cannot drift apart. */

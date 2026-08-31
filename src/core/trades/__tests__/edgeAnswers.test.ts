@@ -102,13 +102,19 @@ describe('RJ1 each target sentence answers, and the VALUE is the right one', () 
 
   it('"whats my profit factor" — 900 / 600 = 1.50', () => {
     expect(ask('whats my profit factor').answer)
-      .toBe('Profit factor: 1.50 — $900.00 won against $600.00 lost, over 6 trades.')
+      // R202 -- REVERSED BY BEAT TWO HUNDRED AND SEVEN, MEASURED BY BEAT
+      // TWO HUNDRED AND SIX. WAS the same sentence with an em dash where the
+      // stop now is. This assertion MIRRORS the product string rather than
+      // verifying it, which beat 206 proved by replacing both together and
+      // watching the whole suite stay green.
+      .toBe('Profit factor: 1.50. $900.00 won against $600.00 lost, over 6 trades.')
   })
 
   it('"what percent of my trades were winners" — 3 of 5 decided = 60.0%', () => {
     // The scratch is EXCLUDED from the denominator: five decided, not six.
     expect(ask('what percent of my trades were winners').answer)
-      .toBe('Win rate: 60.0% — 3 winners of 5 decided trades.')
+      // R202 -- same inversion, same reason. WAS an em dash before "3".
+      .toBe('Win rate: 60.0%. 3 winners of 5 decided trades.')
   })
 
   it('"how many losing trades did i have" — two', () => {
@@ -137,7 +143,8 @@ describe('RJ2 answer and filter compose; neither changes the other', () => {
     const a = ask('whats my win rate on shorts')
     // Shorts are the -200 and the scratch: one loser, no winners, one decided.
     expect(a.sub.length).toBe(2)
-    expect(a.answer).toBe('Win rate: 0.0% — 0 winners of 1 decided trade.')
+    // R202 -- same inversion. WAS an em dash before "0 winners".
+    expect(a.answer).toBe('Win rate: 0.0%. 0 winners of 1 decided trade.')
   })
 
   it('and the state is exactly what the same filter alone would produce', () => {
@@ -264,7 +271,8 @@ describe('RJ6 an empty or undefined metric prints no number at all', () => {
     // Three winners match; none of them is a loss. Zero here would invent one.
     const a = ask('what is my average loss on winners')
     expect(a.sub.length).toBe(3)
-    expect(a.answer).toBe('3 trades match, but none of them is a losing trade — no average loss to report.')
+    // R202 -- the COLON inversion. WAS an em dash before "no average loss".
+    expect(a.answer).toBe('3 trades match, but none of them is a losing trade: no average loss to report.')
   })
 
   it('a ratio over a tiny set is honest BECAUSE the denominator is in the sentence', () => {
