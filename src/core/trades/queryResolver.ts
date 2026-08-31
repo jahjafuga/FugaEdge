@@ -735,6 +735,41 @@ interface Comparison {
   negated?: boolean
 }
 
+/** THE PHRASES THE APP INVENTED, WHICH MATCH EXACTLY OR NOT AT ALL.
+ *
+ *  EVERY OTHER KEY IN THE POOL IS A NAME THE TRADER WROTE. A ticker, a
+ *  playbook, a mistake, a catalyst: those are theirs, and reaching one by a
+ *  prefix is a deliberate convenience. "overconfidence" reaching
+ *  "Overconfidence after a win" is the feature working, and a trader who
+ *  dislikes it can rename the entry. These four are not renameable, so a
+ *  fragment of one must never answer for the whole.
+ *
+ *  WHY THIS EXISTS. Beat two hundred added them and gave the band phrases
+ *  kind zero, which IS SYMBOL_KIND, whose prefix floor is THREE because a
+ *  ticker is short. A two word phrase is not a ticker. So "low" claimed
+ *  "low float" and filtered a book of a hundred and forty to ninety six with
+ *  no complaint at all, and "hig" did the same for the upper band. The
+ *  synonyms carry the general floor of four and were reached by "bull",
+ *  "bear" and "beari". Beat two hundred and three measured all twenty of
+ *  those fragments; beat two hundred and four priced the ways out.
+ *
+ *  WHY NOT SIMPLY RAISE THE FLOOR, which was the obvious fix and was
+ *  measured to fail. The matcher decides WHICH entries are candidates in
+ *  candidatesFor and then decides APPLY or OFFER further down, recomputing
+ *  the tier from the strings. Raising the prefix floor removes an entry from
+ *  the prefix tier, but it re-enters through the whole word branch of the
+ *  substring tier and the second computation calls it a prefix hit again and
+ *  applies it. Fifteen of the seventeen silent fragments survived that fix.
+ *  Both doors have to close, and exactness closes both.
+ *
+ *  THE COVERAGE RULE COULD NEVER HAVE CAUGHT THIS, and that was measured
+ *  too rather than assumed. "bullish" and "bearish" are SINGLE WORD entries,
+ *  which strongEnoughToApply exempts before it computes any ratio. "low" is
+ *  three eighths of "low float" and "high" is four ninths, both comfortably
+ *  above the floor of three tenths. A two word app phrase is short enough
+ *  that its first word is already a third of it. */
+const APP_AUTHORED_KEYS = new Set(['low float', 'high float', 'bullish', 'bearish'])
+
 type TokenState = 'free' | 'consumed' | 'stop'
 
 /** One vocabulary candidate. `key` is the lowercased match text. */
@@ -1892,10 +1927,15 @@ export function resolveQuery(
       (c) => c.nkey === nphrase,
       (c) =>
         !isFiller &&
+        !APP_AUTHORED_KEYS.has(c.nkey) &&
         phrase.length >= (c.e.kind === SYMBOL_KIND ? SYMBOL_PREFIX_FLOOR : PREFIX_FLOOR) &&
         c.nkey.startsWith(nphrase),
       (c) =>
         !isFiller &&
+        // AN APP-AUTHORED PHRASE IS OUT OF THIS TIER TOO. Leaving it in would
+        // let it back through the whole word branch, where the apply decision
+        // recomputes the tier and calls it a prefix hit again.
+        !APP_AUTHORED_KEYS.has(c.nkey) &&
         (phrase.length >= SUBSTRING_FLOOR
           ? c.nkey.includes(nphrase)
           : // BELOW THE SUBSTRING FLOOR, ONLY A WHOLE WORD MAY OFFER.
