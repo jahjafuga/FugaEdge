@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   Area,
   Bar,
@@ -54,7 +54,10 @@ import {
 import {
   PERIOD_PRESET_LABEL,
   computeBreakdownComparison,
+  comparabilityOf,
   computePeriodComparison,
+  rangeWarnings,
+  type RangeWarning,
   daysBetween,
   rangeForPreset,
   rangeForSameMonthLastYear,
@@ -78,6 +81,11 @@ interface CompareViewProps {
    *  is whole-account, so a filtered numerator over it must never render.
    *  Optional/absent -> false, so existing callers are byte-identical. */
   filtersActive?: boolean
+  /** The caller's own filter control, rendered INSIDE the periods card so it
+   *  reads as a control OF the comparison rather than something floating
+   *  above it. Optional: callers that pass nothing render nothing, and the
+   *  card is byte identical for them. */
+  filterSlot?: ReactNode
 }
 
 const PRESETS: PeriodPreset[] = [
@@ -127,14 +135,21 @@ export default function CompareView({
   rangeB,
   onRangeChange,
   filtersActive = false,
+  filterSlot,
 }: CompareViewProps) {
   const comparison = useMemo<ComparisonResult>(
     () => computePeriodComparison(trades, rangeA, rangeB),
     [trades, rangeA, rangeB],
   )
 
-  const empty = comparison.periodA.trades === 0 && comparison.periodB.trades === 0
-  const eitherEmpty = comparison.periodA.trades === 0 || comparison.periodB.trades === 0
+  // BOTH answers come from the pure module, so the view never has to know
+  // which PeriodMetrics fields are nullable and which are not.
+  const comparability = useMemo(
+    () => comparabilityOf(comparison.periodA, comparison.periodB),
+    [comparison.periodA, comparison.periodB],
+  )
+  const warnings = useMemo(() => rangeWarnings(rangeA, rangeB), [rangeA, rangeB])
+  const empty = comparability.emptySide === 'both'
 
   // Picker section can be minimized while staying in compare mode. The
   // top-level "Compare periods" toggle in FilterBar is the only thing that
@@ -157,7 +172,26 @@ export default function CompareView({
         rangeB={rangeB}
         onRangeChange={onRangeChange}
         onApplyShortcut={applyShortcut}
+        filterSlot={filterSlot}
       />
+
+      {/* THE RANGES THEMSELVES. Every one of these warns and none blocks:
+          a trader who deliberately overlaps two windows is allowed to, and
+          the comparison runs either way. Same banner idiom as the empty
+          side line below, so the surface has one warning style. */}
+      {warnings.map((w: RangeWarning) => (
+        <div
+          key={w.kind + ('side' in w ? w.side : '')}
+          data-compare-warning={w.kind}
+          className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary"
+        >
+          {w.kind === 'inverted'
+            ? `Period ${w.side} starts after it ends, so it matches no trades and reads empty. Swap its from and to dates.`
+            : w.kind === 'overlap'
+              ? 'The two periods overlap, so a trade inside both is counted on both sides. Pick ranges that do not share a day.'
+              : 'Period B is entirely after Period A, so the labels read backwards. Every shortcut means this period versus an earlier one.'}
+        </div>
+      ))}
 
       {empty ? (
         <Card title="No trades in these periods">
@@ -171,18 +205,31 @@ export default function CompareView({
               verdict headline + 70%/2:1 reference gauges, then edge core,
               consistency, execution quality, behaviour, and activity. Pure
               presentation over comparison.periodA/periodB. */}
+          {/* THE EMPTY SIDE LINE, and it sits ABOVE the numbers it explains.
+              The banner it replaces sat below them and said the empty period
+              "will show that period as flat zero", which described the defect
+              rather than warning about it. Nothing shows as flat zero now. */}
+          {comparability.emptySide === 'A' || comparability.emptySide === 'B' ? (
+            <div
+              data-compare-empty-side={comparability.emptySide}
+              className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary"
+            >
+              {comparability.emptySide === 'A'
+                ? 'Period A has no trades in this range. Period B is shown on its own, with nothing to compare it against. Pick a different range for Period A.'
+                : 'Period B has no trades in this range. Period A is shown on its own, with nothing to compare it against. Pick a different range for Period B.'}
+            </div>
+          ) : null}
+
           <VerdictBlock
             a={comparison.periodA}
             b={comparison.periodB}
             filtersActive={filtersActive}
+            emptySide={
+              comparability.emptySide === 'A' || comparability.emptySide === 'B'
+                ? comparability.emptySide
+                : null
+            }
           />
-
-          {eitherEmpty && (
-            <div className="rounded-md border border-warning/40 bg-warning/[0.08] px-3 py-2 text-xs text-fg-secondary">
-              One of the periods has zero trades — comparisons against it
-              will show that period as flat zero.
-            </div>
-          )}
 
           {/* Time-of-day quad — when the edge shows up, Period A vs B (Compare
               v2 beat 2). Full-width below the verdict block; reuses the paired
@@ -322,6 +369,7 @@ function PickerSection({
   rangeB,
   onRangeChange,
   onApplyShortcut,
+  filterSlot,
 }: {
   open: boolean
   onToggle: () => void
@@ -329,6 +377,7 @@ function PickerSection({
   rangeB: DateRange
   onRangeChange: (which: 'A' | 'B', range: DateRange) => void
   onApplyShortcut: (s: Shortcut) => void
+  filterSlot?: ReactNode
 }) {
   const { resolved } = useThemeMode()
   const palette = useMemo(() => chartColors(resolved), [resolved])
@@ -390,6 +439,18 @@ function PickerSection({
           onChange={(r) => onRangeChange('B', r)}
         />
       </div>
+
+      {filterSlot && (
+        <div
+          data-compare-filter-slot
+          className="flex flex-wrap items-center gap-2 border-t border-border-subtle/60 pt-4"
+        >
+          <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
+            Filter
+          </span>
+          {filterSlot}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-[10px] uppercase tracking-wider text-fg-tertiary">
@@ -664,17 +725,22 @@ function VerdictBlock({
   a,
   b,
   filtersActive,
+  emptySide,
 }: {
   a: PeriodMetrics
   b: PeriodMetrics
   filtersActive: boolean
+  /** Which period has no trades, when one of them does not. Every row then
+   *  shows the surviving side, a dash for the empty one, and no delta,
+   *  arrow or colour. */
+  emptySide: 'A' | 'B' | null
 }) {
   return (
     <div className="space-y-4">
-      <VerdictCard a={a} b={b} filtersActive={filtersActive} />
+      <VerdictCard a={a} b={b} filtersActive={filtersActive} emptySide={emptySide} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {buildSections(a, b).map((s) => (
-          <StatSectionCard key={s.title} section={s} />
+          <StatSectionCard key={s.title} section={s} emptySide={emptySide} />
         ))}
       </div>
     </div>
@@ -700,10 +766,12 @@ function VerdictCard({
   a,
   b,
   filtersActive,
+  emptySide,
 }: {
   a: PeriodMetrics
   b: PeriodMetrics
   filtersActive: boolean
+  emptySide: 'A' | 'B' | null
 }) {
   const { scope } = useAccountScope()
   const scopedSingle = scope !== 'all'
@@ -751,7 +819,7 @@ function VerdictCard({
       </div>
       <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
         {headline.map((r) => (
-          <StatRow key={r.label} spec={r} last />
+          <StatRow key={r.label} spec={r} last emptySide={emptySide} />
         ))}
         {filtersActive && (
           <div className="flex min-h-8 items-center py-1">
@@ -857,7 +925,10 @@ function GaugeRow({
   )
 }
 
-function StatSectionCard({ section }: { section: StatSection }) {
+function StatSectionCard({ section, emptySide = null }: {
+  section: StatSection
+  emptySide?: 'A' | 'B' | null
+}) {
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 pb-2">
@@ -868,7 +939,12 @@ function StatSectionCard({ section }: { section: StatSection }) {
       </div>
       <div>
         {section.rows.map((row, i) => (
-          <StatRow key={row.label} spec={row} last={i === section.rows.length - 1} />
+          <StatRow
+            key={row.label}
+            spec={row}
+            last={i === section.rows.length - 1}
+            emptySide={emptySide}
+          />
         ))}
       </div>
     </div>
@@ -911,9 +987,21 @@ function fmtDelta(delta: number | null, kind: FormatKind): string {
   }
 }
 
-function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
-  const { a, b, format, higherIsBetter } = spec
-  const delta = a != null && b != null ? a - b : null
+function StatRow({ spec, last, emptySide = null }: {
+  spec: StatSpec
+  last: boolean
+  /** Which period has no trades, when one of them does not. ONLY that side
+   *  becomes a dash: the surviving side keeps its numbers, so the screen is
+   *  not wasted. No delta, arrow or colour is rendered either way, because a
+   *  delta against an absence is not a measurement. Defaults null, so every
+   *  other caller is byte identical. */
+  emptySide?: 'A' | 'B' | null
+}) {
+  const { format, higherIsBetter } = spec
+  const a = emptySide === 'A' ? null : spec.a
+  const b = emptySide === 'B' ? null : spec.b
+  const comparable = emptySide === null
+  const delta = comparable && a != null && b != null ? a - b : null
   const direction: 'up' | 'down' | 'flat' =
     delta == null || delta === 0
       ? 'flat'
@@ -978,7 +1066,7 @@ function StatRow({ spec, last }: { spec: StatSpec; last: boolean }) {
         ) : (
           <span>{fmtDelta(delta, format)}</span>
         )}
-        <Arrow size={11} strokeWidth={2.25} />
+        {comparable && <Arrow size={11} strokeWidth={2.25} />}
       </span>
     </div>
   )

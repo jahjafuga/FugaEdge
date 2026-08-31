@@ -72,10 +72,13 @@ export {
 export {
   alignByDayOfPeriod,
   buildHeadlineDeltas,
+  comparabilityOf,
   computeBreakdownComparison,
   computePeriodComparison,
   generateComparisonInsights,
+  rangeWarnings,
 } from './comparison'
+export type { Comparability, EmptySide, RangeWarning } from './comparison'
 
 export {
   buildEquityCurve,

@@ -145,7 +145,11 @@ describe('AnalyticsCompareTab — mistake filter (Dave #14 A)', () => {
 
     // Period A narrows to the lone Chased trade; period B has none.
     await waitFor(() => expect(screen.getAllByText('+$24.68').length).toBeGreaterThanOrEqual(1))
-    expect(screen.getByText(/One of the periods has zero trades/i)).toBeTruthy()
+    // INVERTED BY BEAT TWO HUNDRED TWENTY. This asserted a banner reading
+    // "will show that period as flat zero". Nothing shows as flat zero now:
+    // the empty side dashes and the line NAMES the period instead. The
+    // intent -- the trader is told one period is empty -- is unchanged.
+    expect(screen.getByText(/Period B has no trades in this range/i)).toBeTruthy()
     expect(document.body.textContent).not.toContain('NaN')
   })
 

@@ -83,19 +83,6 @@ export default function AnalyticsCompareTab({
         title="Compare"
         description="Two periods, side by side — days, weeks, months, or custom ranges."
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <MultiSelectMenu
-          label="Mistake"
-          options={mistakeOptions}
-          selected={mistakes}
-          onChange={setMistakes}
-        />
-        {mistakes.length > 0 && (
-          <span className="text-[10px] text-fg-tertiary">
-            both periods narrowed to trades carrying a picked mistake
-          </span>
-        )}
-      </div>
       <CompareView
         trades={filteredTrades}
         sentimentByDate={sentimentByDate}
@@ -106,6 +93,24 @@ export default function AnalyticsCompareTab({
           else setRangeB(range)
         }}
         filtersActive={mistakes.length > 0}
+        // v0.2.7 -- the control moves INSIDE the periods card so it reads as
+        // a control OF the comparison rather than something floating above
+        // it. Same control, same wiring, same hint: placement only.
+        filterSlot={
+          <>
+            <MultiSelectMenu
+              label="Mistake"
+              options={mistakeOptions}
+              selected={mistakes}
+              onChange={setMistakes}
+            />
+            {mistakes.length > 0 && (
+              <span className="text-[10px] text-fg-tertiary">
+                both periods narrowed to trades carrying a picked mistake
+              </span>
+            )}
+          </>
+        }
       />
     </div>
   )

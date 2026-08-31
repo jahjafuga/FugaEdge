@@ -561,6 +561,78 @@ export function computeBreakdownComparison(
 
 // ── Full top-level comparison ────────────────────────────────────────────
 
+/** WHICH SIDE, IF EITHER, HAS NOTHING TO COMPARE.
+ *
+ *  A period with no trades has no metrics. Most of PeriodMetrics is typed
+ *  nullable and already yields null for such a period, so those rows print a
+ *  dash on their own. FIFTEEN fields are typed non-nullable -- net P&L, gross,
+ *  fees, the four day counts, the four outcome counts, trading days, the two
+ *  streaks and shares traded -- so an empty period yields ZERO for them, and a
+ *  zero subtracts. That is how a period in which the trader did not trade came
+ *  to report more red days, more losers, more consecutive losses and more fees
+ *  than one in which they did.
+ *
+ *  This function answers the question ONCE, purely, so the view does not have
+ *  to know which fields are nullable. The rule is not a formatting choice: an
+ *  absence is not a result, and a delta against an absence is not a
+ *  measurement.
+ *
+ *  Reported by djsevans87. */
+export type EmptySide = 'A' | 'B' | 'both' | null
+
+export interface Comparability {
+  /** Period A has at least one trade. */
+  aHasTrades: boolean
+  /** Period B has at least one trade. */
+  bHasTrades: boolean
+  /** BOTH sides have trades, so a delta between them means something. */
+  comparable: boolean
+  /** Which side is empty, for the line that names it. */
+  emptySide: EmptySide
+}
+
+export function comparabilityOf(a: PeriodMetrics, b: PeriodMetrics): Comparability {
+  const aHasTrades = a.trades > 0
+  const bHasTrades = b.trades > 0
+  return {
+    aHasTrades,
+    bHasTrades,
+    comparable: aHasTrades && bHasTrades,
+    emptySide:
+      !aHasTrades && !bHasTrades ? 'both'
+        : !aHasTrades ? 'A'
+          : !bHasTrades ? 'B'
+            : null,
+  }
+}
+
+/** WHAT IS WRONG WITH THE PAIR OF RANGES THE TRADER PICKED.
+ *
+ *  Every one of these WARNS and none of them blocks: the comparison still
+ *  runs, because a trader who deliberately overlaps two windows is allowed to.
+ *  The point is that a metric counted on both sides is not a comparison, and
+ *  nothing said so before.
+ *
+ *  Dates are ISO day strings throughout, so string ordering IS date ordering
+ *  and no date library is needed. */
+export type RangeWarning =
+  | { kind: 'inverted'; side: 'A' | 'B' }
+  | { kind: 'overlap' }
+  | { kind: 'backwards' }
+
+export function rangeWarnings(a: DateRange, b: DateRange): RangeWarning[] {
+  const out: RangeWarning[] = []
+  if (a.from > a.to) out.push({ kind: 'inverted', side: 'A' })
+  if (b.from > b.to) out.push({ kind: 'inverted', side: 'B' })
+  // An inverted side matches nothing, so overlap and ordering are not
+  // meaningful questions about it. Ask them only of two well formed ranges.
+  if (a.from <= a.to && b.from <= b.to) {
+    if (a.from <= b.to && b.from <= a.to) out.push({ kind: 'overlap' })
+    else if (b.from > a.to) out.push({ kind: 'backwards' })
+  }
+  return out
+}
+
 export function computePeriodComparison(
   trades: TradeListRow[],
   rangeA: DateRange,
