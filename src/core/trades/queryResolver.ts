@@ -51,6 +51,7 @@ import type { AnswerIntent, AnswerMetric } from './queryAnswer'
 // "extended" in the product and it cannot drift into a second one here.
 import { EMA_BUCKETS } from '@/core/technicals/emaBuckets'
 import { VWAP_BUCKETS } from '@/core/technicals/vwapBuckets'
+import { HIGH_FLOAT_MIN, LOW_FLOAT_MAX } from './floatBands'
 
 /** Everything a token may resolve against. All of it book- or def-table-
  *  derived by the CALLER — the resolver holds no vocabulary of its own. */
@@ -174,6 +175,19 @@ export const STOPWORDS = new Set([
   // a RECENCY word -- "the first ten trades" still sorts ascending, because
   // that path never consults this list.
   'want', 'even', 'before', 'first',
+  // TWO OF THE THREE TOKENS THAT BLOCKED THE FOUNDER'S OWN SENTENCE. Both were
+  // measured against the ones standard before being added: a word may become
+  // filler only if it is a WHOLE TOKEN in NO vocabulary key on ANY measured
+  // book, and carries no other meaning an ask could want.
+  //
+  //   "ive"     zero whole-token hits on three books. It only ever arrives as
+  //             the tail of a contraction the tokenizer has already stripped.
+  //   "ranges"  appears in no key at all, and is not a column phrase or a band
+  //             word. In "price ranges from two to ten" it is doing grammar.
+  //
+  // "win" WAS REFUSED BY THE SAME STANDARD -- it is a whole token inside a real
+  // mistake name on every book, so it offers instead. See WHOLE_WORD_FLOOR.
+  'ive', 'ranges',
   //
   // REFUSED, on the same test that kept "last" out: a word that NAMES a
   // dimension or an operation is not filler just because the parser cannot
@@ -241,6 +255,23 @@ export const DNA_REFUSAL =
  *  reaching a multi-word playbook, which is what the tier is for. The exact
  *  tier still has no floor at all; the PREFIX floor is now per-kind, below. */
 const SUBSTRING_FLOOR = 4
+/** THE SHORTEST TOKEN THAT MAY OFFER A READING, when it is a WHOLE WORD.
+ *
+ *  WHY "win" WENT UNREAD AND "loss" DID NOT. It was never that one is
+ *  vocabulary and the other filler -- beat one hundred ninety four said so and
+ *  was wrong, and there is no literal "loss" in this file to do it. "loss" is
+ *  FOUR characters and clears SUBSTRING_FLOOR, so it reaches the substring tier
+ *  and offers the mistake names it sits inside. "win" is THREE, never reaches
+ *  that tier at all, and falls through to the unread set -- where the strict
+ *  boundary then throws away whatever the rest of the sentence had earned.
+ *
+ *  A SUBSTRING match below four characters is noise: three letters occur inside
+ *  half the words on a book. A WHOLE WORD is the trader naming something. So a
+ *  short token may still offer, but only on an exact word boundary, and it
+ *  OFFERS rather than picks -- a word that is both filler and vocabulary is
+ *  ambiguous by construction and choosing for the trader is the silent wrong
+ *  this campaign exists to remove. */
+const WHOLE_WORD_FLOOR = 3
 
 /** HOW MUCH OF AN ENTRY A SINGLE TOKEN MUST COVER BEFORE THE RESOLVER ACTS
  *  ON IT RATHER THAN ASKING. Measured, not chosen: across four thousand
@@ -885,13 +916,49 @@ export function resolveQuery(
    *  ampersand and exactly one carries the word; the rule merges NO two
    *  names on any book. A merge would have meant two of the trader own
    *  names becoming one, and it was a stop condition rather than a risk. */
-  const normaliseKey = (value: string): string =>
-    value
+  /** A CONSERVATIVE PLURAL FOLD ON THE LAST WORD ONLY, because a plural is a
+   *  word ending and not a phrase ending.
+   *
+   *  WHAT IT FIXES. "halt resume long" read as a playbook and answered sixteen
+   *  trades; "halt resume longs" stopped matching the phrase at all, split into
+   *  a catalyst plus a side, and answered nothing. One letter, and the trader
+   *  is told they have no such trades.
+   *
+   *  DELIBERATELY NARROW. No irregulars, no -ves, and a double s is NOT a
+   *  plural, so "Traded through max loss" keeps its own name instead of folding
+   *  to "los" and going unreachable. Every widening is another chance to merge
+   *  two of the trader's own names into one.
+   *
+   *  AND NO -ies TO -y, WHICH IS THE ONE THIS BEAT HAD TO TAKE BACK OUT. Every
+   *  branch here TRUNCATES, so the folded key stays a PREFIX of the original
+   *  and the substring tier still reaches it. Rewriting "utilities" to
+   *  "utility" does not: it changes characters, so "Utilitie" -- which used to
+   *  find the Utilities sector through that tier -- stopped resolving
+   *  altogether. The invariant drive caught five such asks across the
+   *  vocabulary forms and they were the only off-shape movement in five
+   *  thousand one hundred and eighty eight runs. A fold that helps the plural
+   *  and breaks the typo is not a trade this campaign makes.
+   *
+   *  MEASURED BEFORE IT WAS WRITTEN. Across three hundred and eighty five
+   *  vocabulary keys on three books it creates ZERO collisions, within a kind
+   *  or across kinds -- and the census was proven able to see one by planting a
+   *  colliding pair first. */
+  const foldPlural = (w: string): string => {
+    if (w.length <= 3) return w
+    if (w.endsWith('sses') || w.endsWith('shes') || w.endsWith('ches')) return w.slice(0, -2)
+    if (w.endsWith('ss')) return w
+    if (w.endsWith('s')) return w.slice(0, -1)
+    return w
+  }
+  const normaliseKey = (value: string): string => {
+    const words = value
       .replace(VOCAB_KEY_ALPHABET, ' ')
       .toLowerCase()
       .split(' ')
       .filter((w) => w.length > 0 && w !== 'and')
-      .join(' ')
+    if (words.length > 0) words[words.length - 1] = foldPlural(words[words.length - 1])
+    return words.join(' ')
+  }
   const vocabKeysNormalised: string[] = vocabKeys.map(normaliseKey)
   /** Is there a TERM here at all? Answers only THAT — never which one;
    *  resolution still goes through the passes below. Shares SUBSTRING_FLOOR
@@ -1646,6 +1713,42 @@ export function resolveQuery(
     })
   }
 
+  // THE TWO FLOAT PHRASES, AT THE APP'S OWN THRESHOLD. "low float" and "high
+  // float" are how this whole strategy is described and neither resolved to
+  // anything. The number comes from LOW_FLOAT_MAX, which is the one the
+  // Low-Float Hunter badge has always counted by -- not a number chosen here.
+  //
+  // A ROW WITH NO FLOAT IS IN NEITHER PHRASE. That is the range predicate's own
+  // null rule and it is not being reversed: an unmeasured row is not secretly
+  // small. Low plus high plus the never-measured equals the whole book, and the
+  // skipped count is reported the way every other range reports it.
+  for (const [phrase, bound] of [
+    ['low float', 'max'],
+    ['high float', 'min'],
+  ] as const) {
+    pool.push({
+      kind: 0,
+      key: phrase,
+      display: phrase,
+      apply: (s, log) => {
+        const prev = s.ranges.float ?? { min: null, max: null }
+        s.ranges = {
+          ...s.ranges,
+          float:
+            bound === 'max'
+              ? { ...prev, max: LOW_FLOAT_MAX }
+              : { ...prev, min: HIGH_FLOAT_MIN },
+        }
+        // THE SAME WORDS EVERY OTHER RANGE USES. "at least" and "at most" say
+        // the bound is inclusive; min and max leave the trader to guess.
+        log(
+          bound === 'min'
+            ? `float at least ${HIGH_FLOAT_MIN}`
+            : `float at most ${LOW_FLOAT_MAX}`,
+        )
+      },
+    })
+  }
   for (const sym of vocab.symbols)
     pool.push({
       kind: SYMBOL_KIND, key: sym.toLowerCase(), display: sym,
@@ -1688,6 +1791,34 @@ export function resolveQuery(
   // first-class facet must beat a PREFIX hit on a free-text tag name -- but
   // the tag's FULL name still wins, because tier is checked before kind and
   // an exact match is tier one. RH7 pins both halves.
+  // THE TWO WORDS A MOMENTUM TRADER USES FOR A STATE THE APP ALREADY HAS.
+  // Neither appears as, or inside, any vocabulary key on any measured book, so
+  // no name of the trader's is shadowed by adding them. Each maps onto the
+  // existing MACD state rather than to a threshold invented here, and each logs
+  // through the SAME expression the canonical ask uses so the two spellings of
+  // one filter cannot print different sentences.
+  const MACD_SYNONYMS: Record<string, string> = { bullish: 'positive', bearish: 'negative' }
+  for (const [word, value] of Object.entries(MACD_SYNONYMS)) {
+    const m = (vocab.macdStates ?? []).find((x) => x.value === value)
+    if (!m) continue
+    pool.push({
+      kind: 7,
+      key: word,
+      display: m.display,
+      apply: (s, log) => {
+        pushUnique(s.macdStates, m.value)
+        log(
+          m.value === null
+            ? `${m.display} (1-minute)`
+            : `${m.display} (1-minute, uncomputed excluded)`,
+        )
+      },
+      excludeApply: (s, log) => {
+        pushUnique(s.excludeMacdStates, m.value)
+        log(`excluding ${m.display} (1-minute)`)
+      },
+    })
+  }
   for (const m of vocab.macdStates ?? [])
     pool.push({
       kind: 7,
@@ -1763,7 +1894,12 @@ export function resolveQuery(
         !isFiller &&
         phrase.length >= (c.e.kind === SYMBOL_KIND ? SYMBOL_PREFIX_FLOOR : PREFIX_FLOOR) &&
         c.nkey.startsWith(nphrase),
-      (c) => !isFiller && phrase.length >= SUBSTRING_FLOOR && c.nkey.includes(nphrase),
+      (c) =>
+        !isFiller &&
+        (phrase.length >= SUBSTRING_FLOOR
+          ? c.nkey.includes(nphrase)
+          : // BELOW THE SUBSTRING FLOOR, ONLY A WHOLE WORD MAY OFFER.
+            phrase.length >= WHOLE_WORD_FLOOR && c.nkey.split(' ').includes(nphrase)),
     ]
     for (const match of tiers) {
       const hits = poolNormalised.filter(match).map((c) => c.e)

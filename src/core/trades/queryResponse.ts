@@ -149,19 +149,46 @@ export function responseLine({
     // trdaes" come back as "nrva trdaes" -- two words the trader never typed
     // together. When the caller supplies what was typed, that is what is
     // quoted; without it the old head is untouched.
-    const head = typed
-      ? `I could not read "${typed}"`
-      : unresolved.length > 0
-        ? `I could not read ${quoteList(unresolved)}`
-        : 'I could not read that'
+    // THREE CASES, AND THE LINE MUST TELL THEM APART. Beat one hundred ninety
+    // nine MEASURED that a word Edge HAD read and was offering as a chip still
+    // came back as one it "could not read", and this beat REVERSES that.
+    //
+    //   read and APPLIED   the applied path above; never reaches this head
+    //   read and OFFERED   a reading exists and was deliberately not chosen
+    //   not read at all    nothing matched, and the complaint is all the
+    //                      trader gets
+    //
+    // WAS: the could-not-read head fired on all three, so an ask that produced
+    // chips contradicted the chips sitting underneath it. And the offers were
+    // never spoken here at all, because the clause that names them sits on the
+    // applied path, which this branch returns before ever reaching.
+    //
+    // NOT PICKING IS NOT FAILING. An offer means the ask WAS understood and the
+    // choice is the trader's to make, so the line says that instead of claiming
+    // a failure that did not happen.
+    const offering = offers != null && offers.total > 0
+    const offerTail = offering
+      ? offers.total > offers.shown
+        ? ` I have ${offers.shown} readings to offer and ${offers.total - offers.shown} more I did not show.`
+        : ` I have ${offers.total} reading${offers.total === 1 ? '' : 's'} to offer.`
+      : ''
+    const head = offering
+      ? typed
+        ? `I read "${typed}" but did not pick a reading for you`
+        : 'I read that but did not pick a reading for you'
+      : typed
+        ? `I could not read "${typed}"`
+        : unresolved.length > 0
+          ? `I could not read ${quoteList(unresolved)}`
+          : 'I could not read that'
 
     // NOT SHOWN THE STATE, SO NO CLAIM ABOUT IT. The same discipline as
     // refusing to print a count with no result set behind it.
-    if (!before || !after) return `${head}.`
+    if (!before || !after) return `${head}.${offerTail}`
 
     const removed = removedValues(before, after)
     if (removed.length > 0) {
-      return `${head}. I dropped ${quoteList(removed)}, which you asked for and against.`
+      return `${head}.${offerTail} I dropped ${quoteList(removed)}, which you asked for and against.`
     }
     // REVERSED BY BEAT ONE HUNDRED EIGHTY-EIGHT, measured by beat one hundred
     // eighty-six. WAS: `${head} - nothing is filtered.` -- true, and read as a
@@ -181,8 +208,8 @@ export function responseLine({
       return `${refusals.join(' ')}.${tail}`
     }
     return isFiltering(after)
-      ? `${head}. Your filters are unchanged.`
-      : `${head}. Nothing is filtered, so this is your whole book.`
+      ? `${head}.${offerTail} Your filters are unchanged.`
+      : `${head}.${offerTail} Nothing is filtered, so this is your whole book.`
   }
 
   // The MATCHED count, always. A limit hides rows that qualified, so the number

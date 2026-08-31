@@ -14,8 +14,9 @@ import { openDatabase } from '../db/database'
 import { SIM_WALL } from '../accounts/scope'
 import { sqlIsWin } from '@/core/classify/outcome'
 import { SCRATCH_EPSILON } from '@shared/trade-classification'
+import { LOW_FLOAT_MAX as SHARED_LOW_FLOAT_MAX } from '@/core/trades/floatBands'
 
-const LOW_FLOAT_MAX = 20_000_000
+const LOW_FLOAT_MAX = SHARED_LOW_FLOAT_MAX
 
 /** Profitable trading days — judged on the per-DATE SUM across accounts
  *  (daily_summary is keyed (date, account_id) since Beat 4; badges keep their
