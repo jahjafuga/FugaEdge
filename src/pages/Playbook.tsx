@@ -97,6 +97,21 @@ export default function Playbook() {
   // The trades behind the selected setup. PRIMARY setups only and no date
   // range — the same predicate the stats above the card were computed with, so
   // the row count can never disagree with the "{n}t" on the list row.
+  // v0.2.7 — the read is a callback as well as an effect, so the trades card
+  // can ask for it again when its modal closes. A trade whose setup changed
+  // in that modal no longer belongs here, and the card re-reads rather than
+  // guessing what moved.
+  const reloadTrades = useCallback(() => {
+    if (selectedId == null) {
+      setTrades([])
+      return
+    }
+    ipc
+      .tradesList({ playbookId: selectedId, accountScope: scope })
+      .then(setTrades)
+      .catch(() => setTrades([]))
+  }, [selectedId, scope])
+
   useEffect(() => {
     if (selectedId == null) {
       setTrades([])
@@ -542,7 +557,11 @@ export default function Playbook() {
                 the running app reversed the earlier placement: the definition
                 is what the user came to read and edit, and a long trade list
                 above it pushed the rules off the fold. */}
-            <PlaybookTradesCard trades={trades} setupName={selected.name} />
+            <PlaybookTradesCard
+              trades={trades}
+              setupName={selected.name}
+              onRefresh={reloadTrades}
+            />
           </div>
         )}
       </div>

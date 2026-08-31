@@ -1,6 +1,9 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { TradeListRow } from '@shared/trades-types'
 import { int, longDate, pnlClass, price, signed } from '@/lib/format'
+import { getTradeNavPosition } from '@/core/trades/tradeNavigation'
+import TradeDetailModal from '@/components/trades/TradeDetailModal'
+import { ipc } from '@/lib/ipc'
 
 // v0.2.7 — THE TRADES BEHIND A SETUP.
 //
@@ -31,6 +34,11 @@ interface PlaybookTradesCardProps {
   trades: TradeListRow[]
   /** The selected setup's name — used only in the empty line's copy. */
   setupName: string
+  /** Re-run the page's own trades read. Called ONCE, on modal close, so an
+   *  edit that moved a trade out of this setup is reflected only after the
+   *  trader is finished with it. Optional: hosts that omit it get a card
+   *  that opens the modal and simply does not refresh behind it. */
+  onRefresh?: () => void
 }
 
 const DEFAULT_VISIBLE = 8
@@ -38,8 +46,60 @@ const DEFAULT_VISIBLE = 8
 export default function PlaybookTradesCard({
   trades,
   setupName,
+  onRefresh,
 }: PlaybookTradesCardProps) {
   const [showAll, setShowAll] = useState(false)
+
+  // THE SNAPSHOT, AND IT IS THE WHOLE RULING. The open trade and the list
+  // the arrows walk are both taken at CLICK TIME and held until close. The
+  // Trades tab resolves its open row from the LIVE filtered list, so an edit
+  // that drops the row out of the filter nulls the modal's `trade` prop and
+  // TradeDetailModal line one six seven unmounts it with no message. Here the
+  // row is resolved from `frozen`, which the page cannot change while the
+  // modal is open, so the same edit leaves the modal exactly where it was.
+  //
+  // useTradeStack already takes a click-time snapshot for the day and week
+  // modals; this is that shape, holding the ROWS rather than only the ids so
+  // the open trade survives a refresh underneath.
+  const [frozen, setFrozen] = useState<TradeListRow[] | null>(null)
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+
+  // THE FULL SET, NEVER THE RENDERED SLICE. The table caps at DEFAULT_VISIBLE
+  // rows while holding every row in memory, so a nav built from `visible`
+  // would read "one of eight" on a nine trade setup and refuse to walk past
+  // the cap. The order is the read's own ORDER BY, which is what the trader
+  // sees.
+  const navSource = frozen ?? trades
+  const orderedIds = useMemo(() => navSource.map((t) => t.id), [navSource])
+  const navPosition = useMemo(
+    () => getTradeNavPosition(orderedIds, selectedId),
+    [orderedIds, selectedId],
+  )
+  const selectedTrade =
+    selectedId === null ? null : navSource.find((t) => t.id === selectedId) ?? null
+
+  const openTrade = useCallback(
+    (id: number) => {
+      setFrozen(trades)
+      setSelectedId(id)
+    },
+    [trades],
+  )
+  const closeTrade = useCallback(() => {
+    setSelectedId(null)
+    setFrozen(null)
+    onRefresh?.()
+  }, [onRefresh])
+
+  // Persist, then patch the FROZEN copy in place. Patching rather than
+  // refetching is what keeps the modal from moving under an edit; the page
+  // behind is re-read once, on close.
+  const patch = useCallback((updated: TradeListRow | null) => {
+    if (!updated) return
+    setFrozen((prev) =>
+      prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+    )
+  }, [])
 
   const visible = showAll ? trades : trades.slice(0, DEFAULT_VISIBLE)
   const hasMore = trades.length > DEFAULT_VISIBLE
@@ -100,7 +160,21 @@ export default function PlaybookTradesCard({
                 const entry = t.side === 'short' ? t.avg_sell_price : t.avg_buy_price
                 const exit = t.side === 'short' ? t.avg_buy_price : t.avg_sell_price
                 return (
-                  <tr key={t.id} className="border-b border-border-subtle/40">
+                  <tr
+                    key={t.id}
+                    data-playbook-trade-row={t.id}
+                    onClick={() => openTrade(t.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        openTrade(t.id)
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Open ${t.symbol} on ${t.date}`}
+                    className="cursor-pointer border-b border-border-subtle/40 transition-colors duration-150 hover:bg-white/[0.03] focus:bg-white/[0.03] focus:outline-none"
+                  >
                     <Td className="font-mono text-fg-secondary">{longDate(t.date)}</Td>
                     <Td className="font-mono text-fg-primary">{t.symbol}</Td>
                     <Td>
@@ -153,6 +227,33 @@ export default function PlaybookTradesCard({
           )}
         </div>
       )}
+
+      {/* The SAME modal the Trades tab and the day and week modals render.
+          It already takes its list position as a prop, so a second caller
+          needs no change to it: hand it a navPosition and an onNavigate and
+          the chevrons, the counter and the arrow keys all work. The ends
+          disable themselves, because getTradeNavPosition returns null there
+          and the modal is already gated on that. */}
+      <TradeDetailModal
+        trade={selectedTrade}
+        onClose={closeTrade}
+        navPosition={navPosition}
+        onNavigate={setSelectedId}
+        onSaveNote={async (i) => patch(await ipc.tradeNoteSave(i))}
+        onSaveTimeframe={async (i) => patch(await ipc.tradeTimeframeSave(i))}
+        onSavePlaybook={async (i) => patch(await ipc.tradePlaybookSave(i))}
+        onSaveConfidence={async (i) => patch(await ipc.tradeConfidenceSave(i))}
+        onSavePlannedRisk={async (i) => patch(await ipc.tradePlannedRiskSave(i))}
+        onSavePlannedStopLoss={async (i) => patch(await ipc.tradePlannedStopLossSave(i))}
+        onSaveFloat={async (i) => patch(await ipc.tradeFloatSave(i))}
+        onSaveCatalyst={async (i) => patch(await ipc.tradeCatalystSave(i))}
+        onSaveCountry={async (i) => patch(await ipc.tradeCountrySave(i))}
+        onMistakesChange={patch}
+        onSoftDelete={async (id) => {
+          await ipc.tradeSoftDelete(id)
+          closeTrade()
+        }}
+      />
     </div>
   )
 }
