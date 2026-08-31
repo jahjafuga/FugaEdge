@@ -42,7 +42,7 @@ const rows = (n: number, make: (i: number) => Partial<TradeListRow>) =>
 
 describe('CH1 a range on a PARTIALLY covered column names what it dropped', () => {
   it('the sentence carries the count', () => {
-    const line = responseLine({ ...base, coverage: { skipped: 23, column: 'float' } })
+    const line = responseLine({ ...base, coverage: [{ skipped: 23, column: 'float' }] })
     expect(line).toContain('23')
     expect(line).toContain('never measured')
   })
@@ -56,8 +56,8 @@ describe('CH1 a range on a PARTIALLY covered column names what it dropped', () =
       rangeValueOf,
     )
     expect(got).not.toBeNull()
-    expect(got!.skipped).toBe(23)
-    expect(got!.column).toBe('float')
+    expect(got![0].skipped).toBe(23)
+    expect(got![0].column).toBe('float')
   })
 })
 
@@ -69,10 +69,10 @@ describe('CH2 a range on a FULLY covered column says NOTHING -- the control', ()
       { float: { min: 1_000_000, max: null } },
       rangeValueOf,
     )
-    expect(got!.skipped).toBe(0)
+    expect(got![0].skipped).toBe(0)
   })
   it('and a zero count produces no clause at all', () => {
-    const line = responseLine({ ...base, coverage: { skipped: 0, column: 'float' } })
+    const line = responseLine({ ...base, coverage: [{ skipped: 0, column: 'float' }] })
     expect(line).not.toContain('never measured')
   })
   it('and no range at all produces no clause either', () => {
@@ -86,7 +86,7 @@ describe('CH3 a range on a FULLY NULL column names every row', () => {
   it('all five hundred and twenty eight are reported, not silently dropped', () => {
     const pre = rows(528, () => ({ mae: null }))
     const got = countDroppedUnmeasured(pre, { mae: { min: 1, max: null } }, rangeValueOf)
-    expect(got!.skipped).toBe(528)
+    expect(got![0].skipped).toBe(528)
     const line = responseLine({
       count: 0,
       applied: ['mae at least 1'],
@@ -171,14 +171,14 @@ describe('CH6 the two counters are DIFFERENT and cannot stand in for each other'
     }
     const dropped = countDroppedUnmeasured(mixed, st.ranges ?? {}, rangeValueOf)
     const kept = countUnmeasuredKept(mixed, st)
-    expect(dropped!.skipped).toBe(439)
+    expect(dropped![0].skipped).toBe(439)
     expect(kept!.skipped).toBe(439)
     // The counts coincide here only because the same rows are unmeasured on
     // both fields. What must NOT coincide is the COLUMN each one names, and
     // that is what a substitution would break.
-    expect(dropped!.column).toBe('float')
+    expect(dropped![0].column).toBe('float')
     expect(kept!.column).toBe('macd')
-    expect(dropped!.column).not.toBe(kept!.column)
+    expect(dropped![0].column).not.toBe(kept!.column)
   })
 })
 
@@ -186,7 +186,7 @@ describe('CH7 NEITHER COUNTER MAY MOVE A ROW COUNT', () => {
   it('the count in the sentence is the count that was handed in', () => {
     // The counters return a number to SAY. They are never consulted about
     // which rows survive, and the sentence echoes the count it was given.
-    for (const cov of [null, { skipped: 0, column: 'float' }, { skipped: 23, column: 'float' }]) {
+    for (const cov of [null, [{ skipped: 0, column: 'float' }], [{ skipped: 23, column: 'float' }]]) {
       const line = responseLine({ ...base, count: 117, coverage: cov })
       expect(line, `the row count moved with coverage ${JSON.stringify(cov)}`).toContain('117')
     }
@@ -221,7 +221,7 @@ describe('CH8 the count MUST come from the rows before the filter ran', () => {
     const ranges = { float: { min: 1_000_000, max: null } }
 
     const fromPre = countDroppedUnmeasured(pre, ranges, rangeValueOf)
-    expect(fromPre!.skipped, 'the pre-filter rows still hold the unmeasured ones').toBe(23)
+    expect(fromPre![0].skipped, 'the pre-filter rows still hold the unmeasured ones').toBe(23)
 
     // What the filter leaves behind: the null rule dropped all twenty three.
     const survivors = pre.filter((t) => {
@@ -229,10 +229,10 @@ describe('CH8 the count MUST come from the rows before the filter ran', () => {
       return v != null && Number.isFinite(v) && v >= 1_000_000
     })
     const fromPost = countDroppedUnmeasured(survivors, ranges, rangeValueOf)
-    expect(fromPost!.skipped, 'a range removes exactly the rows this counts').toBe(0)
+    expect(fromPost![0].skipped, 'a range removes exactly the rows this counts').toBe(0)
 
     expect(
-      fromPre!.skipped === fromPost!.skipped,
+      fromPre![0].skipped === fromPost![0].skipped,
       'if these ever agreed, which row set the page supplies would not matter',
     ).toBe(false)
   })

@@ -15,6 +15,15 @@
 
 import { isFiltering, type TradesFilterState } from './tradesFilter'
 import type { AmbiguousToken } from './queryResolver'
+import { COVERAGE_WORDS } from './numericRange'
+
+/** "a", "a and b", "a, b, and c" -- the serial comma, because a coverage
+ *  clause can carry three columns and "b and c" would read as one thing. */
+function joinAnd(parts: readonly string[]): string {
+  if (parts.length === 1) return parts[0]
+  if (parts.length === 2) return `${parts[0]}, and ${parts[1]}`
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
 
 export interface ResponseInput {
   /** The live filtered count the page is showing. */
@@ -50,7 +59,7 @@ export interface ResponseInput {
   /** v0.2.7 -- rows a RANGE dropped because the column was never measured.
    *  Counted from the rows BEFORE the filter ran, because a range removes
    *  exactly the rows this number describes. Null when no range is active. */
-  coverage?: { skipped: number; column: string } | null
+  coverage?: { skipped: number; column: string }[] | null
   /** v0.2.7 -- rows an EXCLUSION kept that were never measured. The opposite
    *  shape: these rows are still in the result, so the count comes from the
    *  survivors. Null when no exclusion is in force. */
@@ -242,12 +251,23 @@ export function responseLine({
   // count and the filter still lead, and it never replaces them: an ask can
   // narrow the book AND carry a part we cannot honour.
   const refused = refusals && refusals.length > 0 ? `. ${refusals.join(' ')}` : ''
+  // WHERE THE NAMING STARTS. With ONE active range the trader named exactly
+  // one column, so a bare count cannot refer to anything else and the sentence
+  // it has always had is left byte identical. With TWO the reader can no longer
+  // tell which column is meant, which is the whole defect, so each column that
+  // dropped a row is named in its own words and in the order it was typed. A
+  // column that dropped nothing is not mentioned at all.
+  const dropped = (coverage ?? []).filter((c) => c.skipped > 0)
+  const named = dropped
+    .map((c) => `${c.skipped} with no ${COVERAGE_WORDS[c.column] ?? c.column} recorded`)
   const cover =
-    coverage && coverage.skipped > 0
-      ? `, and ${coverage.skipped} never measured`
-      : excluded && excluded.skipped > 0
-        ? `, of which ${excluded.skipped} were never measured`
-        : ''
+    coverage && coverage.length === 1 && dropped.length > 0
+      ? `, and ${dropped[0].skipped} never measured`
+      : named.length > 0
+        ? `, ${joinAnd(named)}`
+        : excluded && excluded.skipped > 0
+          ? `, of which ${excluded.skipped} were never measured`
+          : ''
   return unresolved.length > 0
     ? `${trades}${cover} (ignored ${quoteList(unresolved)})${offered}${refused}`
     : `${trades}${cover}${offered}${refused}`

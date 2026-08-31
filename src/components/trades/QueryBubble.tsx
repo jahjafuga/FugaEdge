@@ -229,7 +229,7 @@ interface QueryBubbleProps {
    *  COUNTED by the page. It has to be: the count comes from the rows before
    *  the filter ran, and this component only ever sees the rows that
    *  survived it. Optional, so every existing mount is unchanged. */
-  coverageOf?: (state: TradesFilterState) => { skipped: number; column: string } | null
+  coverageOf?: (state: TradesFilterState) => { skipped: number; column: string }[] | null
   /** Push the candidate up (null = no draft — closed or empty). */
   onDraft: (draft: TradesFilterState | null) => void
   onCommit: (next: TradesFilterState) => void

@@ -157,7 +157,7 @@ describe('SW6 a range NAMES what it dropped', () => {
     const line = responseLine({
       ...base,
       applied: ['float at most 1000000'],
-      coverage: { skipped: 23, column: 'float' },
+      coverage: [{ skipped: 23, column: 'float' }],
     })
     expect(line).toContain('23')
     expect(line).toContain('never measured')
@@ -166,7 +166,7 @@ describe('SW6 a range NAMES what it dropped', () => {
     const line = responseLine({
       ...base,
       applied: ['float at most 1000000'],
-      coverage: { skipped: 0, column: 'float' },
+      coverage: [{ skipped: 0, column: 'float' }],
     })
     expect(line).not.toContain('never measured')
   })
