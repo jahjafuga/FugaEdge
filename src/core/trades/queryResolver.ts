@@ -133,6 +133,20 @@ const PRESET_WORDS: Record<string, DatePreset> = {
 const DNA_WORDS: Record<string, 'complete' | 'incomplete'> = {
   complete: 'complete', incomplete: 'incomplete',
 }
+/** The five-pillar SCORE ask. TWO keys and they are not synonyms of each
+ *  other: "score" is what a trader says, "dna" is what this app calls the
+ *  thing, and a trader who has read the settings page will type either. Both
+ *  reach the same field. Neither is claimed by any other list -- measured
+ *  across every vocabulary above the comparison pass before this was added. */
+const SCORE_WORDS: ReadonlySet<string> = new Set(['score', 'dna'])
+/** THE MOST PILLARS THAT EXIST. A fact about the CODE, not about a trader:
+ *  DnaPillarKey (core/dna/adherence.ts) is a union of exactly five members --
+ *  price, change, rvol, float and catalyst -- so `of` can never come back
+ *  higher than this for any profile. Held as a literal because that union is a
+ *  TYPE and cannot be counted at run time; the guard file ties the two by
+ *  scoring a trade with every pillar required and asserting `of` reads five,
+ *  so a sixth pillar would fail there and name this line. */
+const SCORE_CEILING = 5
 const MISTAKE_FLAG_WORDS = new Set(['mistake', 'mistakes'])
 
 /** Filler that carries no filter meaning. Deliberately small: an unknown word
@@ -248,6 +262,20 @@ export const SORT_REFUSAL =
 /** The verdict exists; the means to verify it does not. */
 export const DNA_REFUSAL =
   'The five pillar verdict is worked out from your settings rather than stored, so I cannot check what leaving it out would give you'
+/** An UPPER bound on the score has nowhere to land. The filter reads
+ *  `passed < minScore`, a floor, and there is no maxScore field to hold the
+ *  other direction. Applying it as a floor would answer the opposite question
+ *  and dropping it would be the silent wrong this campaign exists to remove,
+ *  so it refuses and says which half it can do. */
+export const SCORE_MAX_REFUSAL =
+  'I can find trades that met at least a given number of pillars, but not ones that met at most that many, so I left that part alone'
+/** A FLOOR NOTHING CAN CLEAR IS NOT A FILTER, it is an empty book with no
+ *  explanation. The wording states the ceiling that EXISTS and stops there: how
+ *  many pillars a given profile actually requires is dna_require_catalyst, a
+ *  setting this module never reads, so claiming to know it would be a second
+ *  wrong on top of the first. */
+export const SCORE_CEILING_REFUSAL =
+  `The verdict is made of ${SCORE_CEILING} pillars, so no trade can meet more than that and a higher bar would just empty the list, which is why I left that part alone`
 
 /** The substring tier's floor. FOUR, raised from three: at three "are" reached
  *  sector Healthcare and "but" offered a choice between two industries, both
@@ -1423,6 +1451,86 @@ export function resolveQuery(
     const bounds =
       max === null ? `at or beyond ${min}` : min === null ? `under ${max}` : `${min} to ${max}`
     log(`${label} ${band.word} (${bounds})`, tokens.slice(i, end + 1).join(' '))
+    for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    i = end
+  }
+
+  // ── pass 1c: the five-pillar SCORE ask ────────────────────────────────────
+  // BEFORE the comparison pass, and that placement was MEASURED rather than
+  // chosen. "score at least 4" hands the comparison pass an operator it knows
+  // -- "least" is in MIN_OPS -- with no column it can find, because 'score' is
+  // not a column phrase and cannot become one: COLUMN_PHRASES requires every id
+  // to exist in NUMERIC_COLUMN_IDS and rangeValueOf, and the verdict is not a
+  // column on the row. So that pass records a BARE BOUND, :2136 pushes it to
+  // unresolved ("no outcome, no sign, never guessed"), 'score' goes unread
+  // beside it, and the strict boundary at :2189 throws the whole sentence away.
+  // Reading the ask HERE claims its three tokens as a UNIT before anything can
+  // half-read them -- the same reason pass 1a sits where it does, one pass up.
+  //
+  // FLOOR ONLY, and the other direction REFUSES BY NAME. The predicate this
+  // feeds is `scored.passed < minScore` (tradesFilter.ts:552), a floor, and no
+  // maxScore field exists anywhere for an upper bound to land in. Applying an
+  // "at most" as a floor would answer the opposite question; dropping it would
+  // be the silent wrong. So it refuses, in its own words, the same shape the
+  // three existing refusals use.
+  for (let i = 0; i < tokens.length; i++) {
+    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
+    if (!SCORE_WORDS.has(tokens[i])) continue
+    // The operator, one or two tokens, skipping stopwords -- the same shape the
+    // comparison pass reads at :1506, so "at least" and "greater than" compose
+    // here exactly as they do there.
+    let k = i + 1
+    while (k < tokens.length && STOPWORDS.has(tokens[k])) k++
+    if (k >= tokens.length) continue
+    let op = tokens[k]
+    let opLen = 1
+    if (op === 'at' && k + 1 < tokens.length && (tokens[k + 1] === 'least' || tokens[k + 1] === 'most')) {
+      op = tokens[k + 1]
+      opLen = 2
+    } else if (k + 1 < tokens.length && tokens[k + 1] === 'than' && THAN_OPS[op]) {
+      op = THAN_OPS[op]
+      opLen = 2
+    }
+    const isMin = MIN_OPS.has(op)
+    if (!isMin && !MAX_OPS.has(op)) continue
+    // The value. A trader's own name for something beats a number word, the
+    // same refusal the comparison pass makes at :1557.
+    let vIdx = k + opLen
+    while (vIdx < tokens.length && STOPWORDS.has(tokens[vIdx])) vIdx++
+    if (vIdx >= tokens.length || vocabKeys.includes(tokens[vIdx])) continue
+    const v = parseValue(tokens[vIdx])
+    // A pillar count is a whole number of pillars. A unit, a fraction or a
+    // negative is not a score, and coercing one into a score is the same class
+    // of lie as a coerced bound -- so the span is left alone and falls through.
+    if (!v || v.unit !== null || !Number.isInteger(v.n) || v.n < 0) continue
+    const end = vIdx
+    // ALL OR NOTHING. Every token of the span is consumed on both arms, so the
+    // digit can never survive to be read as a row count by pass 1b, and the
+    // word can never fall through to the vocabulary pass on its own.
+    if (!isMin) {
+      refusals.push(SCORE_MAX_REFUSAL)
+      for (let q = i; q <= end; q++) marks[q] = 'consumed'
+      i = end
+      continue
+    }
+    // ABOVE THE CEILING IS A REFUSAL, not a filter. Applying it would set a
+    // floor no trade can clear and hand back an empty book with nothing said --
+    // the same silent wrong as coercing a number, reached from the other side.
+    // Consumed either way, so the span never falls through to be half-read.
+    if (v.n > SCORE_CEILING) {
+      refusals.push(SCORE_CEILING_REFUSAL)
+      for (let q = i; q <= end; q++) marks[q] = 'consumed'
+      i = end
+      continue
+    }
+    const prevScore = state.dna.minScore
+    state = { ...state, dna: { ...state.dna, minScore: v.n } }
+    log(
+      prevScore !== null && prevScore !== v.n
+        ? `dna score at least ${v.n} (replaced ${prevScore})`
+        : `dna score at least ${v.n}`,
+      tokens.slice(i, end + 1).join(' '),
+    )
     for (let q = i; q <= end; q++) marks[q] = 'consumed'
     i = end
   }
