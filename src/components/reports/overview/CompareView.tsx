@@ -925,10 +925,95 @@ function GaugeRow({
   )
 }
 
+/** Sections that render as TWO headed columns inside their own card, instead
+ *  of one long list. The cut is a straight slice of the section's existing row
+ *  order -- no row is reordered, renamed, added or dropped -- and each column
+ *  is grouped by the row it ENDS on, so a divider stays pinned to its row even
+ *  if a row is later inserted above it. Every section not named here keeps the
+ *  single column it has today. */
+const SPLIT_SECTIONS: Record<
+  string,
+  {
+    /** Last row of the left column. Everything after it goes right. */
+    cutAfter: string
+    left: { title: string; groupsEndAfter: readonly string[] }
+    right: { title: string; groupsEndAfter: readonly string[] }
+  }
+> = {
+  'Activity & Streaks': {
+    cutAfter: 'Hold (scratch)',
+    left: {
+      title: 'Trade activity & execution',
+      groupsEndAfter: ['Trading days', 'Max consec losses'],
+    },
+    right: {
+      title: 'P&L & sizing',
+      groupsEndAfter: ['Avg trade P&L', 'Avg position size'],
+    },
+  },
+}
+
+/** Cut a row list into divider-separated groups, ending a group after each
+ *  named row. A name that is not present simply draws no divider. */
+function groupRows(rows: StatSpec[], endAfter: readonly string[]): StatSpec[][] {
+  const groups: StatSpec[][] = [[]]
+  for (const row of rows) {
+    groups[groups.length - 1].push(row)
+    if (endAfter.includes(row.label)) groups.push([])
+  }
+  return groups.filter((g) => g.length > 0)
+}
+
+/** Resolve a section's two columns, or null to keep one column. Returns null
+ *  when the cut row is missing or is the LAST row, so a future change to
+ *  buildSections degrades to the single column rather than rendering an empty
+ *  half or silently dropping rows. */
+function resolveSplit(section: StatSection): {
+  title: string
+  groups: StatSpec[][]
+}[] | null {
+  const cfg = SPLIT_SECTIONS[section.title]
+  if (!cfg) return null
+  const cut = section.rows.findIndex((r) => r.label === cfg.cutAfter)
+  if (cut < 0 || cut === section.rows.length - 1) return null
+  return [
+    { title: cfg.left.title, groups: groupRows(section.rows.slice(0, cut + 1), cfg.left.groupsEndAfter) },
+    { title: cfg.right.title, groups: groupRows(section.rows.slice(cut + 1), cfg.right.groupsEndAfter) },
+  ]
+}
+
+/** One column of stat rows. A single group reproduces the pre-split markup
+ *  exactly: hairline between rows, none after the last. */
+function StatColumn({ groups, emptySide = null }: {
+  groups: StatSpec[][]
+  emptySide?: 'A' | 'B' | null
+}) {
+  return (
+    <div>
+      {groups.map((rows, g) => (
+        <div key={rows[0].label}>
+          {g > 0 && (
+            <div data-stat-divider className="my-1.5 border-t border-border-subtle" />
+          )}
+          {rows.map((row, i) => (
+            <StatRow
+              key={row.label}
+              spec={row}
+              last={i === rows.length - 1}
+              emptySide={emptySide}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function StatSectionCard({ section, emptySide = null }: {
   section: StatSection
   emptySide?: 'A' | 'B' | null
 }) {
+  const columns = resolveSplit(section)
   return (
     <div className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-3 shadow-sm">
       <div className="flex items-center gap-2 pb-2">
@@ -937,16 +1022,20 @@ function StatSectionCard({ section, emptySide = null }: {
           {section.title}
         </h3>
       </div>
-      <div>
-        {section.rows.map((row, i) => (
-          <StatRow
-            key={row.label}
-            spec={row}
-            last={i === section.rows.length - 1}
-            emptySide={emptySide}
-          />
-        ))}
-      </div>
+      {columns ? (
+        <div data-stat-split className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {columns.map((col) => (
+            <div key={col.title}>
+              <h4 className="pb-1 text-[10px] font-medium uppercase tracking-wider text-fg-tertiary">
+                {col.title}
+              </h4>
+              <StatColumn groups={col.groups} emptySide={emptySide} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <StatColumn groups={[section.rows]} emptySide={emptySide} />
+      )}
     </div>
   )
 }
