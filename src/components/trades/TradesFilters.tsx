@@ -619,21 +619,53 @@ function DnaFilterDropdown({
     }
   }, [open])
 
-  const active = ask.minScore !== null || ask.bucket !== 'any'
-  const count = (ask.minScore !== null ? 1 : 0) + (ask.bucket !== 'any' ? 1 : 0)
+  // BOTH BOUNDS COUNT. These two lines are the whole of R311 on this panel:
+  // a value the resolver can set and the preferences can store, that neither
+  // of these reads, is a filter the trader can arrive at by typing and then
+  // not find -- no lit border, no badge, and no Clear row to switch it off.
+  const active = ask.minScore !== null || ask.maxScore !== null || ask.bucket !== 'any'
+  const count =
+    (ask.minScore !== null ? 1 : 0) +
+    (ask.maxScore !== null ? 1 : 0) +
+    (ask.bucket !== 'any' ? 1 : 0)
 
   const setBucket = (b: DnaFilterAsk['bucket']) => {
     const next = ask.bucket === b ? 'any' : b
     onChange({
       // An incomplete trade cannot meet a score bar — keep the ask satisfiable.
+      // The CEILING goes the same way and for the same reason: an unscored row
+      // is dropped by a max ask exactly as it is by a min one, so an incomplete
+      // bucket with a ceiling on it selects nothing at all.
       minScore: next === 'incomplete' ? null : ask.minScore,
+      maxScore: next === 'incomplete' ? null : ask.maxScore,
       bucket: next,
     })
   }
+  // A FLOOR STRICTLY ABOVE A CEILING SELECTS NOTHING, and each half is legal
+  // alone -- the contradiction lives only in the pair. The resolver can refuse
+  // such a pair in a sentence; a panel has nowhere to say one, so it keeps the
+  // ask satisfiable instead, which is the move setBucket above already makes.
+  // The standing bound is CLEARED rather than clamped: clearing is visible,
+  // the button goes dark, and the trader sees what happened. A clamp would
+  // silently answer a question nobody asked.
+  //
+  // EQUAL IS SATISFIABLE. "At least four, at most four" means exactly four
+  // passed, so the test is STRICT on both sides.
   const setMin = (n: number) => {
     const next = ask.minScore === n ? null : n
     onChange({
       minScore: next,
+      maxScore:
+        next !== null && ask.maxScore !== null && next > ask.maxScore ? null : ask.maxScore,
+      bucket: next !== null && ask.bucket === 'incomplete' ? 'any' : ask.bucket,
+    })
+  }
+  const setMax = (n: number) => {
+    const next = ask.maxScore === n ? null : n
+    onChange({
+      minScore:
+        next !== null && ask.minScore !== null && ask.minScore > next ? null : ask.minScore,
+      maxScore: next,
       bucket: next !== null && ask.bucket === 'incomplete' ? 'any' : ask.bucket,
     })
   }
@@ -710,12 +742,40 @@ function DnaFilterDropdown({
             })}
           </div>
 
+          <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary">
+            Score at most
+          </div>
+          <div className="flex items-center gap-1 px-2 pb-1">
+            {/* THE SAME ROW, DERIVED FROM THE SAME CONSTANT. Two rows built
+                from one SCORE_ROW cannot drift apart, which is the whole
+                reason the ceiling stopped being a typed digit. */}
+            {SCORE_ROW.map((n) => {
+              const on = ask.maxScore === n
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setMax(n)}
+                  aria-pressed={on}
+                  aria-label={`Score at most ${n}`}
+                  className={`inline-flex h-7 w-8 cursor-pointer items-center justify-center rounded-md border font-mono text-[11px] transition-colors duration-150 ${
+                    on
+                      ? 'border-gold/50 bg-gold/[0.10] text-gold'
+                      : 'border-border-subtle bg-bg-1 text-fg-tertiary hover:border-gold/40 hover:text-gold'
+                  }`}
+                >
+                  {n}
+                </button>
+              )
+            })}
+          </div>
+
           {active && (
             <>
               <div className="my-1 h-px bg-border-subtle" />
               <button
                 type="button"
-                onClick={() => onChange({ minScore: null, bucket: 'any' })}
+                onClick={() => onChange({ minScore: null, maxScore: null, bucket: 'any' })}
                 className="flex w-full items-center justify-center rounded px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-fg-tertiary transition-colors duration-150 hover:text-gold"
               >
                 Clear DNA

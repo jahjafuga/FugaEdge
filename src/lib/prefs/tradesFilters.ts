@@ -138,13 +138,64 @@ function coerce(raw: unknown): TradesFilterState {
     dna: (() => {
       const d = isObj(raw.dna) ? raw.dna : {}
       const m = d.minScore
-      return {
-        minScore:
-          typeof m === 'number' && Number.isInteger(m) && m >= 0 && m <= SCORE_CEILING
-            ? m
-            : null,
+      // BOTH BOUNDS READ THE SAME WAY, and both are bounded by the imported
+      // ceiling rather than a digit typed here. A blob written before either
+      // field existed simply lacks the key, fails the typeof and lands on
+      // null -- the same additive path every other field on this reader uses.
+      const x = d.maxScore
+      const bounded = (raw: unknown): number | null =>
+        typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw <= SCORE_CEILING
+          ? raw
+          : null
+      const out = {
+        minScore: bounded(m),
+        maxScore: bounded(x),
         bucket: oneOf(d.bucket, ['any', 'complete', 'incomplete'] as const, 'any'),
       }
+      // ── THE CROSS CHECK ────────────────────────────────────────────────
+      // Every field above validates ALONE. Three combinations of individually
+      // valid fields select nothing at all, and all three were measured on a
+      // book of one row per attainable score plus one nobody scored:
+      //
+      //   a floor above a ceiling        no trade passed at least 5 and at
+      //                                  most 3
+      //   incomplete with a floor        a row with no verdict fails every
+      //   incomplete with a ceiling      bound in either direction, so all 15
+      //                                  such combinations keep zero rows
+      //
+      // The resolver refuses all three the moment they are typed. Without
+      // this the same states came back from DISK, arriving in the app with no
+      // sentence ever spoken and no way for the trader to know why the table
+      // was empty. Every build that has shipped since the score became
+      // typeable could restore one.
+      //
+      // THE RECOVERY IS THIS FILE'S OWN PRECEDENT. A field that fails its
+      // validation drops to its neutral value -- `bounded` gives null,
+      // `oneOf` gives 'any' -- so the fields taking part in a failed
+      // cross-check drop the same way. Nothing throws, nothing is discarded
+      // wholesale, and what comes back is a state the panel can both show and
+      // clear, which is R311 read from the storage side.
+      //
+      // COMPLETE IS DELIBERATELY UNTOUCHED: complete with a ceiling of three
+      // keeps four rows. Refusing it would take a real ask away, which is a
+      // worse fault than the one being fixed.
+      if (out.minScore !== null && out.maxScore !== null && out.minScore > out.maxScore) {
+        out.minScore = null
+        out.maxScore = null
+      }
+      // SECOND, AND THE ORDER MATTERS. A blob holding all three faults --
+      // incomplete with a floor above a ceiling -- has both bounds cleared by
+      // the rule above, so this one finds nothing left to fight with and the
+      // bucket SURVIVES. That is the generous reading and the right one: an
+      // incomplete bucket on its own is a real ask that keeps a row.
+      if (out.bucket === 'incomplete' && (out.minScore !== null || out.maxScore !== null)) {
+        out.minScore = null
+        out.maxScore = null
+        out.bucket = 'any'
+      }
+      // The result is a FIXED POINT: neither rule can fire on it again, so
+      // reading back what was just written cannot move it a second time.
+      return out
     })(),
     ranges: normaliseRanges(raw.ranges),
     // v0.2.7 -- the EIGHT EXCLUDE arrays. These DO persist, unlike the limit

@@ -254,13 +254,42 @@ export const SORT_REFUSAL =
 /** The verdict exists; the means to verify it does not. */
 export const DNA_REFUSAL =
   'The five pillar verdict is worked out from your settings rather than stored, so I cannot check what leaving it out would give you'
-/** An UPPER bound on the score has nowhere to land. The filter reads
- *  `passed < minScore`, a floor, and there is no maxScore field to hold the
- *  other direction. Applying it as a floor would answer the opposite question
- *  and dropping it would be the silent wrong this campaign exists to remove,
- *  so it refuses and says which half it can do. */
-export const SCORE_MAX_REFUSAL =
-  'I can find trades that met at least a given number of pillars, but not ones that met at most that many, so I left that part alone'
+/** A FLOOR ABOVE A CEILING SELECTS NOTHING, and each half is legal on its
+ *  own -- the contradiction only exists in the pair. Applying both would hand
+ *  back an empty list with nothing said, so BOTH are dropped and the sentence
+ *  names the two numbers, because naming one would leave the trader guessing
+ *  which half was the problem. */
+/** A BUCKET OF UNSCORED ROWS AND A BOUND ON THE SCORE SELECT NOTHING, and
+ *  that is measured rather than argued: on a book holding one row per
+ *  attainable score plus one nobody scored, ALL FIFTEEN combinations of the
+ *  incomplete bucket with at least one bound keep zero rows. Not most of
+ *  them -- all, including a floor of nought, because a row with no verdict
+ *  fails the `!scored` clause at every bound in either direction.
+ *
+ *  The COMPLETE bucket is a different matter and is left alone: complete with
+ *  a ceiling of three keeps four rows on the same book. The refusal has to
+ *  distinguish them or it takes a real ask away.
+ *
+ *  This half PREDATES the upper direction. The floor has behaved this way
+ *  since the score first became typeable, silently, on every build shipped
+ *  since. The sentence names the two things rather than the words typed. */
+export const SCORE_BUCKET_REFUSAL =
+  'Trades with missing inputs were never scored, so a bar on the score cannot pick any of them out, and I left both of those out rather than hand you an empty list'
+export const scorePairRefusal = (min: number, max: number): string =>
+  `No trade can have passed at least ${min} pillars and at most ${max} at the same time, so I left both of those out rather than hand you an empty list`
+/** A CEILING ABOVE THE PILLAR COUNT ASKS THE SAME QUESTION AS ONE AT IT.
+ *
+ *  CORRECTED, and the first wording was wrong in a way worth recording: it
+ *  claimed such a ceiling narrowed the list by nothing at all. Measured on a
+ *  book holding one
+ *  row per attainable score plus one nobody scored, a ceiling of six keeps the
+ *  same six scored rows a ceiling of five keeps AND drops the unscored row
+ *  exactly as five does. So it narrows something -- it simply cannot narrow
+ *  anything a ceiling at the pillar count would not narrow too. That is the
+ *  honest reason to refuse it: the number is doing no work, not that the
+ *  filter is idle. */
+export const SCORE_MAX_CEILING_REFUSAL =
+  `Every trade is judged against ${SCORE_CEILING} pillars, so a ceiling above that picks out exactly the same trades as a ceiling of ${SCORE_CEILING} and the extra is doing no work, which is why I left that part alone`
 /** A FLOOR NOTHING CAN CLEAR IS NOT A FILTER, it is an empty book with no
  *  explanation. The wording states the ceiling that EXISTS and stops there: how
  *  many pillars a given profile actually requires is dna_require_catalyst, a
@@ -856,6 +885,24 @@ export function resolveQuery(
   const log = (line: string, source: string) => {
     applied.push(line)
     appliedSources.push(source)
+  }
+  /** TAKE BACK a line already logged, when a later clause turns out to
+   *  contradict the one that logged it. Announcing a filter and refusing it
+   *  in the same breath is the exact untruth these refusals exist to remove,
+   *  and it is easy to reach: an earlier pass cannot see what a later one
+   *  will find.
+   *
+   *  The two arrays are INDEX ALIGNED -- the reorder at the end of this
+   *  function zips them by position -- so both are spliced at the same index
+   *  or every source below the cut drifts onto the wrong line. */
+  const withdraw = (prefix: string) => {
+    for (let q = applied.length - 1; q >= 0; q--) {
+      if (applied[q]!.startsWith(prefix)) {
+        applied.splice(q, 1)
+        appliedSources.splice(q, 1)
+        return
+      }
+    }
   }
   const ambiguous: AmbiguousToken[] = []
   /** display and kind, recorded where identity still exists. */
@@ -1496,22 +1543,81 @@ export function resolveQuery(
     // of lie as a coerced bound -- so the span is left alone and falls through.
     if (!v || v.unit !== null || !Number.isInteger(v.n) || v.n < 0) continue
     const end = vIdx
-    // ALL OR NOTHING. Every token of the span is consumed on both arms, so the
-    // digit can never survive to be read as a row count by pass 1b, and the
-    // word can never fall through to the vocabulary pass on its own.
-    if (!isMin) {
-      refusals.push(SCORE_MAX_REFUSAL)
+    // ALL OR NOTHING. Every token of the span is consumed on every arm below,
+    // so the digit can never survive to be read as a row count by pass 1b, and
+    // the word can never fall through to the vocabulary pass on its own.
+    const consume = () => {
       for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    }
+    // ABOVE THE CEILING IS A REFUSAL IN BOTH DIRECTIONS, and it sits ABOVE the
+    // direction split so a ceiling ask reaches it too -- below the split it
+    // would only ever have guarded the floor. ONE test, TWO sentences: the
+    // condition is the same number in both directions, but what goes wrong is
+    // not. A floor above the pillar count can be met by nothing and empties the
+    // list. A ceiling above it is exceeded by nothing and removes nobody. The
+    // refusals say which, because a sentence describing the other outcome
+    // would be a small untruth in the one place a trader is being told the
+    // truth about a limit.
+    if (v.n > SCORE_CEILING) {
+      refusals.push(isMin ? SCORE_CEILING_REFUSAL : SCORE_MAX_CEILING_REFUSAL)
+      consume()
       i = end
       continue
     }
-    // ABOVE THE CEILING IS A REFUSAL, not a filter. Applying it would set a
-    // floor no trade can clear and hand back an empty book with nothing said --
-    // the same silent wrong as coercing a number, reached from the other side.
-    // Consumed either way, so the span never falls through to be half-read.
-    if (v.n > SCORE_CEILING) {
-      refusals.push(SCORE_CEILING_REFUSAL)
-      for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    // AN INHERITED INCOMPLETE BUCKET, CHECKED BEFORE THE BOUND IS WRITTEN.
+    // This arm exists because of the PASS ORDER: the bucket word is read in
+    // pass 2, below, so when a trader types both the bucket always arrives
+    // second and pass 2 is where the contradiction is found. But the base
+    // state handed to this function is the LIVE FILTER, and the panel is
+    // perfectly able to hold an incomplete bucket on its own. Click
+    // Incomplete, then type "score under 3", and the bound is the half that
+    // arrives second. Written only in pass 2 the rule would let that through.
+    //
+    // BOTH SIDES ARE DROPPED, including the bucket that was already standing
+    // -- otherwise the refusal says it took nothing while a filter stays lit.
+    if (state.dna.bucket === 'incomplete') {
+      refusals.push(SCORE_BUCKET_REFUSAL)
+      state = { ...state, dna: { ...state.dna, minScore: null, maxScore: null, bucket: 'any' } }
+      withdraw('dna incomplete')
+      consume()
+      i = end
+      continue
+    }
+    // A CONTRADICTORY PAIR, CHECKED BEFORE EITHER BOUND IS WRITTEN. Whichever
+    // half arrives second is the one that can see the contradiction, so the
+    // clearing reaches BACK to the half already set -- which is what makes the
+    // answer the same in either order. EQUAL IS SATISFIABLE: "at least four,
+    // at most four" means exactly four passed, so only a floor STRICTLY above
+    // a ceiling is impossible.
+    const otherMin = isMin ? null : state.dna.minScore
+    const otherMax = isMin ? state.dna.maxScore : null
+    if ((otherMax != null && v.n > otherMax) || (otherMin != null && otherMin > v.n)) {
+      const lo = isMin ? v.n : (otherMin as number)
+      const hi = isMin ? (otherMax as number) : v.n
+      refusals.push(scorePairRefusal(lo, hi))
+      state = { ...state, dna: { ...state.dna, minScore: null, maxScore: null } }
+      // AND WITHDRAW WHAT THE FIRST HALF ALREADY CLAIMED. Whichever bound
+      // arrived first logged its line before the second one could see the
+      // contradiction, so clearing the state alone left the app announcing a
+      // bound and refusing it in the same breath. FOUND BY DRIVING THE
+      // PHRASE, not by reading the code: the state read null and the applied
+      // line read "dna score at least 4" beside it. The loop that did this
+      // moved into `withdraw` when a third rule needed the same discipline.
+      withdraw(isMin ? 'dna score at most ' : 'dna score at least ')
+      consume()
+      i = end
+      continue
+    }
+    if (!isMin) {
+      const prevMax = state.dna.maxScore
+      state = { ...state, dna: { ...state.dna, maxScore: v.n } }
+      log(
+        prevMax !== null && prevMax !== v.n
+          ? `dna score at most ${v.n} (replaced ${prevMax})`
+          : `dna score at most ${v.n}`,
+        tokens.slice(i, end + 1).join(' '),
+      )
+      consume()
       i = end
       continue
     }
@@ -1523,7 +1629,7 @@ export function resolveQuery(
         : `dna score at least ${v.n}`,
       tokens.slice(i, end + 1).join(' '),
     )
-    for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    consume()
     i = end
   }
 
@@ -1804,9 +1910,26 @@ export function resolveQuery(
       state = withDatePreset(state, PRESET_WORDS[t], now)
       marks[i] = 'consumed'
     } else if (DNA_WORDS[t]) {
-      replaceNote('dna', DNA_WORDS[t], state.dna.bucket !== 'any' ? state.dna.bucket : null, t)
-      state = { ...state, dna: { ...state.dna, bucket: DNA_WORDS[t] } }
-      marks[i] = 'consumed'
+      // THE COMMON DIRECTION. Pass 1c has already run, so a bound typed in
+      // the same sentence is standing by the time the bucket word is read.
+      // ONLY INCOMPLETE: the complete bucket composes with a bound perfectly
+      // well -- complete with a ceiling of three keeps four rows on the
+      // measurement book -- and refusing it would take away a real ask.
+      if (
+        DNA_WORDS[t] === 'incomplete' &&
+        (state.dna.minScore !== null || state.dna.maxScore !== null)
+      ) {
+        refusals.push(SCORE_BUCKET_REFUSAL)
+        state = { ...state, dna: { ...state.dna, minScore: null, maxScore: null } }
+        // The bound announced itself in pass 1c, before this word was read.
+        withdraw('dna score at least ')
+        withdraw('dna score at most ')
+        marks[i] = 'consumed'
+      } else {
+        replaceNote('dna', DNA_WORDS[t], state.dna.bucket !== 'any' ? state.dna.bucket : null, t)
+        state = { ...state, dna: { ...state.dna, bucket: DNA_WORDS[t] } }
+        marks[i] = 'consumed'
+      }
     } else if (MISTAKE_FLAG_WORDS.has(t)) {
       log('mistakes only', t)
       state = { ...state, mistakesOnly: true }

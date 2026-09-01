@@ -40,6 +40,16 @@ export const SCORE_CEILING = 5
 /** v0.2.7 — the five-pillar ask: a score bar and a completeness bucket. */
 export interface DnaFilterAsk {
   minScore: number | null
+  /** The UPPER bound, and it is INCLUSIVE, mirroring the lower one. Measured
+   *  rather than chosen: "over 4", "above 4", "greater than 4" and "at least
+   *  4" all produce minScore 4, so "under 3" keeps a trade that passed three
+   *  rather than only one that passed two. Null = no ceiling asked for.
+   *
+   *  REQUIRED, now that every caller supplies it: the preference reader
+   *  defaults an absent key to null, and the panel writes it on every change.
+   *  The predicates still read it with != null, which costs nothing and keeps
+   *  a hand-built state object from having to distinguish absent from null. */
+  maxScore: number | null
   bucket: 'any' | 'complete' | 'incomplete'
 }
 
@@ -340,7 +350,7 @@ export function emptyFilters(): TradesFilterState {
     sectors: [],
     industries: [],
     macdStates: [],
-    dna: { minScore: null, bucket: 'any' },
+    dna: { minScore: null, maxScore: null, bucket: 'any' },
     ranges: {},
     excludePlaybookIds: [],
     excludeMistakeKeys: [],
@@ -425,6 +435,7 @@ export function isFiltering(f: TradesFilterState): boolean {
     f.industries.length > 0 ||
     f.macdStates.length > 0 ||
     f.dna.minScore !== null ||
+    f.dna.maxScore != null ||
     f.dna.bucket !== 'any' ||
     // A range alone must surface the Clear control, or a user can narrow the table
     // and find no way to widen it again.
@@ -558,12 +569,20 @@ export function applyTradesFilters(
     // Five-pillar filter — reads the verdict withDnaScores attached upstream.
     // A row without one is INCOMPLETE, not scored: treating it as anything
     // else would invent a verdict nobody computed.
-    if (f.dna.minScore !== null || f.dna.bucket !== 'any') {
+    if (f.dna.minScore !== null || f.dna.maxScore !== null || f.dna.bucket !== 'any') {
       const s = t.dna
       const scored = s && s.kind === 'scored' ? s : null
       if (f.dna.bucket === 'complete' && !scored) return false
       if (f.dna.bucket === 'incomplete' && scored) return false
       if (f.dna.minScore !== null && (!scored || scored.passed < f.dna.minScore)) return false
+      // THE CEILING REPEATS THE UNSCORED CLAUSE, IT DOES NOT INVERT IT, and
+      // that was measured on a book holding one row per attainable score plus
+      // one nobody scored. Written the naive way -- `scored && passed > max` --
+      // the unscored row SURVIVES, and the app ends up saying "this trade
+      // passed at most three" about a trade it never judged. A row without a
+      // verdict is not a low score; it is an absence, and an absence answers
+      // neither direction.
+      if (f.dna.maxScore != null && (!scored || scored.passed > f.dna.maxScore)) return false
     }
     return true
   })

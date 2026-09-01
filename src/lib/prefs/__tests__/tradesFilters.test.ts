@@ -31,6 +31,7 @@ import {
   readTradesFilters,
   writeTradesFilters,
 } from '../tradesFilters'
+import { resolveQuery, type ResolverVocabulary } from '@/core/trades/queryResolver'
 import { emptyFilters, SCORE_CEILING, type TradesFilterState } from '@/core/trades/tradesFilter'
 import type { AccountScope } from '@shared/accounts-types'
 
@@ -79,7 +80,14 @@ const FULL = (): TradesFilterState => ({
   excludeMistakesOnly: true,
   excludeAPlus: true,
   excludeRanges: { mae: { min: 1, max: null } },
-  dna: { minScore: 3, bucket: 'complete' },
+  // SATISFIABLE, and it was not before. Beat 245 put maxScore 2 beside
+  // minScore 3 here -- a floor ABOVE a ceiling -- purely to give the new
+  // field a non-default value, and it round-tripped only because nothing
+  // cross-checked. The moment the reader learned the rule, F1 fell: the
+  // fixture was asserting that a state which cannot legally be stored comes
+  // back unchanged. Four, not two, so the pair still carries two real values
+  // and still fires if either stops persisting.
+  dna: { minScore: 3, maxScore: 4, bucket: 'complete' },
   ranges: { net_pnl: { min: -500, max: 1200 }, rvol: { min: 2, max: null } },
   // v0.2.7 -- the EIGHT EXCLUDE arrays, with real values: unlike the limit
   // these ARE filters and MUST round-trip, so F1 asserts exactly that.
@@ -309,8 +317,8 @@ describe('F10 the stored score bound follows SCORE_CEILING', () => {
   const store = (minScore: number) => {
     writeTradesFilters(ALL, {
       ...emptyFilters(),
-      dna: { minScore, bucket: 'any' },
-    } as TradesFilterState)
+      dna: { minScore, maxScore: null, bucket: 'any' },
+    })
     return readTradesFilters(ALL).dna.minScore
   }
 
@@ -327,5 +335,192 @@ describe('F10 the stored score bound follows SCORE_CEILING', () => {
 
   it('CONTROL: an ordinary score in range is untouched', () => {
     expect(store(3)).toBe(3)
+  })
+})
+
+describe('F12 the CEILING is stored under the same rule as the floor', () => {
+  // ONE READER, BOTH BOUNDS. The two fields go through the same `bounded`
+  // helper against the same imported SCORE_CEILING, so these cases are the
+  // proof the ceiling did not quietly get its own rule -- or no rule at all,
+  // which is what an unvalidated read is.
+  const storeMax = (maxScore: number) => {
+    writeTradesFilters(ALL, {
+      ...emptyFilters(),
+      dna: { minScore: null, maxScore, bucket: 'any' },
+    })
+    return readTradesFilters(ALL).dna.maxScore
+  }
+
+  it('a ceiling AT the pillar count survives the round trip', () => {
+    expect(storeMax(SCORE_CEILING), 'the ceiling itself was rejected').toBe(SCORE_CEILING)
+  })
+
+  it('a ceiling ONE ABOVE it is rejected to null', () => {
+    expect(
+      storeMax(SCORE_CEILING + 1),
+      'a ceiling above the pillar count was stored and read back',
+    ).toBeNull()
+  })
+
+  it('CONTROL: an ordinary ceiling in range is untouched', () => {
+    expect(storeMax(2)).toBe(2)
+  })
+
+  it('a blob written BEFORE the field existed reads back null, not undefined', () => {
+    // THE UPGRADE PATH, and it is the reason the reader defaults rather than
+    // trusting the blob. Every stored ask on every machine today was written
+    // without this key. `undefined` would satisfy neither the type nor the
+    // `!= null` predicates cleanly, and would round-trip back out as a
+    // missing key forever.
+    localStorage.setItem(
+      filterPrefsKey(ALL),
+      JSON.stringify({
+        v: TRADES_FILTER_PREFS_VERSION,
+        state: { dna: { minScore: 3, bucket: 'complete' } },
+      }),
+    )
+    const dna = readTradesFilters(ALL).dna
+    expect(dna.maxScore, 'an absent key did not become null').toBeNull()
+    expect('maxScore' in dna, 'the key is missing rather than null').toBe(true)
+    // and the fields beside it are untouched by the upgrade
+    expect(dna.minScore).toBe(3)
+    expect(dna.bucket).toBe('complete')
+  })
+
+  it('CONTROL: both bounds survive together, so neither read clobbers the other', () => {
+    writeTradesFilters(ALL, {
+      ...emptyFilters(),
+      dna: { minScore: 2, maxScore: 4, bucket: 'any' },
+    })
+    expect(readTradesFilters(ALL).dna).toEqual({ minScore: 2, maxScore: 4, bucket: 'any' })
+  })
+})
+
+describe('F13 a contradictory blob cannot come back contradictory', () => {
+  // MEASURED FIRST, at beat 246.5: all three states below round-tripped
+  // intact and every one of them selected ZERO rows from a book of one row
+  // per attainable score plus one nobody scored. The resolver refuses all
+  // three the moment they are typed; the reader restored them from disk
+  // without any sentence ever being spoken.
+  //
+  // THE RECOVERY FOLLOWS THE READER'S OWN PRECEDENT, which is not a choice
+  // made here: a field that fails its validation drops to its neutral value
+  // -- `bounded` returns null, `oneOf` returns 'any'. A failed CROSS-check
+  // is the same failure over a combination, so the participating fields
+  // drop the same way. Nothing throws and nothing is discarded wholesale.
+  const store = (dna: Record<string, unknown>) => {
+    localStorage.setItem(
+      filterPrefsKey(ALL),
+      JSON.stringify({ v: TRADES_FILTER_PREFS_VERSION, state: { dna } }),
+    )
+    return readTradesFilters(ALL).dna
+  }
+  /** The three rules, as a predicate. A returned state must satisfy none. */
+  const contradictory = (d: { minScore: number | null; maxScore: number | null; bucket: string }) =>
+    (d.minScore !== null && d.maxScore !== null && d.minScore > d.maxScore) ||
+    (d.bucket === 'incomplete' && (d.minScore !== null || d.maxScore !== null))
+
+  it('M1 incomplete with a CEILING does not come back contradictory', () => {
+    const d = store({ bucket: 'incomplete', minScore: null, maxScore: 3 })
+    expect(contradictory(d), `restored a contradiction: ${JSON.stringify(d)}`).toBe(false)
+  })
+
+  it('M2 incomplete with a FLOOR does not come back contradictory', () => {
+    const d = store({ bucket: 'incomplete', minScore: 3, maxScore: null })
+    expect(contradictory(d), `restored a contradiction: ${JSON.stringify(d)}`).toBe(false)
+  })
+
+  it('M3 a floor ABOVE a ceiling does not come back contradictory', () => {
+    const d = store({ bucket: 'any', minScore: SCORE_CEILING, maxScore: 3 })
+    expect(contradictory(d), `restored a contradiction: ${JSON.stringify(d)}`).toBe(false)
+  })
+
+  it('M4 CONTROL: complete with a ceiling round-trips INTACT', () => {
+    // It keeps four rows on the measurement book. A cross-check that touches
+    // this has taken a real ask away, which is the failure worth guarding
+    // against more than the contradiction itself.
+    expect(store({ bucket: 'complete', minScore: null, maxScore: 3 })).toEqual({
+      minScore: null,
+      maxScore: 3,
+      bucket: 'complete',
+    })
+  })
+
+  it('M5 CONTROL: incomplete ALONE round-trips intact', () => {
+    expect(store({ bucket: 'incomplete', minScore: null, maxScore: null })).toEqual({
+      minScore: null,
+      maxScore: null,
+      bucket: 'incomplete',
+    })
+  })
+
+  it('M6 CONTROL: an ordinary satisfiable pair round-trips intact', () => {
+    expect(store({ bucket: 'any', minScore: 2, maxScore: 4 })).toEqual({
+      minScore: 2,
+      maxScore: 4,
+      bucket: 'any',
+    })
+  })
+
+  it('M6b CONTROL: an EQUAL pair is satisfiable and survives', () => {
+    // "at least four, at most four" means exactly four passed. Without this
+    // M3 would pass on a cross-check that rejected every pair.
+    expect(store({ bucket: 'any', minScore: 4, maxScore: 4 })).toEqual({
+      minScore: 4,
+      maxScore: 4,
+      bucket: 'any',
+    })
+  })
+
+  it('M8 the recovery MATCHES what the resolver does with the same ask', () => {
+    // FOUND BY A PLANT THAT REDDENED NOTHING. T3 dropped the BUCKET and kept
+    // the bounds instead of the other way round. That satisfies all three
+    // rules, so every case above stayed green -- they assert the result is
+    // not contradictory and never say which side survives.
+    //
+    // The tie-break is not taste. The resolver already answers this question
+    // for the same contradiction spoken aloud, and storage recovering to a
+    // DIFFERENT state than typing would mean the same ask gives two answers
+    // depending on whether it arrived by keyboard or by reload. So the
+    // assertion is against the resolver's own output, not a literal.
+    const VOCAB: ResolverVocabulary = {
+      symbols: [], regions: [], countries: [], sectors: [], industries: [],
+      playbooks: [], catalystTypes: [], mistakes: [], macdStates: [],
+    }
+    const spoken = (q: string) =>
+      resolveQuery(q, VOCAB, new Date('2026-08-15T12:00:00Z'), emptyFilters()).state.dna
+    const pairs: [Record<string, unknown>, string][] = [
+      [{ bucket: 'incomplete', minScore: 3, maxScore: null }, 'incomplete score at least 3'],
+      [{ bucket: 'incomplete', minScore: null, maxScore: 3 }, 'incomplete score under 3'],
+      [{ bucket: 'any', minScore: SCORE_CEILING, maxScore: 3 }, `score at least ${SCORE_CEILING} score under 3`],
+    ]
+    for (const [blob, phrase] of pairs) {
+      expect(store(blob), `storage and the resolver disagree about "${phrase}"`).toEqual(
+        spoken(phrase),
+      )
+    }
+  })
+
+  it('M8b CONTROL: they agree on a SATISFIABLE ask too', () => {
+    // Without this M8 would pass on two layers that both simply empty the
+    // ask, agreeing by doing nothing.
+    const VOCAB: ResolverVocabulary = {
+      symbols: [], regions: [], countries: [], sectors: [], industries: [],
+      playbooks: [], catalystTypes: [], mistakes: [], macdStates: [],
+    }
+    const spoken = resolveQuery(
+      'complete score under 3', VOCAB, new Date('2026-08-15T12:00:00Z'), emptyFilters(),
+    ).state.dna
+    expect(spoken.maxScore, 'the control ask resolved to nothing').toBe(3)
+    expect(store({ bucket: 'complete', minScore: null, maxScore: 3 })).toEqual(spoken)
+  })
+
+  it('M6c the recovery is a FIXED POINT: reading it back again changes nothing', () => {
+    // A cross-check that produced a state its own next pass would change
+    // again would settle somewhere nobody chose. Write what came back, read
+    // it once more, and it must be the same object.
+    const once = store({ bucket: 'incomplete', minScore: 3, maxScore: 4 })
+    writeTradesFilters(ALL, { ...emptyFilters(), dna: once })
+    expect(readTradesFilters(ALL).dna, 'the recovery did not settle').toEqual(once)
   })
 })

@@ -57,7 +57,7 @@ describe('D5 the filter narrows', () => {
   it('minScore matches complete trades at or above the bar — never incomplete ones', () => {
     const out = applyTradesFilters(BOOK, {
       ...emptyFilters(),
-      dna: { minScore: 3, bucket: 'any' },
+      dna: { minScore: 3, maxScore: null, bucket: 'any' },
     })
     expect(out.map((x) => x.id), 'minScore leaked an incomplete trade').toEqual([1, 3])
   })
@@ -65,7 +65,7 @@ describe('D5 the filter narrows', () => {
   it('the incomplete bucket returns exactly the incomplete set', () => {
     const out = applyTradesFilters(BOOK, {
       ...emptyFilters(),
-      dna: { minScore: null, bucket: 'incomplete' },
+      dna: { minScore: null, maxScore: null, bucket: 'incomplete' },
     })
     expect(out.map((x) => x.id)).toEqual([4, 5])
   })
@@ -73,7 +73,7 @@ describe('D5 the filter narrows', () => {
   it('the complete bucket is its mirror', () => {
     const out = applyTradesFilters(BOOK, {
       ...emptyFilters(),
-      dna: { minScore: null, bucket: 'complete' },
+      dna: { minScore: null, maxScore: null, bucket: 'complete' },
     })
     expect(out.map((x) => x.id)).toEqual([1, 2, 3])
   })
@@ -83,7 +83,7 @@ describe('D5 the filter narrows', () => {
       ...emptyFilters(),
       regions: ['China'],
       outcome: 'losers',
-      dna: { minScore: 3, bucket: 'any' },
+      dna: { minScore: 3, maxScore: null, bucket: 'any' },
     })
     expect(out.map((x) => x.id)).toEqual([1])
   })
@@ -91,14 +91,14 @@ describe('D5 the filter narrows', () => {
   it('the empty ask filters nothing and is not "filtering"', () => {
     expect(applyTradesFilters(BOOK, emptyFilters()).length).toBe(5)
     expect(isFiltering(emptyFilters())).toBe(false)
-    expect(isFiltering({ ...emptyFilters(), dna: { minScore: 3, bucket: 'any' } })).toBe(true)
-    expect(isFiltering({ ...emptyFilters(), dna: { minScore: null, bucket: 'incomplete' } })).toBe(true)
+    expect(isFiltering({ ...emptyFilters(), dna: { minScore: 3, maxScore: null, bucket: 'any' } })).toBe(true)
+    expect(isFiltering({ ...emptyFilters(), dna: { minScore: null, maxScore: null, bucket: 'incomplete' } })).toBe(true)
   })
 
   it('an unaugmented row under an active ask counts as incomplete — the honest default', () => {
     const out = applyTradesFilters(RAW, {
       ...emptyFilters(),
-      dna: { minScore: null, bucket: 'incomplete' },
+      dna: { minScore: null, maxScore: null, bucket: 'incomplete' },
     })
     expect(out.length, 'rows nobody scored were treated as scored').toBe(5)
   })
@@ -108,8 +108,8 @@ describe('D5 the filter narrows', () => {
 
 describe('D6 the prefs blob carries the ask, additively at version one', () => {
   it('round-trips', () => {
-    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 4, bucket: 'complete' } })
-    expect(readTradesFilters(ALL).dna).toEqual({ minScore: 4, bucket: 'complete' })
+    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 4, maxScore: null, bucket: 'complete' } })
+    expect(readTradesFilters(ALL).dna).toEqual({ minScore: 4, maxScore: null, bucket: 'complete' })
   })
 
   it('an old blob without the field upgrades to the empty ask, keeping what it had', () => {
@@ -121,7 +121,7 @@ describe('D6 the prefs blob carries the ask, additively at version one', () => {
       }),
     )
     const back = readTradesFilters(ALL)
-    expect(back.dna).toEqual({ minScore: null, bucket: 'any' })
+    expect(back.dna).toEqual({ minScore: null, maxScore: null, bucket: 'any' })
     expect(back.symbol).toBe('ASTC')
     expect(back.regions).toEqual(['China'])
   })
@@ -134,7 +134,7 @@ describe('D6 the prefs blob carries the ask, additively at version one', () => {
         state: { dna: { minScore: 'four', bucket: 'sideways', extra: true } },
       }),
     )
-    expect(readTradesFilters(ALL).dna).toEqual({ minScore: null, bucket: 'any' })
+    expect(readTradesFilters(ALL).dna).toEqual({ minScore: null, maxScore: null, bucket: 'any' })
   })
 
   it('a fractional or out-of-band minScore is dropped', () => {
@@ -152,15 +152,19 @@ describe('D6 the prefs blob carries the ask, additively at version one', () => {
 
 describe('D7 thresholds are NOT stored — the ask re-resolves against settings', () => {
   it('the blob carries no dna_* threshold key and no threshold number', () => {
-    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 3, bucket: 'complete' } })
+    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 3, maxScore: null, bucket: 'complete' } })
     const blob = localStorage.getItem(filterPrefsKey(ALL))!
     expect(blob).not.toMatch(/dna_(price|change|rvol|float|require)/)
     const stored = JSON.parse(blob).state.dna
-    expect(Object.keys(stored).sort()).toEqual(['bucket', 'minScore'])
+    // THE KEY SET, NOT A SUBSET, and it grew by exactly one: maxScore. This
+    // stays an equality rather than a contains-check because the case exists
+    // to catch a THRESHOLD leaking into the blob, and a contains-check would
+    // not notice one arriving.
+    expect(Object.keys(stored).sort()).toEqual(['bucket', 'maxScore', 'minScore'])
   })
 
   it('the same stored ask matches a different set under a tightened profile', () => {
-    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 5, bucket: 'any' } })
+    writeTradesFilters(ALL, { ...emptyFilters(), dna: { minScore: 5, maxScore: null, bucket: 'any' } })
     const ask = readTradesFilters(ALL)
 
     const relaxed = applyTradesFilters(withDnaScores(RAW, CONFIG, DEFS), ask)

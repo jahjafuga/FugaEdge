@@ -138,7 +138,11 @@ describe('the battery, each result hand-written', () => {
     const out = r('incomplete')
     expect(out.state).toEqual({
       ...emptyFilters(),
-      dna: { minScore: null, bucket: 'incomplete' },
+      // maxScore joined the ask when the upper direction became typeable. It
+      // is spelled out here rather than spread, because this case is a
+      // hand-written whole-state comparison and a spread would hide a field
+      // appearing -- which is the one thing this case is for.
+      dna: { minScore: null, maxScore: null, bucket: 'incomplete' },
     })
   })
 
