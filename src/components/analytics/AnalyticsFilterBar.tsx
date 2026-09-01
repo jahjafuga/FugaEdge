@@ -112,9 +112,15 @@ interface AnalyticsFilterBarProps {
   trades: TradeListRow[]
   filters: OverviewFilters
   onFiltersChange: (next: OverviewFilters) => void
-  /** Local highlight key (incl. '7d'); owned by the dashboard. */
-  quick: QuickKey
-  onQuickChange: (q: QuickKey) => void
+  /** Local highlight key (incl. '7d'); owned by the dashboard. Optional so a
+   *  caller that hides the range strip does not have to invent one. */
+  quick?: QuickKey
+  onQuickChange?: (q: QuickKey) => void
+  /** Whether this bar owns a DATE RANGE. Default true, so every existing
+   *  caller is byte identical. Compare passes false: its period pickers own
+   *  dates, and a page level range narrower than a period would silently
+   *  shrink that period without saying so. */
+  showRange?: boolean
   /** True once the bar is PINNED and content is scrolling under it. Drives the
    *  shadow step from resting to lifted — the only cue that says "this is stuck". */
   elevated?: boolean
@@ -129,10 +135,11 @@ export default function AnalyticsFilterBar({
   trades,
   filters,
   onFiltersChange,
-  quick,
+  quick = 'all',
   onQuickChange,
   scopeLabel,
   elevated = false,
+  showRange = true,
 }: AnalyticsFilterBarProps) {
   const [moreOpen, setMoreOpen] = useState(false)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -183,15 +190,21 @@ export default function AnalyticsFilterBar({
 
   // Picking a quick range writes filters.range AND the local highlight key.
   const pickQuick = (key: QuickKey) => {
-    onQuickChange(key)
+    onQuickChange?.(key)
     set('range', rangeForQuickKey(key))
   }
 
   // Reset restores the 7D default fully — range AND highlight agree (the shared
   // bar reset range to null while still highlighting a button; this doesn't).
+  // With no range strip there is no default window to restore, so reset clears
+  // to a plain empty filter and leaves range null.
   const reset = () => {
+    if (!showRange) {
+      onFiltersChange(emptyFilters())
+      return
+    }
     onFiltersChange({ ...emptyFilters(), range: rangeForQuickKey('7d') })
-    onQuickChange('7d')
+    onQuickChange?.('7d')
   }
 
   // ONE question, asked once: is the user looking at a SUBSET of their book?
@@ -199,7 +212,9 @@ export default function AnalyticsFilterBar({
   // Reset appears only when this is true (there is nothing to reset otherwise) and
   // the scope line is promoted only when this is true (it is the only thing on the
   // page that says the numbers describe part of the book rather than all of it).
-  const subset = isNarrowedBeyondRange(filters) || quick !== 'all'
+  const subset = showRange
+    ? isNarrowedBeyondRange(filters) || quick !== 'all'
+    : isNarrowedBeyondRange(filters)
 
   // Whether any control hidden behind the expander is active — so the collapsed
   // "More filters" button can signal there's something live underneath.
@@ -260,12 +275,16 @@ export default function AnalyticsFilterBar({
           <Segment options={SIDES} value={filters.side} onChange={(v) => set('side', v)} />
         </span>
 
-        <Rule />
+        {showRange && (
+          <>
+            <Rule />
 
-        {/* GROUP 3 — range. Gold here is the SELECTED window: active state. */}
-        <span className={`inline-flex rounded-md ${RING}`}>
-          <Segment options={QUICK} value={quick} onChange={pickQuick} />
-        </span>
+            {/* GROUP 3 — range. Gold here is the SELECTED window: active state. */}
+            <span className={`inline-flex rounded-md ${RING}`}>
+              <Segment options={QUICK} value={quick} onChange={pickQuick} />
+            </span>
+          </>
+        )}
 
         {/* GROUP 4 — status + expander, anchored right. */}
         <div className="ml-auto flex min-w-0 items-center gap-2">
@@ -379,22 +398,24 @@ export default function AnalyticsFilterBar({
               onChange={(next) => set('mistakes', next)}
             />
 
-            <div className="flex items-center gap-1">
-              <DateField
-                label="From"
-                value={filters.range?.from ?? ''}
-                onChange={(v) =>
-                  set('range', v ? { from: v, to: filters.range?.to ?? v } : null)
-                }
-              />
-              <DateField
-                label="To"
-                value={filters.range?.to ?? ''}
-                onChange={(v) =>
-                  set('range', v ? { from: filters.range?.from ?? v, to: v } : null)
-                }
-              />
-            </div>
+            {showRange && (
+              <div className="flex items-center gap-1">
+                <DateField
+                  label="From"
+                  value={filters.range?.from ?? ''}
+                  onChange={(v) =>
+                    set('range', v ? { from: v, to: filters.range?.to ?? v } : null)
+                  }
+                />
+                <DateField
+                  label="To"
+                  value={filters.range?.to ?? ''}
+                  onChange={(v) =>
+                    set('range', v ? { from: filters.range?.from ?? v, to: v } : null)
+                  }
+                />
+              </div>
+            )}
             </div>
             </div>
           </>,

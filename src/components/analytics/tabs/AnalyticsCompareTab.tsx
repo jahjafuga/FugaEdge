@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import SectionHeader from '@/components/ui/SectionHeader'
-import MultiSelectMenu from '@/components/ui/MultiSelectMenu'
+import AnalyticsFilterBar from '@/components/analytics/AnalyticsFilterBar'
 import CompareView from '@/components/reports/overview/CompareView'
 import { ipc } from '@/lib/ipc'
 import {
   applyFilters,
-  distinctMistakes,
   emptyFilters,
   rangeForPreset,
   type DateRange,
+  type OverviewFilters,
 } from '@/core/performance'
+import { isNarrowedBeyondRange } from '@/core/performance/overviewScopeLabel'
 import type { TradeListRow } from '@shared/trades-types'
 
 interface AnalyticsCompareTabProps {
@@ -28,12 +29,23 @@ interface AnalyticsCompareTabProps {
 // and the per-day sentiment map. This caller is what makes CompareView a shared
 // keeper before Beat B retires the Reports page.
 //
-// Minimal promote, partially reconsidered: the MISTAKE half of the dropped
-// FilterBar cross-filter landed (Dave #14 A) as a Compare-local multi-select —
-// the recovered filter-then-compare wiring narrows the rows CompareView feeds
-// into computePeriodComparison. Full FilterBar parity (symbol/side/playbook/…)
-// stays earmarked for the flagship redesign arc; the surface is otherwise
-// as-is until that arc.
+// FULL FILTER PARITY, DELIVERED. This comment used to say that parity beyond
+// the mistake dimension stayed earmarked for the flagship redesign arc. Beat
+// 219 measured what that reservation was actually costing: Compare received
+// raw rows and called applyFilters with emptyFilters() plus mistakes, so six
+// of the seven dimensions in OverviewFilters were unreachable from this tab.
+// Beat 224 delivers them. The tab now renders the same AnalyticsFilterBar
+// Overview renders, with one deliberate omission.
+//
+// THE DATE RANGE IS OMITTED, and that is a design ruling rather than an
+// oversight. CompareView's period pickers own dates. A page level range
+// narrower than a period would silently shrink that period without saying so,
+// which is the kind of quiet wrong this codebase refuses. The bar takes
+// showRange={false} and its own reset clears to a plain empty filter.
+//
+// The mechanism is unchanged from the mistake-only version: ONE rows array
+// goes into computePeriodComparison, which takes one array and two ranges, so
+// narrowing the array narrows both periods identically.
 export default function AnalyticsCompareTab({
   trades,
   initialRangeA,
@@ -42,18 +54,24 @@ export default function AnalyticsCompareTab({
   const [rangeA, setRangeA] = useState<DateRange>(() => initialRangeA ?? rangeForPreset('thisMonth'))
   const [rangeB, setRangeB] = useState<DateRange>(() => initialRangeB ?? rangeForPreset('lastMonth'))
 
-  // Mistake-only cross-filter (Dave #14 A). The wiring is the recovered
-  // b88d290^ Reports pattern — `applyFilters(trades, { ...filters, range:
-  // null })` — narrowed to the one recovered dimension (emptyFilters()
-  // already carries range: null, so the period pickers keep owning dates).
+  // The full cross-filter. The wiring is the recovered b88d290^ Reports
+  // pattern — `applyFilters(trades, { ...filters, range: null })` — now
+  // carrying every dimension the bar exposes rather than the single mistake
+  // one. range is FORCED null on the way in: the state can never hold a range
+  // because the bar renders no range control, and forcing it here means a
+  // future control could not quietly start shrinking the periods either.
   // Both periods narrow through the same rows; multi-select is a union
   // (a trade with EITHER mistake passes, applyFilters' predicate).
-  const [mistakes, setMistakes] = useState<string[]>([])
-  const mistakeOptions = useMemo(() => distinctMistakes(trades), [trades])
+  const [filters, setFilters] = useState<OverviewFilters>(emptyFilters)
   const filteredTrades = useMemo(
-    () => applyFilters(trades, { ...emptyFilters(), mistakes }),
-    [trades, mistakes],
+    () => applyFilters(trades, { ...filters, range: null }),
+    [trades, filters],
   )
+  // Any non-range dimension being set is what makes the growth row's mixed
+  // ratio dishonest, and this is the pure predicate that already asks exactly
+  // that question. It ignores range by construction, which is the shape
+  // Compare needs.
+  const filtersActive = isNarrowedBeyondRange(filters)
 
   // Sentiment map keyed by date — needed for the "By Market Sentiment" compare
   // breakdown card. Fetched once; optional (empty map on failure so the card
@@ -92,21 +110,24 @@ export default function AnalyticsCompareTab({
           if (which === 'A') setRangeA(range)
           else setRangeB(range)
         }}
-        filtersActive={mistakes.length > 0}
-        // v0.2.7 -- the control moves INSIDE the periods card so it reads as
-        // a control OF the comparison rather than something floating above
-        // it. Same control, same wiring, same hint: placement only.
+        filtersActive={filtersActive}
+        // v0.2.7 -- the controls sit INSIDE the periods card so they read as
+        // controls OF the comparison rather than something floating above it.
+        // Beat 224 widened the one dropdown that used to live here into the
+        // whole bar; the placement ruling is unchanged.
         filterSlot={
           <>
-            <MultiSelectMenu
-              label="Mistake"
-              options={mistakeOptions}
-              selected={mistakes}
-              onChange={setMistakes}
-            />
-            {mistakes.length > 0 && (
+            <div className="w-full">
+              <AnalyticsFilterBar
+                trades={trades}
+                filters={filters}
+                onFiltersChange={setFilters}
+                showRange={false}
+              />
+            </div>
+            {filtersActive && (
               <span className="text-[10px] text-fg-tertiary">
-                both periods narrowed to trades carrying a picked mistake
+                both periods narrowed to the trades these filters keep
               </span>
             )}
           </>

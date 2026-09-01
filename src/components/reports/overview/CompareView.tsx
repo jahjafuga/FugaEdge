@@ -1014,8 +1014,14 @@ function StatSectionCard({ section, emptySide = null }: {
   emptySide?: 'A' | 'B' | null
 }) {
   const columns = resolveSplit(section)
+  // A split section SPANS both grid columns. With seven cards the split one is
+  // seventh, so it used to land alone on row four with the cell beside it
+  // empty. Spanning closes that cell and widens each inner column from a
+  // quarter of the page to a half. Cards one to six are unaffected: row
+  // auto-placement fills them two per row exactly as before.
+  const span = columns ? ' lg:col-span-2' : ''
   return (
-    <div className="rounded-lg border border-border-subtle bg-bg-2 px-4 py-3 shadow-sm">
+    <div className={`rounded-lg border border-border-subtle bg-bg-2 px-4 py-3 shadow-sm${span}`}>
       <div className="flex items-center gap-2 pb-2">
         <span className="h-1.5 w-1.5 rounded-full bg-gold" />
         <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fg-secondary">

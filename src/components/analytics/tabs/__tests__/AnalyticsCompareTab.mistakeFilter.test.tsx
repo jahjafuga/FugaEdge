@@ -2,11 +2,20 @@
 //
 // Dave #14 (A) — MISTAKE FILTER ON COMPARE. The 41cf12d minimal-promote
 // passed ALL trades and dropped the old Reports filter-bar cross-filter;
-// this beat recovers ONE dimension of it — a mistake-only multi-select
+// that beat recovered ONE dimension of it — a mistake-only multi-select
 // above CompareView — using the recovered filter-then-compare wiring
 // (b88d290^'s `applyFilters(trades, { ...filters, range: null })`,
-// narrowed to the mistake dimension). Full FilterBar parity stays
-// earmarked for the flagship redesign arc.
+// narrowed to the mistake dimension).
+//
+// BEAT 224 DELIVERED THE REST. Parity is no longer earmarked: Compare now
+// renders the whole AnalyticsFilterBar (minus the date range, which the
+// period pickers own). The mistake control was PRESERVED, not replaced — it
+// is now one control of that bar, reached through the More panel.
+//
+// So the change below is a PATH change and nothing else. Every assertion in
+// this file is still the right assertion, and every one of them still holds:
+// what it proves about mistake filtering narrowing both periods is exactly
+// what it proved before.
 //
 // THE GROWTH GATE: the 'Net P&L (% of contributed)' row divides the
 // period's net P&L by CONTRIBUTED CAPITAL from the cash ledger. Under an
@@ -100,7 +109,15 @@ function renderTab(trades: TradeListRow[] = TRADES) {
 }
 
 const ROW_LABEL = 'Net P&L (% of contributed)'
-const mistakeTrigger = () => screen.getByRole('button', { name: /^mistake/i })
+// The Mistake picker now lives in the bar's More panel. Open it on demand,
+// and only when the trigger is not already on screen, so repeated calls do
+// not toggle the panel shut again.
+const mistakeTrigger = () => {
+  const found = screen.queryByRole('button', { name: /^mistake/i })
+  if (found) return found
+  fireEvent.click(screen.getByRole('button', { name: /more filters/i }))
+  return screen.getByRole('button', { name: /^mistake/i })
+}
 const option = (label: string) => screen.getByRole('button', { name: label })
 
 describe('AnalyticsCompareTab — mistake filter (Dave #14 A)', () => {
