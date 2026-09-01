@@ -15,6 +15,7 @@ import { withManualDate } from '@/core/trades/datePreset'
 import {
   emptyFilters,
   isFiltering,
+  SCORE_CEILING,
   type DnaFilterAsk,
   type SideFilter,
   type DurationFilter,
@@ -584,6 +585,14 @@ function GeoFilterDropdown({
 // the bucket to Any, and picking "Incomplete" clears the score — the state
 // stays satisfiable instead of quietly matching nothing. Thresholds are NOT
 // here; they live in Settings and the verdicts arrive on the rows.
+/** The score row, one button per pillar, derived rather than typed. It used to
+ *  be five numbers written out by hand -- a third copy of the ceiling, sitting
+ *  a layer away from the resolver's and the preferences'. This copy was the
+ *  quiet one: it validates nothing, so a drift would not have failed anywhere.
+ *  It would simply have offered a button the filter rejects, or withheld one it
+ *  accepts, and said nothing either way. */
+const SCORE_ROW = Array.from({ length: SCORE_CEILING }, (_, i) => i + 1)
+
 function DnaFilterDropdown({
   ask,
   onChange,
@@ -680,7 +689,7 @@ function DnaFilterDropdown({
             Score at least
           </div>
           <div className="flex items-center gap-1 px-2 pb-1">
-            {[1, 2, 3, 4, 5].map((n) => {
+            {SCORE_ROW.map((n) => {
               const on = ask.minScore === n
               return (
                 <button

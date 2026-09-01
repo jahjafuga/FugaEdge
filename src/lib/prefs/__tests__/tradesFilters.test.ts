@@ -31,7 +31,7 @@ import {
   readTradesFilters,
   writeTradesFilters,
 } from '../tradesFilters'
-import { emptyFilters, type TradesFilterState } from '@/core/trades/tradesFilter'
+import { emptyFilters, SCORE_CEILING, type TradesFilterState } from '@/core/trades/tradesFilter'
 import type { AccountScope } from '@shared/accounts-types'
 
 const ACCT_A: AccountScope = { accountId: '01KYN67KGBZJ6BEKXVJ0SPE5C0' }
@@ -291,5 +291,41 @@ describe('F9 the round trip settles', () => {
     const a = localStorage.getItem(filterPrefsKey(ALL))
     writeTradesFilters(ALL, twice)
     expect(localStorage.getItem(filterPrefsKey(ALL))).toBe(a)
+  })
+})
+
+
+// ─── F10 : THE STORED SCORE BOUND IS THE PILLAR CEILING, NOT ITS OWN DIGIT ──
+
+describe('F10 the stored score bound follows SCORE_CEILING', () => {
+  // WHY THIS EXISTS. The preference reader validated a stored minScore against
+  // a hardcoded 0..5 while the resolver refused a spoken one against
+  // SCORE_CEILING. Two numbers, no tie: they agreed only because someone typed
+  // five in both places. A later field would have made four copies out of two.
+  //
+  // These cases REFERENCE THE CONSTANT rather than the digit, so they follow it
+  // if it moves. That is the whole point: written against a literal they would
+  // pass whether the tie existed or not.
+  const store = (minScore: number) => {
+    writeTradesFilters(ALL, {
+      ...emptyFilters(),
+      dna: { minScore, bucket: 'any' },
+    } as TradesFilterState)
+    return readTradesFilters(ALL).dna.minScore
+  }
+
+  it('a score AT the ceiling survives the round trip', () => {
+    expect(store(SCORE_CEILING), 'the ceiling itself was rejected').toBe(SCORE_CEILING)
+  })
+
+  it('a score ONE ABOVE the ceiling is rejected to null', () => {
+    expect(
+      store(SCORE_CEILING + 1),
+      'a score above the ceiling was stored and read back',
+    ).toBeNull()
+  })
+
+  it('CONTROL: an ordinary score in range is untouched', () => {
+    expect(store(3)).toBe(3)
   })
 })

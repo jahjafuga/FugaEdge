@@ -42,7 +42,7 @@
 // would run inside a Next.js page unmodified.
 
 import type { MistakeAxis } from '@shared/mistakes-types'
-import { emptyFilters, type TradesFilterState } from './tradesFilter'
+import { emptyFilters, SCORE_CEILING, type TradesFilterState } from './tradesFilter'
 import { withDatePreset, type DatePreset } from './datePreset'
 import type { AnswerIntent, AnswerMetric } from './queryAnswer'
 // THE BANDS ARE THE APP'S, IMPORTED RATHER THAN COPIED. Both tables are pure
@@ -139,14 +139,6 @@ const DNA_WORDS: Record<string, 'complete' | 'incomplete'> = {
  *  reach the same field. Neither is claimed by any other list -- measured
  *  across every vocabulary above the comparison pass before this was added. */
 const SCORE_WORDS: ReadonlySet<string> = new Set(['score', 'dna'])
-/** THE MOST PILLARS THAT EXIST. A fact about the CODE, not about a trader:
- *  DnaPillarKey (core/dna/adherence.ts) is a union of exactly five members --
- *  price, change, rvol, float and catalyst -- so `of` can never come back
- *  higher than this for any profile. Held as a literal because that union is a
- *  TYPE and cannot be counted at run time; the guard file ties the two by
- *  scoring a trade with every pillar required and asserting `of` reads five,
- *  so a sixth pillar would fail there and name this line. */
-const SCORE_CEILING = 5
 const MISTAKE_FLAG_WORDS = new Set(['mistake', 'mistakes'])
 
 /** Filler that carries no filter meaning. Deliberately small: an unknown word

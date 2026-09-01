@@ -23,6 +23,20 @@ export type SideFilter = 'all' | 'long' | 'short'
 export type DurationFilter = 'all' | 'under1m' | '1to5m' | '5to30m' | 'over30m'
 export type OutcomeFilter = 'all' | 'winners' | 'losers'
 
+/** THE MOST PILLARS THAT EXIST, and the ONE place the number lives.
+ *
+ *  DnaPillarKey in core/dna/adherence.ts is a union of exactly five members,
+ *  so a score can never come back higher than this for any profile. It sits
+ *  HERE, beside the ask it bounds, because two separate callers need it and
+ *  both already import this module: the resolver, which refuses a spoken score
+ *  above it, and the filter preferences, which reject a stored one. Before this
+ *  they each held their own copy of the digit and nothing kept the two in step.
+ *
+ *  It is a literal because that union is a TYPE and cannot be counted at run
+ *  time; a guard scores a trade with every pillar required and asserts the
+ *  scorer reports five, so a sixth pillar fails there and names this line. */
+export const SCORE_CEILING = 5
+
 /** v0.2.7 — the five-pillar ask: a score bar and a completeness bucket. */
 export interface DnaFilterAsk {
   minScore: number | null

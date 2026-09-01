@@ -29,7 +29,7 @@
 
 import type { AccountScope } from '@shared/accounts-types'
 import type { MistakeAxis } from '@shared/mistakes-types'
-import { emptyFilters, type TradesFilterState } from '@/core/trades/tradesFilter'
+import { emptyFilters, SCORE_CEILING, type TradesFilterState } from '@/core/trades/tradesFilter'
 import { isRangeActive, type NumericRange } from '@/core/trades/numericRange'
 import { isPreset, refreshDatePreset } from '@/core/trades/datePreset'
 import { NUMERIC_COLUMN_IDS } from '@/lib/prefs/columns'
@@ -128,14 +128,21 @@ function coerce(raw: unknown): TradesFilterState {
     // without it a saved MACD selection would vanish on reload.
     macdStates: strs(raw.macdStates),
     // v0.2.7 five-pillar ask — additive at the same stamp, like the fields
-    // above. Only the ASK is stored (minScore 0..5 integer, bucket) — never a
-    // threshold; those live in settings and the ask re-resolves against them.
+    // above. Only the ASK is stored (minScore, bucket) — never a threshold;
+    // those live in settings and the ask re-resolves against them.
+    //
+    // THE UPPER BOUND IS SCORE_CEILING, NOT A DIGIT TYPED HERE. It used to be a
+    // literal five, sitting a whole layer away from the resolver's own copy of
+    // the same number, agreeing only by coincidence. Reading the constant means
+    // the stored bound and the spoken one cannot drift apart.
     dna: (() => {
       const d = isObj(raw.dna) ? raw.dna : {}
       const m = d.minScore
       return {
         minScore:
-          typeof m === 'number' && Number.isInteger(m) && m >= 0 && m <= 5 ? m : null,
+          typeof m === 'number' && Number.isInteger(m) && m >= 0 && m <= SCORE_CEILING
+            ? m
+            : null,
         bucket: oneOf(d.bucket, ['any', 'complete', 'incomplete'] as const, 'any'),
       }
     })(),
