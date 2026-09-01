@@ -12,6 +12,7 @@ import type { DatePreset } from '@/core/trades/datePreset'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import {
   applyRanges,
+  countDroppedUnmeasured,
   isRangeActive,
   matchesRange,
   type NumericRange,
@@ -277,6 +278,75 @@ export function countUnmeasuredKept(
     return { skipped, column }
   }
   return null
+}
+
+/** Of the rows a SCORE BOUND dropped, how many were never scored at all.
+ *
+ *  THE SAME SHAPE AS A RANGE, WHICH IS WHY IT TAKES THE ROWS BEFORE THE FILTER
+ *  RAN. numericRange:56-65 sets the rule: a range puts an unmeasured row in
+ *  neither the over set nor the under set, so by the time anything downstream
+ *  holds a result those rows are gone and counting among survivors returns
+ *  zero. A score bound does exactly that -- both `passed < minScore` and
+ *  `passed > maxScore` read through the same `!scored` clause -- so this
+ *  counter sits beside countUnmeasuredKept rather than inside it, for the
+ *  reason that comment gives: one function cannot serve both without being
+ *  handed both row sets and told which it is looking at.
+ *
+ *  ONE NUMBER, NOT TWO. A row is unscored either because the dna field is
+ *  absent -- never augmented -- or because dna.kind is 'incomplete' and the
+ *  inputs were missing. The predicate below collapses both, exactly as
+ *  applyTradesFilters does, because the filter cannot tell them apart and a
+ *  sentence that reported them separately would be describing a distinction
+ *  the ask never made.
+ *
+ *  BOUNDS ONLY, NEVER THE BUCKET, and that is the difference between a gap and
+ *  an answer. Under `incomplete` the unscored rows are what the trader asked
+ *  for; reporting them as dropped would describe the result as a loss. So this
+ *  returns null unless a BOUND is active.
+ *
+ *  Returns a zero skip when a bound IS active and every row was scored, so a
+ *  fully judged book stays distinguishable from a book nobody asked about --
+ *  the same contract countDroppedUnmeasured keeps. */
+export function countUnscoredDropped(
+  preFilterRows: readonly TradeListRow[],
+  dna: DnaFilterAsk,
+): { skipped: number; column: string }[] | null {
+  if (dna.minScore === null && dna.maxScore === null) return null
+  let skipped = 0
+  for (const t of preFilterRows) {
+    const s = t.dna
+    if (!(s && s.kind === 'scored')) skipped += 1
+  }
+  return [{ skipped, column: 'dna' }]
+}
+
+/** THE WHOLE COVERAGE CLAUSE FOR ONE ASK, composed in one place.
+ *
+ *  WHY THIS IS NOT A PAGE CONCERN. It was, for one beat, and a plant caught
+ *  it: counting from the POST-filter rows instead of the pre-filter ones
+ *  reddened NOTHING, because no test drives the page. The composition is a
+ *  rule -- which counters run, which population each is handed, and what order
+ *  they arrive in -- and a rule with no guard on it is the thing this campaign
+ *  exists to remove. It also has no business living in a component.
+ *
+ *  THE POPULATION IS PRE-FILTER FOR BOTH, and that is the one thing easiest to
+ *  get wrong: every row either counter is interested in has already been
+ *  removed by the time the caller holds a result, so counting among survivors
+ *  returns zero in both directions.
+ *
+ *  RANGES FIRST, then the score, because the sentence names columns in the
+ *  order they were typed and the score ask is read after them.
+ *
+ *  Returns null when NEITHER asked, so a book nobody questioned stays
+ *  distinguishable from one that was fully covered. */
+export function coverageFor(
+  preFilterRows: readonly TradeListRow[],
+  f: TradesFilterState,
+): { skipped: number; column: string }[] | null {
+  const ranges = countDroppedUnmeasured(preFilterRows, f.ranges ?? {}, rangeValueOf)
+  const unscored = countUnscoredDropped(preFilterRows, f.dna)
+  if (!ranges && !unscored) return null
+  return [...(ranges ?? []), ...(unscored ?? [])]
 }
 
 export function rangeValueOf(t: TradeListRow, columnId: string): number | null {

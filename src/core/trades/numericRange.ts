@@ -89,6 +89,15 @@ export function matchesRange(
  *  the word is THAT phrase, so what the trader is shown is something they can
  *  type back. */
 export const COVERAGE_WORDS: Record<string, string> = {
+  // NOT A NUMERIC COLUMN, and it is the only entry here that is not one. The
+  // guard above this map requires every NUMERIC_COLUMN_ID to have a word; it
+  // has never required the reverse, so a word for something that is not a
+  // column is legal and does not widen what that guard checks.
+  //
+  // THE WORD IS WHAT A TRADER READS, never the field name: the sentence says
+  // "with no five pillar verdict recorded", which is a phrase they could type
+  // back, and never "with no dna recorded".
+  dna: 'five pillar verdict',
   shares: 'shares',
   avg_buy: 'entry price',
   avg_sell: 'exit price',

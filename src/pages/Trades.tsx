@@ -9,7 +9,6 @@ import ColumnsMenu from '@/components/trades/ColumnsMenu'
 import {
   applyLimitAndSort,
   applyTradesFilters,
-  rangeValueOf,
   emptyFilters,
   isFiltering,
   MACD_STATE_CHOICES,
@@ -58,7 +57,7 @@ import {
 import RangesMenu from '@/components/trades/RangesMenu'
 import { withDnaScores } from '@/core/dna/adherence'
 import QueryBubble, { Roll } from '@/components/trades/QueryBubble'
-import { countDroppedUnmeasured } from '@/core/trades/numericRange'
+import { coverageFor } from '@/core/trades/tradesFilter'
 import type { ResolverVocabulary } from '@/core/trades/queryResolver'
 import type { PlaybookWithStats } from '@shared/playbook-types'
 import type { MistakeDef } from '@shared/mistakes-types'
@@ -416,9 +415,12 @@ export default function Trades() {
    *  four lines above. Nowhere downstream holds those rows: the range is what
    *  removed them. The bubble is handed this function rather than the rows, so
    *  no component ever scans a book. */
+  // v0.2.7 -- AND the rows a SCORE BOUND dropped for never having been scored.
+  // BOTH counters and the order they arrive in live in core, not here: a plant
+  // that swapped this population for the post-filter one reddened NOTHING,
+  // because nothing drives this page. The rule went where it can be guarded.
   const coverageOf = useMemo(
-    () => (state: TradesFilterState) =>
-      countDroppedUnmeasured(scored ?? [], state.ranges ?? {}, rangeValueOf),
+    () => (state: TradesFilterState) => coverageFor(scored ?? [], state),
     [scored],
   )
 

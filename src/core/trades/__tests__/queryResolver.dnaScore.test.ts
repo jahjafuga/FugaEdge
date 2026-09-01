@@ -495,3 +495,141 @@ describe('L an unscored bucket and a score bound cannot both hold', () => {
     expect(out.refusals ?? []).toEqual([])
   })
 })
+
+// ─── N : A NEGATED SCORE ASK REFUSES RATHER THAN INVERTING ──────────────────
+//
+// MEASURED FIRST, and it is the whole argument. On a book of one row per
+// attainable score plus one row nobody scored and one row scored incomplete,
+// a floor of four keeps two rows and a ceiling of three keeps four. Together
+// they cover six of eight. The two rows with no verdict fall outside BOTH
+// directions, so reading "not at least four" as "at most three" would drop
+// them in silence -- the same wrong the other four refusals exist to remove.
+//
+// WHY THE ASK REACHED NOTHING BEFORE. The bound was never the problem: pass 1c
+// read "score at least 4" and consumed it. The bare negator beside it had no
+// term to govern, because isStateWord did not list SCORE_WORDS, so it fell
+// through unclaimed into unresolved -- and the strict partial-application
+// boundary then threw the WHOLE sentence away. The trader was told the app
+// could not read "not".
+//
+// A SPAN-WIDTH SWEEP GATED THIS. Adding SCORE_WORDS to isStateWord widens what
+// a negator claims in every sentence, so 229 asks were driven through both
+// builds: four moved, all four score asks, zero non-score asks.
+
+describe('N a negated score ask refuses by name', () => {
+  it('N1 "not score at least 4" refuses, applies nothing, reads everything', () => {
+    const out = r('not score at least 4')
+    expect(out.state.dna.minScore, 'the floor was applied anyway').toBeNull()
+    expect(out.state.dna.maxScore, 'the bar was inverted rather than refused').toBeNull()
+    expect(out.unresolved, 'part of the ask went unread').toEqual([])
+    expect(out.refusals ?? [], 'no refusal was raised').not.toEqual([])
+    // NAMES THE THING, not the token. The house shape.
+    expect((out.refusals ?? []).join(' ')).toMatch(/scored/i)
+  })
+
+  it('N2 "not score under 3" refuses the other direction the same way', () => {
+    const out = r('not score under 3')
+    expect(out.state.dna.maxScore, 'the ceiling was applied anyway').toBeNull()
+    expect(out.state.dna.minScore, 'the bar was inverted rather than refused').toBeNull()
+    expect(out.unresolved).toEqual([])
+    expect(out.refusals ?? []).not.toEqual([])
+  })
+
+  it('N3 the dna alias refuses identically', () => {
+    expect(r('not dna at least 4').refusals ?? []).toEqual(r('not score at least 4').refusals ?? [])
+    expect(r('not dna at least 4').state.dna).toEqual(r('not score at least 4').state.dna)
+  })
+
+  it('N4 the refusal is local: an unrelated filter beside it still applies', () => {
+    // A refusal that took the whole sentence with it would be the strict
+    // discard wearing a different hat.
+    const out = r('not score at least 4, losers')
+    expect(out.state.outcome, 'the rest of the sentence was thrown away').toBe('losers')
+    expect(out.state.dna.minScore).toBeNull()
+    expect(out.refusals ?? []).not.toEqual([])
+    expect(out.unresolved).toEqual([])
+  })
+
+  it('N5 CONTROL: the POSITIVE ask is untouched', () => {
+    const out = r('score at least 4')
+    expect(out.state.dna.minScore).toBe(4)
+    expect(out.refusals ?? []).toEqual([])
+    expect(out.applied.join(' | ')).toMatch(/at least 4/)
+  })
+
+  it('N6 CONTROL: "not complete" still refuses in ITS OWN words', () => {
+    // Two different wrongs, two different sentences. The bucket refusal says
+    // the verdict is derived rather than stored; this one says the unscored
+    // rows fall outside both directions. Sharing a sentence would make one of
+    // them a small untruth.
+    const bucket = (r('not complete').refusals ?? []).join(' ')
+    const score = (r('not score at least 4').refusals ?? []).join(' ')
+    expect(bucket, 'the bucket refusal stopped firing').not.toEqual('')
+    expect(score, 'the score refusal stopped firing').not.toEqual('')
+    expect(bucket, 'the two refusals collapsed into one sentence').not.toEqual(score)
+  })
+
+  it('N6b EVERY refusal this module can say is a DIFFERENT sentence', () => {
+    // FOUND BY A PLANT THAT REDDENED NOTHING. U3 swapped the negated arm onto
+    // the BUCKET refusal, and N6 stayed green because it compared against
+    // "not complete" -- which emits DNA_REFUSAL, a third string that differs
+    // from both. The collision U3 creates is with the bucket-and-bound
+    // sentence, reached by a phrase N6 never drove.
+    //
+    // SOURCED FROM BEHAVIOUR, not from a hand-written list of constants: one
+    // phrase per refusal, driven, and the sentences must be pairwise
+    // distinct. A future refusal that quietly reused an existing sentence
+    // fails here without anyone remembering to add it to a list.
+    const said = (q: string) => (r(q).refusals ?? []).join(' ')
+    const sentences = [
+      said('not complete'),
+      said('incomplete score under 3'),
+      said(`score at least ${SCORE_CEILING + 1}`),
+      said(`score under ${SCORE_CEILING + 1}`),
+      said('score at least 4 score under 2'),
+      said('not score at least 4'),
+    ]
+    // every one of them actually fired, or the distinctness is vacuous
+    expect(sentences.filter((x) => x === ''), 'a refusal stopped firing').toEqual([])
+    expect(new Set(sentences).size, 'two refusals share one sentence').toBe(sentences.length)
+  })
+
+  it('N7 CONTROL: negation elsewhere is unchanged', () => {
+    expect(r('not HLPX').state.excludeSymbols).toEqual(['HLPX'])
+    expect(r('not losers').state.excludeOutcomes).toEqual(['losers'])
+    expect(r('not HLPX').refusals ?? []).toEqual([])
+  })
+
+  it('N8 the applied lines name no clause that was then refused', () => {
+    // THE J5 CLASS. The refusal must not announce a bound it declined to set.
+    for (const q of ['not score at least 4', 'not score under 3', 'not dna at least 4',
+                     'not score at least 4, losers']) {
+      expect(
+        r(q).applied.filter((l) => /^dna score at (least|most)/.test(l)),
+        `${q} announced a bound it refused`,
+      ).toEqual([])
+    }
+  })
+
+  it('N9 CONTROL: "not score" with no bound applies nothing either', () => {
+    // A bare negated score word carries NO bound to refuse. This case pins
+    // the invariant that survives whatever the unread text turns out to be:
+    // nothing is applied and no bound is set. The exact unresolved wording is
+    // reported in the verdict rather than frozen here, because this beat is
+    // not about that sentence.
+    const out = r('not score')
+    expect(out.state.dna.minScore).toBeNull()
+    expect(out.state.dna.maxScore).toBeNull()
+    expect(out.state.dna.bucket).toBe('any')
+    expect(out.applied.filter((l) => l.startsWith('dna '))).toEqual([])
+  })
+
+  it('N10 the refusal follows the ceiling, not a literal', () => {
+    // A bound ABOVE the ceiling, negated, must still land on ONE refusal --
+    // whichever fires first -- and never apply. Written against the constant
+    // so it follows if the ceiling moves.
+    const out = r(`not score at least ${SCORE_CEILING + 1}`)
+    expect(out.state.dna.minScore).toBeNull()
+    expect(out.refusals ?? [], 'no refusal was raised').not.toEqual([])
+  })
+})

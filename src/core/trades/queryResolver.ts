@@ -259,6 +259,19 @@ export const DNA_REFUSAL =
  *  back an empty list with nothing said, so BOTH are dropped and the sentence
  *  names the two numbers, because naming one would leave the trader guessing
  *  which half was the problem. */
+/** THE INVERSE OF A SCORE BAR IS NOT ANOTHER SCORE BAR, and that is measured
+ *  rather than argued. On a book of one row per attainable score plus one row
+ *  nobody scored and one row scored incomplete, a floor of four keeps two rows
+ *  and a ceiling of three keeps four: together SIX OF EIGHT. The two rows with
+ *  no verdict fall outside both directions at once, because every bound reads
+ *  through the same `!scored` clause and drops them either way.
+ *
+ *  So "not at least four" cannot be answered with "at most three" without
+ *  quietly losing every trade nobody judged -- which is the exact silent wrong
+ *  the four refusals below exist to remove, reached from a new direction. The
+ *  sentence names the trades rather than the words the trader typed. */
+export const SCORE_NEGATED_REFUSAL =
+  'Trades nobody scored fall outside a bar in either direction, so turning the one you gave me around would quietly drop them all, which is why I left that part alone'
 /** A BUCKET OF UNSCORED ROWS AND A BOUND ON THE SCORE SELECT NOTHING, and
  *  that is measured rather than argued: on a book holding one row per
  *  attainable score plus one nobody scored, ALL FIFTEEN combinations of the
@@ -1082,6 +1095,18 @@ export function resolveQuery(
     // back as "I could not read except". It IS readable; we simply cannot do
     // it, and that is a refusal to be NAMED rather than a sentence to reject.
     w in RECENCY_WORDS ||
+    // A SCORE WORD IS A TERM A NEGATOR CAN GOVERN, for the same reason the
+    // recency and column lines above exist: without it the negator finds
+    // nothing to attach to, un-negates itself, and "not" lands in the unread
+    // set -- where the strict partial-application boundary then throws the
+    // WHOLE sentence away. The bound was never the problem; "score at least 4"
+    // read and consumed perfectly well. It was the bare negator beside it.
+    //
+    // THE WIDENING WAS SWEPT BEFORE IT WAS ADDED. This line changes what a
+    // negator claims in EVERY sentence, so 229 asks from the whole resolver
+    // suite were driven through both builds: four moved, all four score asks,
+    // zero non-score asks.
+    SCORE_WORDS.has(w) ||
     SUPERLATIVE_WORDS.has(w) ||
     // A COLUMN NAME IS A TERM A NEGATOR CAN GOVERN TOO. Without this,
     // "not price over two" left the negator ungoverned and the range applied
@@ -1513,8 +1538,14 @@ export function resolveQuery(
   // be the silent wrong. So it refuses, in its own words, the same shape the
   // three existing refusals use.
   for (let i = 0; i < tokens.length; i++) {
-    if (negated[i] || unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
+    // NEGATED IS NO LONGER A SKIP. It used to sit in this list, which was
+    // correct while a negator could not govern a score word at all -- nothing
+    // ever arrived here negated. Now that isStateWord lists SCORE_WORDS one
+    // can, and skipping it would drop the span unread, which the sweep
+    // measured as the strictly worse outcome.
+    if (unclaimable[i] || reserved[i] || marks[i] !== 'free') continue
     if (!SCORE_WORDS.has(tokens[i])) continue
+    const isNegated = negated[i]
     // The operator, one or two tokens, skipping stopwords -- the same shape the
     // comparison pass reads at :1506, so "at least" and "greater than" compose
     // here exactly as they do there.
@@ -1548,6 +1579,22 @@ export function resolveQuery(
     // the word can never fall through to the vocabulary pass on its own.
     const consume = () => {
       for (let q = i; q <= end; q++) marks[q] = 'consumed'
+    }
+    // THE NEGATED ARM, AND IT SITS HERE RATHER THAN AT THE TOP OF THE LOOP.
+    // Everything above is the parse that finds where the span ENDS. Refusing
+    // before it ran would consume the word and leave the digit free for pass
+    // 1b to read as a row count -- "not score at least 4" would silently
+    // become "the last four trades". It also means a bare "not score" never
+    // reaches this arm: the parse bails at the missing operator, and there is
+    // no bound there to refuse.
+    //
+    // LOGS NOTHING, exactly as the negated bucket arm does. A refusal that
+    // announced the bound it declined to set would be the J5 class again.
+    if (isNegated) {
+      refusals.push(SCORE_NEGATED_REFUSAL)
+      consume()
+      i = end
+      continue
     }
     // ABOVE THE CEILING IS A REFUSAL IN BOTH DIRECTIONS, and it sits ABOVE the
     // direction split so a ceiling ask reaches it too -- below the split it

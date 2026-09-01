@@ -260,8 +260,17 @@ export function responseLine({
   const dropped = (coverage ?? []).filter((c) => c.skipped > 0)
   const named = dropped
     .map((c) => `${c.skipped} with no ${COVERAGE_WORDS[c.column] ?? c.column} recorded`)
+  // THE UNNAMED FORM IS FOR A LONE RANGE, and the score is excluded from it by
+  // name. With one active range the trader named exactly one column and a bare
+  // count cannot refer to anything else, which is why that wording is byte
+  // frozen. A lone SCORE bound reaches this branch the same way -- one entry,
+  // one dropped -- but "and 2 never measured" beside a score ask reads as a
+  // statement about the score's own numbers rather than about rows that were
+  // never judged. So the score always takes the named path, and the trigger
+  // for everything else is left exactly as it was.
+  const loneRange = coverage && coverage.length === 1 && coverage[0].column !== 'dna'
   const cover =
-    coverage && coverage.length === 1 && dropped.length > 0
+    loneRange && dropped.length > 0
       ? `, and ${dropped[0].skipped} never measured`
       : named.length > 0
         ? `, ${joinAnd(named)}`
