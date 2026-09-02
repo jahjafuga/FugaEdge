@@ -1,3 +1,4 @@
+import type { MistakesTable } from './mistakes-types'
 import type { TradeListRow } from './trades-types'
 
 // v0.2.2 Day 4.5b — week-scoped metrics for the tabbed Weekly Review modal.
@@ -56,6 +57,13 @@ export interface WeekMetrics {
   symbolBreakdown: { symbol: string; tradeCount: number; netPnl: number }[]
   // Per-trade mistake tags aggregated across the week, sorted count desc then alpha.
   mistakeTagCounts: { tag: string; count: number }[]
+  /** djsevans87 30 Jul -- the mistakes TABLE, beside the chip rollup above.
+   *  Per-tag rows with net, average and win rate, plus two toplines counted
+   *  ONCE PER TRADE (a two-tag trade is one trade). Computed in
+   *  src/core/analytics/mistakes.ts, the same function the day metrics call,
+   *  so the two periods can never drift. mistakeTagCounts is left exactly as
+   *  it was -- whatWorkedLeaked.ts reads it for three unrelated surfaces. */
+  mistakesTable: MistakesTable
 
   // ── week-new ──────────────────────────────────────────────────────────
   /** Traded days only, chronological asc. */

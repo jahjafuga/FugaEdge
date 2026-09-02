@@ -1,3 +1,4 @@
+import type { MistakesTable } from './mistakes-types'
 import type { TradeListRow } from './trades-types'
 
 export interface DayMetrics {
@@ -77,6 +78,13 @@ export interface DayMetrics {
    *  tab's "what went wrong today" rollup. Distinct from day-level mistake
    *  tags (DayDetail.dayMistakes), which tag the day itself. */
   mistakeTagCounts: { tag: string; count: number }[]
+  /** djsevans87 30 Jul -- the mistakes TABLE, beside the chip rollup above.
+   *  Per-tag rows with net, average and win rate, plus two toplines counted
+   *  ONCE PER TRADE (a two-tag trade is one trade). Computed in
+   *  src/core/analytics/mistakes.ts, the same function the day metrics call,
+   *  so the two periods can never drift. mistakeTagCounts is left exactly as
+   *  it was -- whatWorkedLeaked.ts reads it for three unrelated surfaces. */
+  mistakesTable: MistakesTable
 }
 
 export interface DayDetail {

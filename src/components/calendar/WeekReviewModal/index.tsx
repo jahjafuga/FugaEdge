@@ -158,7 +158,7 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
         />
       )}
       {detail && !loading && tab === 'mistakes' && (
-        <WeekMistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
+        <WeekMistakesTab table={detail.metrics.mistakesTable} />
       )}
       {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} />}
       {/* Notes is a WRITE surface — gate on detail freshness so a mid-cycle

@@ -3,6 +3,7 @@ import type { WeekMetrics } from '@shared/week-types'
 import type { ExitDelta } from '@shared/analytics-types'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import { avgShareSize } from '@/core/performance/avgShareSize'
+import { computeMistakesTable } from '@/core/analytics/mistakes'
 
 interface ComputeWeekMetricsInput {
   /** Trades already scoped to the week (the repo filters by trades.date). */
@@ -275,6 +276,10 @@ export function computeWeekMetrics(input: ComputeWeekMetricsInput): WeekMetrics 
     moneyLeftCoverage,
     symbolBreakdown,
     mistakeTagCounts,
+    // djsevans87 30 Jul -- the TABLE beside the chips. mistakeTagCounts above
+    // is untouched: whatWorkedLeaked.ts:89 reads it for three surfaces that
+    // have nothing to do with this ticket.
+    mistakesTable: computeMistakesTable(trades),
     dayByDay,
     bestDay,
     worstDay,

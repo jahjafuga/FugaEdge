@@ -1,9 +1,11 @@
-import type { DayMetrics } from '@shared/day-types'
+import type { MistakesTable } from '@shared/mistakes-types'
 import Card from '@/components/ui/Card'
+import MistakesTableView from '@/components/calendar/MistakesTableView'
 
 interface MistakesTabProps {
-  /** Per-trade mistake tags aggregated across the day (read-only). */
-  mistakeTagCounts: DayMetrics['mistakeTagCounts']
+  /** The day's mistakes table, computed in src/core/analytics/mistakes.ts —
+   *  the SAME function the week tab's table comes from. */
+  table: MistakesTable
 }
 
 // v0.2.2 Day 4 — presentational. Read-only rollup of mistake tags aggregated
@@ -11,30 +13,18 @@ interface MistakesTabProps {
 // day-level picker that previously lived here was removed in the mistakes
 // reshape; mistakes live only on trades now. Reinstated (djsevans87 #7) after
 // the 2f51c52 display sweep.
-export default function MistakesTab({ mistakeTagCounts }: MistakesTabProps) {
+//
+// djsevans87 30 Jul — the CHIPS became the table Analytics > Psychology has.
+// The markup is MistakesTableView, shared with the week tab, so the two
+// periods cannot drift apart in either arithmetic or appearance.
+export default function MistakesTab({ table }: MistakesTabProps) {
   return (
     <div className="space-y-4">
       <Card
         title="Mistakes tagged on trades"
         subtitle="Aggregated across today's trades."
       >
-        {mistakeTagCounts.length === 0 ? (
-          <div className="text-sm text-fg-tertiary">
-            No mistakes tagged on any trade today.
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {mistakeTagCounts.map((mc) => (
-              <div
-                key={mc.tag}
-                className="rounded-full border border-loss/30 bg-loss/[0.06] px-3 py-1 text-xs"
-              >
-                <span className="text-fg-primary">{mc.tag}</span>
-                <span className="ml-1.5 font-mono text-loss tnum">×{mc.count}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        <MistakesTableView table={table} />
       </Card>
     </div>
   )

@@ -160,7 +160,7 @@ export default function DayDetailModal({ date, onClose, navPosition, onNavigate 
         />
       )}
       {detail && !loading && tab === 'mistakes' && (
-        <MistakesTab mistakeTagCounts={detail.metrics.mistakeTagCounts} />
+        <MistakesTab table={detail.metrics.mistakesTable} />
       )}
       {detail && !loading && tab === 'ruleBreaks' && (
         <div className="space-y-3">

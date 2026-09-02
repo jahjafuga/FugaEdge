@@ -78,3 +78,40 @@ export interface DeleteMistakeDefResult {
   deleted: boolean
   archivedInstead: boolean
 }
+
+/** One row of the mistakes TABLE: a single tag, and how the trades carrying it
+ *  actually did. A trade with two tags appears in TWO rows -- correct, and NOT
+ *  how the toplines below are counted. */
+export interface MistakeTableRow {
+  name: string
+  axis: MistakeAxis
+  /** Trades carrying THIS tag. Row sums exceed taggedTrades whenever anything
+   *  is multi-tagged, by design. */
+  trades: number
+  netPnl: number
+  /** netPnl over this row trades. */
+  avgPnl: number | null
+  /** Winners over DECIDED trades, scratches excluded -- the same derivation
+   *  every other surface uses. Null when nothing is decided. */
+  winRate: number | null
+}
+
+/** djsevans87 30 Jul -- the mistakes table for ONE period. Computed by
+ *  src/core/analytics/mistakes.ts, which both the day and the week metrics
+ *  call, so the two periods cannot drift.
+ *
+ *  THE SHAPE LIVES HERE, not in core, because shared types may not depend on
+ *  src/. Core owns the arithmetic; shared owns what crosses the wire. */
+export interface MistakesTable {
+  /** Worst net first. */
+  rows: MistakeTableRow[]
+  /** DISTINCT trades carrying at least one tag. Never a tag-instance count. */
+  taggedTrades: number
+  /** Net of those DISTINCT trades, each counted ONCE. */
+  taggedNetPnl: number
+  /** Every trade in the period, tagged or not -- the share denominator. */
+  periodTrades: number
+  /** taggedTrades / periodTrades. NULL when the period holds no trades at all:
+   *  zero would read as "a clean period" when the truth is "no period". */
+  taggedShare: number | null
+}

@@ -94,6 +94,10 @@ function dayMetrics(): DayMetrics {
     avgMfeDollars: null,
     avgMaeDollars: null,
     mistakeTagCounts: [],
+    // The grown DayMetrics/WeekMetrics shape (djsevans87 30 Jul). This
+    // fixture asserts nothing about mistakes, so it carries the empty
+    // table rather than a hand-built one that could drift from core.
+    mistakesTable: { rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 0, taggedShare: null },
   }
 }
 
@@ -153,6 +157,10 @@ function weekMetrics(): WeekMetrics {
       { symbol: 'ZETA', tradeCount: 1, netPnl: -5 },
     ],
     mistakeTagCounts: [],
+    // The grown DayMetrics/WeekMetrics shape (djsevans87 30 Jul). This
+    // fixture asserts nothing about mistakes, so it carries the empty
+    // table rather than a hand-built one that could drift from core.
+    mistakesTable: { rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 0, taggedShare: null },
     dayByDay: [],
     bestDay: null,
     worstDay: null,

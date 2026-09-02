@@ -158,6 +158,10 @@ function dayMetrics(date: string, tradeCount: number): DayMetrics {
     avgMfeDollars: null,
     avgMaeDollars: null,
     mistakeTagCounts: [],
+    // The grown DayMetrics/WeekMetrics shape (djsevans87 30 Jul). This
+    // fixture asserts nothing about mistakes, so it carries the empty
+    // table rather than a hand-built one that could drift from core.
+    mistakesTable: { rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 0, taggedShare: null },
   }
 }
 
@@ -219,6 +223,10 @@ function weekMetrics(weekStart: string): WeekMetrics {
     moneyLeftCoverage: null,
     symbolBreakdown: tradeCount > 0 ? [{ symbol: 'WKALPHA', tradeCount, netPnl: 23.8 }] : [],
     mistakeTagCounts: [],
+    // The grown DayMetrics/WeekMetrics shape (djsevans87 30 Jul). This
+    // fixture asserts nothing about mistakes, so it carries the empty
+    // table rather than a hand-built one that could drift from core.
+    mistakesTable: { rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 0, taggedShare: null },
     dayByDay: tradeCount > 0 ? [{ date: '2026-05-04', netPnl: 23.8, tradeCount }] : [],
     bestDay: tradeCount > 0 ? { date: '2026-05-04', netPnl: 23.8 } : null,
     worstDay: null,

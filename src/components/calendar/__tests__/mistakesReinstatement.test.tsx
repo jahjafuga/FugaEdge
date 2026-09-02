@@ -14,17 +14,13 @@ import { describe, expect, it, afterEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { WeeklySummary } from '@shared/calendar-types'
+import type { MistakesTable } from '@shared/mistakes-types'
 import MistakesTab from '../DayDetailModal/MistakesTab'
 import WeekMistakesTab from '../WeekReviewModal/WeekMistakesTab'
 import WeeklyPanel from '../WeeklyPanel'
 import { topMistake } from '@/core/calendar/topMistake'
 
 afterEach(() => cleanup())
-
-const COUNTS = [
-  { tag: 'FOMO - chased a runner', count: 3 },
-  { tag: 'Averaged down', count: 1 },
-]
 
 function weekSummary(over: Partial<WeeklySummary>): WeeklySummary {
   return {
@@ -54,32 +50,53 @@ function weekSummary(over: Partial<WeeklySummary>): WeeklySummary {
   }
 }
 
-describe('(1) Day Detail Mistakes tab — read-only rollup from DayMetrics.mistakeTagCounts', () => {
-  it('renders each tag with its ×count', () => {
-    const { container } = render(<MistakesTab mistakeTagCounts={COUNTS} />)
+// REWRITTEN, NOT DELETED (djsevans87 30 Jul). What these four cases pinned is
+// still true and still worth pinning: both tabs exist, both name their tags,
+// and both say something honest when there is nothing to show. What changed is
+// the PROP and the markup — chips carrying a tag and a count became the table
+// Analytics > Psychology has, fed by src/core/analytics/mistakes.ts.
+//
+// The ×count assertions are gone because the count is now a table column, not
+// a suffix on a pill. The table's own behaviour is pinned in
+// mistakesTable.render.test.tsx; these keep watching REINSTATEMENT — that the
+// tabs are present at all, which is what ticket #7 was about.
+const TABLE: MistakesTable = {
+  rows: [
+    { name: 'FOMO - chased a runner', axis: 'psychological', trades: 3, netPnl: -300, avgPnl: -100, winRate: 0 },
+    { name: 'Averaged down', axis: 'technical', trades: 1, netPnl: -50, avgPnl: -50, winRate: null },
+  ],
+  taggedTrades: 3,
+  taggedNetPnl: -350,
+  periodTrades: 5,
+  taggedShare: 0.6,
+}
+const EMPTY: MistakesTable = {
+  rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 2, taggedShare: 0,
+}
+
+describe('(1) Day Detail Mistakes tab — read-only table from DayMetrics.mistakesTable', () => {
+  it('names each tagged mistake', () => {
+    const { container } = render(<MistakesTab table={TABLE} />)
     const text = container.textContent!
     expect(text).toContain('FOMO - chased a runner')
-    expect(text).toContain('×3')
     expect(text).toContain('Averaged down')
-    expect(text).toContain('×1')
   })
 
   it('empty → the honest empty state, not a blank', () => {
-    const { container } = render(<MistakesTab mistakeTagCounts={[]} />)
-    expect(container.textContent).toContain('No mistakes tagged on any trade today.')
+    const { container } = render(<MistakesTab table={EMPTY} />)
+    expect(container.textContent).toContain('No mistakes tagged on any trade in this period.')
   })
 })
 
-describe('(2) Week Review Mistakes tab — same rollup from WeekMetrics', () => {
-  it('renders each tag with its ×count', () => {
-    const { container } = render(<WeekMistakesTab mistakeTagCounts={COUNTS} />)
+describe('(2) Week Review Mistakes tab — same table from WeekMetrics', () => {
+  it('names each tagged mistake', () => {
+    const { container } = render(<WeekMistakesTab table={TABLE} />)
     expect(container.textContent).toContain('FOMO - chased a runner')
-    expect(container.textContent).toContain('×3')
   })
 
   it('empty → the honest empty state', () => {
-    const { container } = render(<WeekMistakesTab mistakeTagCounts={[]} />)
-    expect(container.textContent).toContain('No mistakes tagged on any trade this week.')
+    const { container } = render(<WeekMistakesTab table={EMPTY} />)
+    expect(container.textContent).toContain('No mistakes tagged on any trade in this period.')
   })
 })
 

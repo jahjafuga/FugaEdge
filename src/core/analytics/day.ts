@@ -4,6 +4,7 @@ import type { DayMetrics } from '@shared/day-types'
 import { formatEastern } from '@/lib/format'
 import { isWin, isLoss } from '@/core/classify/outcome'
 import { avgShareSize } from '@/core/performance/avgShareSize'
+import { computeMistakesTable } from '@/core/analytics/mistakes'
 
 interface ComputeDayMetricsInput {
   date: string
@@ -296,6 +297,9 @@ export function computeDayMetrics(input: ComputeDayMetricsInput): DayMetrics {
     avgMfeDollars,
     avgMaeDollars,
     mistakeTagCounts,
+    // djsevans87 30 Jul -- the same table the week gets, from the same core
+    // function. mistakeTagCounts above is untouched.
+    mistakesTable: computeMistakesTable(trades),
   }
 }
 
@@ -327,6 +331,9 @@ function emptyMetrics(date: string, dayOfWeek: string): DayMetrics {
     moneyLeftOnTable: null,
     moneyLeftCoverage: null,
     mistakeTagCounts: [],
+    // A day with no trades has no table and no share to take -- the same
+    // contract computeMistakesTable returns for an empty input.
+    mistakesTable: { rows: [], taggedTrades: 0, taggedNetPnl: 0, periodTrades: 0, taggedShare: null },
     avgTradePnl: null,
     avgPerShareGainLoss: null,
     profitFactor: null,
