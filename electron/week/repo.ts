@@ -4,6 +4,9 @@ import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
+import { computeRuleBreaks } from '@/core/analytics/ruleBreaks'
+import { restrictMapsToWindow } from '@/core/analytics/periodRuleBreaks'
+import { readRuleBreaksByDate } from '../ruleBreaks/repo'
 import type { PeriodDetail, WeekDetail, WeekJournalEntry } from '@shared/week-types'
 
 function addDaysStr(date: string, days: number): string {
@@ -73,7 +76,21 @@ export function getPeriodDetail(
 
   const metrics = computeWeekMetrics({ trades, weekEnd: to, dailyPnl, exitDeltas: computeExitDeltas(trades) })
 
-  return { from, to, metrics, trades, entries }
+  // THE RULE BREAKS INSIDE THIS WINDOW. One read, no WHERE clause and no
+  // per-day loop: readRuleBreaksByDate returns the whole book in a single
+  // query, so a month costs one round trip and not thirty. BOTH maps are
+  // then cut to [from, to] -- the P&L one as well, because it is unbounded
+  // on purpose above and every traded day in the book would otherwise count
+  // as a clean day of this window. The boundary is INCLUSIVE at both ends.
+  //
+  // UNSCOPED, deliberately: a rule break is a property of a DAY, not of an
+  // account -- journal_rule_break is keyed on (date, rule_break_def_id) and
+  // carries no account column, so there is nothing to scope it by. The
+  // daily P&L it is measured against IS scoped, exactly as the streak is.
+  const windowed = restrictMapsToWindow(readRuleBreaksByDate(db), dailyPnl, from, to)
+  const ruleBreaks = computeRuleBreaks(windowed.ruleBreaksByDate, windowed.netPnlByDate)
+
+  return { from, to, metrics, trades, entries, ruleBreaks }
 }
 
 // v0.2.2 Day 4.5b -- Weekly Review detail assembly. weekStart is the Sunday
@@ -103,6 +120,7 @@ export function getWeekDetail(
     weekEnd,
     metrics: period.metrics,
     trades: period.trades,
+    ruleBreaks: period.ruleBreaks,
     notes: notesRow?.text ?? '',
     entries: period.entries,
   }

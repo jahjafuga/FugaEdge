@@ -34,6 +34,7 @@ export function getMonthDetail(
     metrics: period.metrics,
     trades: period.trades,
     entries: period.entries,
+    ruleBreaks: period.ruleBreaks,
     notes: getMonthNotes(monthId),
     // THE LADDER RIDES THIS CALL, not a channel of its own. The rows are
     // getPeriodDetail on narrower windows with THE SAME opts, so the

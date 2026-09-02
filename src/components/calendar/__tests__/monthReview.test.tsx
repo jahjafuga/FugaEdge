@@ -28,6 +28,7 @@ import { WEEK_WORDING } from '../WeekReviewModal/wording'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeMistakesTable } from '@/core/analytics/mistakes'
 import { makeTrade } from '@/test/fixtures/trade'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import type { PeriodDetail } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -58,6 +59,7 @@ const periodOf = (trades: TradeListRow[], from: string, to: string): PeriodDetai
     exitDeltas: [],
   }),
   trades,
+  ruleBreaks: EMPTY_RULE_BREAKS,
   entries: [
     { date: '2026-06-08', premarket_notes: 'watching AAA for a gap', postsession_notes: 'took it' },
   ],

@@ -24,6 +24,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { DayDetail, DayMetrics } from '@shared/day-types'
 import type { WeekDetail, WeekMetrics } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import { makeTrade } from '@/test/fixtures/trade'
 import DayDetailModal from '@/components/calendar/DayDetailModal'
 import WeekReviewModal from '@/components/calendar/WeekReviewModal'
@@ -179,6 +180,7 @@ function makeWeekDetail(): WeekDetail {
     metrics: weekMetrics(),
     trades: [W1(), W2(), W3()],
     notes: '',
+    ruleBreaks: EMPTY_RULE_BREAKS,
     entries: [],
   }
 }

@@ -122,10 +122,16 @@ describe('AC the window is the primitive', () => {
     // renamed or reshaped it they would go red for a reason that has nothing
     // to do with what this beat is for.
     const w = getWeekDetail(WEEK)
+    // BEAT 271 ADDED ruleBreaks. WeekDetail is written out field by field and
+    // composed by hand, so a new field on PeriodDetail reaches it only when
+    // the repo is told to carry it -- which is exactly what this list is here
+    // to notice. The set is spelled out rather than counted so a field
+    // arriving without anyone declaring it still fails here.
     expect(Object.keys(w).sort(), 'WeekDetail changed shape').toEqual([
       'entries',
       'metrics',
       'notes',
+      'ruleBreaks',
       'trades',
       'weekEnd',
       'weekStart',

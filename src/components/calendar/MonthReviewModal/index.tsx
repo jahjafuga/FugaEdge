@@ -7,6 +7,7 @@ import {
   ListChecks,
   Repeat,
   NotebookPen,
+  ShieldAlert,
 } from 'lucide-react'
 import type { MonthDetail } from '@shared/week-types'
 import { monthRepo } from '@/data/monthRepo'
@@ -25,6 +26,9 @@ import { MONTH_WORDING } from './wording'
 import { monthlyReview } from './reviewChannel'
 import MonthWeeksTab from './MonthWeeksTab'
 import { MONTH_LADDER_WORDING } from './ladderWording'
+import { MONTH_RULE_BREAKS_WORDING } from './ruleBreaksWording'
+import RuleBreaksTableView from '@/components/calendar/RuleBreaksTableView'
+import Card from '@/components/ui/Card'
 import DetailNotesTab from '@/components/calendar/DetailNotesTab'
 import { monthRepo as monthRepoForNotes } from '@/data/monthRepo'
 
@@ -48,6 +52,7 @@ type TabKey =
   | 'performance'
   | 'trades'
   | 'mistakes'
+  | 'ruleBreaks'
   | 'patterns'
   | 'notes'
   | 'weeks'
@@ -60,6 +65,15 @@ const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
+  // POSITION FIVE, inserted rather than appended: the day modal has Rule
+  // Breaks here already (DayDetailModal/index.tsx:47), so the order a
+  // trader learns on one drawer holds on the others.
+  {
+    key: 'ruleBreaks',
+    label: MONTH_RULE_BREAKS_WORDING.tabLabel,
+    Icon: ShieldAlert,
+    available: true,
+  },
   { key: 'patterns', label: 'Patterns', Icon: Repeat, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
   // THE SEVENTH, APPENDED -- the six above keep their order and their keys.
@@ -199,6 +213,14 @@ export default function MonthReviewModal({
       )}
       {detail && !loading && tab === 'mistakes' && (
         <WeekMistakesTab table={detail.metrics.mistakesTable} wording={MONTH_WORDING} />
+      )}
+      {detail && !loading && tab === 'ruleBreaks' && (
+        <Card title={MONTH_RULE_BREAKS_WORDING.title} subtitle={MONTH_RULE_BREAKS_WORDING.subtitle}>
+          <RuleBreaksTableView
+            data={detail.ruleBreaks}
+            wording={MONTH_RULE_BREAKS_WORDING}
+          />
+        </Card>
       )}
       {detail && !loading && tab === 'patterns' && (
         <WeekPatternsTab detail={detail} wording={MONTH_WORDING} />

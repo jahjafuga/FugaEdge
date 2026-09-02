@@ -33,6 +33,7 @@ import { getNavPosition } from '@/core/trades/tradeNavigation'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeMistakesTable } from '@/core/analytics/mistakes'
 import { makeTrade } from '@/test/fixtures/trade'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import type { PeriodDetail } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -64,6 +65,7 @@ const periodOf = (trades: TradeListRow[], from: string, to: string): PeriodDetai
     exitDeltas: [],
   }),
   trades,
+  ruleBreaks: EMPTY_RULE_BREAKS,
   entries: [
     { date: '2026-06-08', premarket_notes: 'watching AAA for a gap', postsession_notes: 'took it' },
   ],
@@ -123,16 +125,26 @@ describe('AG the month drawer', () => {
     for (const label of ['Overview', 'Performance', 'Trades', 'Mistakes', 'Patterns', 'Notes']) {
       expect(screen.getByRole('tab', { name: new RegExp(label) }), `no ${label} tab`).toBeTruthy()
     }
-    // BEAT 265 ASSERTED SIX. Beat 267 appended the Weeks ladder, so the count
-    // moved by design -- AM1 in monthLadder.test.tsx owns the number and
-    // checks the week and day hosts did NOT move with it. What matters here,
-    // and what AM1 does not say, is that the original six are still the FIRST
-    // six: a tab inserted among them would pass a count and still move every
-    // tab a trader reaches for.
+    // BEAT 265 ASSERTED SIX, in that order. Beat 267 appended Weeks; beat 272
+    // INSERTED Rule Breaks at position five, where the day modal already has
+    // it. Both moved this list by design.
+    //
+    // WHAT IT STILL GUARDS, that a count alone would not: the SEQUENCE. The
+    // six original tabs keep their relative order and Rule Breaks sits fifth,
+    // so a tab dropped into the wrong slot -- which every count in the repo
+    // would wave through -- fails here.
     expect(
-      screen.getAllByRole('tab').map((t) => t.textContent?.trim()).slice(0, 6),
-      'the original six tabs moved',
-    ).toEqual(['Overview', 'Performance', 'Trades', 'Mistakes', 'Patterns', 'Notes'])
+      screen.getAllByRole('tab').map((t) => t.textContent?.trim()).slice(0, 7),
+      'the tab sequence moved',
+    ).toEqual([
+      'Overview',
+      'Performance',
+      'Trades',
+      'Mistakes',
+      'Rule Breaks',
+      'Patterns',
+      'Notes',
+    ])
 
     // THE HEADER IS THE MONTH, NOT A RANGE. The week says
     // "June 7, 2026 → June 13, 2026"; a month that borrowed that shape would

@@ -22,6 +22,7 @@ import type {
 import type { DayDetail, DayMetrics } from '@shared/day-types'
 import type { WeekDetail, WeekMetrics } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import Calendar from '@/pages/Calendar'
 
 // ChartTab pulls lightweight-charts (canvas) — jsdom-hostile and irrelevant
@@ -252,6 +253,7 @@ function makeWeekDetail(weekStart: string): WeekDetail {
     metrics: weekMetrics(weekStart),
     trades: WEEK_TRADES[weekStart] ?? [],
     notes: '',
+    ruleBreaks: EMPTY_RULE_BREAKS,
     entries: [],
   }
 }

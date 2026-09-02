@@ -30,6 +30,7 @@ import { monthWeekRows } from '@/core/calendar/monthWeeks'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeMistakesTable } from '@/core/analytics/mistakes'
 import { makeTrade } from '@/test/fixtures/trade'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import type { PeriodDetail, MonthWeekSummary } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -60,6 +61,7 @@ const periodOf = (trades: TradeListRow[], from: string, to: string): PeriodDetai
     exitDeltas: [],
   }),
   trades,
+  ruleBreaks: EMPTY_RULE_BREAKS,
   entries: [
     { date: '2026-06-08', premarket_notes: 'watching AAA for a gap', postsession_notes: 'took it' },
   ],
@@ -145,18 +147,24 @@ const openLadder = async (opts: { onOpenWeek?: (w: string) => void } = {}) => {
 }
 
 describe('AM the weeks ladder', () => {
-  it('AM1 the month host renders SEVEN tabs; the week and day hosts do not gain one', async () => {
+  it('AM1 only the MONTH has the Weeks ladder; the week and day hosts do not', async () => {
     render(<MonthReviewModal monthId="2026-06" onClose={() => {}} />)
     await drawerReady()
+    // THE COUNTS MOVE WITH EVERY TAB THIS SLICE ADDS -- 267 made the month
+    // seven, 272 made it eight and the week seven. What this case is FOR has
+    // never been the number: it is that the Weeks ladder belongs to the MONTH
+    // and to nothing else. A week has no weeks inside it and a day has no
+    // ladder to show, so the assertions below name the tab, not the count.
     const monthTabs = screen.getAllByRole('tab').map((t) => t.textContent?.trim())
-    expect(monthTabs.length, `month tabs: ${monthTabs.join(', ')}`).toBe(7)
+    expect(monthTabs.length, `month tabs: ${monthTabs.join(', ')}`).toBe(8)
     expect(monthTabs.some((t) => /Weeks/.test(t ?? ''))).toBe(true)
+    expect(monthTabs[monthTabs.length - 1], 'Weeks is no longer last').toBe('Weeks')
     cleanup()
 
     render(<WeekReviewModal weekStart="2026-06-07" onClose={() => {}} />)
     await waitFor(() => expect(screen.getAllByRole('tab').length).toBeGreaterThan(0))
     const weekTabs = screen.getAllByRole('tab').map((t) => t.textContent?.trim())
-    expect(weekTabs.length, `week tabs: ${weekTabs.join(', ')}`).toBe(6)
+    expect(weekTabs.length, `week tabs: ${weekTabs.join(', ')}`).toBe(7)
     expect(weekTabs.some((t) => /Weeks/.test(t ?? '')), 'the week host grew a Weeks tab').toBe(false)
     cleanup()
 
@@ -275,15 +283,23 @@ describe('AM the weeks ladder', () => {
     render(<MonthReviewModal monthId="2026-06" onClose={() => {}} />)
     await drawerReady()
     const labels = screen.getAllByRole('tab').map((t) => t.textContent?.trim())
-    // the six, in their shipped order, with Weeks APPENDED -- not inserted
-    expect(labels.slice(0, 6)).toEqual([
+    // THE SEQUENCE, with Rule Breaks INSERTED at five (beat 272, where the day
+    // modal already has it) and Weeks still APPENDED last (beat 267).
+    //
+    // WHAT IT STILL GUARDS, that a count would not: that the six original tabs
+    // keep their relative order, that Rule Breaks landed at five and not
+    // wherever was convenient, and that Weeks stayed at the end rather than
+    // drifting into the middle when something else was inserted.
+    expect(labels.slice(0, 7)).toEqual([
       'Overview',
       'Performance',
       'Trades',
       'Mistakes',
+      'Rule Breaks',
       'Patterns',
       'Notes',
     ])
+    expect(labels[7], 'Weeks left the end').toBe('Weeks')
     // and the Overview tab still says everything it said before
     const text = norm(document.body.textContent ?? '')
     expect(text).toContain(MONTH_WORDING.reviewTitle)

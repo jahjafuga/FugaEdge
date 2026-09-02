@@ -1,5 +1,6 @@
 import type { MistakesTable } from './mistakes-types'
 import type { TradeListRow } from './trades-types'
+import type { RuleBreaksAnalytics } from './analytics-types'
 
 // v0.2.2 Day 4.5b — week-scoped metrics for the tabbed Weekly Review modal.
 // Reuses the day.ts conventions (net/counts/winRate/profitFactor/symbolBreakdown/
@@ -109,6 +110,13 @@ export interface PeriodDetail {
   /** Per-day journal entry text inside the window. Only days WITH a journal
    *  row appear. */
   entries: WeekJournalEntry[]
+  /** The rule breaks tagged on days INSIDE this window, rolled up per label
+   *  and clean-vs-flawed by day. The grain is the DAY -- journal_rule_break's
+   *  primary key is (date, rule_break_def_id) and there is no trade column --
+   *  so the headline days_with_any_break counts a day with two breaks ONCE,
+   *  while the per-label day counts sum higher. Both numbers are real and
+   *  they are not derivable from one another. */
+  ruleBreaks: RuleBreaksAnalytics
 }
 
 /** THE WEEK, which is one window plus its note.
@@ -156,6 +164,8 @@ export interface MonthDetail {
   metrics: WeekMetrics
   trades: TradeListRow[]
   entries: WeekJournalEntry[]
+  /** The window rollup, carried through by hand -- see PeriodDetail. */
+  ruleBreaks: RuleBreaksAnalytics
   notes: string  // month_notes reflection, '' when unwritten
   /** The weeks inside the month, in calendar order, each clipped to it.
    *  Their tradeCount, netPnl and tradingDays sum to the month exactly --
@@ -170,6 +180,10 @@ export interface WeekDetail {
   metrics: WeekMetrics
   trades: TradeListRow[]  // all week trades, for the equity curve + Trades tab
   notes: string           // week_notes reflection
+  /** The window rollup. WeekDetail is written out field by field, so a
+   *  new field on PeriodDetail does NOT arrive here by itself -- the repo
+   *  composes it by hand, and the week host would otherwise drop it. */
+  ruleBreaks: RuleBreaksAnalytics
   /** The week's per-day journal entry text (Sun–Sat). Only days WITH a journal
    *  row appear; a week with none → []. Phase 5's Patterns tab re-runs the topic
    *  matcher over these — they are not rendered by any tab yet. */

@@ -6,6 +6,7 @@ import {
   ListChecks,
   Repeat,
   NotebookPen,
+  ShieldAlert,
 } from 'lucide-react'
 import type { PeriodDetail, WeekDetail } from '@shared/week-types'
 import { weekRepo } from '@/data/weekRepo'
@@ -21,6 +22,9 @@ import WeekTradesTab from './WeekTradesTab'
 import WeekMistakesTab from './WeekMistakesTab'
 import WeekPatternsTab from './WeekPatternsTab'
 import { WEEK_WORDING } from './wording'
+import { WEEK_RULE_BREAKS_WORDING } from './ruleBreaksWording'
+import RuleBreaksTableView from '@/components/calendar/RuleBreaksTableView'
+import Card from '@/components/ui/Card'
 import { weeklyReview } from './reviewChannel'
 
 interface WeekReviewModalProps {
@@ -35,7 +39,14 @@ interface WeekReviewModalProps {
   onNavigate?: (weekStart: string) => void
 }
 
-type TabKey = 'overview' | 'performance' | 'trades' | 'mistakes' | 'patterns' | 'notes'
+type TabKey =
+  | 'overview'
+  | 'performance'
+  | 'trades'
+  | 'mistakes'
+  | 'ruleBreaks'
+  | 'patterns'
+  | 'notes'
 
 // The v0.2.2 five, plus Patterns (Phase 5 — weekly topic memory) and the
 // reinstated Mistakes rollup (djsevans87 #7) BESIDE it, in its pre-2f51c52
@@ -46,6 +57,15 @@ const TABS: readonly DetailModalTab<TabKey>[] = [
   { key: 'performance', label: 'Performance', Icon: BarChart3, available: true },
   { key: 'trades', label: 'Trades', Icon: ListChecks, available: true },
   { key: 'mistakes', label: 'Mistakes', Icon: AlertTriangle, available: true },
+  // POSITION FIVE, inserted rather than appended: the day modal has Rule
+  // Breaks here already (DayDetailModal/index.tsx:47), so the order a
+  // trader learns on one drawer holds on the others.
+  {
+    key: 'ruleBreaks',
+    label: WEEK_RULE_BREAKS_WORDING.tabLabel,
+    Icon: ShieldAlert,
+    available: true,
+  },
   { key: 'patterns', label: 'Patterns', Icon: Repeat, available: true },
   { key: 'notes', label: 'Notes', Icon: NotebookPen, available: true },
 ]
@@ -142,6 +162,7 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
         metrics: detail.metrics,
         trades: detail.trades,
         entries: detail.entries,
+        ruleBreaks: detail.ruleBreaks,
       }
     : null
   // Title identity follows the PROP (like the day modal's longDate(date)):
@@ -190,6 +211,14 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
       )}
       {detail && !loading && tab === 'mistakes' && (
         <WeekMistakesTab table={detail.metrics.mistakesTable} wording={WEEK_WORDING} />
+      )}
+      {period && !loading && tab === 'ruleBreaks' && (
+        <Card title={WEEK_RULE_BREAKS_WORDING.title} subtitle={WEEK_RULE_BREAKS_WORDING.subtitle}>
+          <RuleBreaksTableView
+            data={period.ruleBreaks}
+            wording={WEEK_RULE_BREAKS_WORDING}
+          />
+        </Card>
       )}
       {period && !loading && tab === 'patterns' && (
         <WeekPatternsTab detail={period} wording={WEEK_WORDING} />

@@ -15,6 +15,7 @@ vi.mock('@/lib/ipc', () => ({ ipc: { playbooksList: vi.fn() } }))
 
 import WeekPatternsTab from '../WeekPatternsTab'
 import { WEEK_WORDING } from '../wording'
+import { EMPTY_RULE_BREAKS } from '@/test/fixtures/ruleBreaks'
 import { ipc } from '@/lib/ipc'
 
 const playbooksList = vi.mocked(ipc.playbooksList)
@@ -34,6 +35,7 @@ function makeDetail(over: Partial<PeriodDetail>): PeriodDetail {
     to: '2026-06-06',
     metrics: {} as unknown as WeekMetrics,
     trades: [],
+    ruleBreaks: EMPTY_RULE_BREAKS,
     entries: [],
     ...over,
   }

@@ -77,3 +77,38 @@ export interface LadderWording {
    *  nothing and says nothing. */
   empty: string
 }
+
+// THE RULE-BREAKS TAB'S WORDS, supplied by whoever mounts it.
+//
+// A SEPARATE INTERFACE, for LadderWording's reason: PeriodWording's thirteen
+// fields belong to every period, and moving it would move WEEK_WORDING, which
+// AE5 and nine goldens pin exactly. These four belong to one tab.
+//
+// EVERY FIELD NAMES WHAT IT REPLACES, so a host's wording can be checked
+// against the surface rather than against memory.
+export interface RuleBreaksWording {
+  /** The tab's label in the strip. Both hosts: "Rule Breaks" */
+  tabLabel: string
+  /** The card's title. Week: "Rules broken this week" */
+  title: string
+  /** The card's explanatory line, under the title.
+   *  Week: "Tagged per day, so a day counts once no matter how many rules it
+   *  broke." */
+  subtitle: string
+  /** Shown when no day in the period carries a break.
+   *  Week: "No rules broken this week." */
+  empty: string
+  /** The left topline's label, above the day count.
+   *  Week: "Days with a rule broken" */
+  headlineLabel: string
+  /** The right topline's label, above the net of those days.
+   *  Week: "Their net P&L" */
+  netLabel: string
+  /** The label above the clean side. Week: "Clean days" */
+  cleanLabel: string
+  /** The line above the table. Week: "Per rule, worst P&L impact first" */
+  tableCaption: string
+  /** The footnote that explains why the rows sum higher than the headline.
+   *  It is the trader's own terms, not arithmetic. */
+  footnote: string
+}

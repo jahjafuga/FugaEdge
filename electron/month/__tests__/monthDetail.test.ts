@@ -83,11 +83,17 @@ describe('AG4 the month detail IS the period detail on the month window', () => 
       'ladder',
       'metrics',
       'notes',
+      'ruleBreaks',
       'to',
       'trades',
     ])
     expect(Array.isArray(got.ladder), 'the ladder is not a list').toBe(true)
     expect('ladder' in want, 'a window grew a ladder').toBe(false)
+    // ruleBreaks, unlike ladder and notes, IS a property of a window -- it
+    // is the rules broken inside those dates -- so the window HAS it and
+    // the month carries it through untouched.
+    expect('ruleBreaks' in want, 'the window lost its rollup').toBe(true)
+    expect(got.ruleBreaks).toEqual(want.ruleBreaks)
     expect(typeof got.notes, 'the note is not a string').toBe('string')
     expect('notes' in want, 'a window grew a note').toBe(false)
   })
