@@ -91,6 +91,34 @@ export interface WeekJournalEntry {
   postsession_notes: string
 }
 
+/** ONE WINDOW OF THE BOOK, with nothing week-shaped about it.
+ *
+ *  Everything getWeekDetail ever did EXCEPT two things: it does not derive a
+ *  Saturday from a Sunday, and it does not read week_notes. Those two are the
+ *  only week-shaped lines the repo had; the other four -- the trades read, the
+ *  journal range, and the two echoed labels -- work on any pair of dates.
+ *
+ *  A NOTE IS NOT A PROPERTY OF A WINDOW. week_notes is keyed on a week id, so
+ *  it belongs to the caller that has one. That is why there is no notes field
+ *  here rather than an empty string. */
+export interface PeriodDetail {
+  from: string  // YYYY-MM-DD, inclusive
+  to: string    // YYYY-MM-DD, inclusive
+  metrics: WeekMetrics
+  trades: TradeListRow[]
+  /** Per-day journal entry text inside the window. Only days WITH a journal
+   *  row appear. */
+  entries: WeekJournalEntry[]
+}
+
+/** THE WEEK, which is one window plus its note.
+ *
+ *  NOT derived from PeriodDetail, and the first version of this comment
+ *  said it was. Every field is written out, because four fixture files and
+ *  the IPC handler depend on this exact shape and an extends or a spread
+ *  would let a field arrive here without anyone declaring it. Byte for
+ *  byte what it has always been; the repo composes it from a PeriodDetail
+ *  by hand. */
 export interface WeekDetail {
   weekStart: string  // Sunday, YYYY-MM-DD
   weekEnd: string    // Saturday, YYYY-MM-DD

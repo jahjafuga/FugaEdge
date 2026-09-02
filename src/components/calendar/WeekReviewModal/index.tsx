@@ -20,6 +20,7 @@ import WeekPerformanceTab from './WeekPerformanceTab'
 import WeekTradesTab from './WeekTradesTab'
 import WeekMistakesTab from './WeekMistakesTab'
 import WeekPatternsTab from './WeekPatternsTab'
+import { WEEK_WORDING } from './wording'
 
 interface WeekReviewModalProps {
   /** Sunday week_start (from the calendar grid row), or null when closed. */
@@ -148,19 +149,20 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
       {error && !loading && (
         <div className="p-6 text-sm text-loss">Failed to load week detail: {error}</div>
       )}
-      {detail && !loading && tab === 'overview' && <WeekOverviewTab detail={detail} />}
-      {detail && !loading && tab === 'performance' && <WeekPerformanceTab detail={detail} />}
+      {detail && !loading && tab === 'overview' && <WeekOverviewTab detail={detail} wording={WEEK_WORDING} />}
+      {detail && !loading && tab === 'performance' && <WeekPerformanceTab detail={detail} wording={WEEK_WORDING} />}
       {detail && !loading && tab === 'trades' && (
         <WeekTradesTab
           trades={detail.trades}
           selectedTradeId={stack.selectedTradeId}
           onSelectTrade={stack.selectTrade}
+          wording={WEEK_WORDING}
         />
       )}
       {detail && !loading && tab === 'mistakes' && (
-        <WeekMistakesTab table={detail.metrics.mistakesTable} />
+        <WeekMistakesTab table={detail.metrics.mistakesTable} wording={WEEK_WORDING} />
       )}
-      {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} />}
+      {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} wording={WEEK_WORDING} />}
       {/* Notes is a WRITE surface — gate on detail freshness so a mid-cycle
           keep-last detail can't leave the editor (and its debounced save,
           which reads the LATEST onSave closure) targeting the wrong week.

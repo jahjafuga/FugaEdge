@@ -1,3 +1,4 @@
+import type { PeriodWording } from '@shared/period-wording'
 import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { TradeListRow } from '@shared/trades-types'
@@ -12,6 +13,8 @@ interface WeekTradesTabProps {
   /** Dave #17 — the click also hands up the view's canonical DISPLAYED order
    *  so the stack can snapshot it for prev/next cycling. */
   onSelectTrade: (id: number, orderedIds: number[]) => void
+  /** The period's own words, supplied by whoever mounts this tab. */
+  wording: PeriodWording
 }
 
 interface SymbolGroup {
@@ -31,7 +34,12 @@ interface SymbolGroup {
 // on week change, so local state starts grouped each time). Drill-in reuses
 // useTradeStack via onSelectTrade → stacked TradeDetailModal (z-210). Pure UI
 // over detail.trades — no new aggregation.
-export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }: WeekTradesTabProps) {
+export default function WeekTradesTab({
+  trades,
+  selectedTradeId,
+  onSelectTrade,
+  wording,
+}: WeekTradesTabProps) {
   const [view, setView] = useState<ViewMode>('grouped')
 
   const groups = useMemo(() => groupBySymbol(trades), [trades])
@@ -60,7 +68,7 @@ export default function WeekTradesTab({ trades, selectedTradeId, onSelectTrade }
   if (trades.length === 0) {
     return (
       <div className="rounded-md border border-border-subtle bg-bg-2 p-6 text-sm text-fg-secondary">
-        No trades this week.
+        {wording.noTrades}
       </div>
     )
   }

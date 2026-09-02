@@ -17,6 +17,7 @@ import { render, cleanup, screen } from '@testing-library/react'
 import { describe, expect, it, afterEach } from 'vitest'
 import MistakesTab from '../DayDetailModal/MistakesTab'
 import WeekMistakesTab from '../WeekReviewModal/WeekMistakesTab'
+import { WEEK_WORDING } from '../WeekReviewModal/wording'
 import { computeMistakesTable } from '@/core/analytics/mistakes'
 import { computeDayMetrics } from '@/core/analytics/day'
 import { makeTrade } from '@/test/fixtures/trade'
@@ -56,7 +57,7 @@ const SPLIT = [
 
 describe('Y the mistakes table renders on both calendar tabs', () => {
   it('Y1 the WEEK tab renders a row per tag with all five columns', () => {
-    render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} />)
+    render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} wording={WEEK_WORDING} />)
     for (const h of ['Mistake', 'Trades', 'Net P&L', 'Avg P&L', 'Win rate']) {
       expect(screen.getByText(h), `the ${h} column is missing`).toBeTruthy()
     }
@@ -74,7 +75,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
     // TWO trades while THREE trades carry a tag, so a row showing the topline
     // is visibly wrong.
     const t = computeMistakesTable(SPLIT)
-    const { container } = render(<WeekMistakesTab table={t} />)
+    const { container } = render(<WeekMistakesTab table={t} wording={WEEK_WORDING} />)
     for (const r of t.rows) {
       const row = [...container.querySelectorAll('tr')].find(
         (el) => el.textContent?.includes(r.name),
@@ -96,7 +97,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
   })
 
   it('Y3 axis headings appear technical first, and an EMPTY axis renders none', () => {
-    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} />)
+    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} wording={WEEK_WORDING} />)
     const text = container.textContent!
     const tIdx = text.indexOf('Technical')
     const pIdx = text.indexOf('Psychological')
@@ -108,14 +109,14 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
     // empty axis because it is a whole-book view where the absence is news. On
     // a single day or week an empty axis is ordinary, so it is omitted — and
     // that difference is asserted rather than assumed.
-    const onlyPsych = render(<WeekMistakesTab table={computeMistakesTable([trade(9, -5, [FOMO])])} />)
+    const onlyPsych = render(<WeekMistakesTab table={computeMistakesTable([trade(9, -5, [FOMO])])} wording={WEEK_WORDING} />)
     const t2 = onlyPsych.container.textContent!
     expect(t2).toContain('Psychological')
     expect(t2, 'an empty axis printed a heading anyway').not.toContain('Technical')
   })
 
   it('Y4 both toplines render: distinct tagged trades, and the share', () => {
-    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} />)
+    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} wording={WEEK_WORDING} />)
     const text = container.textContent!.replace(/\s+/g, ' ')
     // three of four trades carry a tag
     expect(text, 'the tagged-trade count is missing').toMatch(/3 of 4/)
@@ -131,7 +132,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
     expect(rowSum, 'the fixture stopped separating the two numbers').toBe(-1050)
     expect(t.taggedNetPnl, 'the module topline moved').toBe(-450)
     expect(rowSum).not.toBe(t.taggedNetPnl)
-    const { container } = render(<WeekMistakesTab table={t} />)
+    const { container } = render(<WeekMistakesTab table={t} wording={WEEK_WORDING} />)
     const text = container.textContent!.replace(/\s+/g, ' ')
     // the TOPLINE value, and NOT the row sum
     expect(text, 'the topline P&L is missing').toContain('-$450.00')
@@ -143,7 +144,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
 
   it('Y6 a period with NO tagged trades renders an empty state, not zeros', () => {
     const empty = computeMistakesTable([trade(1, 50, []), trade(2, -10, [])])
-    const { container } = render(<WeekMistakesTab table={empty} />)
+    const { container } = render(<WeekMistakesTab table={empty} wording={WEEK_WORDING} />)
     const text = container.textContent!
     expect(text.toLowerCase(), 'no empty state').toMatch(/no mistakes/)
     expect(text, 'an empty period printed a table header anyway').not.toContain('Win rate')
@@ -153,7 +154,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
     // The old rendering was a rounded-full pill carrying the tag and a
     // multiplication sign with the count. Neither tab may still produce one.
     const t = computeMistakesTable(SPLIT)
-    const w = render(<WeekMistakesTab table={t} />)
+    const w = render(<WeekMistakesTab table={t} wording={WEEK_WORDING} />)
     expect(w.container.querySelectorAll('.rounded-full').length, 'a chip survives on the week tab').toBe(0)
     expect(w.container.textContent, 'the chip count marker survives').not.toContain(String.fromCharCode(215))
     cleanup()
@@ -175,7 +176,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
       t.rows.every((r) => r.avgPnl !== null && r.winRate !== null),
       'the fixture grew a null cell, so this case can no longer tell copy from glyph',
     ).toBe(true)
-    const { container } = render(<WeekMistakesTab table={t} />)
+    const { container } = render(<WeekMistakesTab table={t} wording={WEEK_WORDING} />)
     expect(
       container.textContent,
       'an em dash survives in customer-facing copy',
@@ -189,7 +190,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
       rows: [{ name: 'Solo', axis: 'technical' as const, trades: 1, netPnl: 0, avgPnl: null, winRate: null }],
       taggedTrades: 1, taggedNetPnl: 0, periodTrades: 1, taggedShare: 1,
     }
-    const { container } = render(<WeekMistakesTab table={table} />)
+    const { container } = render(<WeekMistakesTab table={table} wording={WEEK_WORDING} />)
     expect(
       container.textContent,
       'the null placeholder stopped rendering',
@@ -201,7 +202,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
     // an admission of an arithmetic error. Both numbers are correct; they
     // answer different questions. Asserted on the ABSENCE of that claim rather
     // than on the whole sentence, so the wording can still be improved.
-    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} />)
+    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} wording={WEEK_WORDING} />)
     const text = container.textContent!.toLowerCase().replace(/\s+/g, ' ')
     expect(text, 'the footnote still says the rows do not add up').not.toContain('do not add up')
     expect(text).not.toContain('does not add up')
@@ -210,7 +211,7 @@ describe('Y the mistakes table renders on both calendar tabs', () => {
 
   it('AA3 the footnote IS there and DOES explain multi-tagging', () => {
     // An empty footnote would sail through AA2. This is what stops that.
-    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} />)
+    const { container } = render(<WeekMistakesTab table={computeMistakesTable(SPLIT)} wording={WEEK_WORDING} />)
     const text = container.textContent!.toLowerCase().replace(/\s+/g, ' ')
     expect(text, 'the footnote is missing').toContain('more than one mistake')
     expect(text, 'the footnote does not say the totals count each trade once').toContain('once')

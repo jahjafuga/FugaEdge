@@ -1,3 +1,4 @@
+import type { PeriodWording } from '@shared/period-wording'
 import { useEffect, useMemo, useState } from 'react'
 import type { WeekDetail } from '@shared/week-types'
 import Card from '@/components/ui/Card'
@@ -64,7 +65,14 @@ function PatternSection({ tone, items }: { tone: SectionTone; items: TopicCount[
   )
 }
 
-export default function WeekPatternsTab({ detail }: { detail: WeekDetail }) {
+export default function WeekPatternsTab({
+  detail,
+  wording,
+}: {
+  detail: WeekDetail
+  /** The period's own words, supplied by whoever mounts this tab. */
+  wording: PeriodWording
+}) {
   // Setup names complete the vocab — load once (mirrors the Journal page); a
   // failure just means no setup chips, never an error.
   const [setupNames, setSetupNames] = useState<string[]>([])
@@ -93,15 +101,15 @@ export default function WeekPatternsTab({ detail }: { detail: WeekDetail }) {
   }, [detail.entries, detail.trades, setupNames])
 
   return (
-    <Card title="Patterns this week">
+    <Card title={wording.patternsTitle}>
       {topics.length === 0 ? (
         <div className="text-sm text-fg-tertiary">
-          No recurring topics yet — they&apos;ll appear as you journal this week.
+          {wording.patternsEmpty}
         </div>
       ) : (
         <div className="space-y-5">
           <p className="text-xs text-fg-tertiary">
-            Topics you wrote across this week&apos;s entries — counts, not judgments.
+            {wording.patternsSubtitle}
           </p>
           {ORDER.map((tone) => (
             <PatternSection

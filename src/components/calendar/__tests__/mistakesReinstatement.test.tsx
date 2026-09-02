@@ -17,6 +17,7 @@ import type { WeeklySummary } from '@shared/calendar-types'
 import type { MistakesTable } from '@shared/mistakes-types'
 import MistakesTab from '../DayDetailModal/MistakesTab'
 import WeekMistakesTab from '../WeekReviewModal/WeekMistakesTab'
+import { WEEK_WORDING } from '../WeekReviewModal/wording'
 import WeeklyPanel from '../WeeklyPanel'
 import { topMistake } from '@/core/calendar/topMistake'
 
@@ -90,12 +91,12 @@ describe('(1) Day Detail Mistakes tab — read-only table from DayMetrics.mistak
 
 describe('(2) Week Review Mistakes tab — same table from WeekMetrics', () => {
   it('names each tagged mistake', () => {
-    const { container } = render(<WeekMistakesTab table={TABLE} />)
+    const { container } = render(<WeekMistakesTab table={TABLE} wording={WEEK_WORDING} />)
     expect(container.textContent).toContain('FOMO - chased a runner')
   })
 
   it('empty → the honest empty state', () => {
-    const { container } = render(<WeekMistakesTab table={EMPTY} />)
+    const { container } = render(<WeekMistakesTab table={EMPTY} wording={WEEK_WORDING} />)
     expect(container.textContent).toContain('No mistakes tagged on any trade in this period.')
   })
 })

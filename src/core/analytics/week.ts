@@ -8,7 +8,16 @@ import { computeMistakesTable } from '@/core/analytics/mistakes'
 interface ComputeWeekMetricsInput {
   /** Trades already scoped to the week (the repo filters by trades.date). */
   trades: TradeListRow[]
-  /** Saturday of the week, YYYY-MM-DD — the streak walks back from here. */
+  /** Saturday of the week, YYYY-MM-DD — the streak walks back from here.
+ *
+ *  AN UPPER BOUND, NOT A WEEK. The only thing this parameter reaches is
+ *  computeStreak below, which does
+ *
+ *      .filter((d) => d <= weekEnd)
+ *
+ *  so any date works and nothing here is seven-day shaped. The repo
+ *  passes a month last day through it unchanged. The NAME is left alone:
+ *  renaming a parameter every caller already spells correctly is churn. */
   weekEnd: string
   /** All-trades daily net P&L (date → net) so the streak can reach prior
    *  weeks. Falls back to the week's own days when omitted. */

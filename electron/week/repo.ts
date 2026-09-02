@@ -4,7 +4,7 @@ import { scopeFilter } from '../accounts/scope'
 import type { AccountScope } from '@shared/accounts-types'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeExitDeltas } from '@/core/analytics/exit-quality'
-import type { WeekDetail, WeekJournalEntry } from '@shared/week-types'
+import type { PeriodDetail, WeekDetail, WeekJournalEntry } from '@shared/week-types'
 
 function addDaysStr(date: string, days: number): string {
   const [y, m, d] = date.split('-').map(Number)
@@ -13,26 +13,35 @@ function addDaysStr(date: string, days: number): string {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
 }
 
-// v0.2.2 Day 4.5b — Weekly Review detail assembly. weekStart is the Sunday
-// the calendar grid row is anchored on; the week is [weekStart, weekStart+6]
-// (Sun–Sat), filtered by trades.date (the Eastern trading day — never
-// open_time, so no TZ conversion at query time).
-export function getWeekDetail(
-  weekStart: string,
+/** ONE WINDOW OF THE BOOK. The four bounds-only reads getWeekDetail always
+ *  did, with nothing week-shaped left in them.
+ *
+ *  WHAT MOVED HERE AND WHAT DID NOT. The repo had exactly two week-shaped
+ *  lines: the six-day offset that derives a Saturday, and the week_notes
+ *  lookup, which is keyed on a week id. Both stayed with the week. Everything
+ *  below works on any pair of dates and always did.
+ *
+ *  THE STREAK MAP IS DELIBERATELY UNBOUNDED. It reads every traded date in the
+ *  book so a streak can reach back before the window opens. That is why it
+ *  takes no dates, and why widening the window changes nothing about it.
+ *
+ *  computeWeekMetrics is called with `to` as its weekEnd. Its only use of that
+ *  parameter is an upper bound -- src/core/analytics/week.ts:302
+ *
+ *      .filter((d) => d <= weekEnd)
+ *
+ *  -- so it is period-agnostic already and is left exactly as it is. */
+export function getPeriodDetail(
+  from: string,
+  to: string,
   opts?: { accountScope?: AccountScope },
-): WeekDetail {
+): PeriodDetail {
   const db = openDatabase()
-  const weekEnd = addDaysStr(weekStart, 6)
-  // Multi-account (Technicals slice, beat 2) — the trades AND the streak map
-  // ride the same scope (this healed the split-brain where the trades rode
-  // the wall while the map was legacy-unfiltered). The map feeds the
-  // green/red-day P&L streak — NOT the showing-up identity streak, which is
-  // GLOBAL and lives elsewhere. Week metadata (week_notes, journal) stays
-  // global below.
   const scope = opts?.accountScope ?? 'all'
-  const trades = listTradesInRange(weekStart, weekEnd, scope)
+  const trades = listTradesInRange(from, to, scope)
 
-  // Scoped daily net P&L so the streak can reach back beyond this week.
+  // Scoped daily net P&L, whole-book, so the streak can reach back beyond the
+  // window. Not filtered by from/to -- see the note above.
   const sf = scopeFilter(scope)
   const dailyRows = db
     .prepare(
@@ -42,13 +51,8 @@ export function getWeekDetail(
   const dailyPnl = new Map<string, number>()
   for (const r of dailyRows) dailyPnl.set(r.date, r.pnl)
 
-  const notesRow = db
-    .prepare('SELECT text FROM week_notes WHERE week_start = ?')
-    .get(weekStart) as { text: string } | undefined
-
-  // Phase 5 — the week's per-day journal entry text, for the weekly pattern
-  // view. Mirrors the calendar/weekly.ts journal range-query. Only days with a
-  // journal row appear; a week with none → []. (journal has no deleted_at.)
+  // Per-day journal entry text inside the window. Only days with a journal row
+  // appear; a window with none -> []. (journal has no deleted_at.)
   const journalRows = db
     .prepare(`
       SELECT date, premarket_notes, postsession_notes
@@ -56,7 +60,7 @@ export function getWeekDetail(
       WHERE date >= ? AND date <= ?
       ORDER BY date ASC
     `)
-    .all(weekStart, weekEnd) as {
+    .all(from, to) as {
     date: string
     premarket_notes: string | null
     postsession_notes: string | null
@@ -67,14 +71,39 @@ export function getWeekDetail(
     postsession_notes: r.postsession_notes ?? '',
   }))
 
-  const metrics = computeWeekMetrics({ trades, weekEnd, dailyPnl, exitDeltas: computeExitDeltas(trades) })
+  const metrics = computeWeekMetrics({ trades, weekEnd: to, dailyPnl, exitDeltas: computeExitDeltas(trades) })
+
+  return { from, to, metrics, trades, entries }
+}
+
+// v0.2.2 Day 4.5b -- Weekly Review detail assembly. weekStart is the Sunday
+// the calendar grid row is anchored on; the week is [weekStart, weekStart+6]
+// (Sun-Sat), filtered by trades.date (the Eastern trading day -- never
+// open_time, so no TZ conversion at query time).
+//
+// THE WEEK IS ONE WINDOW PLUS ITS NOTE. The two week-shaped things live here
+// and nowhere else: the offset that makes a Saturday, and the week_notes read.
+// Everything else is getPeriodDetail's, and the output is byte-identical to
+// what this function returned before the split.
+export function getWeekDetail(
+  weekStart: string,
+  opts?: { accountScope?: AccountScope },
+): WeekDetail {
+  const weekEnd = addDaysStr(weekStart, 6)
+  const period = getPeriodDetail(weekStart, weekEnd, opts)
+
+  // Week metadata stays GLOBAL -- unscoped, exactly as before.
+  const db = openDatabase()
+  const notesRow = db
+    .prepare('SELECT text FROM week_notes WHERE week_start = ?')
+    .get(weekStart) as { text: string } | undefined
 
   return {
     weekStart,
     weekEnd,
-    metrics,
-    trades,
+    metrics: period.metrics,
+    trades: period.trades,
     notes: notesRow?.text ?? '',
-    entries,
+    entries: period.entries,
   }
 }

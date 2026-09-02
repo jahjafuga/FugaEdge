@@ -1,3 +1,4 @@
+import type { PeriodWording } from '@shared/period-wording'
 import type { ReactNode } from 'react'
 import type { WeekDetail, WeekMetrics } from '@shared/week-types'
 import Card from '@/components/ui/Card'
@@ -20,13 +21,20 @@ interface Section {
 // WeekMetrics (computeWeekMetrics) — no business logic here. Hold time is wired
 // in Day 5b (mirrors the day tab's section); Execution Quality renders the
 // awaiting-intraday placeholder like the day tab.
-export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
+export default function WeekPerformanceTab({
+  detail,
+  wording,
+}: {
+  detail: WeekDetail
+  /** The period's own words, supplied by whoever mounts this tab. */
+  wording: PeriodWording
+}) {
   const m = detail.metrics
 
   if (m.tradeCount === 0) {
     return (
       <div className="rounded-md border border-border-subtle bg-bg-2 p-6 text-sm text-fg-secondary">
-        No trades this week.
+        {wording.noTrades}
       </div>
     )
   }
@@ -75,7 +83,7 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
           value: <span className="font-mono text-gold">{formatProfitFactor(m.profitFactor)}</span>,
           hint:
             m.profitFactor === Infinity
-              ? 'No losing trades — profit factor is undefined (winning-only week).'
+              ? wording.profitFactorUndefined
               : 'Gross wins ÷ |gross losses|.',
         },
       ],
@@ -148,7 +156,7 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
         { label: 'Best day', value: m.bestDay ? <DayValue date={m.bestDay.date} pnl={m.bestDay.netPnl} /> : <Dash /> },
         { label: 'Worst day', value: m.worstDay ? <DayValue date={m.worstDay.date} pnl={m.worstDay.netPnl} /> : <Dash /> },
         {
-          label: 'Streak into next week',
+          label: wording.streakLabel,
           value:
             m.streak.kind === 'none' ? (
               <Dash />
@@ -164,7 +172,7 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
       title: 'Per-playbook',
       rows:
         m.perPlaybook.length === 0
-          ? [{ label: 'No playbooks tagged this week.', value: null }]
+          ? [{ label: wording.noPlaybooks, value: null }]
           : m.perPlaybook.map((p) => ({
               label: p.playbook,
               value: (
@@ -206,7 +214,7 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
 
   return (
     <div className="space-y-4">
-      <DayByDayCard m={m} />
+      <DayByDayCard m={m} wording={wording} />
 
       <div className="grid grid-cols-1 gap-x-8 gap-y-3 lg:grid-cols-2">
         {sections.map((section) => (
@@ -241,10 +249,10 @@ export default function WeekPerformanceTab({ detail }: { detail: WeekDetail }) {
 // ── Day-by-day P&L ──────────────────────────────────────────────────────────
 // Diverging horizontal bars, one row per traded day (chronological Sun→Sat).
 // Bars scale to the largest |net| of the week; best/worst day badged.
-function DayByDayCard({ m }: { m: WeekMetrics }) {
+function DayByDayCard({ m, wording }: { m: WeekMetrics; wording: PeriodWording }) {
   const maxAbs = m.dayByDay.reduce((max, d) => Math.max(max, Math.abs(d.netPnl)), 0)
   return (
-    <Card title="Day-by-day P&L" subtitle="Which days carried the week.">
+    <Card title="Day-by-day P&L" subtitle={wording.dayByDaySubtitle}>
       <div className="space-y-1">
         {m.dayByDay.map((d) => {
           const isBest = m.bestDay?.date === d.date

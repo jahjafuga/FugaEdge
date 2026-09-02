@@ -1,3 +1,4 @@
+import type { PeriodWording } from '@shared/period-wording'
 import { useEffect, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
 import type { WeekDetail } from '@shared/week-types'
@@ -17,7 +18,14 @@ import { formatPnlRatio, int, signed, pnlClass, shortDate } from '@/lib/format'
 // v0.2.2 Day 4.5b — Week Overview: the at-a-glance shape of the week. Equity
 // curve across the week (the shared IntradayPnLChart in 'datetime' mode) +
 // a narrative summary (net, win rate, best/worst DAY, streak).
-export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
+export default function WeekOverviewTab({
+  detail,
+  wording,
+}: {
+  detail: WeekDetail
+  /** The period's own words, supplied by whoever mounts this tab. */
+  wording: PeriodWording
+}) {
   const m = detail.metrics
   const weekStart = detail.weekStart
 
@@ -66,11 +74,11 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
     <div className="relative flex items-center justify-between gap-3 overflow-visible rounded-lg border border-border-subtle bg-bg-2 p-4">
       <CelebrationBurst trigger={burst} intensity="light" />
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-fg-primary">Weekly review</div>
+        <div className="text-sm font-semibold text-fg-primary">{wording.reviewTitle}</div>
         <div className="text-xs text-fg-tertiary">
           {reviewed
-            ? 'Logged for this week — weekly-review XP banked.'
-            : 'Mark this week reviewed to bank the weekly-review XP.'}
+            ? wording.reviewDone
+            : wording.reviewPrompt}
         </div>
         {reviewError && <div className="mt-1 text-xs text-danger">{reviewError}</div>}
       </div>
@@ -97,7 +105,7 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
       <div className="space-y-4">
         {reviewCard}
         <div className="rounded-md border border-border-subtle bg-bg-2 p-6 text-sm text-fg-secondary">
-          No trades this week.
+          {wording.noTrades}
         </div>
       </div>
     )
@@ -126,7 +134,7 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
 
       <Card
         title="Equity curve"
-        subtitle="Cumulative net P&L across the week — steps at each trade close."
+        subtitle={wording.equitySubtitle}
       >
         <IntradayPnLChart
           trades={detail.trades}
@@ -187,7 +195,7 @@ export default function WeekOverviewTab({ detail }: { detail: WeekDetail }) {
           </div>
         </Card>
 
-        <Card title="Streak into next week">
+        <Card title={wording.streakLabel}>
           {m.streak.kind === 'none' ? (
             <div className="text-sm text-fg-tertiary">No active streak.</div>
           ) : (

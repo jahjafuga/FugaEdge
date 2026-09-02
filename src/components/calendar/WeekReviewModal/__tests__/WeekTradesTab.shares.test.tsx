@@ -10,6 +10,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { makeTrade } from '@/test/fixtures/trade'
 import WeekTradesTab from '../WeekTradesTab'
+import { WEEK_WORDING } from '../wording'
 
 const noop = vi.fn()
 
@@ -30,7 +31,7 @@ const DAVE_0834 = makeTrade({
 })
 
 function renderTab() {
-  render(<WeekTradesTab trades={[DAVE_0834]} selectedTradeId={null} onSelectTrade={noop} />)
+  render(<WeekTradesTab trades={[DAVE_0834]} selectedTradeId={null} onSelectTrade={noop} wording={WEEK_WORDING} />)
 }
 
 describe('WeekTradesTab — SHARES = position size through the shared TradeRow (Dave #15)', () => {
