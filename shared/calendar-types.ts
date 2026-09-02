@@ -83,6 +83,18 @@ export interface WeekNotesResult {
   text: string
 }
 
+// The month's twin of the pair above. month_id is 'YYYY-MM' -- a month,
+// not a date, which is why it is a separate shape and not a reused one.
+export interface SaveMonthNotesInput {
+  month_id: string
+  text: string
+}
+
+export interface MonthNotesResult {
+  month_id: string
+  text: string
+}
+
 export interface CalendarMonthStats {
   year: number
   month: number          // 1..12

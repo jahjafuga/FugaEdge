@@ -7,10 +7,12 @@
 
 import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
-import { buildWeeklyReviewIntent } from '@/core/xp/engine'
+import { buildMonthlyReviewIntent, buildWeeklyReviewIntent } from '@/core/xp/engine'
 import { computeStreak } from '@/core/xp/streak'
 import { todayDateISO } from '@/core/session/today'
 import type {
+  MonthlyReviewCompleteResult,
+  MonthlyReviewStatus,
   WeeklyReviewCompleteResult,
   WeeklyReviewStatus,
   XpSummary,
@@ -48,6 +50,38 @@ export function registerXpIpc(): void {
       // whole query. (listIdempotencyKeys is a prefix match; the exact
       // includes() makes this immune to its trailing-% semantics.)
       const key = `weekly_review:${input.weekStart}`
+      return { completed: listIdempotencyKeys(key).includes(key) }
+    },
+  )
+
+  ipcMain.handle(
+    IPC.XP_MONTHLY_REVIEW_COMPLETE,
+    (_e, input: { monthId: string }): MonthlyReviewCompleteResult => {
+      try {
+        // The month-id guard THROWS on anything but a bare YYYY-MM, for the
+        // same reason the Sunday guard exists: a wrong-shaped id mints a
+        // different key for the same logical month. Surfaced as data, not as a
+        // thrown error, because a throw arrives wrapped across the IPC
+        // boundary -- the weekly handler's contract, mirrored.
+        const intent = buildMonthlyReviewIntent(input.monthId)
+        const inserted = insertXpEvents([intent])
+        return { completed: true, awarded: inserted > 0 }
+      } catch (err) {
+        return {
+          completed: false,
+          error: err instanceof Error ? err.message : String(err),
+        }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    IPC.XP_MONTHLY_REVIEW_GET,
+    (_e, input: { monthId: string }): MonthlyReviewStatus => {
+      // The xp_event IS the completion record. The prefix differs from the
+      // week's before any id is interpolated, so this can never read a week's
+      // row and a week can never read this one.
+      const key = `monthly_review:${input.monthId}`
       return { completed: listIdempotencyKeys(key).includes(key) }
     },
   )

@@ -15,14 +15,15 @@ import {
 } from '../migrate-rule-breaks-backfill'
 
 describe('migrate-rule-breaks-backfill — schema 46 -> 47 version bump', () => {
-  it('the head schema version is 51 (trades.stop_source bump; 47 was this beat)', () => {
+  it('the head schema version is 52 (month_notes bump; 47 was this beat)', () => {
     // This file is the release-tracking pin: it moves forward with each bump so a
     // stale constant can't ship silently. 47 (rule-breaks) shipped inside the same
     // unreleased train; 48 added the goal-history tables + seed; 49 added
     // catalyst_def.kind; 50 split day_fees.fee_nscc out of the pooled bucket;
-    // 51 added trades.stop_source. Deliberately EXACT, not a floor — being the one
-    // pin that fails on every bump is this test's whole job.
-    expect(SCHEMA_VERSION).toBe('51')
+    // 51 added trades.stop_source; 52 added month_notes for the monthly review.
+    // Deliberately EXACT, not a floor — being the one pin that fails on every
+    // bump is this test's whole job.
+    expect(SCHEMA_VERSION).toBe('52')
   })
 
   it('targets schema 47 (the wrapper gate boundary — FROZEN forever)', () => {

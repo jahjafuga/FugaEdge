@@ -119,6 +119,51 @@ export interface PeriodDetail {
  *  would let a field arrive here without anyone declaring it. Byte for
  *  byte what it has always been; the repo composes it from a PeriodDetail
  *  by hand. */
+/** ONE ROW OF THE MONTH'S WEEKS LADDER.
+ *
+ *  It carries TWO windows and they are not the same window:
+ *    from/to           the CLIPPED part inside the month -- what the row SHOWS
+ *                      and what its numbers were summed over
+ *    weekStart/weekEnd the WHOLE week -- what the row OPENS
+ *
+ *  June 2026's first row shows Jun 1..6 and opens May 31..Jun 6. Summing the
+ *  full week would overshoot the month; opening the clip would hand the trader
+ *  a fragment of a week and call it a weekly review. */
+export interface MonthWeekSummary {
+  weekStart: string
+  weekEnd: string
+  from: string
+  to: string
+  /** Calendar days in the clipped window, 1..7. */
+  days: number
+  straddles: boolean
+  tradeCount: number
+  netPnl: number
+  tradingDays: number
+  /** 0..1, scratch-excluded; null when no decided trade -- WeekMetrics' own
+   *  convention, so an untraded week reads as an absence and never as 0%. */
+  winRate: number | null
+}
+
+/** THE MONTH DRAWER'S PAYLOAD: a window plus the month's own note.
+ *
+ *  Composed BY HAND from a PeriodDetail, for the same reason WeekDetail is
+ *  (see the note below it): an extends or a spread would let a field arrive
+ *  here without anyone declaring it. */
+export interface MonthDetail {
+  from: string  // YYYY-MM-DD, the month's first calendar day
+  to: string    // YYYY-MM-DD, its last
+  metrics: WeekMetrics
+  trades: TradeListRow[]
+  entries: WeekJournalEntry[]
+  notes: string  // month_notes reflection, '' when unwritten
+  /** The weeks inside the month, in calendar order, each clipped to it.
+   *  Their tradeCount, netPnl and tradingDays sum to the month exactly --
+   *  asserted in electron/month/__tests__/monthLadder.test.ts against
+   *  getPeriodDetail, never against a literal. */
+  ladder: MonthWeekSummary[]
+}
+
 export interface WeekDetail {
   weekStart: string  // Sunday, YYYY-MM-DD
   weekEnd: string    // Saturday, YYYY-MM-DD

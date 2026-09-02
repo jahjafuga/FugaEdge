@@ -2,12 +2,14 @@ import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
   SaveDayTagsInput,
+  SaveMonthNotesInput,
   SaveWeekNotesInput,
 } from '@shared/calendar-types'
 import type { AccountScope } from '@shared/accounts-types'
 import { getCalendarMonth, getCalendarYear } from './get'
 import { saveDayTags } from './dayTags'
 import { saveWeekNotes } from './weekNotes'
+import { saveMonthNotes } from '../month/notes'
 import { bumpDataVersion } from '../lib/cache'
 
 interface GetInput {
@@ -41,5 +43,8 @@ export function registerCalendarIpc(): void {
   })
   ipcMain.handle(IPC.WEEK_NOTES_SAVE, (_e, input: SaveWeekNotesInput) =>
     saveWeekNotes(input),
+  )
+  ipcMain.handle(IPC.MONTH_NOTES_SAVE, (_e, input: SaveMonthNotesInput) =>
+    saveMonthNotes(input),
   )
 }

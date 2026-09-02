@@ -182,8 +182,15 @@
 // ORF/OCC/NSCC/Acc/Clr/Misc into fee_other, and the import preview rendered neither
 // fee_other nor fee_commission while total_fees included both, so the table could not
 // be reconciled against a broker statement. migrate-day-fees-nscc.ts adds the column;
-// additive, idempotent, self-guarding, registered unconditionally. Release-tracking only.
-export const SCHEMA_VERSION = '51'
+// additive, idempotent, self-guarding, registered unconditionally. Release-tracking only.//
+// Bumped to 52 for the monthly review -- the new month_notes table (month_id
+// 'YYYY-MM' PRIMARY KEY, the week_notes shape on a month id). The cash_events
+// v39 precedent exactly: declared by CREATE TABLE IF NOT EXISTS in SCHEMA_SQL,
+// so it lands on fresh installs and upgrades with NO per-version migration
+// module and no backup latch. The bump is release-tracking only. The monthly
+// review's XP rides the existing xp_events table on a DISTINCT key prefix
+// ('monthly_review:'), so it needs no schema at all.
+export const SCHEMA_VERSION = '52'
 
 export const SCHEMA_SQL = /* sql */ `
 PRAGMA foreign_keys = ON;
@@ -546,6 +553,20 @@ CREATE INDEX IF NOT EXISTS idx_journal_date ON journal(date);
 -- artifact, not a per-day session log.
 CREATE TABLE IF NOT EXISTS week_notes (
   week_start TEXT PRIMARY KEY,
+  text       TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- The MONTH's reflection, beside the week's and keyed the same way: on the
+-- period's own id. month_id is 'YYYY-MM' -- a month, not a date. week_notes is
+-- NOT reused: its key is a Sunday, and storing a month against its first
+-- Sunday would put two different periods' notes in one row, while storing
+-- '2026-06' in a column every other reader treats as a date would be worse.
+-- Purely additive, so it lands via CREATE TABLE IF NOT EXISTS on fresh
+-- installs and upgrades alike (the cash_events v39 precedent) -- no migration
+-- module, no backup latch, no version gate.
+CREATE TABLE IF NOT EXISTS month_notes (
+  month_id   TEXT PRIMARY KEY,
   text       TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

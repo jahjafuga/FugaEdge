@@ -55,3 +55,25 @@ export interface PeriodWording {
    *  Week: "Topics you wrote across this week's entries — counts, not judgments." */
   patternsSubtitle: string
 }
+
+// THE WEEKS LADDER'S WORDS, supplied by whoever mounts that tab.
+//
+// A SEPARATE INTERFACE FROM PeriodWording, deliberately. Those thirteen fields
+// belong to every period; these belong only to a period that CONTAINS weeks. A
+// week has no weeks inside it, so putting these on PeriodWording would oblige
+// the week host to invent strings for a tab it does not have -- and would move
+// WEEK_WORDING, which nine goldens and AE5 pin exactly.
+export interface LadderWording {
+  /** The tab's label in the strip. Month: "Weeks" */
+  tabLabel: string
+  /** The card's title. Month: "The weeks in this month" */
+  title: string
+  /** The card's explanatory line. Month: "Each row is the part of that week
+   *  inside the month, so the rows add up to the month. Click one to open the
+   *  whole week." */
+  subtitle: string
+  /** Shown when the period has no weeks at all -- unreachable for a real
+   *  month, present because a card with no empty state is a card that renders
+   *  nothing and says nothing. */
+  empty: string
+}

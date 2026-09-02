@@ -1,6 +1,6 @@
 import type { PeriodWording } from '@shared/period-wording'
 import { useEffect, useMemo, useState } from 'react'
-import type { WeekDetail } from '@shared/week-types'
+import type { PeriodDetail } from '@shared/week-types'
 import Card from '@/components/ui/Card'
 import { ipc } from '@/lib/ipc'
 import { aggregateWeekTopics, type TopicCount } from '@/core/topics/aggregate'
@@ -69,7 +69,7 @@ export default function WeekPatternsTab({
   detail,
   wording,
 }: {
-  detail: WeekDetail
+  detail: PeriodDetail
   /** The period's own words, supplied by whoever mounts this tab. */
   wording: PeriodWording
 }) {

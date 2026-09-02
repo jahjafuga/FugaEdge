@@ -6,6 +6,21 @@ import type { XpEventType } from '@shared/xp-types'
 import type { SessionFact, TradeFact } from './types'
 import { isFullyAligned } from '@/core/technicals/alignment'
 
+/** The monthly review's award, DERIVED rather than chosen:
+ *
+ *      175 x (365.2425 / 12 / 7) = 760.921875 -> 761
+ *
+ *  the weekly award scaled by the mean number of weeks in a Gregorian
+ *  month. It is deliberately not a round number -- rounding it would make
+ *  the value a preference instead of a consequence of the existing scale.
+ *
+ *  ONCE A TRADER CLAIMS A MONTH THIS NUMBER IS FROZEN FOR THAT MONTH. The
+ *  ledger is append-only and the idempotency key already exists, so a
+ *  later change to this constant reprices FUTURE months only and leaves
+ *  the same trader holding two different amounts for the same act.
+ */
+export const MONTHLY_REVIEW_XP = 761
+
 /** Single source of truth for every §A2 amount and per-date cap. */
 export const XP_AWARDS = {
   session_journaled: { xp: 40, capPerDate: 1 },
@@ -14,6 +29,8 @@ export const XP_AWARDS = {
   disciplined_entry: { xp: 15, capPerDate: 4 },
   daily_streak_bonus: { xp: 25, capPerDate: 1 },
   weekly_review_completed: { xp: 175 },
+  // No capPerDate: a month is not a date.
+  monthly_review_completed: { xp: MONTHLY_REVIEW_XP },
   goal_completed: { xp: 1000 },
   // §A2 EXCEPTION (see xp-types.ts) — the one P&L-referencing award.
   maxloss_respected: { xp: 25, capPerDate: 1 },

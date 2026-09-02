@@ -1,10 +1,10 @@
 import type { PeriodWording } from '@shared/period-wording'
 import { useEffect, useState } from 'react'
 import { CheckCircle2 } from 'lucide-react'
-import type { WeekDetail } from '@shared/week-types'
+import type { PeriodDetail } from '@shared/week-types'
 import Card from '@/components/ui/Card'
 import CelebrationBurst from '@/components/ui/CelebrationBurst'
-import { ipc } from '@/lib/ipc'
+import type { ReviewChannel } from '@/components/calendar/reviewChannel'
 import IntradayPnLChart from '@/components/charts/IntradayPnLChart'
 import StatStrip, {
   type Kpi,
@@ -21,26 +21,36 @@ import { formatPnlRatio, int, signed, pnlClass, shortDate } from '@/lib/format'
 export default function WeekOverviewTab({
   detail,
   wording,
+  review,
 }: {
-  detail: WeekDetail
+  detail: PeriodDetail
   /** The period's own words, supplied by whoever mounts this tab. */
   wording: PeriodWording
+  /** The period's review pair. The card renders IF AND ONLY IF this is
+   *  given, so "is there a card" and "which channel does it reach" cannot
+   *  disagree. There is no default: this tab must not name a channel,
+   *  because the weekly GET handler does no validation at all
+   *  (electron/xp/ipc.ts:45-52) and a wrong id would fail silently for
+   *  ever. Omitted -> no card, no fetch, no button. */
+  review?: ReviewChannel
 }) {
   const m = detail.metrics
-  const weekStart = detail.weekStart
 
-  // R5 — the weekly-review Complete button. weekStart is the Sunday anchor
-  // (the calendar grid row); buildWeeklyReviewIntent's Sunday guard rejects
-  // anything else. Mount-fetch the completed state so reopening shows it.
+  // R5 — the review Complete button, on whichever period mounted this tab.
+  // THE ID IS THE CHANNEL'S, NOT THIS TAB'S: a week is keyed on its Sunday
+  // and a month on its YYYY-MM, and the period START is only the former.
+  // The host binds it. Mount-fetch the completed state so reopening shows
+  // it.
   const [reviewed, setReviewed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [burst, setBurst] = useState(0)
 
   useEffect(() => {
+    if (!review) return
     let cancelled = false
-    ipc
-      .xpWeeklyReviewGet({ weekStart })
+    review
+      .get()
       .then((s) => {
         if (!cancelled) setReviewed(s.completed)
       })
@@ -48,19 +58,19 @@ export default function WeekOverviewTab({
     return () => {
       cancelled = true
     }
-  }, [weekStart])
+  }, [review])
 
   async function completeReview() {
-    if (submitting || reviewed) return
+    if (!review || submitting || reviewed) return
     setSubmitting(true)
     setReviewError(null)
     try {
-      const res = await ipc.xpWeeklyReviewComplete({ weekStart })
+      const res = await review.complete()
       if (res.completed) {
         setReviewed(true)
         if (res.awarded) setBurst((k) => k + 1) // light celebration on a FRESH award only
       } else {
-        // Shouldn't happen — the Sunday guard rejects a non-Sunday anchor.
+        // Shouldn't happen — the period guard rejects a wrong-shaped id.
         setReviewError(res.error ?? 'Could not complete the review.')
       }
     } catch (e) {
@@ -70,7 +80,7 @@ export default function WeekOverviewTab({
     }
   }
 
-  const reviewCard = (
+  const reviewCard = !review ? null : (
     <div className="relative flex items-center justify-between gap-3 overflow-visible rounded-lg border border-border-subtle bg-bg-2 p-4">
       <CelebrationBurst trigger={burst} intensity="light" />
       <div className="min-w-0">
@@ -138,7 +148,7 @@ export default function WeekOverviewTab({
       >
         <IntradayPnLChart
           trades={detail.trades}
-          date={detail.weekStart}
+          date={detail.from}
           height={340}
           xLabelMode="datetime"
         />

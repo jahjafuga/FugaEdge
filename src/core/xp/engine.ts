@@ -218,6 +218,38 @@ export function buildWeeklyReviewIntent(weekStart: string): XpAwardIntent {
   }
 }
 
+/**
+ * The monthly-review button's intent. Validates the id is a bare YYYY-MM month
+ * for the same reason the weekly builder validates its Sunday: a caller
+ * passing a day, or an unpadded month, would mint a DIFFERENT key for the same
+ * logical month -- a double-award class idempotency cannot catch -- so this
+ * fails loud as a programmer-error guard.
+ *
+ * THE PREFIX IS DISTINCT FROM THE WEEK'S, and that is load-bearing, not
+ * cosmetic. idempotency_key is UNIQUE across the whole ledger (schema.ts:630),
+ * so if a month could ever mint a string a week could also mint, one period
+ * would silently swallow the other's award and nothing would report it.
+ * 'monthly_review:' and 'weekly_review:' differ before any id is interpolated,
+ * so no pair of arguments can collide.
+ */
+export function buildMonthlyReviewIntent(monthId: string): XpAwardIntent {
+  if (!/^\d{4}-\d{2}$/.test(monthId)) {
+    throw new Error(
+      `buildMonthlyReviewIntent: month id must be bare YYYY-MM, got '${monthId}'`,
+    )
+  }
+  const month = Number(monthId.slice(5))
+  if (month < 1 || month > 12) {
+    throw new Error(`buildMonthlyReviewIntent: '${monthId}' is not a real month`)
+  }
+  return {
+    event_type: 'monthly_review_completed',
+    xp: XP_AWARDS.monthly_review_completed.xp,
+    idempotency_key: `monthly_review:${monthId}`,
+    source_ref: monthId,
+  }
+}
+
 /** The Phase B goal engine's completion intent (process goals only, D19). */
 export function buildGoalCompletedIntent(goalId: string): XpAwardIntent {
   return {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   BookOpen,
@@ -7,7 +7,7 @@ import {
   Repeat,
   NotebookPen,
 } from 'lucide-react'
-import type { WeekDetail } from '@shared/week-types'
+import type { PeriodDetail, WeekDetail } from '@shared/week-types'
 import { weekRepo } from '@/data/weekRepo'
 import { useAccountScope } from '@/lib/accountScope'
 import { longDate, signed, pnlClass, formatPnlRatio } from '@/lib/format'
@@ -21,6 +21,7 @@ import WeekTradesTab from './WeekTradesTab'
 import WeekMistakesTab from './WeekMistakesTab'
 import WeekPatternsTab from './WeekPatternsTab'
 import { WEEK_WORDING } from './wording'
+import { weeklyReview } from './reviewChannel'
 
 interface WeekReviewModalProps {
   /** Sunday week_start (from the calendar grid row), or null when closed. */
@@ -74,6 +75,19 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
 
   const stack = useTradeStack({ trades: detail?.trades, reload })
 
+  // The review pair, bound to THIS week. Memoised so the Overview tab's
+  // mount effect does not refire on every render of this host.
+  //
+  // IT LIVES HERE, ABOVE THE `if (!weekStart) return null` GUARD, because a
+  // hook below an early return is a conditional hook: React counts a
+  // different number of them on the closed render than on the open one and
+  // throws "Rendered more hooks than during the previous render". That is
+  // exactly what it did, in five cases of dayWeekCycling.test.tsx.
+  const review = useMemo(
+    () => (weekStart ? weeklyReview(weekStart) : null),
+    [weekStart],
+  )
+
   // Fresh open vs arrow cycle — DayDetailModal's discriminator, mirrored.
   // null→weekStart is a FRESH OPEN (reset tab + stacked trade, show the
   // loader); weekStart→weekStart is a CYCLE (keep the active tab, keep the
@@ -117,6 +131,19 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
   if (!weekStart) return null
 
   const m = detail?.metrics
+  // THE THREE DETAIL-TAKING TABS NOW TAKE A WINDOW, not a week. WeekDetail
+  // is NOT extended to satisfy them: week-types.ts:118-121 pins its exact
+  // shape for four fixtures and the IPC handler. The week composes the
+  // window by hand here, the same way the repo composes the week from one.
+  const period: PeriodDetail | null = detail
+    ? {
+        from: detail.weekStart,
+        to: detail.weekEnd,
+        metrics: detail.metrics,
+        trades: detail.trades,
+        entries: detail.entries,
+      }
+    : null
   // Title identity follows the PROP (like the day modal's longDate(date)):
   // while a cycle's fetch is in flight `detail` is the previous week's
   // (keep-last), so the full start→end range renders only once the loaded
@@ -149,8 +176,10 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
       {error && !loading && (
         <div className="p-6 text-sm text-loss">Failed to load week detail: {error}</div>
       )}
-      {detail && !loading && tab === 'overview' && <WeekOverviewTab detail={detail} wording={WEEK_WORDING} />}
-      {detail && !loading && tab === 'performance' && <WeekPerformanceTab detail={detail} wording={WEEK_WORDING} />}
+      {period && !loading && tab === 'overview' && <WeekOverviewTab detail={period} wording={WEEK_WORDING} review={review ?? undefined} />}
+      {period && !loading && tab === 'performance' && (
+        <WeekPerformanceTab detail={period} wording={WEEK_WORDING} />
+      )}
       {detail && !loading && tab === 'trades' && (
         <WeekTradesTab
           trades={detail.trades}
@@ -162,7 +191,9 @@ export default function WeekReviewModal({ weekStart, onClose, navPosition, onNav
       {detail && !loading && tab === 'mistakes' && (
         <WeekMistakesTab table={detail.metrics.mistakesTable} wording={WEEK_WORDING} />
       )}
-      {detail && !loading && tab === 'patterns' && <WeekPatternsTab detail={detail} wording={WEEK_WORDING} />}
+      {period && !loading && tab === 'patterns' && (
+        <WeekPatternsTab detail={period} wording={WEEK_WORDING} />
+      )}
       {/* Notes is a WRITE surface — gate on detail freshness so a mid-cycle
           keep-last detail can't leave the editor (and its debounced save,
           which reads the LATEST onSave closure) targeting the wrong week.

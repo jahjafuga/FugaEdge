@@ -9,10 +9,12 @@ import CalendarCompareStrip from '@/components/calendar/CalendarCompareStrip'
 import YearGrid from '@/components/calendar/YearGrid'
 import DayDetailModal from '@/components/calendar/DayDetailModal'
 import WeekReviewModal from '@/components/calendar/WeekReviewModal'
+import MonthReviewModal from '@/components/calendar/MonthReviewModal'
 import NoTradeDayModal from '@/components/calendar/NoTradeDayModal'
 import { ipc } from '@/lib/ipc'
 import { useAccountScope } from '@/lib/accountScope'
 import { getNavPosition } from '@/core/trades/tradeNavigation'
+import { monthIdOf, monthIdsOfYear } from '@/core/calendar/monthWindow'
 import type { CalendarMonth, CalendarYear } from '@shared/calendar-types'
 
 function todayISO(): string {
@@ -44,6 +46,9 @@ export default function Calendar() {
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedWeek, setSelectedWeek] = useState<string | null>(null)
+  // v0.3.0 -- the open month drawer, 'YYYY-MM' or null. A month tile sets
+  // it; the Month | Year toggle is untouched and still reaches the grid.
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   // Clicking an empty in-month cell (no trades) opens the quick sit-out
   // modal instead of the full day-trades panel.
   const [noTradeDayDate, setNoTradeDayDate] = useState<string | null>(null)
@@ -207,6 +212,15 @@ export default function Calendar() {
   const dayNav = useMemo(() => getNavPosition(tradedDays, selectedDate), [tradedDays, selectedDate])
   const weekStarts = useMemo(() => (data?.weeks ?? []).map((w) => w.week_start), [data])
   const weekNav = useMemo(() => getNavPosition(weekStarts, selectedWeek), [weekStarts, selectedWeek])
+  // The arrows walk the DISPLAYED YEAR's twelve months in calendar order --
+  // January through December, zero-trade months included, the same
+  // all-six-grid-weeks contract the weekly nav uses. The year grid renders
+  // twelve tiles unconditionally, so every id in this list is a tile.
+  const monthIds = useMemo(() => monthIdsOfYear(yearView), [yearView])
+  const monthNav = useMemo(
+    () => getNavPosition(monthIds, selectedMonth),
+    [monthIds, selectedMonth],
+  )
 
   if (err) {
     return (
@@ -346,10 +360,7 @@ export default function Calendar() {
             year={yearView}
             data={yearData}
             realNow={realNow}
-            onSelectMonth={(m) => {
-              setView({ y: yearView, m })
-              setCalMode('month')
-            }}
+            onSelectMonth={(m) => setSelectedMonth(monthIdOf(yearView, m))}
             onPrevYear={() => setYearView((y) => y - 1)}
             onNextYear={() => setYearView((y) => y + 1)}
           />
@@ -375,6 +386,17 @@ export default function Calendar() {
           onClose={() => setSelectedWeek(null)}
           navPosition={weekNav}
           onNavigate={setSelectedWeek}
+        />
+
+        <MonthReviewModal
+          monthId={selectedMonth}
+          onClose={() => setSelectedMonth(null)}
+          navPosition={monthNav}
+          onNavigate={setSelectedMonth}
+          // A ladder row opens the WEEK drawer on the row's FULL week --
+          // the same setter the calendar grid's weekly panels use, so the
+          // week that opens is the one the weekly review has always been.
+          onOpenWeek={setSelectedWeek}
         />
 
         <DayDetailModal

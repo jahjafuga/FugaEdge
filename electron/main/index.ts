@@ -14,6 +14,7 @@ import { registerTradesIpc } from '../trades/ipc'
 import { registerCalendarIpc } from '../calendar/ipc'
 import { registerDayIpc } from '../day/ipc'
 import { registerWeekIpc } from '../week/ipc'
+import { registerMonthIpc } from '../month/ipc'
 import { registerReportsIpc } from '../reports/ipc'
 import { registerAnalyticsIpc } from '../analytics/ipc'
 import { registerTechnicalsIpc } from '../technicals/ipc'
@@ -219,6 +220,7 @@ app.whenReady().then(() => {
   registerCalendarIpc()
   registerDayIpc()
   registerWeekIpc()
+  registerMonthIpc()
   registerReportsIpc()
   registerAnalyticsIpc()
   registerTechnicalsIpc()

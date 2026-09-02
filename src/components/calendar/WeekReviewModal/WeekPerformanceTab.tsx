@@ -1,6 +1,6 @@
 import type { PeriodWording } from '@shared/period-wording'
 import type { ReactNode } from 'react'
-import type { WeekDetail, WeekMetrics } from '@shared/week-types'
+import type { PeriodDetail, WeekMetrics } from '@shared/week-types'
 import Card from '@/components/ui/Card'
 import { duration, formatProfitFactor, int, money, perShareGainLoss, perShareGainLossIsZero, pnlClass, shortDate, signed } from '@/lib/format'
 
@@ -25,7 +25,7 @@ export default function WeekPerformanceTab({
   detail,
   wording,
 }: {
-  detail: WeekDetail
+  detail: PeriodDetail
   /** The period's own words, supplied by whoever mounts this tab. */
   wording: PeriodWording
 }) {

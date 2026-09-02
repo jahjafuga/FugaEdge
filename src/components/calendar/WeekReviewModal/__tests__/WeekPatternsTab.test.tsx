@@ -8,7 +8,7 @@
 
 import { render, screen, within } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import type { WeekDetail, WeekJournalEntry, WeekMetrics } from '@shared/week-types'
+import type { PeriodDetail, WeekJournalEntry, WeekMetrics } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
 
 vi.mock('@/lib/ipc', () => ({ ipc: { playbooksList: vi.fn() } }))
@@ -26,13 +26,14 @@ function entry(
 ): WeekJournalEntry {
   return { date, premarket_notes, postsession_notes }
 }
-function makeDetail(over: Partial<WeekDetail>): WeekDetail {
+// THE TAB TAKES A WINDOW NOW, not a week (beat 265): the same two dates,
+// under the names every period uses. What this file asserts is unchanged.
+function makeDetail(over: Partial<PeriodDetail>): PeriodDetail {
   return {
-    weekStart: '2026-05-31',
-    weekEnd: '2026-06-06',
+    from: '2026-05-31',
+    to: '2026-06-06',
     metrics: {} as unknown as WeekMetrics,
     trades: [],
-    notes: '',
     entries: [],
     ...over,
   }

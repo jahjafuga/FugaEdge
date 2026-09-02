@@ -28,11 +28,12 @@ import WeekTradesTab from '../WeekReviewModal/WeekTradesTab'
 import WeekMistakesTab from '../WeekReviewModal/WeekMistakesTab'
 import WeekPatternsTab from '../WeekReviewModal/WeekPatternsTab'
 import { WEEK_WORDING } from '../WeekReviewModal/wording'
+import { weeklyReview } from '../WeekReviewModal/reviewChannel'
 import { computeWeekMetrics } from '@/core/analytics/week'
 import { computeMistakesTable } from '@/core/analytics/mistakes'
 import { makeTrade } from '@/test/fixtures/trade'
 import type { PeriodWording } from '@shared/period-wording'
-import type { WeekDetail } from '@shared/week-types'
+import type { PeriodDetail } from '@shared/week-types'
 import type { TradeListRow } from '@shared/trades-types'
 
 // WeekOverviewTab reads the weekly-review XP state on mount, so window.api
@@ -62,9 +63,13 @@ const TRADES: TradeListRow[] = [
   } as TradeListRow,
 ]
 
-const detailOf = (trades: TradeListRow[]): WeekDetail => ({
-  weekStart: '2026-06-07',
-  weekEnd: '2026-06-13',
+// THE TABS TAKE A WINDOW NOW (beat 265), so the fixture is a PeriodDetail:
+// the same Sunday and the same Saturday, under the names every period uses.
+// The nine golden md5s below are UNCHANGED, which is the point -- a fixture
+// that renamed two fields must not move a single character of output.
+const detailOf = (trades: TradeListRow[]): PeriodDetail => ({
+  from: '2026-06-07',
+  to: '2026-06-13',
   metrics: computeWeekMetrics({
     trades,
     weekEnd: '2026-06-13',
@@ -72,7 +77,6 @@ const detailOf = (trades: TradeListRow[]): WeekDetail => ({
     exitDeltas: [],
   }),
   trades,
-  notes: '',
   entries: [
     { date: '2026-06-08', premarket_notes: 'watching AAA for a gap', postsession_notes: 'took it' },
   ],
@@ -96,14 +100,23 @@ const GOLDEN: Record<string, string> = {
   'patterns-empty': 'e22346f421a43ab194c030e5e124d7ca',
 }
 const md5 = (s: string) => createHash('md5').update(s).digest('hex')
+// BEAT 266 made the review card conditional on being handed its channel,
+// so the golden renders must pass the WEEK's, bound to this fixture's
+// Sunday. The md5s below did NOT change -- threading the prop moved no
+// output, which is the only reason it was allowed to touch this tab.
+const WEEKLY = weeklyReview('2026-06-07')
 
 describe('AE the period wording moves to the host, invisibly', () => {
   it('AE1 every tab renders byte-identically to the golden under the WEEK host', () => {
     const got: Record<string, string> = {
-      'overview-full': textOf(<WeekOverviewTab detail={FULL} wording={WEEK_WORDING} />),
+      'overview-full': textOf(
+        <WeekOverviewTab detail={FULL} wording={WEEK_WORDING} review={WEEKLY} />,
+      ),
     }
     cleanup()
-    got['overview-empty'] = textOf(<WeekOverviewTab detail={EMPTY} wording={WEEK_WORDING} />)
+    got['overview-empty'] = textOf(
+      <WeekOverviewTab detail={EMPTY} wording={WEEK_WORDING} review={WEEKLY} />,
+    )
     cleanup()
     got['performance-full'] = textOf(<WeekPerformanceTab detail={FULL} wording={WEEK_WORDING} />)
     cleanup()

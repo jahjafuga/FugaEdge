@@ -161,6 +161,13 @@ export const IPC = {
   // v0.2.2 Day 4.5 — tabbed Weekly Review modal data source. Returns
   // WeekDetail (week trades + metrics + week_notes) for a Sunday week_start.
   WEEK_GET_DETAIL: 'week:getDetail',
+  // v0.3.0 -- the Month drawer's data source. Returns a PeriodDetail (NOT a
+  // MonthDetail: a month carries no note of its own yet) for a 'YYYY-MM' id,
+  // over the month's CALENDAR days, never the six grid weeks drawn for it.
+  MONTH_GET_DETAIL: 'month:getDetail',
+  // The month's reflection, in month_notes. The WEEK_NOTES_SAVE twin,
+  // keyed on 'YYYY-MM'; week_notes is not reused and not read.
+  MONTH_NOTES_SAVE: 'monthNotes:save',
   // ── Chart ──────────────────────────────────────────────────────────────
   // v0.2.4 — branded chart screenshot save. Renderer (commit 2b) captures +
   // composites the PNG bytes; MAIN does the file I/O only (showSaveDialog →
@@ -195,6 +202,11 @@ export const IPC = {
   // The "Complete review" button UI ships in Phase B Session 6.
   XP_WEEKLY_REVIEW_COMPLETE: 'xp:weeklyReviewComplete',
   XP_WEEKLY_REVIEW_GET: 'xp:weeklyReviewGet',
+  // The monthly review. SEPARATE CHANNELS, not a period argument on the
+  // weekly pair: the weekly GET does no validation at all (it builds a key
+  // and looks it up), so a month arriving there would fail silently.
+  XP_MONTHLY_REVIEW_COMPLETE: 'xp:monthlyReviewComplete',
+  XP_MONTHLY_REVIEW_GET: 'xp:monthlyReviewGet',
   // v0.2.5 Phase B Session 4 (L20) — the profile page's read model:
   // level/XP progress + the ledger-derived journaling streak. Read-only,
   // uncached, refetched on route mount (no push channel — single-window

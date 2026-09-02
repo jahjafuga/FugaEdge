@@ -17,6 +17,7 @@ export type XpEventType =
   | 'disciplined_entry'
   | 'daily_streak_bonus'
   | 'weekly_review_completed'
+  | 'monthly_review_completed' // the month's own review, on its own key prefix
   | 'goal_completed' // process goals only (D19)
   | 'maxloss_respected' // §A2 exception (see the header note)
 
@@ -53,6 +54,22 @@ export interface WeeklyReviewCompleteResult {
 }
 
 export interface WeeklyReviewStatus {
+  completed: boolean
+}
+
+// The month reuses the WEEK's two result shapes by NAME rather than by
+// aliasing them: the fields are identical, and a month result that drifted
+// from a week result later should be free to.
+export interface MonthlyReviewCompleteResult {
+  completed: boolean
+  /** true when this call inserted the event; false when the month was
+   *  already complete (idempotent repeat). Absent on rejection. */
+  awarded?: boolean
+  /** Set when completed is false -- the month-id guard rejection message. */
+  error?: string
+}
+
+export interface MonthlyReviewStatus {
   completed: boolean
 }
 

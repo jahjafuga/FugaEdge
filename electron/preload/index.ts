@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, type DbHealthcheck, type DbResetResult } from '@shared/ipc-channels'
 import type {
+  MonthlyReviewCompleteResult,
+  MonthlyReviewStatus,
   WeeklyReviewCompleteResult,
   WeeklyReviewStatus,
   XpSummary,
@@ -83,7 +85,9 @@ import type {
   CalendarMonth,
   CalendarYear,
   DayTagsResult,
+  MonthNotesResult,
   SaveDayTagsInput,
+  SaveMonthNotesInput,
   SaveWeekNotesInput,
   WeekNotesResult,
 } from '@shared/calendar-types'
@@ -124,7 +128,7 @@ import type {
 } from '@shared/session-types'
 import type { DataHealth } from '@shared/data-health-types'
 import type { DayDetail, RuleBreaksResult } from '@shared/day-types'
-import type { WeekDetail } from '@shared/week-types'
+import type { MonthDetail, WeekDetail } from '@shared/week-types'
 import type {
   ListTradesWithTechnicalsOptions,
   TradeWithTechnicalsRow,
@@ -476,6 +480,16 @@ const api = {
     ipcRenderer.invoke(IPC.DAY_RULE_BREAK_USAGE_GET),
   weekDetailGet: (weekStart: string, opts?: { accountScope?: AccountScope }): Promise<WeekDetail> =>
     ipcRenderer.invoke(IPC.WEEK_GET_DETAIL, weekStart, opts),
+  monthDetailGet: (monthId: string, opts?: { accountScope?: AccountScope }): Promise<MonthDetail> =>
+    ipcRenderer.invoke(IPC.MONTH_GET_DETAIL, monthId, opts),
+  monthNotesSave: (input: SaveMonthNotesInput): Promise<MonthNotesResult> =>
+    ipcRenderer.invoke(IPC.MONTH_NOTES_SAVE, input),
+  xpMonthlyReviewComplete: (input: {
+    monthId: string
+  }): Promise<MonthlyReviewCompleteResult> =>
+    ipcRenderer.invoke(IPC.XP_MONTHLY_REVIEW_COMPLETE, input),
+  xpMonthlyReviewGet: (input: { monthId: string }): Promise<MonthlyReviewStatus> =>
+    ipcRenderer.invoke(IPC.XP_MONTHLY_REVIEW_GET, input),
 }
 
 // Updater status shape — duplicated from electron/updater so the preload
