@@ -12,9 +12,28 @@
 
 export const EDGE_POSITION_KEY = 'fuga.edge.position'
 
+/** Which horizontal edge a position was dropped against.
+ *
+ *  THERE IS NO THIRD VALUE AND NO VERTICAL TWIN. QueryBubble.tsx:538 forces x
+ *  to one of exactly two pixels on every release, so a horizontal drop in open
+ *  space has never been possible; y is clamped and never snapped, so a
+ *  vertical anchor would describe something the drag cannot produce. */
+export type EdgeAnchorX = 'left' | 'right'
+
 export interface EdgePosition {
   x: number
   y: number
+  /** The edge this position means, when it means an edge.
+   *
+   *  ABSENT IS A COORDINATE, NOT A FAULT. Every blob written before this
+   *  field existed is a bare pair of numbers and must keep rendering where it
+   *  says, so the field is optional and its absence is the legacy reading.
+   *
+   *  x IS STILL WRITTEN AND STILL MEANS SOMETHING. An anchored blob carries
+   *  the pixel the anchor resolved to at the width it was dropped at, so a
+   *  build that predates this field reads the pair and puts the disc in a
+   *  sensible place instead of falling back to the corner. */
+  anchorX?: EdgeAnchorX
 }
 
 function storage(): Storage | null {
@@ -24,7 +43,18 @@ function storage(): Storage | null {
 }
 
 /** The stored position, or null for the default corner. Corrupt, partial or
- *  non-numeric blobs all read as null — never a throw, never NaN. */
+ *  non-numeric blobs all read as null — never a throw, never NaN.
+ *
+ *  AN INVALID ANCHOR NULLS THE WHOLE BLOB, on the precedent five lines below:
+ *  an x that is not a finite number does not become a default x, it discards
+ *  the position entirely. A blob claiming an anchor this build does not know
+ *  was not written by this build, and the file's stance on those is stated in
+ *  its own header — the read-side defense is total, and a lost position is
+ *  impossible only because the corner is always there to fall back to.
+ *  THE COST IS NAMED: were a third anchor value ever added, THIS build would
+ *  read those blobs as the corner rather than as a coordinate. That is the
+ *  conservative half of the trade and it is the half the file already takes
+ *  everywhere else. */
 export function readEdgePosition(): EdgePosition | null {
   const s = storage()
   if (!s) return null
@@ -33,10 +63,13 @@ export function readEdgePosition(): EdgePosition | null {
     if (!raw) return null
     const parsed: unknown = JSON.parse(raw)
     if (typeof parsed !== 'object' || parsed === null) return null
-    const { x, y } = parsed as { x?: unknown; y?: unknown }
+    const { x, y, anchorX } = parsed as { x?: unknown; y?: unknown; anchorX?: unknown }
     if (typeof x !== 'number' || !Number.isFinite(x)) return null
     if (typeof y !== 'number' || !Number.isFinite(y)) return null
-    return { x, y }
+    // THE LEGACY PATH, and it returns before the anchor is ever judged.
+    if (anchorX === undefined) return { x, y }
+    if (anchorX !== 'left' && anchorX !== 'right') return null
+    return { x, y, anchorX }
   } catch {
     return null
   }

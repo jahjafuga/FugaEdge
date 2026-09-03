@@ -166,6 +166,38 @@ export function Mark({ kind, size = 18 }: { kind: EdgeMarkKind; size?: number })
   )
 }
 
+/** The live viewport, as a pair of numbers.
+ *
+ *  IT EXISTS TO CAUSE A RE-RENDER, and that is its whole job. The carried
+ *  position is stored in VIEWPORT PIXELS, so what the disc should SHOW
+ *  depends on a value that lives outside React and changes without telling
+ *  it. Reading window.innerWidth during render without this would give a
+ *  number React never re-reads: correct on the first paint of each size and
+ *  stale for ever after.
+ *
+ *  useState PLUS A LISTENER, on this file's own useReducedMotion idiom
+ *  directly above -- not useSyncExternalStore, which would want a primitive
+ *  snapshot (an object literal per call re-renders for ever) and a server
+ *  snapshot this app has no use for. Both are correct; matching the
+ *  neighbour keeps one pattern in the file instead of two.
+ *
+ *  IT SETS STATE ONLY WHEN THE NUMBERS ACTUALLY CHANGE, so a resize event
+ *  that reports the same size costs nothing. */
+function useViewport(): { w: number; h: number } {
+  const [size, setSize] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
+  useEffect(() => {
+    const onResize = () =>
+      setSize((cur) =>
+        cur.w === window.innerWidth && cur.h === window.innerHeight
+          ? cur
+          : { w: window.innerWidth, h: window.innerHeight },
+      )
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return size
+}
+
 /** The AnimatedNumber matchMedia pattern: reduced motion strips every
  *  [data-edge-anim] hook so the reduced path is STRUCTURAL — asserted by test,
  *  not just visually instant. jsdom has no matchMedia; optional-chain to
@@ -262,14 +294,21 @@ export default function QueryBubble({
    *  the loupe's lens to the panel's hairline. Decoration only; the real
    *  panel opens the same tick. */
   const [lensGhost, setLensGhost] = useState(false)
-  /** D2/D3 — the carried position; null = the default corner. Restored
-   *  through the clamp so a stale blob can never strand the disc. */
-  const [pos, setPos] = useState<EdgePosition | null>(() => {
-    const stored = readEdgePosition()
-    return stored
-      ? clampEdgePosition(stored, window.innerWidth, window.innerHeight, DISC_PX, MARGIN_PX)
-      : null
-  })
+  /** D2/D3 — the carried position; null = the default corner.
+   *
+   *  THIS IS THE TRADER'S INTENT, VERBATIM. It used to be clamped on the way
+   *  in, and that was a quieter version of the same mistake writing a clamped
+   *  value makes: a session begun at a narrow window would hold the shrunken
+   *  coordinate in state and never recover the real one, however wide the
+   *  window later became. localStorage still held the truth and nothing would
+   *  read it again until the next launch.
+   *
+   *  A stale blob still cannot strand the disc -- `shown` below clamps it for
+   *  DISPLAY, on every render, against the viewport that exists right now. */
+  const [pos, setPos] = useState<EdgePosition | null>(() => readEdgePosition())
+  /** The live viewport. Its only purpose is to make a resize re-render, so
+   *  that `shown` below is recomputed against the window as it is now. */
+  const viewport = useViewport()
   const [dragging, setDragging] = useState(false)
   const dragRef = useRef<{
     startX: number
@@ -454,7 +493,14 @@ export default function QueryBubble({
    *  window move/up listeners doing the real work (the dropdown idiom). */
   const onFabPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
-    const origin = pos ?? {
+    /** FROM WHERE THE DISC IS, NOT FROM WHAT IS STORED. Beat 277 read `pos`
+     *  here, and before 277 that was the same value as `shown`. It is not any
+     *  more: once a shrink has stranded the intent the disc is drawn at the
+     *  clamped position while pos still holds 1848, so origX + dx stayed past
+     *  maxX and the clamp pinned it — at a 900 window the pointer had to
+     *  travel 1020px before the disc moved at all. `shown` is declared below
+     *  and this closure only ever runs after a render, so it is bound. */
+    const origin = shown ?? {
       x: window.innerWidth - MARGIN_PX - DISC_PX,
       y: window.innerHeight - MARGIN_PX - DISC_PX,
     }
@@ -495,9 +541,14 @@ export default function QueryBubble({
       const raw = { x: d.origX + dx, y: d.origY + dy }
       const clamped = clampEdgePosition(raw, window.innerWidth, window.innerHeight, DISC_PX, MARGIN_PX)
       const snapLeft = clamped.x + DISC_PX / 2 < window.innerWidth / 2
-      const snapped = {
+      /** THE SIDE WAS ALREADY DECIDED, one line up, and used to be thrown
+       *  away on the next. x is stored too, and still means the pixel the
+       *  anchor resolved to here — an older build reads the pair and lands
+       *  somewhere sensible instead of falling back to the corner. */
+      const snapped: EdgePosition = {
         x: snapLeft ? MARGIN_PX : window.innerWidth - MARGIN_PX - DISC_PX,
         y: clamped.y,
+        anchorX: snapLeft ? 'left' : 'right',
       }
       setPos(snapped)
       writeEdgePosition(snapped)
@@ -510,7 +561,47 @@ export default function QueryBubble({
     }
   }, [dragging, open, close, doOpen])
 
-  const place = placeFor(pos, window.innerWidth, window.innerHeight)
+  /** WHERE THE DISC IS SHOWN: the intent, clamped into the viewport that
+   *  exists right now. Recomputed every render, and a resize causes one
+   *  (useViewport above).
+   *
+   *  NOTHING IS PERSISTED HERE, and that is the whole ruling. A clamp only
+   *  ever pulls IN, so a stored clamp is a one-way ratchet: narrow the window
+   *  once and the disc never finds its way back out. Beat 276 wrote the
+   *  clamped value and a 1432-wide window turned an 1848 intent into 1360,
+   *  which is mid-screen at full width. The intent is what the trader chose;
+   *  the viewport is a fact about this moment.
+   *
+   *  THE FLIP DECISION READS `shown` TOO. Asking placeFor about a coordinate
+   *  the disc is not actually at would flip the panel away from a wall that
+   *  is not there. */
+  const shown = pos
+    ? clampEdgePosition(
+        /** AN ANCHOR IS RESOLVED AGAINST THE WINDOW THAT EXISTS NOW. A stored
+         *  x is a pixel that meant "flush right" at one particular width and
+         *  means nothing in particular at any other; the anchor says which
+         *  edge was meant, so the pixel can be recomputed instead of
+         *  remembered. A blob with no anchor is legacy and is honoured as the
+         *  coordinate it is.
+         *
+         *  THE CLAMP STILL RUNS, and is not redundant here: below a viewport
+         *  of MARGIN_PX * 2 + DISC_PX the right edge resolves NEGATIVE (at 60
+         *  wide it is -12), and the floor at edgePosition.ts:65 is the only
+         *  thing that catches it. y is never anchored and needs it always. */
+        pos.anchorX
+          ? {
+              x: pos.anchorX === 'left' ? MARGIN_PX : viewport.w - MARGIN_PX - DISC_PX,
+              y: pos.y,
+            }
+          : pos,
+        viewport.w,
+        viewport.h,
+        DISC_PX,
+        MARGIN_PX,
+      )
+    : null
+
+  const place = placeFor(shown, viewport.w, viewport.h)
   const placeKey = `${place.v}-${place.h}`
   const placeCls = PLACE_PANEL[placeKey]
 
@@ -523,12 +614,12 @@ export default function QueryBubble({
     <div
       ref={rootRef}
       data-edge-root
-      className={`fixed z-40 ${pos ? '' : 'bottom-6 right-6'} ${
+      className={`fixed z-40 ${shown ? '' : 'bottom-6 right-6'} ${
         !dragging && !reduced ? 'edge-snap' : ''
       }`}
       style={{
         ['--edge-panel-w' as string]: `${PANEL_W_PX}px`,
-        ...(pos ? { left: pos.x, top: pos.y } : {}),
+        ...(shown ? { left: shown.x, top: shown.y } : {}),
       }}
       onKeyDown={open ? onKeyDown : undefined}
     >
