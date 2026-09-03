@@ -1,0 +1,418 @@
+// @vitest-environment jsdom
+//
+// BEAT 283 -- the Long vs Short tab, renderer guards. At RED time the tab does
+// not exist, so this whole file dies with "Cannot find module" -- recorded,
+// and it proves little; the guard with its own red reason lives in
+// direction.test.ts (G2).
+//
+// THE CHART IS MOCKED. DualEquityChart is recharts inside ResponsiveContainer,
+// which needs a real layout engine jsdom does not have; the tab guards here
+// are about the grid, the card and the badges, so the chart is a stub that
+// records its props. The chart's own math is guarded in direction.test.ts G5.
+//
+// THE NULL CELL IS ASSERTED VIA THE FORMATTER, never as a literal: the app's
+// null string is the formatters' own and this beat's files carry no em dash
+// byte anywhere (the wording law), so the expectation imports
+// formatProfitFactor and compares against formatProfitFactor(null).
+import { render, cleanup, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { makeTrade } from '@/test/fixtures/trade'
+import { formatProfitFactor, money } from '@/lib/format'
+import { DirectionWording } from '@shared/direction-wording'
+import type { TradeListRow } from '@shared/trades-types'
+
+const chartProps: unknown[] = []
+vi.mock('@/components/analytics/DualEquityChart', () => ({
+  default: (props: Record<string, unknown>) => {
+    chartProps.push(props)
+    return <div data-testid="dual-chart" />
+  },
+}))
+
+import LongShortTab from '@/components/analytics/tabs/LongShortTab'
+
+let nextId = 1
+function side(kind: 'long' | 'short', n: number, mean = 10, spread = 2): TradeListRow[] {
+  const out: TradeListRow[] = []
+  for (let i = 0; i < n; i++) {
+    out.push(
+      makeTrade({
+        id: nextId++,
+        side: kind,
+        net_pnl: i % 2 === 0 ? mean + spread : mean - spread,
+        is_open: false,
+        date: `2026-07-${String((i % 20) + 1).padStart(2, '0')}`,
+      }),
+    )
+  }
+  return out
+}
+
+afterEach(() => {
+  cleanup()
+  chartProps.length = 0
+})
+
+describe('LS the tab renders the comparison', () => {
+  it('LS1 the three column headers come from the wording', () => {
+    render(<LongShortTab trades={[...side('long', 40), ...side('short', 40)]} />)
+    // Since beat 287 the side words legitimately repeat (heroes, progress,
+    // legend), so the three COLUMN headers are asserted inside thead.
+    const heads = [...document.querySelectorAll('thead th')].map((el) => el.textContent)
+    expect(heads.join(' ')).toContain(DirectionWording.colLong)
+    expect(heads.join(' ')).toContain(DirectionWording.colShort)
+    expect(heads.join(' ')).toContain(DirectionWording.colDelta)
+  })
+
+  it('LS2 a 40/12 book says 12 of 30 on the identity card', () => {
+    render(<LongShortTab trades={[...side('long', 40), ...side('short', 12)]} />)
+    const card = document.querySelector('[data-direction-card]')
+    expect(card, 'no identity card rendered').toBeTruthy()
+    expect(card!.textContent).toContain('12 of 30')
+    expect(card!.textContent).toContain(DirectionWording.tierInsufficient)
+  })
+
+  it('LS3 a long-only book shows short count 0 and the noSideYet sentence', () => {
+    render(<LongShortTab trades={side('long', 8)} />)
+    const card = document.querySelector('[data-direction-card]')
+    expect(card!.textContent).toContain('No short trades yet')
+    const shortCount = document.querySelector('[data-cell="trades-short"]')
+    expect(shortCount, 'no short trades cell').toBeTruthy()
+    expect(shortCount!.textContent).toBe('0')
+  })
+
+  it('LS4 a 9/4 book badges the short column and nulls its earned cells', () => {
+    // Rewritten in beat 288 (R202): mean 2 spread 6 gives BOTH sides losers,
+    // so profitFactor-long is a real number and profitFactor-short's null is
+    // EARNED BY SUPPRESSION, not by an all-win empty denominator. It still
+    // guards what it always did: the badge and the withheld thin-side cells.
+    render(<LongShortTab trades={[...side('long', 9, 2, 6), ...side('short', 4, 2, 6)]} />)
+    // The badge self-describes via its title (LowSampleBadge.tsx:20). Since
+    // beat 287 it legitimately appears TWICE -- the column header and the
+    // short hero's chip -- so this asserts presence, not singularity.
+    expect(screen.getAllByTitle('Low sample: n=4').length).toBeGreaterThanOrEqual(1)
+    const nullCell = formatProfitFactor(null)
+    expect(document.querySelector('[data-cell="profitFactor-long"]')!.textContent, 'long PF should be a number').not.toBe(nullCell)
+    expect(document.querySelector('[data-cell="profitFactor-short"]')!.textContent).toBe(nullCell)
+    expect(document.querySelector('[data-cell="expectancy-short"]')!.textContent).toBe(nullCell)
+    // The unearned side keeps its ordinary rows.
+    expect(document.querySelector('[data-cell="trades-short"]')!.textContent).toBe('4')
+  })
+
+  it('LS5 the chart receives the merged curve and both presence flags', () => {
+    render(<LongShortTab trades={[...side('long', 6), ...side('short', 5)]} />)
+    expect(chartProps.length).toBe(1)
+    const p = chartProps[0] as { curve: unknown[]; hasLong: boolean; hasShort: boolean }
+    expect(Array.isArray(p.curve)).toBe(true)
+    expect(p.curve.length).toBeGreaterThan(0)
+    expect(p.hasLong).toBe(true)
+    expect(p.hasShort).toBe(true)
+  })
+})
+
+// ─── Beat 284: the rules row leaves, the excursion rows earn their unit ──────
+
+/** 9 long / 4 short; EXACTLY the first 3 longs carry excursion data. The
+ *  expected means below are recomputed from these arrays, never hardcoded. */
+const MFES = [1.5, 0.8, 2.2]
+const MAES = [0.4, 1.1, 0.6]
+function excursionBook(): TradeListRow[] {
+  const longs = side('long', 9)
+  for (let i = 0; i < 3; i++) {
+    longs[i] = { ...longs[i], mfe: MFES[i], mae: MAES[i] }
+  }
+  return [...longs, ...side('short', 4)]
+}
+
+describe('LS6 beat-284 rulings', () => {
+  it('G9 rows without dna render NO Rules score label', () => {
+    // Analytics rows never carry dna (only Trades.tsx:396 attaches it), so a
+    // Rules row here would be a wrong figure, not an empty state.
+    render(<LongShortTab trades={[...side('long', 9), ...side('short', 4)]} />)
+    expect(
+      screen.queryByText(DirectionWording.rowLabels.dnaScore),
+      'the Rules score row rendered on rows that cannot carry dna',
+    ).toBe(null)
+  })
+
+  it('G10 the excursion rows carry per-share unit and true coverage', () => {
+    render(<LongShortTab trades={excursionBook()} />)
+    const mfeMean = MFES.reduce((s, v) => s + v, 0) / MFES.length
+    const label = DirectionWording.rowLabels.avgMfe
+    expect(label, 'the MFE label does not name its unit').toContain('per share')
+    const cell = document.querySelector('[data-cell="avgMfe-long"]')
+    expect(cell, 'no long MFE cell').toBeTruthy()
+    expect(cell!.textContent).toContain(money(mfeMean))
+    // Coverage counts rows WITH data -- 3, not the side's 9.
+    expect(cell!.textContent).toContain('of 3 trades with excursion data')
+  })
+
+  it('G11 PIN: MAE displays the stored magnitude, as the app already does', () => {
+    // Precedent: TradeDetailSheet.tsx:467 and TradesTable.tsx:853 both render
+    // money(mae) with no negation, and the writer stores Math.max(0, ...).
+    render(<LongShortTab trades={excursionBook()} />)
+    const maeMean = MAES.reduce((s, v) => s + v, 0) / MAES.length
+    const cell = document.querySelector('[data-cell="avgMae-long"]')
+    expect(cell!.textContent).toContain(money(maeMean))
+    expect(cell!.textContent!.includes('-'), 'a minus crept onto a stored magnitude').toBe(false)
+  })
+
+  it('G13b the polarity table and the ROWS keys cover each other exactly', async () => {
+    const mod = (await import('@/core/performance/direction')) as Record<string, unknown>
+    const tab = (await import('@/components/analytics/tabs/longShortRows')) as Record<string, unknown>
+    const polarity = mod.METRIC_POLARITY as Record<string, string> | undefined
+    // DECLARED RED REASON: the table is absent.
+    expect(polarity, 'the polarity table is absent').toBeTruthy()
+    const rowKeys = tab.METRIC_ROW_KEYS as string[] | undefined
+    expect(rowKeys, 'the tab does not export its row keys').toBeTruthy()
+    expect([...Object.keys(polarity!)].sort()).toEqual([...rowKeys!].sort())
+  })
+
+  it('G14 leaders hide on a thin book and mark the leading cell on an earned one', () => {
+    render(<LongShortTab trades={[...side('long', 9), ...side('short', 4)]} />)
+    expect(
+      document.querySelector('[data-leader]'),
+      'a leader rendered while a side is lowSample',
+    ).toBe(null)
+    cleanup()
+    // 40/40, long mean 50 vs short mean 10: leaders earned, long nets more.
+    render(<LongShortTab trades={[...side('long', 40, 50, 2), ...side('short', 40, 10, 2)]} />)
+    const cell = document.querySelector('[data-cell="netPnL-long"]')
+    expect(cell?.getAttribute('data-leader'), 'the leading cell carries no marker').toBe('long')
+    const delta = document.querySelector('[data-cell="netPnL-delta"]')
+    expect(delta?.getAttribute('data-leader-color'), 'the delta cell is uncoloured').toBe('long')
+  })
+
+  it('G15 the identity card carries two progress bars under the floor', () => {
+    render(<LongShortTab trades={[...side('long', 123), ...side('short', 17)]} />)
+    const bars = document.querySelectorAll('[data-progress]')
+    expect(bars.length, 'the progress bars are absent').toBe(2)
+    const short = document.querySelector('[data-progress="short"]')
+    expect(short!.textContent).toContain('17 of 30 trades')
+    const long = document.querySelector('[data-progress="long"]')
+    expect(long!.textContent).toContain('floor cleared')
+  })
+
+  it('G16 two heroes; the thin side badges and suppresses its ratios', () => {
+    // mean 2 spread 6: +8/-4 alternating, so BOTH sides have losers and both
+    // profit factors are numbers before suppression -- an all-win fixture
+    // would null them honestly and hide a suppression that stopped working,
+    // which is exactly the gap plant P14 exposed on the short side.
+    render(<LongShortTab trades={[...side('long', 9, 2, 6), ...side('short', 4, 2, 6)]} />)
+    const heroes = document.querySelectorAll('[data-hero]')
+    expect(heroes.length, 'the hero cards are absent').toBe(2)
+    const shortHero = document.querySelector('[data-hero="short"]') as HTMLElement
+    expect(shortHero.querySelector('[title="Low sample: n=4"]'), 'no badge on the thin hero').toBeTruthy()
+    // Rewritten in beat 289 (R202): profit factor left the heroes for the
+    // grid, so the suppression assertion follows the triad's earned stat --
+    // the P&L ratio. It still guards the same rule: the thin side's earned
+    // hero stat is withheld while the other side's is a number.
+    expect(shortHero.querySelector('[data-hero-stat="plRatio-short"]')!.textContent)
+      .toBe(formatProfitFactor(null))
+    const longHero = document.querySelector('[data-hero="long"]') as HTMLElement
+    expect(longHero.querySelector('[data-hero-stat="plRatio-long"]')!.textContent)
+      .not.toBe(formatProfitFactor(null))
+  })
+
+  it('G17 the four section labels render, in order, from the wording', () => {
+    render(<LongShortTab trades={[...side('long', 40), ...side('short', 40)]} />)
+    const labels = [...document.querySelectorAll('[data-section]')].map((el) => el.textContent)
+    expect(labels, 'the section rows are absent').toEqual([
+      DirectionWording.sectionOutcome,
+      DirectionWording.sectionSize,
+      DirectionWording.sectionRisk,
+      DirectionWording.sectionExcursion,
+    ])
+  })
+
+  it('G12 the win-rate delta formats as Compare formats it', () => {
+    // CompareView.tsx:835 renders win rate with kind="pct"; its private
+    // fmtDelta 'pct' arm (:1071) yields for 60% vs 50%:
+    //   `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
+    // The expected string is computed HERE by that exact expression.
+    const longs = [10, 10, 10, 10, 10, 10, -10, -10, -10, -10].map((p, i) =>
+      makeTrade({ id: nextId++, side: 'long', net_pnl: p, is_open: false, date: `2026-07-${String(i + 1).padStart(2, '0')}` }),
+    )
+    const shorts = [10, 10, 10, 10, -10, -10, -10, -10].map((p, i) =>
+      makeTrade({ id: nextId++, side: 'short', net_pnl: p, is_open: false, date: `2026-07-${String(i + 1).padStart(2, '0')}` }),
+    )
+    render(<LongShortTab trades={[...longs, ...shorts]} />)
+    const delta = 0.6 - 0.5
+    const expected = `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}%`
+    expect(document.querySelector('[data-cell="winRate-delta"]')!.textContent).toBe(expected)
+  })
+})
+
+// ─── Beat 288: gold leaders, signed deltas, no counter ───────────────────────
+
+/** An EARNED book (both sides at 40) where long leads win rate AND net:
+ *  long 30 wins +10 / 10 losses -5 (wr .75), short 20/20 (wr .50). */
+function earnedBook(): TradeListRow[] {
+  const rows: TradeListRow[] = []
+  const push = (kind: 'long' | 'short', pnl: number, i: number) =>
+    rows.push(makeTrade({ id: nextId++, side: kind, net_pnl: pnl, is_open: false, date: `2026-07-${String((i % 20) + 1).padStart(2, '0')}` }))
+  for (let i = 0; i < 30; i++) push('long', 10, i)
+  for (let i = 0; i < 10; i++) push('long', -5, i)
+  for (let i = 0; i < 20; i++) push('short', 10, i)
+  for (let i = 0; i < 20; i++) push('short', -5, i)
+  return rows
+}
+
+describe('LS7 beat-288 rulings', () => {
+  it('G18 the leader is a gold value, not a dot', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const cell = document.querySelector('[data-cell="netPnL-long"]') as HTMLElement
+    expect(cell.getAttribute('data-leader'), 'the leader attribute is gone').toBe('long')
+    expect(
+      cell.querySelector('span[class*="h-1.5 w-1.5"]'),
+      'the dot element is still present',
+    ).toBe(null)
+    expect(
+      cell.querySelector('[data-leader-style="gold"]'),
+      'the gold value span is absent',
+    ).toBeTruthy()
+  })
+
+  it('G19 the hero stat takes the same gold on the leading side only', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const lead = document.querySelector('[data-hero-stat="winRate-long"]')
+    expect(lead?.getAttribute('data-leader-style'), 'the leading hero stat is unstyled').toBe('gold')
+    const other = document.querySelector('[data-hero-stat="winRate-short"]')
+    expect(other?.getAttribute('data-leader-style')).toBe(null)
+  })
+
+  it('G20 every rendered delta carries an explicit sign', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const nullCell = formatProfitFactor(null)
+    const cells = [...document.querySelectorAll('td[data-cell]')].filter((el) =>
+      (el.getAttribute('data-cell') ?? '').endsWith('-delta'),
+    )
+    expect(cells.length).toBeGreaterThan(0)
+    for (const el of cells) {
+      const text = (el.textContent ?? '').trim()
+      if (text === nullCell) continue
+      // THE ONE RULED EXCEPTION: a zero MONEY delta renders unsigned, because
+      // the mirrored arm itself does (CompareView.tsx:1064 signed() prefixes
+      // only n > 0, so an equal pair reads plain money(0)). The pct, int and
+      // ratio arms sign their zeros and are held to it below.
+      if (text === money(0)) continue
+      expect(
+        text.startsWith('+') || text.startsWith('-'),
+        `unsigned delta in ${el.getAttribute('data-cell')}: "${text}"`,
+      ).toBe(true)
+    }
+  })
+
+  it('G21 the card carries no Long N / Short N counter', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const card = document.querySelector('[data-direction-card]') as HTMLElement
+    expect(
+      /Long \d+ \/ Short \d+/.test(card.textContent ?? ''),
+      'the counter span is still rendered',
+    ).toBe(false)
+  })
+
+  it('G22 PIN: no gold style anywhere while a side is thin', () => {
+    render(<LongShortTab trades={[...side('long', 9, 2, 6), ...side('short', 4, 2, 6)]} />)
+    expect(document.querySelector('[data-leader-style]')).toBe(null)
+  })
+})
+
+// --- Beat 289: the triad, the gold net, the ratio row ------------------------
+
+describe('LS8 beat-289 rulings', () => {
+  it('G24 the hero carries exactly winRate, plRatio, expectancy in order', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const keys = [...document.querySelectorAll('[data-hero="long"] [data-hero-stat]')].map(
+      (el) => el.getAttribute('data-hero-stat'),
+    )
+    expect(keys, 'the triad is wrong').toEqual(['winRate-long', 'plRatio-long', 'expectancy-long'])
+    expect(
+      document.querySelector('[data-hero-stat="profitFactor-long"]'),
+      'profit factor is still on the hero',
+    ).toBe(null)
+  })
+
+  it('G25 the Outcome section reads its seven labels in order, ratio valued', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    // The label cells are the FIRST td of each metric row; the Outcome
+    // section is everything between the first section row and the second.
+    const rows = [...document.querySelectorAll('tbody tr')]
+    const sectionIdx = rows
+      .map((r, i) => (r.querySelector('[data-section]') ? i : -1))
+      .filter((i) => i >= 0)
+    const outcome = rows.slice(sectionIdx[0] + 1, sectionIdx[1])
+    const labels = outcome.map((r) => r.querySelector('td')!.textContent)
+    expect(labels).toEqual([
+      DirectionWording.rowLabels.netPnL,
+      DirectionWording.rowLabels.trades,
+      DirectionWording.rowLabels.winRate,
+      DirectionWording.rowLabels.plRatio,
+      DirectionWording.rowLabels.profitFactor,
+      DirectionWording.rowLabels.expectancy,
+      DirectionWording.rowLabels.expectancyR,
+    ])
+    // AND THE VALUE: earnedBook longs are +10 wins / -5 losses, so the ratio
+    // is 2.00 -- recomputed here, and DISTINCT from profit factor's 6.00, so
+    // an accessor that read the wrong field cannot pass (plant P23).
+    expect(document.querySelector('[data-cell="plRatio-long"]')!.textContent).toContain('2.00')
+  })
+
+  it('G26 the hero net wears gold only on the leading side, only when earned', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const longNet = document.querySelector('[data-hero="long"] [data-hero-net]')
+    const shortNet = document.querySelector('[data-hero="short"] [data-hero-net]')
+    expect(longNet?.getAttribute('data-leader-style'), 'the leading net is unstyled').toBe('gold')
+    expect(shortNet?.getAttribute('data-leader-style')).toBe(null)
+    cleanup()
+    render(<LongShortTab trades={[...side('long', 9, 2, 6), ...side('short', 4, 2, 6)]} />)
+    expect(document.querySelector('[data-hero-net][data-leader-style]')).toBe(null)
+  })
+})
+
+// --- Beat 290: the ratio's own formatter, coloured headers, the empty rule --
+
+describe('LS9 beat-290 rulings', () => {
+  it('G27 the plRatio row formats with formatPnlRatio, the type doc named renderer', async () => {
+    const rows = (await import('@/components/analytics/tabs/longShortRows')) as Record<string, unknown>
+    const fmt = (await import('@/lib/format')) as Record<string, unknown>
+    const row = (rows.ROWS as { key: string; fmt: unknown }[]).find((r) => r.key === 'plRatio')!
+    expect(row.fmt, 'the plRatio row still wears profit factor formatter').toBe(fmt.formatPnlRatio)
+  })
+
+  it('G28 the side headers wear their side colours; the delta header wears none', () => {
+    render(<LongShortTab trades={earnedBook()} />)
+    const hexToRgb = (hex: string) => {
+      const n = parseInt(hex.slice(1), 16)
+      return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+    }
+    const longTh = document.querySelector('th[data-side="long"]') as HTMLElement
+    expect(longTh, 'no data-side on the LONG header').toBeTruthy()
+    expect(longTh.style.color).toBe(hexToRgb('#3b82f6'))
+    const shortTh = document.querySelector('th[data-side="short"]') as HTMLElement
+    expect(shortTh, 'no data-side on the SHORT header').toBeTruthy()
+    expect(shortTh.style.color).toBe(hexToRgb('#f97316'))
+    const deltaTh = [...document.querySelectorAll('thead th')].find((el) =>
+      (el.textContent ?? '').includes(DirectionWording.colDelta),
+    ) as HTMLElement
+    expect(deltaTh.getAttribute('data-side')).toBe(null)
+    expect(deltaTh.style.color).toBe('')
+  })
+
+  it('G29 an empty side is the null cell everywhere except its zero Trades', () => {
+    render(<LongShortTab trades={side('long', 28, 2, 6)} />)
+    const nullCell = formatProfitFactor(null)
+    const cell = (k: string) => document.querySelector(`[data-cell="${k}"]`)!.textContent
+    // DECLARED RED: netPnL-short renders money(0) today (the snapshot's
+    // empty-set counts fall to zero, overviewSnapshot.ts:30-31), as does the
+    // short hero net.
+    expect(cell('netPnL-short'), 'an empty side renders $0.00').toBe(nullCell)
+    expect(cell('netPnL-delta'), 'a delta against an empty side survived').toBe(nullCell)
+    expect(cell('trades-short'), 'the Trades exception broke').toBe('0')
+    expect(cell('winRate-short')).toBe(nullCell)
+    expect(cell('plRatio-short')).toBe(nullCell)
+    expect(cell('avgWinner-short')).toBe(nullCell)
+    const heroNet = document.querySelector('[data-hero="short"] [data-hero-net]')
+    expect(heroNet!.textContent, 'the empty hero net renders $0.00').toBe(nullCell)
+  })
+})

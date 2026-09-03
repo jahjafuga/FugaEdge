@@ -45,7 +45,10 @@ function meanOrNull(values: number[]): number | null {
   return s / values.length
 }
 
-function sampleStdDev(values: number[]): number | null {
+/** Sample standard deviation (n-1 denominator); null under 2 values. Exported
+ *  since beat 283 so the direction module's confidence band uses THIS
+ *  definition rather than a second copy. */
+export function sampleStdDev(values: number[]): number | null {
   if (values.length < 2) return null
   const mean = values.reduce((s, v) => s + v, 0) / values.length
   let acc = 0

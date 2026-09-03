@@ -25,6 +25,15 @@
  *   loss per §A7); null when no losers. Naturally negative or zero.
  * - expectancy: dollar expectancy = netPnl / n; null when n < 5 (§C:104).
  */
+
+/** THE §C:104 LOW-SAMPLE FLOOR, named (beat 283). The rule has lived in the
+ *  comment above since the technicals shipped, and the value as a literal 5 in
+ *  each bucket file; new surfaces that borrow the floor import THIS name
+ *  instead of forking an eighth literal. The existing bucket sites are
+ *  unchanged on purpose: rewriting seven proven call sites to chase a
+ *  constant is churn this beat does not spend. */
+export const LOW_SAMPLE_N = 5
+
 export interface BucketStats {
   n: number
   winRate: number | null

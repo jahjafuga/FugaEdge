@@ -377,6 +377,9 @@ export function computePeriodMetrics(
     largestGreenDay,
     largestRedDay,
     greenDayPct,
+    // Beat 283 -- the shared helper computed this at :198 all along; threaded
+    // instead of thrown away. Same nulls: no decided trades, no expectancy.
+    expectancy: s.expectancy,
     expectancyR: meanOrNull(rMultiples),
     rCoverage: rMultiples.length,
     mfeCapturePct: meanOrNull(mfeCaptures),

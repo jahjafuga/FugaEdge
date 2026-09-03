@@ -118,6 +118,12 @@ export interface PeriodMetrics {
   largestRedDay: number | null
   /** greenDays / tradingDays; null when no trading days. */
   greenDayPct: number | null
+  // Dollar expectancy over ALL the period's trades (beat 283) -- Convention A's
+  // winRate x avgWinner - lossRate x |avgLoser|, computed by the shared
+  // outcome-stats helper this type's producer already calls; it was in scope
+  // there and discarded. REQUIRED, not optional: a literal that forgets it
+  // should fail to compile rather than quietly render a blank.
+  expectancy: number | null
   // Expectancy in R — mean r_multiple over the COVERED subset (trades with a
   // logged stop/risk). Null when no trade carries an r_multiple; rCoverage
   // reports how many do, so the UI can label "(of N trades with R)".

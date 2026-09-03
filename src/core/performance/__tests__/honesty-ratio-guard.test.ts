@@ -24,6 +24,10 @@ function pm(o: Partial<PeriodMetrics>): PeriodMetrics {
     bestDay: null, worstDay: null,
     greenDays: 0, redDays: 0, breakevenDays: 0,
     avgGreenDay: null, avgRedDay: null, largestGreenDay: null, largestRedDay: null, greenDayPct: null,
+    // expectancy joined PeriodMetrics as REQUIRED in beat 283; this literal
+    // still guards what it always did -- the honesty-ratio wiring -- and the
+    // field is null here exactly as an undecided fixture would compute it.
+    expectancy: null,
     expectancyR: null, rCoverage: 0,
     mfeCapturePct: null, mfeCaptureCoverage: 0, maeToStop: null, maeToStopCoverage: 0,
     rDistribution: [], rDistCoverage: 0,
