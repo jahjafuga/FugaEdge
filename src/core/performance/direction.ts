@@ -18,6 +18,7 @@
 import type { TradeListRow } from '@shared/trades-types'
 import type { DirectionTier, DirectionVerdict } from '@shared/direction-wording'
 import { emptyFilters } from './filters'
+import type { OverviewFilters } from './types'
 import { computeOverviewSnapshot, type OverviewSnapshot } from './overviewSnapshot'
 import { sampleStdDev } from './fullStats'
 import type { EquityPoint } from './equity'
@@ -78,8 +79,16 @@ export interface DirectionComparison {
 /** The engine, once, for one side. The side filter rides the SAME
  *  OverviewFilters path every other surface uses -- one definition of what a
  *  long trade is, in filters.ts, not two. */
-export function sideStats(rows: TradeListRow[], side: 'long' | 'short'): SideStats {
-  const snapshot = computeOverviewSnapshot(rows, { ...emptyFilters(), side })
+export function sideStats(
+  rows: TradeListRow[],
+  side: 'long' | 'short',
+  filters: OverviewFilters = emptyFilters(),
+): SideStats {
+  // ONE PASS, and this is the only filtering site on this path: the user's
+  // filters and the side ride into the SAME applyFilters call the engine
+  // makes (filters.ts:39-69 AND-combines side with every other field), so a
+  // filtered column can never be a filtered set filtered again.
+  const snapshot = computeOverviewSnapshot(rows, { ...filters, side })
   const pnls = snapshot.trades.map((t) => t.net_pnl)
   const n = pnls.length
   const meanPnl = n > 0 ? pnls.reduce((s, v) => s + v, 0) / n : null
@@ -194,9 +203,12 @@ export function leaderFor(
   return longValue < shortValue ? 'long' : 'short'
 }
 
-export function computeDirectionComparison(rows: TradeListRow[]): DirectionComparison {
-  const long = sideStats(rows, 'long')
-  const short = sideStats(rows, 'short')
+export function computeDirectionComparison(
+  rows: TradeListRow[],
+  filters: OverviewFilters = emptyFilters(),
+): DirectionComparison {
+  const long = sideStats(rows, 'long', filters)
+  const short = sideStats(rows, 'short', filters)
   return {
     long,
     short,

@@ -7,7 +7,7 @@ import NormalCharts from '@/components/reports/overview/NormalCharts'
 import AnalyticsFilterBar, {
   rangeForQuickKey,
   quickKeyLabel,
-  type QuickKey,
+  type QuickSelection,
 } from '@/components/analytics/AnalyticsFilterBar'
 import {
   computeCumulativePnL,
@@ -53,7 +53,7 @@ export default function OverviewTab({ trades }: OverviewTabProps) {
     ...emptyFilters(),
     range: rangeForQuickKey('all'),
   }))
-  const [quick, setQuick] = useState<QuickKey>('all')
+  const [quick, setQuick] = useState<QuickSelection>('all')
   const snapshot = useMemo(
     () => computeOverviewSnapshot(dashTrades, filters),
     [dashTrades, filters],

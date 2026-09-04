@@ -17,6 +17,7 @@
 // sign: green and red stay P&L semantics and appear nowhere here.
 import { useMemo } from 'react'
 import Card from '@/components/ui/Card'
+import AnalyticsFilterBar, { type QuickSelection } from '@/components/analytics/AnalyticsFilterBar'
 import SectionHeader from '@/components/ui/SectionHeader'
 import DualEquityChart from '@/components/analytics/DualEquityChart'
 import LowSampleBadge from '@/components/analytics/tabs/technicals/LowSampleBadge'
@@ -38,6 +39,10 @@ import {
   directionSentenceKey,
   fillDirection,
 } from '@shared/direction-wording'
+import { emptyFilters } from '@/core/performance/filters'
+import { overviewCountLine } from '@/core/performance/overviewScopeLabel'
+import type { OverviewFilters } from '@/core/performance/types'
+import { useState } from 'react'
 import { formatProfitFactor, money, int } from '@/lib/format'
 import type { TradeListRow } from '@shared/trades-types'
 
@@ -60,7 +65,24 @@ interface LongShortTabProps {
 export default function LongShortTab({ trades }: LongShortTabProps) {
   // The Overview source exactly: open positions are dropped (OverviewTab:47).
   const closed = useMemo(() => trades.filter((t) => !t.is_open), [trades])
-  const d = useMemo(() => computeDirectionComparison(closed), [closed])
+  // TAB-LOCAL filter state, exactly as Overview (:52-55) and Compare hold
+  // theirs: no page-level store, no cross-tab sharing, no persistence. The
+  // default is empty, so the tab opens on the whole book.
+  const [filters, setFilters] = useState<OverviewFilters>(() => emptyFilters())
+  // THE HIGHLIGHT IS THE CALLER'S STATE, and both halves must be handed over
+  // together. pickQuick always applies the range but only calls
+  // onQuickChange if it was given one, so a bar rendered without this key
+  // moved the window while the strip went on lighting its default: the
+  // numbers said thirty days and the strip said ALL. Mirrors Overview
+  // exactly (OverviewTab.tsx:56 and :145-146), initial value included;
+  // rangeForQuickKey('all') is null, which is what emptyFilters already has.
+  const [quick, setQuick] = useState<QuickSelection>('all')
+  // The user's filters ride INTO the engine call the comparison already
+  // makes, one pass per side (direction.ts sideStats). Nothing is
+  // pre-filtered here; there is no second filtering site.
+  const d = useMemo(() => computeDirectionComparison(closed, filters), [closed, filters])
+  const shown = d.long.n + d.short.n
+  const filtered = shown !== closed.length
 
   const tierLabel =
     d.read.tier === 'insufficient'
@@ -94,6 +116,24 @@ export default function LongShortTab({ trades }: LongShortTabProps) {
     <div className="space-y-6">
       <SectionHeader title={W.tabLabel} />
 
+      {/* The SHARED bar, with the SIDE facet hidden: this tab IS the side
+          split, so a side filter on top of it would empty one of the two
+          columns the tab exists to compare. The count line uses the bar's
+          own scopeLabel idiom (overviewCountLine). */}
+      <AnalyticsFilterBar
+        trades={closed}
+        filters={filters}
+        onFiltersChange={setFilters}
+        quick={quick}
+        onQuickChange={setQuick}
+        showSide={false}
+        scopeLabel={overviewCountLine({
+          count: shown,
+          total: closed.length,
+          scope: W.tabLabel,
+        })}
+      />
+
       {/* Card takes no data-* props (it spreads nothing), so the hook the
           tests and any future driver query lives on this inner div. */}
       <Card>
@@ -103,6 +143,11 @@ export default function LongShortTab({ trades }: LongShortTabProps) {
               {tierLabel}
             </span>
           </div>
+          {filtered && (
+            <p className="mt-2 text-xs text-fg-muted" data-filter-scope>
+              {fillDirection(W.filterScope, { n: shown })}
+            </p>
+          )}
           <p className="mt-3 text-sm leading-relaxed text-fg-secondary">
             {colourSideWord(
               identitySentence(d.long, d.short, d.read.tier, d.read.verdict),

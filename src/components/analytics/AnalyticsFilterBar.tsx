@@ -32,6 +32,20 @@ import Segment from '@/components/ui/Segment'
  *  here so a 7D default needs zero shared-type change. */
 export type QuickKey = '7d' | '30d' | '90d' | 'ytd' | 'all'
 
+/** What the STRIP is currently reporting: one of its five keys, or the
+ *  sentinel meaning NO KEY DESCRIBES THIS WINDOW. A custom From/To range is
+ *  not a key and must not pretend to be one.
+ *
+ *  'custom' IS A STRING ON PURPOSE. Segment takes <T extends string> and
+ *  compares o.value === value, so a sentinel outside its options leaves every
+ *  key inactive with no edit to that shared component. null would not satisfy
+ *  the constraint; undefined would be swallowed by the quick = 'all' default
+ *  below and light the ALL key, which is the lie this removes.
+ *
+ *  rangeForQuickKey KEEPS TAKING QuickKey. The sentinel says no window can be
+ *  derived, so nothing may derive one from it. */
+export type QuickSelection = QuickKey | 'custom'
+
 const QUICK: { value: QuickKey; label: string }[] = [
   { value: '7d', label: '7D' },
   { value: '30d', label: '30D' },
@@ -51,8 +65,10 @@ export function rangeForQuickKey(key: QuickKey, now: Date = new Date()): DateRan
 }
 
 /** Human label for the chart titles, e.g. "7 days". */
-export function quickKeyLabel(key: QuickKey): string {
+export function quickKeyLabel(key: QuickSelection): string {
   switch (key) {
+    case 'custom':
+      return 'Custom range'
     case '7d':
       return '7 days'
     case '30d':
@@ -97,9 +113,18 @@ const CONTROL =
 const FIELD =
   'inline-flex h-8 items-center rounded-md border border-border-strong bg-bg-1 transition-colors duration-150'
 
-/** THE focus ring. shadow-glow-gold was declared in tailwind.config and used by
- *  nothing — the app had 37 focus-border treatments and no ring anywhere. This
- *  wires up the token the design system had already defined. */
+/** THE focus ring, for FOCUSABLE CONTROLS ONLY. shadow-glow-gold was declared
+ *  in tailwind.config and used by nothing — the app had 37 focus-border
+ *  treatments and no ring anywhere. This wires up the token the design system
+ *  had already defined.
+ *
+ *  NOT ON A GROUP WRAPPER (beat 299). focus-within fires when ANY descendant
+ *  holds focus, and a clicked button holds focus, so a span wrapping a Segment
+ *  lit the whole group on a mouse click. The focus-visible half cannot save it:
+ *  a span is not focusable, so it never matches focus-visible itself. The
+ *  Segment keys are buttons and the global rule at src/index.css:453-462
+ *  already rings every button:focus-visible, which is keyboard-only by
+ *  definition. So the wrappers carry no ring and the key carries its own. */
 const RING =
   'focus-within:border-gold focus-within:shadow-glow-gold focus-visible:border-gold focus-visible:shadow-glow-gold focus-visible:outline-none'
 
@@ -114,13 +139,18 @@ interface AnalyticsFilterBarProps {
   onFiltersChange: (next: OverviewFilters) => void
   /** Local highlight key (incl. '7d'); owned by the dashboard. Optional so a
    *  caller that hides the range strip does not have to invent one. */
-  quick?: QuickKey
-  onQuickChange?: (q: QuickKey) => void
+  quick?: QuickSelection
+  onQuickChange?: (q: QuickSelection) => void
   /** Whether this bar owns a DATE RANGE. Default true, so every existing
    *  caller is byte identical. Compare passes false: its period pickers own
    *  dates, and a page level range narrower than a period would silently
    *  shrink that period without saying so. */
   showRange?: boolean
+  /** Whether this bar owns the SIDE facet. Default true, so every existing
+   *  caller is byte identical. Long vs Short passes false: that tab IS the
+   *  side split, and a side filter on top of it would silently empty one of
+   *  the two columns it exists to compare. Same shape as showRange above. */
+  showSide?: boolean
   /** True once the bar is PINNED and content is scrolling under it. Drives the
    *  shadow step from resting to lifted — the only cue that says "this is stuck". */
   elevated?: boolean
@@ -140,6 +170,7 @@ export default function AnalyticsFilterBar({
   scopeLabel,
   elevated = false,
   showRange = true,
+  showSide = true,
 }: AnalyticsFilterBarProps) {
   const [moreOpen, setMoreOpen] = useState(false)
   const barRef = useRef<HTMLDivElement | null>(null)
@@ -271,17 +302,29 @@ export default function AnalyticsFilterBar({
         <Rule />
 
         {/* GROUP 2 — side. Gold here is the SELECTED segment: active state. */}
-        <span className={`inline-flex rounded-md ${RING}`}>
-          <Segment options={SIDES} value={filters.side} onChange={(v) => set('side', v)} />
-        </span>
+        {showSide && (
+          <span data-facet="side" className="inline-flex rounded-md">
+            <Segment options={SIDES} value={filters.side} onChange={(v) => set('side', v)} />
+          </span>
+        )}
 
         {showRange && (
           <>
             <Rule />
 
             {/* GROUP 3 — range. Gold here is the SELECTED window: active state. */}
-            <span className={`inline-flex rounded-md ${RING}`}>
-              <Segment options={QUICK} value={quick} onChange={pickQuick} />
+            <span className="inline-flex rounded-md">
+              {/* Typed on the SELECTION so the sentinel can be rendered; the
+                  options are still the five keys, so the handler narrows back
+                  to a QuickKey by a real guard rather than a cast. 'custom'
+                  can never arrive here: it is not among the options. */}
+              <Segment<QuickSelection>
+                options={QUICK}
+                value={quick}
+                onChange={(v) => {
+                  if (v !== 'custom') pickQuick(v)
+                }}
+              />
             </span>
           </>
         )}
@@ -400,19 +443,25 @@ export default function AnalyticsFilterBar({
 
             {showRange && (
               <div className="flex items-center gap-1">
+                {/* A hand-picked window is not one of the five keys, so the
+                    host is told the strip no longer describes it (beat 302).
+                    Both fields report; clearing a field is still a custom
+                    state, not a return to a key. */}
                 <DateField
                   label="From"
                   value={filters.range?.from ?? ''}
-                  onChange={(v) =>
+                  onChange={(v) => {
+                    onQuickChange?.('custom')
                     set('range', v ? { from: v, to: filters.range?.to ?? v } : null)
-                  }
+                  }}
                 />
                 <DateField
                   label="To"
                   value={filters.range?.to ?? ''}
-                  onChange={(v) =>
+                  onChange={(v) => {
+                    onQuickChange?.('custom')
                     set('range', v ? { from: filters.range?.from ?? v, to: v } : null)
-                  }
+                  }}
                 />
               </div>
             )}

@@ -14,7 +14,7 @@
 // null string is the formatters' own and this beat's files carry no em dash
 // byte anywhere (the wording law), so the expectation imports
 // formatProfitFactor and compares against formatProfitFactor(null).
-import { render, cleanup, screen } from '@testing-library/react'
+import { render, cleanup, screen, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeTrade } from '@/test/fixtures/trade'
 import { formatProfitFactor, money } from '@/lib/format'
@@ -414,5 +414,206 @@ describe('LS9 beat-290 rulings', () => {
     expect(cell('avgWinner-short')).toBe(nullCell)
     const heroNet = document.querySelector('[data-hero="short"] [data-hero-net]')
     expect(heroNet!.textContent, 'the empty hero net renders $0.00').toBe(nullCell)
+  })
+})
+
+// --- Beat 298: the tab takes the shared filter bar ---------------------------
+
+/** A book whose rows carry a playbook, so a real facet can narrow it. */
+function playbookBook(): TradeListRow[] {
+  const rows: TradeListRow[] = []
+  const push = (kind: 'long' | 'short', pnl: number, pb: string | null, i: number) =>
+    rows.push(makeTrade({
+      id: nextId++, side: kind, net_pnl: pnl, is_open: false,
+      playbook_name: pb,
+      date: '2026-07-' + String((i % 20) + 1).padStart(2, '0'),
+    }))
+  // 9 long: 5 on Bull Flag (three winners, two losers), 4 elsewhere.
+  for (let i = 0; i < 3; i++) push('long', 40, 'Bull Flag', i)
+  for (let i = 0; i < 2; i++) push('long', -15, 'Bull Flag', i + 3)
+  for (let i = 0; i < 4; i++) push('long', 7, 'Other', i + 5)
+  // 4 short: 2 on Bull Flag, 2 elsewhere.
+  for (let i = 0; i < 2; i++) push('short', 12, 'Bull Flag', i)
+  for (let i = 0; i < 2; i++) push('short', -9, 'Other', i + 2)
+  return rows
+}
+
+/** Drive the bar's playbook facet through the bar's OWN idiom, the one
+ *  AnalyticsFilterBar.multiselect.test.tsx:48-54 uses: the facet lives behind
+ *  the "More filters" expander, so open that, open the facet, pick the option. */
+function pickPlaybook(name: string) {
+  fireEvent.click(screen.getByRole('button', { name: /more filters/i }))
+  fireEvent.click(screen.getByRole('button', { name: /^playbook/i }))
+  fireEvent.click(screen.getByRole('button', { name }))
+}
+
+describe('LS10 beat-298: the filter bar', () => {
+  it('G33 ONE pass: the long column equals the engine on the same filters', async () => {
+    const rows = playbookBook()
+    render(<LongShortTab trades={rows} />)
+    pickPlaybook('Bull Flag')
+    const { computeOverviewSnapshot } = await import('@/core/performance/overviewSnapshot')
+    const { emptyFilters } = await import('@/core/performance/filters')
+    // Recomputed HERE, from the same rows, in ONE engine call.
+    const expected = computeOverviewSnapshot(rows, {
+      ...emptyFilters(), playbooks: ['Bull Flag'], side: 'long',
+    }).metrics.netPnL
+    expect(document.querySelector('[data-cell="netPnL-long"]')!.textContent).toContain(money(expected))
+  })
+
+  it('G34 the SIDE facet is hidden on this tab, and shown on a control bar', async () => {
+    render(<LongShortTab trades={playbookBook()} />)
+    const inTab = document.querySelectorAll('[data-facet="side"]').length
+    expect(inTab, 'the side facet is still rendered on the tab').toBe(0)
+    cleanup()
+    const { default: AnalyticsFilterBar } = await import('@/components/analytics/AnalyticsFilterBar')
+    const { emptyFilters } = await import('@/core/performance/filters')
+    render(
+      <AnalyticsFilterBar
+        trades={playbookBook()}
+        filters={emptyFilters()}
+        onFiltersChange={() => {}}
+      />,
+    )
+    const onControl = document.querySelectorAll('[data-facet="side"]').length
+    expect(onControl, 'the CONTROL bar does not show a side facet either').toBeGreaterThan(0)
+  })
+
+  it('G35 the scope line appears only when a filter is active', () => {
+    render(<LongShortTab trades={playbookBook()} />)
+    const card = () => document.querySelector('[data-direction-card]')!.textContent ?? ''
+    expect(card(), 'the scope line shows on an unfiltered book').not.toContain('not the whole book')
+    pickPlaybook('Bull Flag')
+    expect(card(), 'no scope line under an active filter').toContain('not the whole book')
+    expect(card()).toContain('7')
+  })
+
+  it('G36 the earned read follows the filter', () => {
+    // 40 long + 40 short unfiltered reads preliminary; Bull Flag leaves
+    // 40 long and 12 short, which falls back under the floor.
+    const rows: TradeListRow[] = []
+    for (let i = 0; i < 40; i++) {
+      rows.push(makeTrade({ id: nextId++, side: 'long', net_pnl: i % 2 ? 8 : -4, is_open: false, playbook_name: 'Bull Flag', date: '2026-07-' + String((i % 20) + 1).padStart(2, '0') }))
+    }
+    for (let i = 0; i < 12; i++) {
+      rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: i % 2 ? 9 : -5, is_open: false, playbook_name: 'Bull Flag', date: '2026-07-' + String((i % 20) + 1).padStart(2, '0') }))
+    }
+    for (let i = 0; i < 28; i++) {
+      rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: i % 2 ? 9 : -5, is_open: false, playbook_name: 'Other', date: '2026-07-' + String((i % 20) + 1).padStart(2, '0') }))
+    }
+    render(<LongShortTab trades={rows} />)
+    const card = () => document.querySelector('[data-direction-card]')!.textContent ?? ''
+    expect(card(), 'the unfiltered book should be preliminary').toContain(DirectionWording.tierPreliminary)
+    pickPlaybook('Bull Flag')
+    expect(card(), 'the filtered read did not fall back').toContain(DirectionWording.tierInsufficient)
+    expect(card()).toContain('12 of 30')
+  })
+})
+
+// --- Beat 300: the date strip tells the truth about itself -------------------
+
+/** Rows spread across months, dated RELATIVE TO NOW so the guard does not
+ *  depend on the wall clock: rangeForQuickKey computes its windows from
+ *  new Date(), so a fixed fixture date would drift into and out of range. */
+function spreadBook(): TradeListRow[] {
+  const iso = (daysAgo: number) => {
+    const d = new Date()
+    d.setDate(d.getDate() - daysAgo)
+    return d.toISOString().slice(0, 10)
+  }
+  const rows: TradeListRow[] = []
+  const at = (daysAgo: number, side: 'long' | 'short', pnl: number) =>
+    rows.push(makeTrade({ id: nextId++, side, net_pnl: pnl, is_open: false, date: iso(daysAgo) }))
+  // inside 7d
+  at(1, 'long', 20); at(2, 'short', -8); at(5, 'long', 11)
+  // inside 30d, outside 7d
+  at(12, 'long', -6); at(25, 'short', 14)
+  // inside 90d, outside 30d
+  at(45, 'long', 9); at(80, 'short', -5)
+  // outside 90d but inside the year so far, and one far older
+  at(200, 'long', 30); at(400, 'short', 7)
+  return rows
+}
+
+/** The key the Segment is styling as selected, by Segment.tsx:23-27's own
+ *  active classes. Scoped by p-0.5 so the bar's FIELD skeleton cannot match. */
+function litKey(): string | null {
+  const roots = [...document.querySelectorAll('div.inline-flex.h-8.items-center.p-0\\.5')]
+  for (const root of roots) {
+    const keys = [...root.querySelectorAll('button')]
+    if (!keys.some((k) => /^(7D|30D|90D|YTD|ALL)$/.test(k.textContent ?? ''))) continue
+    const lit = keys.filter((k) => k.className.includes('text-gold'))
+    return lit.length === 1 ? (lit[0].textContent ?? null) : null
+  }
+  return null
+}
+
+const clickKey = (label: string) =>
+  fireEvent.click(screen.getByRole('button', { name: label }))
+
+describe('LS11 beat-300: the quick range strip', () => {
+  it('G40 the clicked key is the lit key', () => {
+    render(<LongShortTab trades={spreadBook()} />)
+    expect(litKey(), 'the strip does not open on ALL').toBe('ALL')
+    for (const key of ['7D', '30D', '90D', 'YTD']) {
+      clickKey(key)
+      expect(litKey(), 'clicked ' + key + ' and the strip lit something else').toBe(key)
+    }
+    clickKey('ALL')
+    expect(litKey()).toBe('ALL')
+  })
+
+  it('G41 the lit key and the applied window are the same fact', async () => {
+    const rows = spreadBook()
+    render(<LongShortTab trades={rows} />)
+    const { rangeForQuickKey } = await import('@/components/analytics/AnalyticsFilterBar')
+    for (const key of ['7D', '30D', '90D']) {
+      clickKey(key)
+      const range = rangeForQuickKey(key.toLowerCase() as never)!
+      // Recomputed HERE from the fixture, not read back from the component.
+      const expected = rows.filter((t) => t.date >= range.from && t.date <= range.to).length
+      expect(litKey()).toBe(key)
+      const bar = document.body.textContent ?? ''
+      expect(bar, key + ' lit but the count line disagrees').toContain(
+        expected + ' of ' + rows.length + ' round trips',
+      )
+    }
+  })
+
+  it('G42 PIN: the scope line is gated on NARROWING, not on having a filter', () => {
+    render(<LongShortTab trades={spreadBook()} />)
+    const card = () => document.querySelector('[data-direction-card]')!.textContent ?? ''
+    clickKey('7D')
+    expect(card(), 'a narrowing key showed no scope line').toContain('not the whole book')
+    clickKey('ALL')
+    expect(card(), 'a key that selects every row still claimed a narrowed book').not.toContain(
+      'not the whole book',
+    )
+  })
+})
+
+describe('LS12 beat-302: a custom window clears the strip', () => {
+  it('G50 setting a From date darkens the strip, moves the counts, scopes the card', () => {
+    const rows = spreadBook()
+    render(<LongShortTab trades={rows} />)
+    clickKey('90D')
+    expect(litKey(), 'the fixture click did not take').toBe('90D')
+    const before = document.body.textContent ?? ''
+
+    // A custom window through More filters: narrower than 90 days, so the
+    // counts must move and no key can honestly describe it.
+    fireEvent.click(screen.getByRole('button', { name: /more filters/i }))
+    const iso = (daysAgo: number) => {
+      const d = new Date()
+      d.setDate(d.getDate() - daysAgo)
+      return d.toISOString().slice(0, 10)
+    }
+    fireEvent.change(screen.getByLabelText(/^from$/i), { target: { value: iso(3) } })
+
+    expect(litKey(), 'a key stayed lit for a window it did not produce').toBe(null)
+    const after = document.body.textContent ?? ''
+    expect(after, 'the counts did not move').not.toBe(before)
+    const card = document.querySelector('[data-direction-card]')!.textContent ?? ''
+    expect(card, 'no scope line under a custom window').toContain('not the whole book')
   })
 })

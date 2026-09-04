@@ -64,6 +64,9 @@ export interface DirectionWordingShape {
   leadersHidden: string
   /** The 95% band line on an earned card. {lLo} {lHi} {sLo} {sHi}. */
   bandLine: string
+  /** Shown on the card when a filter narrows the book. {n} = the filtered
+   *  trade count, so a slice can never read as the whole book. */
+  filterScope: string
   /** The metric grid's row labels, keyed by row id. */
   rowLabels: Record<string, string>
 }
@@ -102,6 +105,7 @@ export const DirectionWording: DirectionWordingShape = {
   progressCleared: '{n} trades, floor cleared',
   leadersHidden: 'Leaders hidden while a side has fewer than {n} trades.',
   bandLine: 'Expectancy per trade, 95% range: long {lLo} to {lHi}, short {sLo} to {sHi}.',
+  filterScope: 'These counts are for the {n} trades this filter selects, not the whole book.',
   rowLabels: {
     netPnL: 'Total P&L',
     trades: 'Trades',

@@ -18,7 +18,7 @@ import {
   emptyFilters,
   type OverviewFilters,
 } from '@/core/performance'
-import AnalyticsFilterBar, { rangeForQuickKey, type QuickKey } from '../AnalyticsFilterBar'
+import AnalyticsFilterBar, { rangeForQuickKey, type QuickSelection } from '../AnalyticsFilterBar'
 
 const TRADES: TradeListRow[] = [
   makeTrade({ id: 1, mistakes: ['FOMO'], playbook_name: 'Gap & Go', catalyst_type: 'Earnings' }),
@@ -33,7 +33,7 @@ function Host({ trades }: { trades: TradeListRow[] }) {
     ...emptyFilters(),
     range: rangeForQuickKey('7d'),
   }))
-  const [quick, setQuick] = useState<QuickKey>('7d')
+  const [quick, setQuick] = useState<QuickSelection>('7d')
   return (
     <AnalyticsFilterBar
       trades={trades}
