@@ -67,6 +67,16 @@ export interface DirectionWordingShape {
   /** Shown on the card when a filter narrows the book. {n} = the filtered
    *  trade count, so a slice can never read as the whole book. */
   filterScope: string
+  /** Shown while the float facet is active (beat 306). {k} of {n} carry a
+   *  float at all; the rest cannot be banded and are excluded. Mirrors the
+   *  excursion coverage line's shape.
+   *
+   *  IT NAMES THE BOOK (beat 307). Both counts are whole-book figures, and
+   *  the scope line directly above it counts the FILTERED set, so an
+   *  unqualified "of N trades" invited the two denominators to be read as
+   *  one. A per-filter version would need a second pass and is a ledger
+   *  item, not a silent change of meaning. */
+  floatCoverage: string
   /** The metric grid's row labels, keyed by row id. */
   rowLabels: Record<string, string>
 }
@@ -106,6 +116,8 @@ export const DirectionWording: DirectionWordingShape = {
   leadersHidden: 'Leaders hidden while a side has fewer than {n} trades.',
   bandLine: 'Expectancy per trade, 95% range: long {lLo} to {lHi}, short {sLo} to {sHi}.',
   filterScope: 'These counts are for the {n} trades this filter selects, not the whole book.',
+  floatCoverage:
+    'Float is known for {k} of the {n} trades in this book. Trades without it cannot be banded and are left out.',
   rowLabels: {
     netPnL: 'Total P&L',
     trades: 'Trades',

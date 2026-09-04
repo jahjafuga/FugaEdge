@@ -10,7 +10,6 @@ import {
   percent,
   duration,
   int,
-  signed,
 } from '@/lib/format'
 import type { SideStats } from '@/core/performance/direction'
 import { DirectionWording as W, fillDirection } from '@shared/direction-wording'
@@ -26,11 +25,32 @@ import type { TradeListRow } from '@shared/trades-types'
 //   pct      :1071  lives on the winRate row since beat 284     -- mirrored
 // Compare has NO arm for R multiples, so expectancyR takes the ruled
 // fallback: '+' or '-', then the row's own base format on the magnitude.
-export const deltaMoney = (v: number) => signed(v)
-export const deltaInt = (v: number) => `${v >= 0 ? '+' : ''}${Math.round(v)}`
-export const deltaRatio = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`
-export const deltaDuration = (v: number) => `${v >= 0 ? '+' : '-'}${duration(Math.abs(v))}`
-export const deltaR = (v: number) => `${v >= 0 ? '+' : '-'}${Math.abs(v).toFixed(2)}R`
+/** THE SIGN RULE, once, for every arm (beat 307).
+ *
+ *  A delta is formatted from its MAGNITUDE and then signed. When the
+ *  magnitude formats to the same string as zero, the value is zero AS FAR AS
+ *  THIS CELL CAN SHOW, and a sign on it is a claim the display cannot back:
+ *  "-$0.00" tells a trader the short side is ahead by an amount the same cell
+ *  says is nothing. Four tenths of a cent is not a direction.
+ *
+ *  THIS DIVERGES FROM COMPARE ON PURPOSE. CompareView's private fmtDelta
+ *  (:1061-1083) signs by the raw value, so it prints "-$0.00" and "+0.00" for
+ *  the same inputs; only its perShare arm (:1068-1070) has the collapse, via
+ *  perShareGainLossIsZero. The divergence is deliberate and is the reason
+ *  this helper exists rather than another mirrored expression. Compare is not
+ *  edited here; its copy of the defect is on the ledger. */
+const signedDelta = (v: number, magnitude: (abs: number) => string): string => {
+  const body = magnitude(Math.abs(v))
+  if (body === magnitude(0)) return body
+  return `${v > 0 ? '+' : '-'}${body}`
+}
+
+export const deltaMoney = (v: number) => signedDelta(v, money)
+export const deltaInt = (v: number) => signedDelta(v, (a) => String(Math.round(a)))
+export const deltaRatio = (v: number) => signedDelta(v, (a) => a.toFixed(2))
+export const deltaDuration = (v: number) => signedDelta(v, duration)
+export const deltaR = (v: number) => signedDelta(v, (a) => `${a.toFixed(2)}R`)
+export const deltaPct = (v: number) => signedDelta(v, (a) => `${(a * 100).toFixed(1)}%`)
 
 export interface MetricRow {
   key: string
@@ -79,11 +99,10 @@ export const ROWS: MetricRow[] = [
     key: 'winRate',
     value: (s) => s.snapshot.metrics.winRate,
     fmt: (v) => percent(v),
-    // The delta formats as Compare's win-rate delta does (CompareView.tsx:835
-    // kind="pct"; its private fmtDelta arm at :1071) -- signed, x100, one
-    // decimal. The formatter is module-private there, so the expression is
-    // mirrored byte for byte rather than imported.
-    deltaFmt: (v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`,
+    // Compare's win-rate delta shape (CompareView.tsx:835 kind="pct", its
+    // private arm at :1071): x100, one decimal, signed -- now through the
+    // shared sign rule above, so a zero-magnitude difference loses its sign.
+    deltaFmt: deltaPct,
   },
   {
     // The design partner's payoff read (beat 289): avg winner over |avg
@@ -107,6 +126,10 @@ export const ROWS: MetricRow[] = [
     value: (s) => s.snapshot.metrics.expectancyR,
     fmt: (v) => `${v.toFixed(2)}R`,
     deltaFmt: deltaR,
+    // EARNED (beat 307), like the three ratios above it. A mean R over a
+    // handful of trades is exactly the statistic a thin sample cannot
+    // support, and it was the only earned-shaped row without the flag.
+    earned: true,
     sub: (s) => `of ${int(s.snapshot.metrics.rCoverage)} trades with R`,
   },
   { key: 'avgWinner', value: (s) => s.snapshot.metrics.avgWinner, fmt: money, deltaFmt: deltaMoney },

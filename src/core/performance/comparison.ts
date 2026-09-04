@@ -355,7 +355,7 @@ function mostMovedPlaybook(
 // single-period (Analytics) and per-period (Compare) price breakdowns agree on
 // which bucket a trade lands in. Replicated, not shared, because get.ts is
 // main-process; a future extract-to-a-shared-pure-module would DRY the two.
-const PRICE_BUCKETS: { key: string; min: number; max: number }[] = [
+export const PRICE_BUCKETS: { key: string; min: number; max: number }[] = [
   { key: '< $2', min: 0, max: 2 },
   { key: '$2–5', min: 2, max: 5 },
   { key: '$5–10', min: 5, max: 10 },
@@ -369,12 +369,12 @@ const PRICE_ORDER: Record<string, number> = Object.fromEntries(
 
 // Entry price = the avg of the side opened on (buy for longs, sell for shorts),
 // with a fallback — mirrors get.ts entryPrice.
-function entryPrice(t: TradeListRow): number {
+export function entryPrice(t: TradeListRow): number {
   if (t.side === 'short') return t.avg_sell_price || t.avg_buy_price
   return t.avg_buy_price || t.avg_sell_price
 }
 
-function priceBucketLabel(price: number): string | null {
+export function priceBucketLabel(price: number): string | null {
   for (const b of PRICE_BUCKETS) {
     if (price >= b.min && price < b.max) return b.key
   }

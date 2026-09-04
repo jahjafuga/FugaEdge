@@ -28,6 +28,16 @@ export interface OverviewFilters {
   mistakes: string[]
   side: SideFilter
   duration: DurationBucket
+  /** Multi-select over the five Eastern time buckets (beat 306). Empty = any,
+   *  exactly as playbooks behaves. Keys, not labels: the bucket meta owns
+   *  both and the key is the stable one. */
+  timeOfDay: string[]
+  /** Multi-select over the six entry-price bands. Empty = any. */
+  priceBands: string[]
+  /** Multi-select over the four measurable float bands. Empty = any. A row
+   *  with no float is EXCLUDED while this facet is active, never guessed
+   *  into a band; the coverage line names how many rows carry float. */
+  floatBands: string[]
   /** Inclusive date window. Null = no date constraint. */
   range: DateRange | null
 }

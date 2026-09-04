@@ -18,7 +18,15 @@ import { render, cleanup, screen, fireEvent } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { makeTrade } from '@/test/fixtures/trade'
 import { formatProfitFactor, money } from '@/lib/format'
-import { DirectionWording } from '@shared/direction-wording'
+import { DirectionWording, fillDirection } from '@shared/direction-wording'
+import {
+  deltaMoney,
+  deltaInt,
+  deltaRatio,
+  deltaDuration,
+  deltaR,
+  deltaPct,
+} from '@/components/analytics/tabs/longShortRows'
 import type { TradeListRow } from '@shared/trades-types'
 
 const chartProps: unknown[] = []
@@ -258,6 +266,11 @@ function earnedBook(): TradeListRow[] {
   return rows
 }
 
+/** Every arm's zero rendering, from the arms themselves. */
+const ZERO_FORMS = new Set([
+  deltaMoney(0), deltaInt(0), deltaRatio(0), deltaDuration(0), deltaR(0), deltaPct(0),
+])
+
 describe('LS7 beat-288 rulings', () => {
   it('G18 the leader is a gold value, not a dot', () => {
     render(<LongShortTab trades={earnedBook()} />)
@@ -291,11 +304,14 @@ describe('LS7 beat-288 rulings', () => {
     for (const el of cells) {
       const text = (el.textContent ?? '').trim()
       if (text === nullCell) continue
-      // THE ONE RULED EXCEPTION: a zero MONEY delta renders unsigned, because
-      // the mirrored arm itself does (CompareView.tsx:1064 signed() prefixes
-      // only n > 0, so an equal pair reads plain money(0)). The pct, int and
-      // ratio arms sign their zeros and are held to it below.
-      if (text === money(0)) continue
+      // REWRITTEN IN BEAT 307 (R202). This once carried a money-only
+      // exception, because only that arm collapsed its zero. The sign rule is
+      // now general: EVERY arm formats its magnitude and drops the sign when
+      // that magnitude reads as zero. So the exception is the set of zero
+      // renderings, built from the arms themselves rather than listed.
+      // What this still guards is unchanged and is the whole point: a delta
+      // with a REAL magnitude must say which way it points.
+      if (ZERO_FORMS.has(text)) continue
       expect(
         text.startsWith('+') || text.startsWith('-'),
         `unsigned delta in ${el.getAttribute('data-cell')}: "${text}"`,
@@ -615,5 +631,69 @@ describe('LS12 beat-302: a custom window clears the strip', () => {
     expect(after, 'the counts did not move').not.toBe(before)
     const card = document.querySelector('[data-direction-card]')!.textContent ?? ''
     expect(card, 'no scope line under a custom window').toContain('not the whole book')
+  })
+})
+
+// --- Beat 307: three honesty fixes ------------------------------------------
+
+describe('LS13 beat-307', () => {
+  it('G57 Expectancy (R) is EARNED and withheld on a thin side', () => {
+    // Both sides carry r_multiple, so the only reason to withhold is the
+    // sample: 4 shorts is under the low-sample floor.
+    const rows: TradeListRow[] = []
+    for (let i = 0; i < 9; i++) {
+      rows.push(makeTrade({ id: nextId++, side: 'long', net_pnl: i % 2 ? 8 : -4, is_open: false, r_multiple: 1.5, date: '2026-07-15' }))
+    }
+    for (let i = 0; i < 4; i++) {
+      rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: i % 2 ? 9 : -3, is_open: false, r_multiple: 2.5, date: '2026-07-15' }))
+    }
+    render(<LongShortTab trades={rows} />)
+    const nullCell = formatProfitFactor(null)
+    const long = document.querySelector('[data-cell="expectancyR-long"]')!.textContent ?? ''
+    const short = document.querySelector('[data-cell="expectancyR-short"]')!.textContent ?? ''
+    expect(long, 'the earned side lost its R expectancy').toContain('R')
+    expect(short.startsWith(nullCell), 'the thin side still reports an R expectancy: ' + short).toBe(true)
+    expect(document.querySelector('[data-cell="expectancyR-delta"]')!.textContent).toBe(nullCell)
+  })
+
+  it('G58 a delta whose magnitude rounds to zero carries no sign', () => {
+    // Six a side, so nothing is withheld. The short is built a hair above the
+    // long on the money and ratio arms, and dead level on the pct and int
+    // arms, so four different arms are exercised by one fixture.
+    const rows: TradeListRow[] = []
+    for (let i = 0; i < 3; i++) rows.push(makeTrade({ id: nextId++, side: 'long', net_pnl: 10, is_open: false, mfe: 1, date: '2026-07-15' }))
+    for (let i = 0; i < 3; i++) rows.push(makeTrade({ id: nextId++, side: 'long', net_pnl: -5, is_open: false, mfe: 1, date: '2026-07-15' }))
+    for (let i = 0; i < 3; i++) rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: 10.02, is_open: false, mfe: 1.004, date: '2026-07-15' }))
+    for (let i = 0; i < 3; i++) rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: -5, is_open: false, mfe: 1.004, date: '2026-07-15' }))
+    render(<LongShortTab trades={rows} />)
+
+    const cell = (k: string) => document.querySelector(`[data-cell="${k}-delta"]`)!.textContent ?? ''
+    // money: 1.000 vs 1.004 is four tenths of a cent, which prints as zero.
+    expect(cell('avgMfe'), 'the money arm signed a zero').toBe(money(0))
+    // ratio: 2.000 vs 2.004 likewise.
+    expect(cell('plRatio'), 'the ratio arm signed a zero').toBe('0.00')
+    // pct and int: dead level, so exactly zero.
+    expect(cell('winRate'), 'the pct arm signed a zero').toBe('0.0%')
+    expect(cell('trades'), 'the int arm signed a zero').toBe('0')
+    // AND THE SIGNS STILL WORK where the magnitude is real.
+    expect(cell('netPnL').startsWith('+') || cell('netPnL').startsWith('-')).toBe(true)
+  })
+
+  it('G59 the float coverage line names the BOOK as its denominator', () => {
+    const rows: TradeListRow[] = []
+    for (let i = 0; i < 6; i++) rows.push(makeTrade({ id: nextId++, side: 'long', net_pnl: 8, is_open: false, float_shares: 500_000, date: '2026-07-15' }))
+    for (let i = 0; i < 6; i++) rows.push(makeTrade({ id: nextId++, side: 'short', net_pnl: -3, is_open: false, float_shares: null, date: '2026-07-15' }))
+    render(<LongShortTab trades={rows} />)
+    fireEvent.click(screen.getByRole('button', { name: /more filters/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^float/i }))
+    fireEvent.click(screen.getByRole('button', { name: /Nano/i }))
+
+    const line = document.querySelector('[data-float-coverage]')
+    expect(line, 'no coverage line while the float facet is active').toBeTruthy()
+    const text = line!.textContent ?? ''
+    expect(text, 'the coverage line does not name the book').toContain('book')
+    expect(text).toBe(
+      fillDirection(DirectionWording.floatCoverage, { k: 6, n: 12 }),
+    )
   })
 })

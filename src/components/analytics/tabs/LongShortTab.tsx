@@ -40,6 +40,7 @@ import {
   fillDirection,
 } from '@shared/direction-wording'
 import { emptyFilters } from '@/core/performance/filters'
+import { floatCoverage } from '@/core/performance/bandFacets'
 import { overviewCountLine } from '@/core/performance/overviewScopeLabel'
 import type { OverviewFilters } from '@/core/performance/types'
 import { useState } from 'react'
@@ -83,6 +84,12 @@ export default function LongShortTab({ trades }: LongShortTabProps) {
   const d = useMemo(() => computeDirectionComparison(closed, filters), [closed, filters])
   const shown = d.long.n + d.short.n
   const filtered = shown !== closed.length
+  // FLOAT COVERAGE, on the excursion rows' idiom (W.excursionCoverage, "of N
+  // trades with excursion data"): while the float facet is active the rows
+  // without a float are excluded, so the count that CAN be banded is stated
+  // rather than left to look like the whole book.
+  const floatActive = filters.floatBands.length > 0
+  const floatCovered = floatActive ? floatCoverage(closed) : 0
 
   const tierLabel =
     d.read.tier === 'insufficient'
@@ -146,6 +153,11 @@ export default function LongShortTab({ trades }: LongShortTabProps) {
           {filtered && (
             <p className="mt-2 text-xs text-fg-muted" data-filter-scope>
               {fillDirection(W.filterScope, { n: shown })}
+            </p>
+          )}
+          {floatActive && (
+            <p className="mt-1 text-xs text-fg-muted" data-float-coverage>
+              {fillDirection(W.floatCoverage, { k: floatCovered, n: closed.length })}
             </p>
           )}
           <p className="mt-3 text-sm leading-relaxed text-fg-secondary">

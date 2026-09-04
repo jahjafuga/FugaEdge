@@ -16,6 +16,12 @@ import {
   type SideFilter,
 } from '@/core/performance'
 import MultiSelectMenu from '@/components/ui/MultiSelectMenu'
+// The band vocabularies, re-exported from where they already live (beat 306).
+import {
+  TIME_OF_DAY_FACET_BUCKETS,
+  PRICE_FACET_BUCKETS,
+  FLOAT_FACET_LABELS,
+} from '@/core/performance/bandFacets'
 import { isNarrowedBeyondRange } from '@/core/performance/overviewScopeLabel'
 import Segment from '@/components/ui/Segment'
 
@@ -439,6 +445,35 @@ export default function AnalyticsFilterBar({
               options={mistakeOptions}
               selected={filters.mistakes}
               onChange={(next) => set('mistakes', next)}
+            />
+            {/* The three band facets (beat 306). Their options come from the
+                BAND DEFINITIONS rather than from the data, so a band nobody
+                traded is still offered and answers with zero, which is a
+                different fact from not being asked. */}
+            <MultiSelectMenu
+              label="Time"
+              options={TIME_OF_DAY_FACET_BUCKETS.map((b) => b.label)}
+              selected={filters.timeOfDay.map(
+                (k) => TIME_OF_DAY_FACET_BUCKETS.find((b) => b.key === k)?.label ?? k,
+              )}
+              onChange={(next) =>
+                set(
+                  'timeOfDay',
+                  next.map((l) => TIME_OF_DAY_FACET_BUCKETS.find((b) => b.label === l)?.key ?? l),
+                )
+              }
+            />
+            <MultiSelectMenu
+              label="Price"
+              options={PRICE_FACET_BUCKETS.map((b) => b.key)}
+              selected={filters.priceBands}
+              onChange={(next) => set('priceBands', next)}
+            />
+            <MultiSelectMenu
+              label="Float"
+              options={[...FLOAT_FACET_LABELS]}
+              selected={filters.floatBands}
+              onChange={(next) => set('floatBands', next)}
             />
 
             {showRange && (

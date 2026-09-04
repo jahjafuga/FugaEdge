@@ -4,6 +4,9 @@
 
 import type { TradeListRow } from '@shared/trades-types'
 import type { DurationBucket, OverviewFilters } from './types'
+// The bands are IMPORTED, never restated: one re-export module over the three
+// places they already live (beat 306).
+import { timeOfDayKeyOf, priceBandOf, floatBandOf } from './bandFacets'
 
 function durationSeconds(t: TradeListRow): number | null {
   if (!t.close_time || t.is_open) return null
@@ -32,6 +35,9 @@ export function emptyFilters(): OverviewFilters {
     mistakes: [],
     side: 'all',
     duration: 'all',
+    timeOfDay: [],
+    priceBands: [],
+    floatBands: [],
     range: null,
   }
 }
@@ -44,6 +50,11 @@ export function applyFilters(
   const playbookSet = new Set(filters.playbooks.map((p) => p.toLowerCase()))
   const catalystSet = new Set(filters.catalysts.map((c) => c.toLowerCase()))
   const mistakeSet = new Set(filters.mistakes.map((m) => m.toLowerCase()))
+  // The band facets are exact-match sets on keys and labels the shared bucket
+  // modules produce, so no case folding: these are not user-typed strings.
+  const todSet = new Set(filters.timeOfDay)
+  const priceSet = new Set(filters.priceBands)
+  const floatSet = new Set(filters.floatBands)
 
   return trades.filter((t) => {
     if (sym && !t.symbol.toUpperCase().includes(sym)) return false
@@ -63,6 +74,21 @@ export function applyFilters(
     if (mistakeSet.size > 0) {
       const hits = t.mistakes.some((m) => mistakeSet.has(m.toLowerCase()))
       if (!hits) return false
+    }
+    // The three band arms, mirroring the playbooks arm above: inactive while
+    // empty, and a row the bucketer cannot place is dropped rather than
+    // guessed into a band.
+    if (todSet.size > 0) {
+      const key = timeOfDayKeyOf(t)
+      if (key == null || !todSet.has(key)) return false
+    }
+    if (priceSet.size > 0) {
+      const band = priceBandOf(t)
+      if (band == null || !priceSet.has(band)) return false
+    }
+    if (floatSet.size > 0) {
+      const band = floatBandOf(t)
+      if (band == null || !floatSet.has(band)) return false
     }
     return true
   })
