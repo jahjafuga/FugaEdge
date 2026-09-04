@@ -1029,7 +1029,12 @@ const insertAll = db.transaction(() => {
     const playbookId = pick(side === "long" ? playbookLong : playbookShort, rTrade);
     const confidence = 1 + Math.floor(rTrade() * 5);
     const plannedRisk = Math.round(between(rTrade, 30, 120));
-    const maeFactor = between(rTrade, 0.3, 1.4);
+    // The loser floor is 1.0 (beat 295): a losing trade's peak ADVERSE
+    // excursion cannot be smaller than the loss it actually realised, and
+    // 38 of 56 losers were (beat 294's recount). Winners keep the 0.3
+    // floor, where an MAE under the move is honest. mfeFactor already
+    // floors at 1.0, which is why MFE never violated.
+    const maeFactor = between(rTrade, tp.pnl < 0 ? 1.0 : 0.3, 1.4);
     const mfeFactor = between(rTrade, 1.0, 2.6);
 
     // Fills: 1-2 entries, 1-3 exits (momentum partials).
@@ -1172,7 +1177,7 @@ const insertAll = db.transaction(() => {
       daily_change_pct: tagged ? td.changePct : (rTag() < 0.5 ? td.changePct : null),
       rvol: tagged ? td.rvol : null,
       catalyst_type: tagged || rTag() < 0.5 ? td.catalyst : null,
-      mae: rnd2(-Math.abs(perShare) * maeFactor),
+      mae: rnd2(Math.abs(perShare) * maeFactor),
       mfe: rnd2(Math.abs(perShare) * mfeFactor),
       account_name: ACCOUNT_NAME,
       executions_json: "[]",
@@ -1352,7 +1357,7 @@ const insertAll = db.transaction(() => {
       daily_change_pct: td.changePct,
       rvol: td.rvol,
       catalyst_type: td.catalyst,
-      mae: -0.15,
+      mae: 0.15,
       mfe: 0.27,
       account_name: ACCOUNT_NAME,
       executions_json: JSON.stringify(wire),
@@ -1464,7 +1469,7 @@ const insertAll = db.transaction(() => {
       confidence: 5, planned_risk: 120, float_shares: TICKERS[sSym].float,
       daily_change_pct: Math.round((SHAPE.topPrice / SHAPE.basePrice - 1) * 100),
       rvol: 31.4, catalyst_type: "Short squeeze continuation, day 2",
-      mae: -0.09, mfe: rnd2((shaped.bars[x2].h - entryC / 100) * 1.05),
+      mae: 0.09, mfe: rnd2((shaped.bars[x2].h - entryC / 100) * 1.05),
       account_name: ACCOUNT_NAME, executions_json: JSON.stringify(sWire),
       gross_pnl_precise: sGrossC / 100, total_fees_precise: sFeesC / 100,
       net_pnl_precise: (sGrossC - sFeesC) / 100,
